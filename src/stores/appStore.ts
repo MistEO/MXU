@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { ProjectInterface, Instance, SelectedTask, OptionValue, TaskItem, OptionDefinition, SavedDeviceInfo } from '@/types/interface';
-import type { MxuConfig, WindowSize } from '@/types/config';
-import { defaultWindowSize } from '@/types/config';
+import type { MxuConfig, WindowSize, UpdateChannel, MirrorChyanSettings } from '@/types/config';
+import { defaultWindowSize, defaultMirrorChyanSettings } from '@/types/config';
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
 
@@ -122,6 +122,29 @@ interface AppState {
   // 窗口大小
   windowSize: WindowSize;
   setWindowSize: (size: WindowSize) => void;
+  
+  // MirrorChyan 更新设置
+  mirrorChyanSettings: MirrorChyanSettings;
+  setMirrorChyanCdk: (cdk: string) => void;
+  setMirrorChyanChannel: (channel: UpdateChannel) => void;
+  
+  // 更新检查状态
+  updateInfo: UpdateInfo | null;
+  updateCheckLoading: boolean;
+  showUpdateDialog: boolean;
+  setUpdateInfo: (info: UpdateInfo | null) => void;
+  setUpdateCheckLoading: (loading: boolean) => void;
+  setShowUpdateDialog: (show: boolean) => void;
+}
+
+// 更新信息类型
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  versionName: string;
+  releaseNote: string;
+  downloadUrl?: string;
+  updateType?: 'incremental' | 'full';
+  channel?: string;
 }
 
 // 生成唯一 ID
@@ -655,6 +678,7 @@ export const useAppStore = create<AppState>()(
           selectedResource,
           nextInstanceNumber: maxNumber + 1,
           windowSize: config.settings.windowSize || defaultWindowSize,
+          mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
         });
         
         document.documentElement.classList.toggle('dark', config.settings.theme === 'dark');
@@ -764,6 +788,23 @@ export const useAppStore = create<AppState>()(
       // 窗口大小
       windowSize: defaultWindowSize,
       setWindowSize: (size) => set({ windowSize: size }),
+      
+      // MirrorChyan 更新设置
+      mirrorChyanSettings: defaultMirrorChyanSettings,
+      setMirrorChyanCdk: (cdk) => set((state) => ({
+        mirrorChyanSettings: { ...state.mirrorChyanSettings, cdk },
+      })),
+      setMirrorChyanChannel: (channel) => set((state) => ({
+        mirrorChyanSettings: { ...state.mirrorChyanSettings, channel },
+      })),
+      
+      // 更新检查状态
+      updateInfo: null,
+      updateCheckLoading: false,
+      showUpdateDialog: false,
+      setUpdateInfo: (info) => set({ updateInfo: info }),
+      setUpdateCheckLoading: (loading) => set({ updateCheckLoading: loading }),
+      setShowUpdateDialog: (show) => set({ showUpdateDialog: show }),
     })
   )
 );
@@ -793,6 +834,7 @@ function generateConfig(): MxuConfig {
       theme: state.theme,
       language: state.language,
       windowSize: state.windowSize,
+      mirrorChyan: state.mirrorChyanSettings,
     },
   };
 }
@@ -819,6 +861,7 @@ useAppStore.subscribe(
     theme: state.theme,
     language: state.language,
     windowSize: state.windowSize,
+    mirrorChyanSettings: state.mirrorChyanSettings,
   }),
   () => {
     debouncedSaveConfig();

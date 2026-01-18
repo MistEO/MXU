@@ -8,6 +8,8 @@
  */
 
 import { loggers } from '@/utils/logger';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 const log = loggers.app;
 
@@ -176,45 +178,127 @@ export function resolveIconPath(
   return resolved;
 }
 
+// 配置 marked，使用 use() API 添加 Tailwind 样式
+marked.use({
+  breaks: true,
+  gfm: true,
+  renderer: {
+    heading({ tokens, depth }) {
+      const text = this.parser.parseInline(tokens);
+      const styles: Record<number, string> = {
+        1: 'text-xl font-bold mt-4 mb-2',
+        2: 'text-lg font-semibold mt-4 mb-2',
+        3: 'text-base font-semibold mt-3 mb-1',
+        4: 'text-sm font-semibold mt-2 mb-1',
+        5: 'text-sm font-medium mt-2 mb-1',
+        6: 'text-xs font-medium mt-2 mb-1',
+      };
+      return `<h${depth} class="${styles[depth] || ''}">${text}</h${depth}>`;
+    },
+
+    paragraph({ tokens }) {
+      const text = this.parser.parseInline(tokens);
+      return `<p class="my-1">${text}</p>`;
+    },
+
+    link({ href, tokens }) {
+      const text = this.parser.parseInline(tokens);
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${text}</a>`;
+    },
+
+    code({ text, lang }) {
+      const escapedCode = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const langClass = lang ? ` language-${lang}` : '';
+      return `<pre class="bg-bg-tertiary rounded p-2 my-2 overflow-x-auto text-sm"><code class="${langClass}">${escapedCode}</code></pre>`;
+    },
+
+    codespan({ text }) {
+      return `<code class="bg-bg-tertiary px-1 rounded text-sm">${text}</code>`;
+    },
+
+    list(token) {
+      const body = token.items.map(item => this.listitem(item)).join('');
+      const tag = token.ordered ? 'ol' : 'ul';
+      const listClass = token.ordered ? 'list-decimal' : 'list-disc';
+      return `<${tag} class="${listClass} list-inside my-1">${body}</${tag}>`;
+    },
+
+    listitem(item) {
+      let text = this.parser.parse(item.tokens);
+      if (item.task) {
+        const checkbox = `<input type="checkbox" disabled ${item.checked ? 'checked' : ''} class="mr-1" />`;
+        text = checkbox + text;
+      }
+      return `<li>${text}</li>`;
+    },
+
+    blockquote({ tokens }) {
+      const text = this.parser.parse(tokens);
+      return `<blockquote class="border-l-4 border-border pl-4 my-2 text-text-secondary italic">${text}</blockquote>`;
+    },
+
+    hr() {
+      return '<hr class="my-4 border-border" />';
+    },
+
+    table(token) {
+      const headerCells = token.header.map((cell, i) => 
+        this.tablecell({ ...cell, align: token.align[i] })
+      ).join('');
+      const header = `<tr class="border-b border-border">${headerCells}</tr>`;
+
+      const bodyRows = token.rows.map(row => {
+        const cells = row.map((cell, i) => 
+          this.tablecell({ ...cell, align: token.align[i] })
+        ).join('');
+        return `<tr class="border-b border-border">${cells}</tr>`;
+      }).join('');
+
+      return `<table class="w-full my-2 border-collapse"><thead>${header}</thead><tbody>${bodyRows}</tbody></table>`;
+    },
+
+    tablecell(token) {
+      const text = this.parser.parseInline(token.tokens);
+      const tag = token.header ? 'th' : 'td';
+      const alignClass = token.align ? ` text-${token.align}` : '';
+      const baseClass = token.header ? 'font-semibold' : '';
+      return `<${tag} class="px-2 py-1${alignClass} ${baseClass}">${text}</${tag}>`;
+    },
+
+    strong({ tokens }) {
+      return `<strong>${this.parser.parseInline(tokens)}</strong>`;
+    },
+
+    em({ tokens }) {
+      return `<em>${this.parser.parseInline(tokens)}</em>`;
+    },
+
+    del({ tokens }) {
+      return `<del>${this.parser.parseInline(tokens)}</del>`;
+    },
+
+    image({ href, title, text }) {
+      const titleAttr = title ? ` title="${title}"` : '';
+      return `<img src="${href}" alt="${text}"${titleAttr} class="max-w-full my-2 rounded" />`;
+    },
+  },
+});
+
 /**
- * 简单的 Markdown 转 HTML（仅支持基础语法）
- * 支持：标题、粗体、斜体、链接、代码块、列表
+ * 将 Markdown 转换为安全的 HTML
+ * 使用 marked 解析 markdown，使用 DOMPurify 清理 HTML 防止 XSS
  */
-export function simpleMarkdownToHtml(markdown: string): string {
-  let html = markdown
-    // 转义 HTML
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // 代码块
-    .replace(/```[\s\S]*?```/g, (match) => {
-      const code = match.slice(3, -3).replace(/^\w*\n/, '');
-      return `<pre class="bg-bg-tertiary rounded p-2 my-2 overflow-x-auto text-sm"><code>${code}</code></pre>`;
-    })
-    // 行内代码
-    .replace(/`([^`]+)`/g, '<code class="bg-bg-tertiary px-1 rounded text-sm">$1</code>')
-    // 标题
-    .replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mt-3 mb-1">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-semibold mt-4 mb-2">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-4 mb-2">$1</h1>')
-    // 粗体和斜体
-    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // 链接
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">$1</a>')
-    // 无序列表
-    .replace(/^[\-\*] (.+)$/gm, '<li class="ml-4">$1</li>')
-    // 有序列表
-    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
-    // 换行
-    .replace(/\n\n/g, '</p><p class="my-2">')
-    .replace(/\n/g, '<br/>');
-  
-  // 包装段落
-  if (!html.startsWith('<')) {
-    html = `<p class="my-2">${html}</p>`;
-  }
-  
-  return html;
+export function markdownToHtml(markdown: string): string {
+  const rawHtml = marked.parse(markdown, { async: false }) as string;
+  return DOMPurify.sanitize(rawHtml, {
+    ADD_ATTR: ['target', 'rel'],
+  });
 }
+
+/**
+ * @deprecated 请使用 markdownToHtml
+ */
+export const simpleMarkdownToHtml = markdownToHtml;

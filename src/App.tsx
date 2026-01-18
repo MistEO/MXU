@@ -12,8 +12,9 @@ import {
   ConnectionPanel,
   DashboardView,
 } from '@/components';
-import { autoLoadInterface, loadConfig, loadConfigFromStorage, resolveI18nText } from '@/services';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { autoLoadInterface, loadConfig, loadConfigFromStorage, resolveI18nText, checkUpdate, openMirrorChyanWebsite } from '@/services';
+import { Loader2, AlertCircle, RefreshCw, X, Download, ExternalLink } from 'lucide-react';
+import { simpleMarkdownToHtml } from '@/services/contentResolver';
 import { useTranslation } from 'react-i18next';
 import { loggers } from '@/utils/logger';
 
@@ -82,6 +83,103 @@ async function getWindowSize(): Promise<{ width: number; height: number } | null
   return null;
 }
 
+// 更新弹窗组件
+function UpdateDialog({
+  updateInfo,
+  currentVersion,
+  onClose,
+  onDownload,
+}: {
+  updateInfo: { versionName: string; releaseNote: string; downloadUrl?: string; channel?: string };
+  currentVersion: string;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  const { t } = useTranslation();
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-bg-primary rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-border">
+        {/* 标题栏 */}
+        <div className="flex items-center justify-between px-6 py-4 bg-accent text-white">
+          <div className="flex items-center gap-3">
+            <Download className="w-6 h-6" />
+            <h2 className="text-lg font-bold">{t('mirrorChyan.newVersion')}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-white/20 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        {/* 版本信息 */}
+        <div className="px-6 py-4 space-y-4">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-text-secondary">{t('mirrorChyan.currentVersion')}</span>
+            <span className="font-mono text-text-primary">{currentVersion}</span>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-text-secondary">{t('mirrorChyan.latestVersion')}</span>
+            <span className="font-mono text-accent font-bold">{updateInfo.versionName}</span>
+          </div>
+          {updateInfo.channel && updateInfo.channel !== 'stable' && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-text-secondary">{t('mirrorChyan.channel')}</span>
+              <span className="px-2 py-0.5 bg-warning/20 text-warning text-xs rounded-full font-medium">
+                {updateInfo.channel}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {/* 更新日志 */}
+        <div className="px-6 pb-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-2">{t('mirrorChyan.releaseNotes')}</h3>
+          <div className="max-h-48 overflow-y-auto bg-bg-secondary rounded-lg p-3 border border-border">
+            {updateInfo.releaseNote ? (
+              <div 
+                className="text-sm text-text-secondary prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(updateInfo.releaseNote) }}
+              />
+            ) : (
+              <p className="text-sm text-text-muted italic">{t('mirrorChyan.noReleaseNotes')}</p>
+            )}
+          </div>
+        </div>
+        
+        {/* 操作按钮 */}
+        <div className="px-6 py-4 bg-bg-secondary border-t border-border flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors"
+          >
+            {t('mirrorChyan.later')}
+          </button>
+          {updateInfo.downloadUrl ? (
+            <button
+              onClick={onDownload}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              {t('mirrorChyan.downloadNow')}
+            </button>
+          ) : (
+            <button
+              onClick={() => openMirrorChyanWebsite('mxu_update_dialog')}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              {t('mirrorChyan.getCdk')}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [loadingState, setLoadingState] = useState<LoadingState>('loading');
@@ -103,6 +201,11 @@ function App() {
     sidePanelExpanded,
     dashboardView,
     setWindowSize: setWindowSizeStore,
+    mirrorChyanSettings,
+    updateInfo,
+    showUpdateDialog,
+    setUpdateInfo,
+    setShowUpdateDialog,
   } = useAppStore();
 
   const initialized = useRef(false);
@@ -174,6 +277,28 @@ function App() {
           createInstance(t('instance.defaultName', '多开 1'));
         }
       }, 0);
+      
+      // 自动检查更新
+      if (result.interface.mirrorchyan_rid && result.interface.version) {
+        const appState = useAppStore.getState();
+        checkUpdate({
+          resourceId: result.interface.mirrorchyan_rid,
+          currentVersion: result.interface.version,
+          cdk: appState.mirrorChyanSettings.cdk || undefined,
+          channel: appState.mirrorChyanSettings.channel,
+          userAgent: 'MXU',
+        }).then(updateResult => {
+          if (updateResult) {
+            setUpdateInfo(updateResult);
+            if (updateResult.hasUpdate) {
+              log.info(`发现新版本: ${updateResult.versionName}`);
+              setShowUpdateDialog(true);
+            }
+          }
+        }).catch(err => {
+          log.warn('自动检查更新失败:', err);
+        });
+      }
     } catch (err) {
       log.error('加载 interface.json 失败:', err);
       setErrorMessage(err instanceof Error ? err.message : '加载失败');
@@ -394,11 +519,29 @@ function App() {
     );
   }
 
+  // 处理下载
+  const handleDownload = () => {
+    if (updateInfo?.downloadUrl) {
+      window.open(updateInfo.downloadUrl, '_blank');
+    }
+    setShowUpdateDialog(false);
+  };
+
   // 主页面
   return (
     <div className="h-full flex flex-col bg-bg-primary">
       {/* 欢迎弹窗 */}
       <WelcomeDialog />
+      
+      {/* 更新弹窗 */}
+      {showUpdateDialog && updateInfo?.hasUpdate && (
+        <UpdateDialog
+          updateInfo={updateInfo}
+          currentVersion={projectInterface?.version || ''}
+          onClose={() => setShowUpdateDialog(false)}
+          onDownload={handleDownload}
+        />
+      )}
 
       {/* 顶部标签栏 */}
       <TabBar />

@@ -192,6 +192,30 @@ export default {
     failed: 'Failed',
   },
 
+  // MirrorChyan Update
+  mirrorChyan: {
+    title: 'Software Update',
+    channel: 'Update Channel',
+    channelStable: 'Stable',
+    channelBeta: 'Beta',
+    cdk: 'MirrorChyan CDK',
+    cdkPlaceholder: 'Enter your CDK (optional)',
+    cdkHint: 'CDK is used to get download links. You can check updates without CDK.',
+    getCdk: 'Get CDK',
+    checkUpdate: 'Check for Updates',
+    checking: 'Checking...',
+    upToDate: 'You are up to date ({{version}})',
+    newVersion: 'New Version Available',
+    currentVersion: 'Current Version',
+    latestVersion: 'Latest Version',
+    releaseNotes: 'Release Notes',
+    downloadNow: 'Download Now',
+    later: 'Remind Later',
+    dismiss: 'Skip This Version',
+    noReleaseNotes: 'No release notes available',
+    checkFailed: 'Failed to check for updates',
+  },
+
   // Error messages
   errors: {
     loadInterfaceFailed: 'Failed to load interface.json',

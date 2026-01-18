@@ -41,11 +41,21 @@ export interface WindowSize {
   height: number;
 }
 
+// MirrorChyan 更新频道
+export type UpdateChannel = 'stable' | 'beta';
+
+// MirrorChyan 设置
+export interface MirrorChyanSettings {
+  cdk: string;           // MirrorChyan CDK
+  channel: UpdateChannel; // 更新频道：stable(正式版) / beta(公测版)
+}
+
 // 应用设置
 export interface AppSettings {
   theme: 'light' | 'dark';
   language: 'zh-CN' | 'en-US';
   windowSize?: WindowSize;
+  mirrorChyan?: MirrorChyanSettings;
 }
 
 // MXU 配置文件完整结构
@@ -61,6 +71,12 @@ export const defaultWindowSize: WindowSize = {
   height: 600,
 };
 
+// 默认 MirrorChyan 设置
+export const defaultMirrorChyanSettings: MirrorChyanSettings = {
+  cdk: '',
+  channel: 'stable',
+};
+
 // 默认配置
 export const defaultConfig: MxuConfig = {
   version: '1.0',
@@ -69,5 +85,6 @@ export const defaultConfig: MxuConfig = {
     theme: 'light',
     language: 'zh-CN',
     windowSize: defaultWindowSize,
+    mirrorChyan: defaultMirrorChyanSettings,
   },
 };

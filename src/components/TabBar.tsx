@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, X, Settings, Sun, Moon, Check, LayoutGrid, Copy, Edit3, XCircle, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, PanelRightClose } from 'lucide-react';
+import { Plus, X, Settings, Sun, Moon, Check, LayoutGrid, Copy, Edit3, XCircle, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, PanelRightClose, Bell } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import clsx from 'clsx';
@@ -33,6 +33,8 @@ export function TabBar() {
     language,
     dashboardView,
     toggleDashboardView,
+    updateInfo,
+    setShowUpdateDialog,
   } = useAppStore();
   
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
@@ -340,6 +342,17 @@ export function TabBar() {
 
       {/* 工具按钮 */}
       <div className="flex items-center gap-1 px-2">
+        {/* 更新通知图标 */}
+        {updateInfo?.hasUpdate && (
+          <button
+            onClick={() => setShowUpdateDialog(true)}
+            className="relative p-2 rounded-md hover:bg-bg-hover transition-colors"
+            title={t('mirrorChyan.newVersion')}
+          >
+            <Bell className="w-4 h-4 text-accent" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full animate-pulse" />
+          </button>
+        )}
         <button
           onClick={toggleDashboardView}
           className={clsx(

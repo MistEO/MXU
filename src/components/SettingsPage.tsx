@@ -11,7 +11,14 @@ import {
   Bug,
   RefreshCw,
   Maximize2,
+  Download,
+  Key,
+  ExternalLink,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
+import type { UpdateChannel } from '@/types/config';
+import { checkUpdate, openMirrorChyanWebsite } from '@/services/updateService';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
 import { setLanguage as setI18nLanguage } from '@/i18n';
@@ -42,6 +49,14 @@ export function SettingsPage() {
     projectInterface,
     interfaceTranslations,
     basePath,
+    mirrorChyanSettings,
+    setMirrorChyanCdk,
+    setMirrorChyanChannel,
+    updateInfo,
+    updateCheckLoading,
+    setUpdateInfo,
+    setUpdateCheckLoading,
+    setShowUpdateDialog,
   } = useAppStore();
 
   const [resolvedContent, setResolvedContent] = useState<ResolvedContent>({
@@ -54,6 +69,7 @@ export function SettingsPage() {
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [mxuVersion, setMxuVersion] = useState<string | null>(null);
   const [maafwVersion, setMaafwVersion] = useState<string | null>(null);
+  const [showCdk, setShowCdk] = useState(false);
 
   const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
   const translations = interfaceTranslations[langKey];
@@ -132,6 +148,43 @@ export function SettingsPage() {
   // 调试：清空日志
   const handleClearLog = () => {
     setDebugLog([]);
+  };
+
+  // 检查更新
+  const handleCheckUpdate = async () => {
+    if (!projectInterface?.mirrorchyan_rid || !projectInterface?.version) {
+      addDebugLog('未配置 mirrorchyan_rid 或 version，无法检查更新');
+      return;
+    }
+    
+    setUpdateCheckLoading(true);
+    addDebugLog(`开始检查更新... (频道: ${mirrorChyanSettings.channel})`);
+    
+    try {
+      const result = await checkUpdate({
+        resourceId: projectInterface.mirrorchyan_rid,
+        currentVersion: projectInterface.version,
+        cdk: mirrorChyanSettings.cdk || undefined,
+        channel: mirrorChyanSettings.channel,
+        userAgent: 'MXU',
+      });
+      
+      if (result) {
+        setUpdateInfo(result);
+        if (result.hasUpdate) {
+          addDebugLog(`发现新版本: ${result.versionName}`);
+          setShowUpdateDialog(true);
+        } else {
+          addDebugLog(`当前已是最新版本: ${result.versionName}`);
+        }
+      } else {
+        addDebugLog('检查更新失败');
+      }
+    } catch (err) {
+      addDebugLog(`检查更新出错: ${err}`);
+    } finally {
+      setUpdateCheckLoading(false);
+    }
   };
 
   // 调试：重置窗口尺寸
@@ -258,6 +311,114 @@ export function SettingsPage() {
               </div>
             </div>
           </section>
+
+          {/* MirrorChyan 更新设置 */}
+          {projectInterface?.mirrorchyan_rid && (
+            <section className="space-y-4">
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                {t('mirrorChyan.title')}
+              </h2>
+              
+              <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-5">
+                {/* 更新频道 */}
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <Download className="w-5 h-5 text-accent" />
+                    <span className="font-medium text-text-primary">{t('mirrorChyan.channel')}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setMirrorChyanChannel('stable')}
+                      className={clsx(
+                        'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                        mirrorChyanSettings.channel === 'stable'
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                      )}
+                    >
+                      {t('mirrorChyan.channelStable')}
+                    </button>
+                    <button
+                      onClick={() => setMirrorChyanChannel('beta')}
+                      className={clsx(
+                        'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                        mirrorChyanSettings.channel === 'beta'
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                      )}
+                    >
+                      {t('mirrorChyan.channelBeta')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* CDK 输入 */}
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Key className="w-5 h-5 text-accent" />
+                    <span className="font-medium text-text-primary">{t('mirrorChyan.cdk')}</span>
+                    <button
+                      onClick={() => openMirrorChyanWebsite('mxu_settings')}
+                      className="ml-auto text-xs text-accent hover:underline flex items-center gap-1"
+                    >
+                      {t('mirrorChyan.getCdk')}
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showCdk ? 'text' : 'password'}
+                      value={mirrorChyanSettings.cdk}
+                      onChange={(e) => setMirrorChyanCdk(e.target.value)}
+                      placeholder={t('mirrorChyan.cdkPlaceholder')}
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                    <button
+                      onClick={() => setShowCdk(!showCdk)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-text-muted hover:text-text-secondary transition-colors"
+                    >
+                      {showCdk ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {t('mirrorChyan.cdkHint')}
+                  </p>
+                </div>
+
+                {/* 检查更新按钮 */}
+                <div className="pt-4 border-t border-border">
+                  <button
+                    onClick={handleCheckUpdate}
+                    disabled={updateCheckLoading}
+                    className={clsx(
+                      'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      updateCheckLoading
+                        ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
+                        : 'bg-accent text-white hover:bg-accent-hover'
+                    )}
+                  >
+                    {updateCheckLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {t('mirrorChyan.checking')}
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        {t('mirrorChyan.checkUpdate')}
+                      </>
+                    )}
+                  </button>
+                  {updateInfo && !updateInfo.hasUpdate && (
+                    <p className="mt-2 text-xs text-center text-text-muted">
+                      {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* 调试 */}
           <section className="space-y-4">

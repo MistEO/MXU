@@ -45,6 +45,12 @@
     "fs:allow-appdata-write-recursive",
     "dialog:default",
     "dialog:allow-open",
-    "core:path:default"
+    "core:path:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://mirrorchyan.com/**" }
+      ]
+    }
   ]
 }

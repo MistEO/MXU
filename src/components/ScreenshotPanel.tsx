@@ -385,10 +385,18 @@ export function ScreenshotPanel() {
   return (
     <div className="bg-bg-secondary rounded-lg border border-border">
       {/* 标题栏（可点击折叠） */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsCollapsed(!isCollapsed)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsCollapsed(!isCollapsed);
+          }
+        }}
         className={clsx(
-          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors',
+          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors cursor-pointer',
           isCollapsed ? 'rounded-lg' : 'rounded-t-lg border-b border-border'
         )}
       >
@@ -401,7 +409,10 @@ export function ScreenshotPanel() {
         <div className="flex items-center gap-2">
           {/* 流模式开关按钮 */}
           <button
-            onClick={toggleStreaming}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleStreaming();
+            }}
             disabled={!instanceId}
             className={clsx(
               'p-1 rounded-md transition-colors',
@@ -422,7 +433,10 @@ export function ScreenshotPanel() {
           
           {/* 全屏按钮 */}
           <button
-            onClick={toggleFullscreen}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
             disabled={!screenshotUrl}
             className={clsx(
               'p-1 rounded-md transition-colors',
@@ -440,7 +454,7 @@ export function ScreenshotPanel() {
             <ChevronUp className="w-4 h-4 text-text-muted" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* 可折叠内容 */}
       {!isCollapsed && (

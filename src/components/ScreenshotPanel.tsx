@@ -228,6 +228,27 @@ export function ScreenshotPanel() {
   // 连接成功后自动开始实时截图（仅当面板可见且未开启时）
   const connectionStatus = instanceId ? instanceConnectionStatus[instanceId] : undefined;
   const prevConnectionStatusRef = useRef<typeof connectionStatus>(undefined);
+  const hasAutoStartedRef = useRef(false);
+  
+  // 组件挂载或状态恢复后，如果已连接且面板可见，自动启动截图流
+  useEffect(() => {
+    // 避免重复启动（仅在首次检测到已连接时启动）
+    if (hasAutoStartedRef.current) return;
+    
+    const isConnected = connectionStatus === 'Connected';
+    if (isConnected && !isStreaming && screenshotPanelExpanded && sidePanelExpanded && instanceId) {
+      hasAutoStartedRef.current = true;
+      streamingRef.current = true;
+      setIsStreaming(true);
+      setError(null);
+      streamLoop();
+    }
+  }, [connectionStatus, instanceId, screenshotPanelExpanded, sidePanelExpanded, isStreaming, setIsStreaming, streamLoop]);
+  
+  // 实例切换时重置自动启动标记
+  useEffect(() => {
+    hasAutoStartedRef.current = false;
+  }, [instanceId]);
 
   // 保存截图
   const saveScreenshot = useCallback(async () => {

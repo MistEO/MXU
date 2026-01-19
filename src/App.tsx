@@ -12,7 +12,7 @@ import {
   ConnectionPanel,
   DashboardView,
 } from '@/components';
-import { autoLoadInterface, loadConfig, loadConfigFromStorage, resolveI18nText, checkUpdate } from '@/services';
+import { autoLoadInterface, loadConfig, loadConfigFromStorage, resolveI18nText, checkUpdate, maaService } from '@/services';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { loggers } from '@/utils/logger';
@@ -120,6 +120,7 @@ function App() {
     dashboardView,
     setWindowSize: setWindowSizeStore,
     setUpdateInfo,
+    restoreBackendStates,
   } = useAppStore();
 
   const initialized = useRef(false);
@@ -180,6 +181,17 @@ function App() {
       // 应用保存的窗口大小
       if (config.settings.windowSize) {
         await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
+      }
+      
+      // 从后端恢复 MAA 运行时状态（连接状态、资源加载状态、设备缓存等）
+      try {
+        const backendStates = await maaService.getAllStates();
+        if (backendStates) {
+          restoreBackendStates(backendStates);
+          log.info('已恢复后端状态:', Object.keys(backendStates.instances).length, '个实例');
+        }
+      } catch (err) {
+        log.warn('恢复后端状态失败:', err);
       }
 
       log.info('加载完成, 项目:', result.interface.name);

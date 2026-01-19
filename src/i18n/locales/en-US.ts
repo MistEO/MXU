@@ -80,6 +80,15 @@ export default {
     renameTask: 'Rename Task',
     customName: 'Custom Name',
     originalName: 'Original Name',
+    cannotEditRunningTask: 'Cannot edit options for running or completed tasks',
+    // Task run status
+    status: {
+      idle: 'Not started',
+      pending: 'Pending',
+      running: 'Running',
+      succeeded: 'Completed',
+      failed: 'Failed',
+    },
   },
 
   // Options

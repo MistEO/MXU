@@ -9,6 +9,9 @@ const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
 
+/** 单个任务的运行状态 */
+export type TaskRunStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
+
 export type Theme = 'light' | 'dark';
 export type Language = 'zh-CN' | 'en-US';
 export type PageView = 'main' | 'settings';
@@ -108,6 +111,19 @@ interface AppState {
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
   
+  // 从后端恢复 MAA 运行时状态
+  restoreBackendStates: (states: {
+    instances: Record<string, {
+      connected: boolean;
+      resourceLoaded: boolean;
+      taskerInited: boolean;
+      isRunning: boolean;
+      taskIds: number[];
+    }>;
+    cachedAdbDevices: AdbDevice[];
+    cachedWin32Windows: Win32Window[];
+  }) => void;
+  
   // 截图流状态（按实例独立）
   instanceScreenshotStreaming: Record<string, boolean>;
   setInstanceScreenshotStreaming: (instanceId: string, streaming: boolean) => void;
@@ -154,6 +170,24 @@ interface AppState {
   reopenRecentlyClosed: (id: string) => string | null;
   removeFromRecentlyClosed: (id: string) => void;
   clearRecentlyClosed: () => void;
+  
+  // 任务运行状态（用于显示任务执行进度）
+  // instanceTaskRunStatus[instanceId][selectedTaskId] = status
+  instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>>;
+  // maaTaskId -> selectedTaskId 的映射
+  maaTaskIdMapping: Record<string, Record<number, string>>;
+  // 设置任务运行状态
+  setTaskRunStatus: (instanceId: string, selectedTaskId: string, status: TaskRunStatus) => void;
+  // 批量设置任务运行状态（用于任务开始时初始化所有任务为 pending）
+  setAllTasksRunStatus: (instanceId: string, taskIds: string[], status: TaskRunStatus) => void;
+  // 注册 maaTaskId -> selectedTaskId 映射
+  registerMaaTaskMapping: (instanceId: string, maaTaskId: number, selectedTaskId: string) => void;
+  // 根据 maaTaskId 查找 selectedTaskId
+  findSelectedTaskIdByMaaTaskId: (instanceId: string, maaTaskId: number) => string | null;
+  // 根据 selectedTaskId 查找 maaTaskId（反向查找）
+  findMaaTaskIdBySelectedTaskId: (instanceId: string, selectedTaskId: string) => number | null;
+  // 清空实例的任务运行状态
+  clearTaskRunStatus: (instanceId: string) => void;
 }
 
 // 更新信息类型
@@ -836,6 +870,42 @@ export const useAppStore = create<AppState>()(
       setCachedAdbDevices: (devices) => set({ cachedAdbDevices: devices }),
       setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
       
+      // 从后端恢复 MAA 运行时状态
+      restoreBackendStates: (states) => set((currentState) => {
+        const connectionStatus: Record<string, ConnectionStatus> = {};
+        const resourceLoaded: Record<string, boolean> = {};
+        const taskStatus: Record<string, TaskStatus | null> = {};
+        
+        // 更新实例的 isRunning 状态
+        const updatedInstances = currentState.instances.map(instance => {
+          const backendState = states.instances[instance.id];
+          if (backendState) {
+            return {
+              ...instance,
+              isRunning: backendState.isRunning,
+            };
+          }
+          return instance;
+        });
+        
+        for (const [instanceId, state] of Object.entries(states.instances)) {
+          connectionStatus[instanceId] = state.connected ? 'Connected' : 'Disconnected';
+          resourceLoaded[instanceId] = state.resourceLoaded;
+          if (state.isRunning) {
+            taskStatus[instanceId] = 'Running';
+          }
+        }
+        
+        return {
+          instances: updatedInstances,
+          instanceConnectionStatus: connectionStatus,
+          instanceResourceLoaded: resourceLoaded,
+          instanceTaskStatus: taskStatus,
+          cachedAdbDevices: states.cachedAdbDevices,
+          cachedWin32Windows: states.cachedWin32Windows,
+        };
+      }),
+      
       // 截图流状态
       instanceScreenshotStreaming: {},
       setInstanceScreenshotStreaming: (instanceId, streaming) => set((state) => ({
@@ -941,6 +1011,73 @@ export const useAppStore = create<AppState>()(
       })),
       
       clearRecentlyClosed: () => set({ recentlyClosed: [] }),
+      
+      // 任务运行状态
+      instanceTaskRunStatus: {},
+      maaTaskIdMapping: {},
+      
+      setTaskRunStatus: (instanceId, selectedTaskId, status) => set((state) => ({
+        instanceTaskRunStatus: {
+          ...state.instanceTaskRunStatus,
+          [instanceId]: {
+            ...state.instanceTaskRunStatus[instanceId],
+            [selectedTaskId]: status,
+          },
+        },
+      })),
+      
+      setAllTasksRunStatus: (instanceId, taskIds, status) => set((state) => {
+        const taskStatus: Record<string, TaskRunStatus> = {};
+        taskIds.forEach(id => {
+          taskStatus[id] = status;
+        });
+        return {
+          instanceTaskRunStatus: {
+            ...state.instanceTaskRunStatus,
+            [instanceId]: taskStatus,
+          },
+        };
+      }),
+      
+      registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) => set((state) => ({
+        maaTaskIdMapping: {
+          ...state.maaTaskIdMapping,
+          [instanceId]: {
+            ...state.maaTaskIdMapping[instanceId],
+            [maaTaskId]: selectedTaskId,
+          },
+        },
+      })),
+      
+      findSelectedTaskIdByMaaTaskId: (instanceId, maaTaskId) => {
+        const state = get();
+        const mapping = state.maaTaskIdMapping[instanceId];
+        return mapping?.[maaTaskId] || null;
+      },
+      
+      findMaaTaskIdBySelectedTaskId: (instanceId, selectedTaskId) => {
+        const state = get();
+        const mapping = state.maaTaskIdMapping[instanceId];
+        if (!mapping) return null;
+        // 反向查找：遍历 mapping 找到 value 等于 selectedTaskId 的 key
+        for (const [maaTaskIdStr, taskId] of Object.entries(mapping)) {
+          if (taskId === selectedTaskId) {
+            return parseInt(maaTaskIdStr, 10);
+          }
+        }
+        return null;
+      },
+      
+      clearTaskRunStatus: (instanceId) => set((state) => ({
+        instanceTaskRunStatus: {
+          ...state.instanceTaskRunStatus,
+          [instanceId]: {},
+        },
+        maaTaskIdMapping: {
+          ...state.maaTaskIdMapping,
+          [instanceId]: {},
+        },
+      })),
     })
   )
 );

@@ -80,6 +80,15 @@ export default {
     renameTask: '重命名任务',
     customName: '自定义名称',
     originalName: '原始名称',
+    cannotEditRunningTask: '已执行或正在执行的任务无法编辑选项',
+    // 任务运行状态
+    status: {
+      idle: '未执行',
+      pending: '等待中',
+      running: '执行中',
+      succeeded: '已完成',
+      failed: '执行失败',
+    },
   },
 
   // 选项

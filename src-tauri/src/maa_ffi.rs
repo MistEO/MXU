@@ -130,6 +130,7 @@ type FnMaaTaskerWait = unsafe extern "C" fn(*mut MaaTasker, MaaId) -> MaaStatus;
 type FnMaaTaskerRunning = unsafe extern "C" fn(*mut MaaTasker) -> MaaBool;
 type FnMaaTaskerPostStop = unsafe extern "C" fn(*mut MaaTasker) -> MaaId;
 type FnMaaTaskerAddSink = unsafe extern "C" fn(*mut MaaTasker, MaaEventCallback, *mut c_void) -> MaaId;
+type FnMaaTaskerOverridePipeline = unsafe extern "C" fn(*mut MaaTasker, MaaId, *const c_char) -> MaaBool;
 
 type FnMaaToolkitAdbDeviceListCreate = unsafe extern "C" fn() -> *mut MaaToolkitAdbDeviceList;
 type FnMaaToolkitAdbDeviceListDestroy = unsafe extern "C" fn(*mut MaaToolkitAdbDeviceList);
@@ -219,6 +220,7 @@ pub struct MaaLibrary {
     pub maa_tasker_running: FnMaaTaskerRunning,
     pub maa_tasker_post_stop: FnMaaTaskerPostStop,
     pub maa_tasker_add_sink: FnMaaTaskerAddSink,
+    pub maa_tasker_override_pipeline: FnMaaTaskerOverridePipeline,
     
     // Toolkit - ADB Device
     pub maa_toolkit_adb_device_list_create: FnMaaToolkitAdbDeviceListCreate,
@@ -392,6 +394,7 @@ impl MaaLibrary {
                 maa_tasker_running: load_fn!(framework_lib, "MaaTaskerRunning"),
                 maa_tasker_post_stop: load_fn!(framework_lib, "MaaTaskerPostStop"),
                 maa_tasker_add_sink: load_fn!(framework_lib, "MaaTaskerAddSink"),
+                maa_tasker_override_pipeline: load_fn!(framework_lib, "MaaTaskerOverridePipeline"),
                 
                 // Toolkit - ADB Device
                 maa_toolkit_adb_device_list_create: load_fn!(toolkit_lib, "MaaToolkitAdbDeviceListCreate"),
@@ -497,7 +500,7 @@ pub unsafe fn from_cstr(ptr: *const c_char) -> String {
 /// 全局 AppHandle 存储，用于在回调中发送事件到前端
 static APP_HANDLE: Lazy<Mutex<Option<AppHandle>>> = Lazy::new(|| Mutex::new(None));
 
-/// 设置全局 AppHandle
+/// 设置全局 AppHandle（用于发送事件到前端）
 pub fn set_app_handle(handle: AppHandle) {
     if let Ok(mut guard) = APP_HANDLE.lock() {
         *guard = Some(handle);
@@ -523,8 +526,6 @@ extern "C" fn maa_event_callback(
 ) {
     let message_str = unsafe { from_cstr(message) };
     let details_str = unsafe { from_cstr(details_json) };
-
-    // log::debug!(target: "maa_callback", "message: {}, details: {}", message_str, details_str);
 
     // 发送事件到前端
     if let Ok(guard) = APP_HANDLE.lock() {

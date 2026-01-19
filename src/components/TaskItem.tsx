@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -17,7 +17,9 @@ import {
   ToggleLeft,
   ToggleRight,
 } from 'lucide-react';
-import { useAppStore } from '@/stores/appStore';
+import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
+import { maaService } from '@/services/maaService';
+import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import type { SelectedTask } from '@/types/interface';
@@ -92,7 +94,63 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     language,
     getActiveInstance,
     showOptionPreview,
+    instanceTaskRunStatus,
+    instances,
+    findMaaTaskIdBySelectedTaskId,
   } = useAppStore();
+  
+  // 获取任务运行状态
+  const taskRunStatus: TaskRunStatus = instanceTaskRunStatus[instanceId]?.[task.id] || 'idle';
+  
+  // 获取实例运行状态
+  const instance = instances.find(i => i.id === instanceId);
+  const isInstanceRunning = instance?.isRunning || false;
+  
+  // 判断是否可以编辑选项（只有 pending 或 idle 状态的任务可以编辑）
+  const canEditOptions = taskRunStatus === 'idle' || taskRunStatus === 'pending';
+  
+  // 判断是否可以调整顺序/删除（实例运行时禁用）
+  const canReorder = !isInstanceRunning;
+  const canDelete = !isInstanceRunning;
+  
+  // 用于追踪选项值变化的 ref（避免首次渲染时触发）
+  const prevOptionValuesRef = useRef<string | null>(null);
+  
+  // 当选项值变化且任务状态为 pending 时，调用 overridePipeline 更新任务配置
+  useEffect(() => {
+    const currentOptionValues = JSON.stringify(task.optionValues);
+    
+    // 首次渲染时只记录当前值，不触发 override
+    if (prevOptionValuesRef.current === null) {
+      prevOptionValuesRef.current = currentOptionValues;
+      return;
+    }
+    
+    // 如果选项值没有变化，不处理
+    if (prevOptionValuesRef.current === currentOptionValues) {
+      return;
+    }
+    
+    // 更新 ref
+    prevOptionValuesRef.current = currentOptionValues;
+    
+    // 只有 pending 状态的任务才需要调用 overridePipeline
+    if (taskRunStatus !== 'pending') {
+      return;
+    }
+    
+    // 获取对应的 maaTaskId
+    const maaTaskId = findMaaTaskIdBySelectedTaskId(instanceId, task.id);
+    if (maaTaskId === null) {
+      return;
+    }
+    
+    // 生成新的 pipeline override 并调用后端
+    const pipelineOverride = generateTaskPipelineOverride(task, projectInterface);
+    maaService.overridePipeline(instanceId, maaTaskId, pipelineOverride).catch(err => {
+      console.error('Failed to override pipeline:', err);
+    });
+  }, [task.optionValues, taskRunStatus, instanceId, task.id, task, projectInterface, findMaaTaskIdBySelectedTaskId]);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
@@ -103,7 +161,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: !canReorder });
 
   // 禁止 X 方向位移，仅允许垂直拖动
   const constrainedTransform = transform
@@ -226,6 +284,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           id: 'duplicate',
           label: t('contextMenu.duplicateTask'),
           icon: Copy,
+          disabled: isInstanceRunning,
           onClick: () => duplicateTask(instanceId, task.id),
         },
         {
@@ -244,6 +303,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             ? t('contextMenu.disableTask')
             : t('contextMenu.enableTask'),
           icon: task.enabled ? ToggleLeft : ToggleRight,
+          disabled: isInstanceRunning,
           onClick: () => toggleTaskEnabled(instanceId, task.id),
         },
         ...(hasOptions
@@ -263,28 +323,28 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           id: 'move-up',
           label: t('contextMenu.moveUp'),
           icon: ChevronUp,
-          disabled: isFirst,
+          disabled: isFirst || !canReorder,
           onClick: () => moveTaskUp(instanceId, task.id),
         },
         {
           id: 'move-down',
           label: t('contextMenu.moveDown'),
           icon: ChevronDown,
-          disabled: isLast,
+          disabled: isLast || !canReorder,
           onClick: () => moveTaskDown(instanceId, task.id),
         },
         {
           id: 'move-top',
           label: t('contextMenu.moveToTop'),
           icon: ChevronsUp,
-          disabled: isFirst,
+          disabled: isFirst || !canReorder,
           onClick: () => moveTaskToTop(instanceId, task.id),
         },
         {
           id: 'move-bottom',
           label: t('contextMenu.moveToBottom'),
           icon: ChevronsDown,
-          disabled: isLast,
+          disabled: isLast || !canReorder,
           onClick: () => moveTaskToBottom(instanceId, task.id),
         },
         { id: 'divider-3', label: '', divider: true },
@@ -293,6 +353,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           label: t('contextMenu.deleteTask'),
           icon: Trash2,
           danger: true,
+          disabled: !canDelete,
           onClick: () => removeTaskFromInstance(instanceId, task.id),
         },
       ];
@@ -314,8 +375,27 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       moveTaskToBottom,
       removeTaskFromInstance,
       showMenu,
+      isInstanceRunning,
+      canReorder,
+      canDelete,
     ]
   );
+
+  // 状态指示器颜色
+  const getStatusIndicatorClass = (): string => {
+    switch (taskRunStatus) {
+      case 'pending':
+        return 'bg-text-muted';
+      case 'running':
+        return 'bg-accent task-running-indicator';
+      case 'succeeded':
+        return 'bg-success';
+      case 'failed':
+        return 'bg-error';
+      default:
+        return 'bg-transparent';
+    }
+  };
 
   return (
     <div
@@ -323,28 +403,49 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       style={style}
       onContextMenu={handleContextMenu}
       className={clsx(
-        'group bg-bg-secondary rounded-lg border border-border overflow-hidden transition-shadow',
-        isDragging && 'shadow-lg opacity-50'
+        'group bg-bg-secondary rounded-lg border border-border overflow-hidden transition-shadow relative',
+        isDragging && 'shadow-lg opacity-50',
+        taskRunStatus === 'running' && 'task-item-running'
       )}
     >
+      {/* 任务状态指示器（左侧竖条） */}
+      {taskRunStatus !== 'idle' && (
+        <div
+          className={clsx(
+            'absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg transition-colors',
+            getStatusIndicatorClass()
+          )}
+          title={t(`taskItem.status.${taskRunStatus}`)}
+        />
+      )}
+      
       {/* 任务头部 */}
       <div className="flex items-center gap-2 p-3">
         {/* 拖拽手柄 */}
         <div
           {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-bg-hover"
+          {...(canReorder ? listeners : {})}
+          className={clsx(
+            'p-1 rounded',
+            canReorder 
+              ? 'cursor-grab active:cursor-grabbing hover:bg-bg-hover' 
+              : 'cursor-not-allowed opacity-30'
+          )}
         >
           <GripVertical className="w-4 h-4 text-text-muted" />
         </div>
 
-        {/* 启用复选框 */}
-        <label className="flex items-center cursor-pointer">
+        {/* 启用复选框 - 运行时禁用 */}
+        <label className={clsx(
+          'flex items-center',
+          isInstanceRunning ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+        )}>
           <input
             type="checkbox"
             checked={task.enabled}
             onChange={() => toggleTaskEnabled(instanceId, task.id)}
-            className="w-4 h-4 rounded border-border-strong accent-accent"
+            disabled={isInstanceRunning}
+            className="w-4 h-4 rounded border-border-strong accent-accent disabled:cursor-not-allowed"
           />
         </label>
 
@@ -414,7 +515,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               {hasOptions && (
                 <div
                   onClick={() => toggleTaskExpanded(instanceId, task.id)}
-                  className="flex-1 flex items-center cursor-pointer self-stretch min-h-[28px]"
+                  className="flex-1 flex items-center self-stretch min-h-[28px] cursor-pointer"
                   title={task.expanded ? t('taskItem.collapse') : t('taskItem.expand')}
                 >
                   {/* 选项预览标签 - 未展开时显示 */}
@@ -444,8 +545,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           )}
         </div>
 
-        {/* 删除按钮 - hover 时显示 */}
-        {!isEditing && (
+        {/* 删除按钮 - hover 时显示，运行时隐藏 */}
+        {!isEditing && canDelete && (
           <button
             onClick={() => removeTaskFromInstance(instanceId, task.id)}
             className={clsx(
@@ -470,6 +571,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 taskId={task.id}
                 optionKey={optionKey}
                 value={task.optionValues[optionKey]}
+                disabled={!canEditOptions}
               />
             ))}
           </div>

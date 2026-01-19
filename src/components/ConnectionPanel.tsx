@@ -216,6 +216,34 @@ export function ConnectionPanel() {
     }
   }, [activeInstanceId]); // eslint-disable-line react-hooks/exhaustive-deps
   
+  // 监听 store 中连接状态变化（当 Toolbar 自动连接时同步状态）
+  useEffect(() => {
+    const isInstanceConnected = storedConnectionStatus === 'Connected';
+    // 只在状态从非连接变为已连接时更新，避免覆盖正在连接中的状态
+    if (isInstanceConnected && !isConnecting) {
+      setIsConnected(true);
+      setIsConnecting(false);
+    } else if (storedConnectionStatus === 'Disconnected' && !isConnecting) {
+      setIsConnected(false);
+    }
+  }, [storedConnectionStatus, isConnecting]);
+  
+  // 监听 store 中资源加载状态变化
+  useEffect(() => {
+    // 只在状态从未加载变为已加载时更新，避免覆盖正在加载中的状态
+    if (storedResourceLoaded && !isLoadingResource) {
+      setIsResourceLoaded(true);
+      setIsLoadingResource(false);
+      // 同步更新 lastLoadedResourceRef，避免重复加载
+      if (currentResourceName) {
+        lastLoadedResourceRef.current = currentResourceName;
+      }
+    } else if (!storedResourceLoaded && !isLoadingResource) {
+      setIsResourceLoaded(false);
+      lastLoadedResourceRef.current = null;
+    }
+  }, [storedResourceLoaded, isLoadingResource, currentResourceName]);
+  
   // 监听 MaaFramework 回调事件，处理连接和资源加载完成
   useEffect(() => {
     // 没有等待中的操作，不需要监听

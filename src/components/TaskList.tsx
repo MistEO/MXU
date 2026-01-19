@@ -39,6 +39,7 @@ export function TaskList() {
   } = useAppStore();
 
   const instance = getActiveInstance();
+  const isInstanceRunning = instance?.isRunning || false;
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
   const sensors = useSensors(
@@ -59,6 +60,9 @@ export function TaskList() {
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
+    // 运行时禁止重新排序
+    if (isInstanceRunning) return;
+    
     const { active, over } = event;
 
     if (over && active.id !== over.id && instance) {

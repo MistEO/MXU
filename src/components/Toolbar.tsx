@@ -14,7 +14,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
-import { loggers } from '@/utils/logger';
+import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
@@ -46,6 +46,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     setInstanceResourceLoaded,
     selectedController,
     selectedResource,
+    // 任务运行状态管理
+    setTaskRunStatus,
+    setAllTasksRunStatus,
+    registerMaaTaskMapping,
+    findSelectedTaskIdByMaaTaskId,
+    clearTaskRunStatus,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -113,12 +119,24 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       if (message === 'Tasker.Task.Succeeded') {
         log.info(`任务 ${currentTaskIndex + 1}/${pendingTaskIds.length} 完成`);
         
+        // 更新当前任务状态为成功
+        const selectedTaskId = findSelectedTaskIdByMaaTaskId(runningInstanceId, currentTaskId);
+        if (selectedTaskId) {
+          setTaskRunStatus(runningInstanceId, selectedTaskId, 'succeeded');
+        }
+        
         // 检查是否还有更多任务
         if (currentTaskIndex + 1 < pendingTaskIds.length) {
           // 移动到下一个任务
           const nextIndex = currentTaskIndex + 1;
           setCurrentTaskIndex(nextIndex);
           setInstanceCurrentTaskId(runningInstanceId, pendingTaskIds[nextIndex]);
+          
+          // 将下一个任务设为 running
+          const nextSelectedTaskId = findSelectedTaskIdByMaaTaskId(runningInstanceId, pendingTaskIds[nextIndex]);
+          if (nextSelectedTaskId) {
+            setTaskRunStatus(runningInstanceId, nextSelectedTaskId, 'running');
+          }
         } else {
           // 所有任务完成
           log.info('所有任务执行完成');
@@ -137,6 +155,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }
       } else if (message === 'Tasker.Task.Failed') {
         log.error('任务执行失败, task_id:', currentTaskId);
+        
+        // 更新当前任务状态为失败
+        const selectedTaskId = findSelectedTaskIdByMaaTaskId(runningInstanceId, currentTaskId);
+        if (selectedTaskId) {
+          setTaskRunStatus(runningInstanceId, selectedTaskId, 'failed');
+        }
         
         // 停止 Agent（如果有）
         if (projectInterface?.agent) {
@@ -157,7 +181,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     return () => {
       if (unlisten) unlisten();
     };
-  }, [pendingTaskIds, currentTaskIndex, projectInterface?.agent, setInstanceCurrentTaskId, setInstanceTaskStatus, updateInstance]);
+  }, [pendingTaskIds, currentTaskIndex, projectInterface?.agent, setInstanceCurrentTaskId, setInstanceTaskStatus, updateInstance, findSelectedTaskIdByMaaTaskId, setTaskRunStatus]);
 
   const handleSelectAll = () => {
     if (!instance) return;
@@ -167,119 +191,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const handleCollapseAll = () => {
     if (!instance) return;
     collapseAllTasks(instance.id, !anyExpanded);
-  };
-
-  /**
-   * 深度合并对象
-   */
-  const deepMerge = (target: Record<string, unknown>, source: Record<string, unknown>) => {
-    for (const key of Object.keys(source)) {
-      if (
-        source[key] &&
-        typeof source[key] === 'object' &&
-        !Array.isArray(source[key]) &&
-        target[key] &&
-        typeof target[key] === 'object' &&
-        !Array.isArray(target[key])
-      ) {
-        deepMerge(target[key] as Record<string, unknown>, source[key] as Record<string, unknown>);
-      } else {
-        target[key] = source[key];
-      }
-    }
-  };
-
-  /**
-   * 递归处理选项的 pipeline_override
-   */
-  const processOptionOverride = (
-    optionKey: string,
-    optionValues: Record<string, import('@/types/interface').OptionValue>,
-    overrides: Record<string, unknown>
-  ) => {
-    const allOptions = projectInterface?.option || {};
-    const optionDef = allOptions[optionKey];
-    const optionValue = optionValues[optionKey];
-    if (!optionDef || !optionValue) return;
-
-    if ((optionValue.type === 'select' || optionValue.type === 'switch') && 'cases' in optionDef) {
-      // 找到当前选中的 case
-      let caseName: string;
-      if (optionValue.type === 'switch') {
-        const isChecked = optionValue.value;
-        const yesCase = optionDef.cases?.find(c => ['Yes', 'yes', 'Y', 'y'].includes(c.name));
-        const noCase = optionDef.cases?.find(c => ['No', 'no', 'N', 'n'].includes(c.name));
-        caseName = isChecked ? (yesCase?.name || 'Yes') : (noCase?.name || 'No');
-      } else {
-        caseName = optionValue.caseName;
-      }
-      
-      const caseDef = optionDef.cases?.find((c) => c.name === caseName);
-      
-      if (caseDef?.pipeline_override) {
-        deepMerge(overrides, caseDef.pipeline_override);
-      }
-      
-      if (caseDef?.option) {
-        for (const nestedKey of caseDef.option) {
-          processOptionOverride(nestedKey, optionValues, overrides);
-        }
-      }
-    } else if (optionValue.type === 'input' && 'pipeline_override' in optionDef && optionDef.pipeline_override) {
-      const inputDefs = optionDef.inputs || [];
-      let overrideStr = JSON.stringify(optionDef.pipeline_override);
-      
-      for (const [inputName, inputVal] of Object.entries(optionValue.values)) {
-        const inputDef = inputDefs.find(i => i.name === inputName);
-        const pipelineType = inputDef?.pipeline_type || 'string';
-        const placeholder = `{${inputName}}`;
-        const placeholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-        
-        if (pipelineType === 'int') {
-          overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), inputVal || '0');
-          overrideStr = overrideStr.replace(placeholderRegex, inputVal || '0');
-        } else if (pipelineType === 'bool') {
-          const boolVal = ['true', '1', 'yes', 'y'].includes((inputVal || '').toLowerCase()) ? 'true' : 'false';
-          overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), boolVal);
-          overrideStr = overrideStr.replace(placeholderRegex, boolVal);
-        } else {
-          overrideStr = overrideStr.replace(placeholderRegex, inputVal || '');
-        }
-      }
-      
-      try {
-        deepMerge(overrides, JSON.parse(overrideStr));
-      } catch (e) {
-        log.warn('解析选项覆盖失败:', e);
-      }
-    }
-  };
-
-  /**
-   * 为单个任务生成 pipeline override JSON
-   */
-  const generateTaskPipelineOverride = (
-    selectedTask: import('@/types/interface').SelectedTask
-  ): string => {
-    if (!projectInterface) return '{}';
-
-    const overrides: Record<string, unknown> = {};
-    const taskDef = projectInterface.task.find(t => t.name === selectedTask.taskName);
-    if (!taskDef) return '{}';
-
-    // 添加任务自身的 pipeline_override
-    if (taskDef.pipeline_override) {
-      deepMerge(overrides, taskDef.pipeline_override as Record<string, unknown>);
-    }
-
-    // 处理顶层选项及其嵌套选项
-    if (taskDef.option) {
-      for (const optionKey of taskDef.option) {
-        processOptionOverride(optionKey, selectedTask.optionValues, overrides);
-      }
-    }
-
-    return JSON.stringify(overrides);
   };
 
   /**
@@ -476,6 +387,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         updateInstance(instance.id, { isRunning: false });
         setInstanceTaskStatus(instance.id, null);
         setInstanceCurrentTaskId(instance.id, null);
+        // 清空任务运行状态
+        clearTaskRunStatus(instance.id);
+        setPendingTaskIds([]);
+        setCurrentTaskIndex(0);
+        runningInstanceIdRef.current = null;
       } catch (err) {
         log.error('停止任务失败:', err);
       } finally {
@@ -523,7 +439,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
           taskConfigs.push({
             entry: taskDef.entry,
-            pipeline_override: generateTaskPipelineOverride(selectedTask),
+            pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
           });
         }
 
@@ -557,6 +473,22 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         log.info('任务已提交, task_ids:', taskIds);
 
+        // 初始化任务运行状态：所有启用的任务设为 pending
+        const enabledTaskIds = enabledTasks.map(t => t.id);
+        setAllTasksRunStatus(instance.id, enabledTaskIds, 'pending');
+        
+        // 记录 maaTaskId -> selectedTaskId 的映射关系
+        taskIds.forEach((maaTaskId, index) => {
+          if (enabledTasks[index]) {
+            registerMaaTaskMapping(instance.id, maaTaskId, enabledTasks[index].id);
+          }
+        });
+        
+        // 第一个任务设为 running
+        if (enabledTasks.length > 0) {
+          setTaskRunStatus(instance.id, enabledTasks[0].id, 'running');
+        }
+
         // 设置任务队列，由回调监听处理完成状态
         runningInstanceIdRef.current = instance.id;
         setPendingTaskIds(taskIds);
@@ -577,6 +509,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }
         updateInstance(instance.id, { isRunning: false });
         setInstanceTaskStatus(instance.id, 'Failed');
+        // 清空任务运行状态
+        clearTaskRunStatus(instance.id);
         setIsStarting(false);
       }
     }

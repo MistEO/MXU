@@ -145,14 +145,31 @@ function InstanceCard({
     }
   }, [isStreaming, isConnected, streamLoop]);
 
-  // 连接后自动开始截图流（仅首次连接时）
+  // 连接后自动开始截图流
   const prevConnectedRef = useRef(false);
+  const hasAutoStartedRef = useRef(false);
+  
+  // 组件挂载或状态恢复后，如果已连接，自动启动截图流
+  useEffect(() => {
+    // 避免重复启动
+    if (hasAutoStartedRef.current) return;
+    
+    if (isConnected && !isStreaming) {
+      hasAutoStartedRef.current = true;
+      streamingRef.current = true;
+      setInstanceScreenshotStreaming(instanceId, true);
+      streamLoop();
+    }
+  }, [isConnected, isStreaming, instanceId, setInstanceScreenshotStreaming, streamLoop]);
+  
+  // 连接状态变化时的处理（从未连接变为已连接时重新启动）
   useEffect(() => {
     const wasConnected = prevConnectedRef.current;
     prevConnectedRef.current = isConnected;
     
-    // 仅在从未连接变为已连接时自动开始
+    // 从未连接变为已连接时，重置自动启动标记并启动
     if (isConnected && !wasConnected && !isStreaming) {
+      hasAutoStartedRef.current = true;
       streamingRef.current = true;
       setInstanceScreenshotStreaming(instanceId, true);
       streamLoop();

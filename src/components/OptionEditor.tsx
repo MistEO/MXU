@@ -28,6 +28,8 @@ interface OptionEditorProps {
   value?: OptionValue;
   /** 嵌套层级，用于缩进显示 */
   depth?: number;
+  /** 是否禁用编辑（只读模式） */
+  disabled?: boolean;
 }
 
 /** 显示带图标和描述的标签 */
@@ -74,6 +76,7 @@ function InputField({
   langKey,
   resolveI18nText,
   basePath,
+  disabled,
 }: {
   input: InputItem;
   value: string;
@@ -81,6 +84,7 @@ function InputField({
   langKey: string;
   resolveI18nText: (text: string | undefined, lang: string) => string;
   basePath: string;
+  disabled?: boolean;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const inputLabel = resolveI18nText(input.label, langKey) || input.name;
@@ -127,10 +131,12 @@ function InputField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={input.default}
+          disabled={disabled}
           className={clsx(
             'flex-1 px-3 py-1.5 text-sm rounded-md border',
             'bg-bg-secondary text-text-primary',
             'focus:outline-none focus:ring-1',
+            disabled && 'opacity-60 cursor-not-allowed',
             validationError
               ? 'border-error focus:border-error focus:ring-error/20'
               : 'border-border focus:border-accent focus:ring-accent/20'
@@ -147,7 +153,7 @@ function InputField({
   );
 }
 
-export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }: OptionEditorProps) {
+export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, disabled = false }: OptionEditorProps) {
   const { projectInterface, setTaskOptionValue, resolveI18nText, language, basePath } = useAppStore();
 
   const optionDef = projectInterface?.option?.[optionKey];
@@ -194,14 +200,17 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
           />
           <button
             onClick={() => {
+              if (disabled) return;
               setTaskOptionValue(instanceId, taskId, optionKey, {
                 type: 'switch',
                 value: !isChecked,
               });
             }}
+            disabled={disabled}
             className={clsx(
               'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
-              isChecked ? 'bg-accent' : 'bg-bg-active'
+              isChecked ? 'bg-accent' : 'bg-bg-active',
+              disabled && 'opacity-60 cursor-not-allowed'
             )}
           >
             <span
@@ -226,6 +235,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
                   ?.selectedTasks.find(t => t.id === taskId)
                   ?.optionValues[nestedKey]}
                 depth={depth + 1}
+                disabled={disabled}
               />
             ))}
           </div>
@@ -255,6 +265,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
               input={input}
               value={inputValue}
               onChange={(newVal) => {
+                if (disabled) return;
                 setTaskOptionValue(instanceId, taskId, optionKey, {
                   type: 'input',
                   values: { ...inputValues, [input.name]: newVal },
@@ -263,6 +274,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
               langKey={langKey}
               resolveI18nText={resolveI18nText}
               basePath={basePath}
+              disabled={disabled}
             />
           );
         })}
@@ -285,16 +297,18 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
         <select
           value={selectedCaseName}
           onChange={(e) => {
+            if (disabled) return;
             setTaskOptionValue(instanceId, taskId, optionKey, {
               type: 'select',
               caseName: e.target.value,
             });
           }}
+          disabled={disabled}
           className={clsx(
             'flex-1 px-3 py-1.5 text-sm rounded-md border border-border',
             'bg-bg-secondary text-text-primary',
             'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
-            'cursor-pointer'
+            disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
           )}
         >
           {optionDef.cases.map((caseItem) => {
@@ -321,6 +335,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0 }
                 ?.selectedTasks.find(t => t.id === taskId)
                 ?.optionValues[nestedKey]}
               depth={depth + 1}
+              disabled={disabled}
             />
           ))}
         </div>

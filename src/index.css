@@ -188,3 +188,35 @@ body {
   animation: bellShake 1.5s ease-in-out infinite;
   transform-origin: top center;
 }
+
+/* Task running indicator pulse animation with glow */
+@keyframes taskRunningPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px 1px var(--color-accent);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px 0 var(--color-accent);
+  }
+}
+
+.task-running-indicator {
+  animation: taskRunningPulse 3s ease-in-out infinite;
+}
+
+/* Running task card border breathing animation */
+@keyframes taskCardBreathing {
+  0%, 100% {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 8px 0 color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+    box-shadow: 0 0 2px 0 color-mix(in srgb, var(--color-accent) 20%, transparent);
+  }
+}
+
+.task-item-running {
+  animation: taskCardBreathing 3s ease-in-out infinite;
+}

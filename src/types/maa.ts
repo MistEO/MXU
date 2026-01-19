@@ -78,6 +78,8 @@ export interface InstanceRuntimeInfo {
   resourceLoaded: boolean;
   isRunning: boolean;
   currentTaskId: number | null;
+  /** 当前运行的任务 ID 列表 */
+  taskIds: number[];
 }
 
 /** Win32 截图方法 */

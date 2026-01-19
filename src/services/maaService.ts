@@ -11,6 +11,7 @@ import type {
   TaskStatus,
   AgentConfig,
   TaskConfig,
+  InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 
@@ -266,6 +267,25 @@ export const maaService = {
   },
 
   /**
+   * 覆盖已提交任务的 Pipeline 配置（用于运行中修改尚未执行的任务选项）
+   * @param instanceId 实例 ID
+   * @param taskId MAA 任务 ID
+   * @param pipelineOverride Pipeline 覆盖 JSON
+   * @returns 是否成功
+   */
+  async overridePipeline(instanceId: string, taskId: number, pipelineOverride: string): Promise<boolean> {
+    log.info('覆盖 Pipeline, 实例:', instanceId, ', taskId:', taskId, ', override:', pipelineOverride);
+    if (!isTauri()) return false;
+    const success = await invoke<boolean>('maa_override_pipeline', {
+      instanceId,
+      taskId,
+      pipelineOverride,
+    });
+    log.info('覆盖 Pipeline 结果:', success);
+    return success;
+  },
+
+  /**
    * 检查是否正在运行
    * @param instanceId 实例 ID
    */
@@ -421,6 +441,114 @@ export const maaService = {
         unlisten = fn;
       });
     });
+  },
+
+  /**
+   * 获取单个实例的运行时状态（通过 Maa API 实时查询）
+   * @param instanceId 实例 ID
+   */
+  async getInstanceState(instanceId: string): Promise<InstanceRuntimeInfo | null> {
+    if (!isTauri()) return null;
+    try {
+      const state = await invoke<{
+        connected: boolean;
+        resource_loaded: boolean;
+        tasker_inited: boolean;
+        is_running: boolean;
+        task_ids: number[];
+      }>('maa_get_instance_state', { instanceId });
+      return {
+        connectionStatus: state.connected ? 'Connected' : 'Disconnected',
+        resourceLoaded: state.resource_loaded,
+        isRunning: state.is_running,
+        currentTaskId: null,
+        taskIds: state.task_ids,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * 获取所有实例的状态快照（通过 Maa API 实时查询，用于启动时恢复状态）
+   */
+  async getAllStates(): Promise<{
+    instances: Record<string, {
+      connected: boolean;
+      resourceLoaded: boolean;
+      taskerInited: boolean;
+      isRunning: boolean;
+      taskIds: number[];
+    }>;
+    cachedAdbDevices: AdbDevice[];
+    cachedWin32Windows: Win32Window[];
+  } | null> {
+    if (!isTauri()) return null;
+    try {
+      const states = await invoke<{
+        instances: Record<string, {
+          connected: boolean;
+          resource_loaded: boolean;
+          tasker_inited: boolean;
+          is_running: boolean;
+          task_ids: number[];
+        }>;
+        cached_adb_devices: AdbDevice[];
+        cached_win32_windows: Win32Window[];
+      }>('maa_get_all_states');
+      
+      // 转换字段名
+      const instances: Record<string, {
+        connected: boolean;
+        resourceLoaded: boolean;
+        taskerInited: boolean;
+        isRunning: boolean;
+        taskIds: number[];
+      }> = {};
+      
+      for (const [id, state] of Object.entries(states.instances)) {
+        instances[id] = {
+          connected: state.connected,
+          resourceLoaded: state.resource_loaded,
+          taskerInited: state.tasker_inited,
+          isRunning: state.is_running,
+          taskIds: state.task_ids,
+        };
+      }
+      
+      return {
+        instances,
+        cachedAdbDevices: states.cached_adb_devices,
+        cachedWin32Windows: states.cached_win32_windows,
+      };
+    } catch (err) {
+      log.error('获取所有状态失败:', err);
+      return null;
+    }
+  },
+
+  /**
+   * 获取缓存的 ADB 设备列表
+   */
+  async getCachedAdbDevices(): Promise<AdbDevice[]> {
+    if (!isTauri()) return [];
+    try {
+      return await invoke<AdbDevice[]>('maa_get_cached_adb_devices');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * 获取缓存的 Win32 窗口列表
+   */
+  async getCachedWin32Windows(): Promise<Win32Window[]> {
+    if (!isTauri()) return [];
+    try {
+      return await invoke<Win32Window[]>('maa_get_cached_win32_windows');
+    } catch {
+      return [];
+    }
   },
 };
 

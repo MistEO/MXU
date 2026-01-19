@@ -3,6 +3,8 @@ mod maa_ffi;
 
 use maa_commands::MaaState;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 
 /// 获取 exe 所在目录下的 logs 子目录
@@ -40,9 +42,12 @@ pub fn run() {
                 .level(log::LevelFilter::Debug)
                 .build(),
         )
-        .manage(MaaState::default())
         .setup(|app| {
-            // 存储 AppHandle 供 MaaFramework 回调使用
+            // 创建 MaaState 并注册为 Tauri 管理状态
+            let maa_state = Arc::new(MaaState::default());
+            app.manage(maa_state);
+            
+            // 存储 AppHandle 供 MaaFramework 回调使用（发送事件到前端）
             maa_ffi::set_app_handle(app.handle().clone());
 
             // 启动时自动加载 MaaFramework DLL
@@ -75,6 +80,7 @@ pub fn run() {
             maa_commands::maa_run_task,
             maa_commands::maa_get_task_status,
             maa_commands::maa_stop_task,
+            maa_commands::maa_override_pipeline,
             maa_commands::maa_is_running,
             maa_commands::maa_post_screencap,
             maa_commands::maa_get_cached_image,
@@ -84,6 +90,11 @@ pub fn run() {
             maa_commands::read_local_file_base64,
             maa_commands::local_file_exists,
             maa_commands::get_exe_dir,
+            // 状态查询命令
+            maa_commands::maa_get_instance_state,
+            maa_commands::maa_get_all_states,
+            maa_commands::maa_get_cached_adb_devices,
+            maa_commands::maa_get_cached_win32_windows,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

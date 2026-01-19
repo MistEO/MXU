@@ -41,6 +41,19 @@ export interface WindowSize {
   height: number;
 }
 
+// 最近关闭的实例记录
+export interface RecentlyClosedInstance {
+  id: string;               // 原实例 ID
+  name: string;             // 实例名称
+  closedAt: number;         // 关闭时间戳
+  controllerId?: string;
+  resourceId?: string;
+  controllerName?: string;
+  resourceName?: string;
+  savedDevice?: SavedDeviceInfo;
+  tasks: SavedTask[];       // 保存的任务配置
+}
+
 // MirrorChyan 更新频道
 export type UpdateChannel = 'stable' | 'beta';
 
@@ -63,6 +76,7 @@ export interface MxuConfig {
   version: string;
   instances: SavedInstance[];
   settings: AppSettings;
+  recentlyClosed?: RecentlyClosedInstance[];  // 最近关闭的实例列表（最多30条）
 }
 
 // 默认窗口大小

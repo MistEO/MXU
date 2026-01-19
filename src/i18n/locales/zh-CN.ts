@@ -172,7 +172,7 @@ export default {
 
   // 实例
   instance: {
-    defaultName: '多开 1',
+    defaultName: '配置 1',
   },
 
   // 连接面板
@@ -190,6 +190,21 @@ export default {
     running: '运行中',
     succeeded: '已完成',
     failed: '已失败',
+  },
+
+  // 最近关闭
+  recentlyClosed: {
+    title: '最近关闭',
+    empty: '暂无最近关闭的标签页',
+    reopen: '重新打开',
+    remove: '从列表中移除',
+    clearAll: '清空列表',
+    justNow: '刚刚',
+    minutesAgo: '{{count}} 分钟前',
+    hoursAgo: '{{count}} 小时前',
+    daysAgo: '{{count}} 天前',
+    noTasks: '无任务',
+    tasksCount: '{{first}} 等 {{count}} 个任务',
   },
 
   // MirrorChyan 更新

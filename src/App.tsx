@@ -189,7 +189,7 @@ function App() {
       setTimeout(() => {
         const currentInstances = useAppStore.getState().instances;
         if (currentInstances.length === 0) {
-          createInstance(t('instance.defaultName', '多开 1'));
+          createInstance(t('instance.defaultName', '配置 1'));
         }
       }, 0);
       

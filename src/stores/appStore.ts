@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { ProjectInterface, Instance, SelectedTask, OptionValue, TaskItem, OptionDefinition, SavedDeviceInfo } from '@/types/interface';
-import type { MxuConfig, WindowSize, UpdateChannel, MirrorChyanSettings } from '@/types/config';
+import type { MxuConfig, WindowSize, UpdateChannel, MirrorChyanSettings, RecentlyClosedInstance } from '@/types/config';
 import { defaultWindowSize, defaultMirrorChyanSettings } from '@/types/config';
+
+// 最近关闭列表最大条目数
+const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
 
@@ -135,6 +138,12 @@ interface AppState {
   setUpdateInfo: (info: UpdateInfo | null) => void;
   setUpdateCheckLoading: (loading: boolean) => void;
   setShowUpdateDialog: (show: boolean) => void;
+  
+  // 最近关闭的实例
+  recentlyClosed: RecentlyClosedInstance[];
+  reopenRecentlyClosed: (id: string) => string | null;
+  removeFromRecentlyClosed: (id: string) => void;
+  clearRecentlyClosed: () => void;
 }
 
 // 更新信息类型
@@ -282,7 +291,7 @@ export const useAppStore = create<AppState>()(
         
         const newInstance: Instance = {
           id,
-          name: name || `多开 ${instanceNumber}`,
+          name: name || `配置 ${instanceNumber}`,
           selectedTasks: defaultTasks,
           isRunning: false,
         };
@@ -297,6 +306,7 @@ export const useAppStore = create<AppState>()(
       },
       
       removeInstance: (id) => set((state) => {
+        const instanceToClose = state.instances.find(i => i.id === id);
         const newInstances = state.instances.filter(i => i.id !== id);
         let newActiveId = state.activeInstanceId;
         
@@ -304,9 +314,34 @@ export const useAppStore = create<AppState>()(
           newActiveId = newInstances.length > 0 ? newInstances[0].id : null;
         }
         
+        // 将关闭的实例添加到最近关闭列表
+        let newRecentlyClosed = state.recentlyClosed;
+        if (instanceToClose) {
+          const closedRecord: RecentlyClosedInstance = {
+            id: instanceToClose.id,
+            name: instanceToClose.name,
+            closedAt: Date.now(),
+            controllerId: instanceToClose.controllerId,
+            resourceId: instanceToClose.resourceId,
+            controllerName: instanceToClose.controllerName,
+            resourceName: instanceToClose.resourceName,
+            savedDevice: instanceToClose.savedDevice,
+            tasks: instanceToClose.selectedTasks.map(t => ({
+              id: t.id,
+              taskName: t.taskName,
+              customName: t.customName,
+              enabled: t.enabled,
+              optionValues: t.optionValues,
+            })),
+          };
+          // 添加到列表头部，并限制最大条目数
+          newRecentlyClosed = [closedRecord, ...state.recentlyClosed].slice(0, MAX_RECENTLY_CLOSED);
+        }
+        
         return {
           instances: newInstances,
           activeInstanceId: newActiveId,
+          recentlyClosed: newRecentlyClosed,
         };
       }),
       
@@ -681,7 +716,7 @@ export const useAppStore = create<AppState>()(
         // 根据已有实例名字计算下一个编号，避免重复
         let maxNumber = 0;
         instances.forEach(inst => {
-          const match = inst.name.match(/^多开\s*(\d+)$/);
+          const match = inst.name.match(/^配置\s*(\d+)$/);
           if (match) {
             maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
           }
@@ -697,6 +732,7 @@ export const useAppStore = create<AppState>()(
           nextInstanceNumber: maxNumber + 1,
           windowSize: config.settings.windowSize || defaultWindowSize,
           mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
+          recentlyClosed: config.recentlyClosed || [],
         });
         
         document.documentElement.classList.toggle('dark', config.settings.theme === 'dark');
@@ -823,6 +859,61 @@ export const useAppStore = create<AppState>()(
       setUpdateInfo: (info) => set({ updateInfo: info }),
       setUpdateCheckLoading: (loading) => set({ updateCheckLoading: loading }),
       setShowUpdateDialog: (show) => set({ showUpdateDialog: show }),
+      
+      // 最近关闭的实例
+      recentlyClosed: [],
+      
+      reopenRecentlyClosed: (id) => {
+        const state = get();
+        const closedInstance = state.recentlyClosed.find(i => i.id === id);
+        if (!closedInstance) return null;
+        
+        const newId = generateId();
+        const newInstance: Instance = {
+          id: newId,
+          name: closedInstance.name,
+          controllerId: closedInstance.controllerId,
+          resourceId: closedInstance.resourceId,
+          controllerName: closedInstance.controllerName,
+          resourceName: closedInstance.resourceName,
+          savedDevice: closedInstance.savedDevice,
+          selectedTasks: closedInstance.tasks.map(t => ({
+            id: generateId(),
+            taskName: t.taskName,
+            customName: t.customName,
+            enabled: t.enabled,
+            optionValues: t.optionValues,
+            expanded: false,
+          })),
+          isRunning: false,
+        };
+        
+        // 恢复选中的控制器和资源状态
+        const newSelectedController = { ...state.selectedController };
+        const newSelectedResource = { ...state.selectedResource };
+        if (closedInstance.controllerName) {
+          newSelectedController[newId] = closedInstance.controllerName;
+        }
+        if (closedInstance.resourceName) {
+          newSelectedResource[newId] = closedInstance.resourceName;
+        }
+        
+        set({
+          instances: [...state.instances, newInstance],
+          activeInstanceId: newId,
+          recentlyClosed: state.recentlyClosed.filter(i => i.id !== id),
+          selectedController: newSelectedController,
+          selectedResource: newSelectedResource,
+        });
+        
+        return newId;
+      },
+      
+      removeFromRecentlyClosed: (id) => set((state) => ({
+        recentlyClosed: state.recentlyClosed.filter(i => i.id !== id),
+      })),
+      
+      clearRecentlyClosed: () => set({ recentlyClosed: [] }),
     })
   )
 );
@@ -854,6 +945,7 @@ function generateConfig(): MxuConfig {
       windowSize: state.windowSize,
       mirrorChyan: state.mirrorChyanSettings,
     },
+    recentlyClosed: state.recentlyClosed,
   };
 }
 
@@ -881,6 +973,7 @@ useAppStore.subscribe(
     language: state.language,
     windowSize: state.windowSize,
     mirrorChyanSettings: state.mirrorChyanSettings,
+    recentlyClosed: state.recentlyClosed,
   }),
   () => {
     debouncedSaveConfig();

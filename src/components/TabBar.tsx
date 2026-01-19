@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, X, Settings, Sun, Moon, Check, LayoutGrid, Copy, Edit3, XCircle, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, PanelRightClose, Bell } from 'lucide-react';
+import { Plus, X, Settings, Sun, Moon, Check, LayoutGrid, Copy, Edit3, XCircle, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, PanelRightClose, Bell, Clock } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { UpdatePanel } from './UpdatePanel';
+import { RecentlyClosedPanel } from './RecentlyClosedPanel';
 import clsx from 'clsx';
 
 export function TabBar() {
@@ -16,8 +17,10 @@ export function TabBar() {
     dragOverIndex: number | null;
   }>({ isDragging: false, draggedIndex: -1, dragOverIndex: null });
   const [showUpdatePanel, setShowUpdatePanel] = useState(false);
+  const [showRecentlyClosedPanel, setShowRecentlyClosedPanel] = useState(false);
   const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const bellButtonRef = useRef<HTMLButtonElement>(null);
+  const recentlyClosedButtonRef = useRef<HTMLButtonElement>(null);
   
   const {
     instances,
@@ -364,6 +367,20 @@ export function TabBar() {
             )}
           </button>
         )}
+        {/* 最近关闭按钮 */}
+        <button
+          ref={recentlyClosedButtonRef}
+          onClick={() => setShowRecentlyClosedPanel(!showRecentlyClosedPanel)}
+          className={clsx(
+            'p-2 rounded-md transition-colors',
+            showRecentlyClosedPanel
+              ? 'bg-accent/10 text-accent'
+              : 'hover:bg-bg-hover text-text-secondary'
+          )}
+          title={t('recentlyClosed.title')}
+        >
+          <Clock className="w-4 h-4" />
+        </button>
         <button
           onClick={toggleDashboardView}
           className={clsx(
@@ -410,6 +427,14 @@ export function TabBar() {
         <UpdatePanel
           onClose={() => setShowUpdatePanel(false)}
           anchorRef={bellButtonRef}
+        />
+      )}
+
+      {/* 最近关闭面板 */}
+      {showRecentlyClosedPanel && (
+        <RecentlyClosedPanel
+          onClose={() => setShowRecentlyClosedPanel(false)}
+          anchorRef={recentlyClosedButtonRef}
         />
       )}
     </div>

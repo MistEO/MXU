@@ -172,7 +172,7 @@ export default {
 
   // Instance
   instance: {
-    defaultName: 'Multi 1',
+    defaultName: 'Config 1',
   },
 
   // Connection panel
@@ -190,6 +190,21 @@ export default {
     running: 'Running',
     succeeded: 'Succeeded',
     failed: 'Failed',
+  },
+
+  // Recently Closed
+  recentlyClosed: {
+    title: 'Recently Closed',
+    empty: 'No recently closed tabs',
+    reopen: 'Reopen',
+    remove: 'Remove from list',
+    clearAll: 'Clear all',
+    justNow: 'Just now',
+    minutesAgo: '{{count}} minutes ago',
+    hoursAgo: '{{count}} hours ago',
+    daysAgo: '{{count}} days ago',
+    noTasks: 'No tasks',
+    tasksCount: '{{first}} and {{count}} tasks',
   },
 
   // MirrorChyan Update

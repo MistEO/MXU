@@ -47,6 +47,8 @@ export function ConnectionPanel() {
     setInstanceConnectionStatus,
     setInstanceResourceLoaded,
     setInstanceSavedDevice,
+    connectionPanelExpanded,
+    setConnectionPanelExpanded,
   } = useAppStore();
   
   // 获取当前活动实例
@@ -56,9 +58,6 @@ export function ConnectionPanel() {
   const storedConnectionStatus = activeInstanceId ? instanceConnectionStatus[activeInstanceId] : undefined;
   const storedResourceLoaded = activeInstanceId ? instanceResourceLoaded[activeInstanceId] : false;
 
-  // 折叠状态
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  
   // 设备相关状态
   const [isSearching, setIsSearching] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -102,9 +101,9 @@ export function ConnectionPanel() {
   // 当设备和资源都准备好时自动折叠
   useEffect(() => {
     if (isConnected && isResourceLoaded) {
-      setIsCollapsed(true);
+      setConnectionPanelExpanded(false);
     }
-  }, [isConnected, isResourceLoaded]);
+  }, [isConnected, isResourceLoaded, setConnectionPanelExpanded]);
   
   // 当实例切换时，重置和恢复状态
   useEffect(() => {
@@ -151,9 +150,9 @@ export function ConnectionPanel() {
     
     // 如果已连接但未展开，自动折叠
     if (isInstanceConnected && isInstanceResourceLoaded) {
-      setIsCollapsed(true);
+      setConnectionPanelExpanded(false);
     } else {
-      setIsCollapsed(false);
+      setConnectionPanelExpanded(true);
     }
   }, [activeInstanceId]); // eslint-disable-line react-hooks/exhaustive-deps
   
@@ -592,10 +591,10 @@ export function ConnectionPanel() {
     <div className="bg-bg-secondary rounded-lg border border-border">
       {/* 标题栏（可点击折叠） */}
       <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={() => setConnectionPanelExpanded(!connectionPanelExpanded)}
         className={clsx(
           'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors',
-          isCollapsed ? 'rounded-lg' : 'rounded-t-lg border-b border-border'
+          !connectionPanelExpanded ? 'rounded-lg' : 'rounded-t-lg border-b border-border'
         )}
       >
         <div className="flex items-center gap-2">
@@ -606,7 +605,7 @@ export function ConnectionPanel() {
         </div>
         <div className="flex items-center gap-2">
           <StatusIndicator />
-          {isCollapsed ? (
+          {!connectionPanelExpanded ? (
             <ChevronDown className="w-4 h-4 text-text-muted" />
           ) : (
             <ChevronUp className="w-4 h-4 text-text-muted" />
@@ -615,7 +614,7 @@ export function ConnectionPanel() {
       </button>
 
       {/* 可折叠内容 */}
-      {!isCollapsed && (
+      {connectionPanelExpanded && (
         <div className="p-3 space-y-3">
           {/* 控制器选择 - 标题和按钮同一行 */}
           {controllers.length > 1 && (

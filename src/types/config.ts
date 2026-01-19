@@ -82,6 +82,9 @@ export interface AppSettings {
   windowSize?: WindowSize;
   mirrorChyan?: MirrorChyanSettings;
   showOptionPreview?: boolean;  // 是否在任务列表显示选项预览
+  sidePanelExpanded?: boolean;  // 右侧面板是否展开（连接+截图）
+  connectionPanelExpanded?: boolean; // 连接设置卡片是否展开
+  screenshotPanelExpanded?: boolean; // 实时截图卡片是否展开
 }
 
 // MXU 配置文件完整结构

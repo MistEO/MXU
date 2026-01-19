@@ -32,9 +32,10 @@ export function ScreenshotPanel() {
     sidePanelExpanded,
     instanceScreenshotStreaming,
     setInstanceScreenshotStreaming,
+    screenshotPanelExpanded,
+    setScreenshotPanelExpanded,
   } = useAppStore();
   
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -215,14 +216,14 @@ export function ScreenshotPanel() {
 
   // 面板折叠或被隐藏时停止流（但不改变 store 中的状态，只停止实际的流循环）
   useEffect(() => {
-    if (isCollapsed || !sidePanelExpanded) {
+    if (!screenshotPanelExpanded || !sidePanelExpanded) {
       streamingRef.current = false;
     } else if (isStreaming && instanceId) {
       // 面板重新展开时，如果状态是开启的，恢复流
       streamingRef.current = true;
       streamLoop();
     }
-  }, [isCollapsed, sidePanelExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screenshotPanelExpanded, sidePanelExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 连接成功后自动开始实时截图（仅当面板可见且未开启时）
   const connectionStatus = instanceId ? instanceConnectionStatus[instanceId] : undefined;
@@ -374,13 +375,13 @@ export function ScreenshotPanel() {
     const isConnected = connectionStatus === 'Connected';
     prevConnectionStatusRef.current = connectionStatus;
     
-    if (isConnected && !wasConnected && !isStreaming && !isCollapsed && sidePanelExpanded && instanceId) {
+    if (isConnected && !wasConnected && !isStreaming && screenshotPanelExpanded && sidePanelExpanded && instanceId) {
       streamingRef.current = true;
       setIsStreaming(true);
       setError(null);
       streamLoop();
     }
-  }, [connectionStatus, instanceId, isCollapsed, sidePanelExpanded, isStreaming, setIsStreaming, streamLoop]);
+  }, [connectionStatus, instanceId, screenshotPanelExpanded, sidePanelExpanded, isStreaming, setIsStreaming, streamLoop]);
 
   return (
     <div className="bg-bg-secondary rounded-lg border border-border">
@@ -388,16 +389,16 @@ export function ScreenshotPanel() {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={() => setScreenshotPanelExpanded(!screenshotPanelExpanded)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setIsCollapsed(!isCollapsed);
+            setScreenshotPanelExpanded(!screenshotPanelExpanded);
           }
         }}
         className={clsx(
           'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors cursor-pointer',
-          isCollapsed ? 'rounded-lg' : 'rounded-t-lg border-b border-border'
+          !screenshotPanelExpanded ? 'rounded-lg' : 'rounded-t-lg border-b border-border'
         )}
       >
         <div className="flex items-center gap-2">
@@ -448,7 +449,7 @@ export function ScreenshotPanel() {
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
-          {isCollapsed ? (
+          {!screenshotPanelExpanded ? (
             <ChevronDown className="w-4 h-4 text-text-muted" />
           ) : (
             <ChevronUp className="w-4 h-4 text-text-muted" />
@@ -457,7 +458,7 @@ export function ScreenshotPanel() {
       </div>
 
       {/* 可折叠内容 */}
-      {!isCollapsed && (
+      {screenshotPanelExpanded && (
         <div className="p-3">
           {/* 截图区域 */}
           <div

@@ -53,6 +53,18 @@ export default {
     stopTasks: 'Stop Tasks',
     startingTasks: 'Starting...',
     stoppingTasks: 'Stopping...',
+    // Auto connect
+    autoConnect: {
+      searching: 'Searching...',
+      connecting: 'Connecting...',
+      loadingResource: 'Loading resource...',
+      deviceNotFound: 'Device not found: {{name}}',
+      windowNotFound: 'Window not found: {{name}}',
+      noSavedDevice: 'No saved device configuration',
+      connectFailed: 'Auto connect failed',
+      resourceFailed: 'Resource loading failed',
+      needConfig: 'Please connect device and load resource first, or save device config in connection panel',
+    },
   },
 
   // Task item

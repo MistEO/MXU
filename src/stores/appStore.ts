@@ -117,6 +117,12 @@ interface AppState {
   setSidePanelExpanded: (expanded: boolean) => void;
   toggleSidePanelExpanded: () => void;
   
+  // 卡片展开状态
+  connectionPanelExpanded: boolean;
+  screenshotPanelExpanded: boolean;
+  setConnectionPanelExpanded: (expanded: boolean) => void;
+  setScreenshotPanelExpanded: (expanded: boolean) => void;
+  
   // 中控台视图模式（同时显示所有实例的截图和日志）
   dashboardView: boolean;
   setDashboardView: (enabled: boolean) => void;
@@ -739,6 +745,9 @@ export const useAppStore = create<AppState>()(
           windowSize: config.settings.windowSize || defaultWindowSize,
           mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
           showOptionPreview: config.settings.showOptionPreview ?? true,
+          sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
+          connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
+          screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
           recentlyClosed: config.recentlyClosed || [],
         });
         
@@ -840,6 +849,12 @@ export const useAppStore = create<AppState>()(
       sidePanelExpanded: true,
       setSidePanelExpanded: (expanded) => set({ sidePanelExpanded: expanded }),
       toggleSidePanelExpanded: () => set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded })),
+      
+      // 卡片展开状态
+      connectionPanelExpanded: true,
+      screenshotPanelExpanded: true,
+      setConnectionPanelExpanded: (expanded) => set({ connectionPanelExpanded: expanded }),
+      setScreenshotPanelExpanded: (expanded) => set({ screenshotPanelExpanded: expanded }),
       
       // 中控台视图模式
       dashboardView: false,
@@ -958,6 +973,9 @@ function generateConfig(): MxuConfig {
       windowSize: state.windowSize,
       mirrorChyan: state.mirrorChyanSettings,
       showOptionPreview: state.showOptionPreview,
+      sidePanelExpanded: state.sidePanelExpanded,
+      connectionPanelExpanded: state.connectionPanelExpanded,
+      screenshotPanelExpanded: state.screenshotPanelExpanded,
     },
     recentlyClosed: state.recentlyClosed,
   };
@@ -988,6 +1006,9 @@ useAppStore.subscribe(
     windowSize: state.windowSize,
     mirrorChyanSettings: state.mirrorChyanSettings,
     showOptionPreview: state.showOptionPreview,
+    sidePanelExpanded: state.sidePanelExpanded,
+    connectionPanelExpanded: state.connectionPanelExpanded,
+    screenshotPanelExpanded: state.screenshotPanelExpanded,
     recentlyClosed: state.recentlyClosed,
   }),
   () => {

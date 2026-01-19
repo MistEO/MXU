@@ -53,6 +53,18 @@ export default {
     stopTasks: '停止任务',
     startingTasks: '启动中...',
     stoppingTasks: '停止中...',
+    // 自动连接相关
+    autoConnect: {
+      searching: '搜索设备...',
+      connecting: '连接设备...',
+      loadingResource: '加载资源...',
+      deviceNotFound: '未找到设备: {{name}}',
+      windowNotFound: '未找到窗口: {{name}}',
+      noSavedDevice: '没有保存的设备配置',
+      connectFailed: '自动连接失败',
+      resourceFailed: '资源加载失败',
+      needConfig: '请先连接设备并加载资源，或在连接面板保存设备配置',
+    },
   },
 
   // 任务项

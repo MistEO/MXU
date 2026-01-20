@@ -152,6 +152,9 @@ pub fn run() {
             maa_commands::apply_incremental_update,
             maa_commands::apply_full_update,
             maa_commands::cleanup_extract_dir,
+            // 下载命令
+            maa_commands::download_file,
+            maa_commands::cancel_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

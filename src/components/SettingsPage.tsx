@@ -145,8 +145,8 @@ export function SettingsPage() {
     if (isEnteringCdk && isDownloadingFromGitHub && projectInterface?.mirrorchyan_rid) {
       addDebugLog('检测到填入 CDK，正在停止 GitHub 下载并切换到 Mirror酱...');
 
-      // 取消当前下载
-      cancelDownload();
+      // 取消当前下载（异步操作，不等待结果）
+      void cancelDownload();
       resetDownloadState();
 
       // 使用新 CDK 重新检查更新

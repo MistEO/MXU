@@ -6,7 +6,7 @@ import type { UpdateInfo, DownloadProgress } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { writeFile, mkdir, remove, rename, exists } from '@tauri-apps/plugin-fs';
+import { mkdir, remove, rename, exists } from '@tauri-apps/plugin-fs';
 import { join, dirname, basename } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -14,9 +14,6 @@ const log = loggers.app;
 
 // 下载状态标志，防止重复检查或下载
 let isDownloading = false;
-
-// 用于取消下载的 AbortController
-let currentAbortController: AbortController | null = null;
 
 /**
  * 将文件移动到统一的 cache/old 文件夹，处理重名冲突
@@ -71,16 +68,23 @@ export function getIsDownloading(): boolean {
  * 取消当前正在进行的下载
  * @returns 是否成功取消（如果没有正在进行的下载则返回 false）
  */
-export function cancelDownload(): boolean {
-  if (!isDownloading || !currentAbortController) {
+export async function cancelDownload(): Promise<boolean> {
+  if (!isDownloading || !currentDownloadPath) {
     return false;
   }
   
   log.info('取消下载...');
-  currentAbortController.abort();
-  // 立即重置状态，允许新下载开始
+  
+  try {
+    // 调用 Rust 后端删除临时文件
+    await invoke('cancel_download', { savePath: currentDownloadPath });
+  } catch (error) {
+    log.warn('取消下载时清理临时文件失败:', error);
+  }
+  
+  // 重置状态
   isDownloading = false;
-  currentAbortController = null;
+  currentDownloadPath = null;
   return true;
 }
 
@@ -517,8 +521,17 @@ export interface DownloadUpdateOptions {
   onProgress?: (progress: DownloadProgress) => void;
 }
 
+// 当前下载的保存路径，用于取消时清理临时文件
+let currentDownloadPath: string | null = null;
+
 /**
- * 下载更新包
+ * 下载更新包（使用 Rust 后端流式下载）
+ * 
+ * 相比 JavaScript 下载，Rust 后端实现具有以下优势：
+ * - 流式写入磁盘，不占用大量内存
+ * - 更高的下载速度（直接写入文件，无需 JS 中转）
+ * - 更稳定的大文件下载支持
+ * 
  * @returns 是否下载成功
  */
 export async function downloadUpdate(options: DownloadUpdateOptions): Promise<boolean> {
@@ -534,127 +547,47 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
   log.info(`保存路径: ${savePath}`);
   
   isDownloading = true;
-  currentAbortController = new AbortController();
-  const thisAbortController = currentAbortController; // 保存当前会话的引用
+  currentDownloadPath = savePath;
+  
+  // 设置进度监听器
+  let unlisten: (() => void) | null = null;
   
   try {
-    // 确保目录存在
-    const dir = await dirname(savePath);
-    await mkdir(dir, { recursive: true }).catch(() => {});
-    
-    // 使用临时文件名下载，完成后再重命名
-    const tempPath = savePath + '.downloading';
-    
-    // 发起下载请求（带 abort signal）
-    const response = await tauriFetch(url, {
-      headers: {
-        'User-Agent': buildUserAgent(),
-      },
-      signal: currentAbortController.signal,
-    });
-    
-    if (!response.ok) {
-      log.error(`下载失败: HTTP ${response.status}`);
-      return false;
-    }
-    
-    const contentLength = response.headers.get('content-length');
-    const total = totalSize || (contentLength ? parseInt(contentLength, 10) : 0);
-    
-    // 使用流式读取来支持实时进度更新
-    const reader = response.body?.getReader();
-    if (!reader) {
-      log.error('无法获取响应流');
-      return false;
-    }
-    
-    const chunks: Uint8Array[] = [];
-    let downloadedSize = 0;
-    let lastProgressTime = Date.now();
-    let lastDownloadedSize = 0;
-    
-    // 逐块读取数据
-    while (true) {
-      // 检查是否已被取消
-      if (thisAbortController.signal.aborted) {
-        reader.cancel();
-        return false;
-      }
-      
-      const { done, value } = await reader.read();
-      
-      if (done) break;
-      
-      if (value) {
-        chunks.push(value);
-        downloadedSize += value.length;
-        
-        // 计算下载速度和进度
-        const now = Date.now();
-        const timeDelta = now - lastProgressTime;
-        
-        // 每 100ms 更新一次进度，避免过于频繁的 UI 更新
-        // 同时检查是否已被取消，防止旧下载更新进度
-        if (timeDelta >= 100 && onProgress && !thisAbortController.signal.aborted) {
-          const bytesInInterval = downloadedSize - lastDownloadedSize;
-          const speed = Math.round(bytesInInterval / (timeDelta / 1000));
-          const progress = total > 0 ? (downloadedSize / total) * 100 : 0;
-          
-          onProgress({
-            downloadedSize,
-            totalSize: total,
-            speed,
-            progress,
-          });
-          
-          lastProgressTime = now;
-          lastDownloadedSize = downloadedSize;
-        }
-      }
-    }
-    
-    // 合并所有块
-    const data = new Uint8Array(downloadedSize);
-    let offset = 0;
-    for (const chunk of chunks) {
-      data.set(chunk, offset);
-      offset += chunk.length;
-    }
-    
-    // 报告最终进度（检查是否已被取消）
-    if (onProgress && !thisAbortController.signal.aborted) {
-      onProgress({
-        downloadedSize: data.length,
-        totalSize: total > 0 ? total : data.length,
-        speed: 0,
-        progress: 100,
+    // 监听 Rust 后端发送的下载进度事件
+    if (onProgress) {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlisten = await listen<DownloadProgress>('download-progress', (event) => {
+        onProgress({
+          downloadedSize: event.payload.downloadedSize,
+          totalSize: event.payload.totalSize,
+          speed: event.payload.speed,
+          progress: event.payload.progress,
+        });
       });
     }
     
-    // 写入文件
-    await writeFile(tempPath, data);
+    // 调用 Rust 后端进行流式下载
+    const result = await invoke<boolean>('download_file', {
+      url,
+      savePath,
+      totalSize: totalSize || null,
+    });
     
-    // 将可能存在的旧文件移动到 old 文件夹，然后重命名
-    await moveToOldFolder(savePath);
-    await rename(tempPath, savePath);
-    
-    log.info('下载完成');
-    return true;
-  } catch (error) {
-    // 检查是否是被主动取消
-    if (thisAbortController.signal.aborted) {
-      log.info('下载已被取消');
-      return false;
+    if (result) {
+      log.info('下载完成');
     }
+    
+    return result;
+  } catch (error) {
     log.error('下载失败:', error);
     return false;
   } finally {
-    // 只有当前下载会话未被取消时才重置状态
-    // 如果已被取消，cancelDownload() 已经重置了状态
-    if (!thisAbortController.signal.aborted) {
-      isDownloading = false;
-      currentAbortController = null;
+    // 清理事件监听器
+    if (unlisten) {
+      unlisten();
     }
+    isDownloading = false;
+    currentDownloadPath = null;
   }
 }
 

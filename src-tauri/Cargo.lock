@@ -2479,6 +2479,7 @@ dependencies = [
  "once_cell",
  "regex",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "tar",

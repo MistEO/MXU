@@ -2,24 +2,59 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import zhCN from './locales/zh-CN';
 import enUS from './locales/en-US';
+import jaJP from './locales/ja-JP';
+import koKR from './locales/ko-KR';
+
+/**
+ * 支持的语言配置
+ * - key: MXU 使用的语言代码（BCP 47 格式）
+ * - interfaceKey: interface.json 翻译文件中使用的语言键（ProjectInterface V2 协议规范）
+ */
+export const SUPPORTED_LANGUAGES = {
+  'zh-CN': { interfaceKey: 'zh_cn' },
+  'en-US': { interfaceKey: 'en_us' },
+  'ja-JP': { interfaceKey: 'ja_jp' },
+  'ko-KR': { interfaceKey: 'ko_kr' },
+} as const;
+
+export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
+
+/** 获取 interface.json 翻译键（用于 ProjectInterface 国际化） */
+export const getInterfaceLangKey = (lang: string): string => {
+  const config = SUPPORTED_LANGUAGES[lang as SupportedLanguage];
+  // 默认回退到英文
+  return config?.interfaceKey ?? SUPPORTED_LANGUAGES['en-US'].interfaceKey;
+};
+
+/** 获取所有支持的语言列表 */
+export const getSupportedLanguages = (): SupportedLanguage[] => {
+  return Object.keys(SUPPORTED_LANGUAGES) as SupportedLanguage[];
+};
 
 const resources = {
   'zh-CN': { translation: zhCN },
   'en-US': { translation: enUS },
+  'ja-JP': { translation: jaJP },
+  'ko-KR': { translation: koKR },
 };
 
 // 获取系统语言或存储的语言偏好
-const getInitialLanguage = (): string => {
+const getInitialLanguage = (): SupportedLanguage => {
   const stored = localStorage.getItem('mxu-language');
-  if (stored && (stored === 'zh-CN' || stored === 'en-US')) {
-    return stored;
+  if (stored && stored in SUPPORTED_LANGUAGES) {
+    return stored as SupportedLanguage;
   }
   
+  // 尝试匹配系统语言
   const systemLang = navigator.language;
-  if (systemLang.startsWith('zh')) {
-    return 'zh-CN';
+  // 精确匹配
+  if (systemLang in SUPPORTED_LANGUAGES) {
+    return systemLang as SupportedLanguage;
   }
-  return 'en-US';
+  // 前缀匹配（如 zh -> zh-CN）
+  const prefix = systemLang.split('-')[0];
+  const matched = getSupportedLanguages().find(lang => lang.startsWith(prefix));
+  return matched ?? 'en-US';
 };
 
 i18n
@@ -33,11 +68,11 @@ i18n
     },
   });
 
-export const setLanguage = (lang: 'zh-CN' | 'en-US') => {
+export const setLanguage = (lang: SupportedLanguage) => {
   i18n.changeLanguage(lang);
   localStorage.setItem('mxu-language', lang);
 };
 
-export const getCurrentLanguage = () => i18n.language as 'zh-CN' | 'en-US';
+export const getCurrentLanguage = (): SupportedLanguage => i18n.language as SupportedLanguage;
 
 export default i18n;

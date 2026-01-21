@@ -81,6 +81,16 @@ export const maaService = {
   },
 
   /**
+   * 检查 MaaFramework 版本是否满足最小要求
+   */
+  async checkVersion(): Promise<{ current: string; minimum: string; is_compatible: boolean }> {
+    log.debug('检查 MaaFramework 版本...');
+    const result = await invoke<{ current: string; minimum: string; is_compatible: boolean }>('maa_check_version');
+    log.info('版本检查结果:', result);
+    return result;
+  },
+
+  /**
    * 查找 ADB 设备
    */
   async findAdbDevices(): Promise<AdbDevice[]> {

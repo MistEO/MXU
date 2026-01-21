@@ -16,9 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use libloading::Library;
-use log::{debug, info};
-#[cfg(windows)]
-use log::warn;
+use log::{debug, info, warn};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -244,7 +242,8 @@ pub struct MaaLibrary {
     pub maa_tasker_running: FnMaaTaskerRunning,
     pub maa_tasker_post_stop: FnMaaTaskerPostStop,
     pub maa_tasker_add_sink: FnMaaTaskerAddSink,
-    pub maa_tasker_override_pipeline: FnMaaTaskerOverridePipeline,
+    /// 可选函数：旧版本 MaaFramework 可能不支持
+    pub maa_tasker_override_pipeline: Option<FnMaaTaskerOverridePipeline>,
     
     // Toolkit - ADB Device
     pub maa_toolkit_adb_device_list_create: FnMaaToolkitAdbDeviceListCreate,
@@ -368,6 +367,19 @@ impl MaaLibrary {
                 }};
             }
             
+            // 可选加载函数宏 - 加载失败返回 None 而非错误（用于向后兼容旧版本 DLL）
+            macro_rules! load_fn_optional {
+                ($lib:expr, $name:literal) => {{
+                    match $lib.get::<*const ()>($name.as_bytes()) {
+                        Ok(sym) => Some(std::mem::transmute(*sym)),
+                        Err(e) => {
+                            warn!("Optional function {} not available: {}", $name, e);
+                            None
+                        }
+                    }
+                }};
+            }
+            
             Ok(Self {
                 // Version
                 maa_version: load_fn!(framework_lib, "MaaVersion"),
@@ -418,7 +430,7 @@ impl MaaLibrary {
                 maa_tasker_running: load_fn!(framework_lib, "MaaTaskerRunning"),
                 maa_tasker_post_stop: load_fn!(framework_lib, "MaaTaskerPostStop"),
                 maa_tasker_add_sink: load_fn!(framework_lib, "MaaTaskerAddSink"),
-                maa_tasker_override_pipeline: load_fn!(framework_lib, "MaaTaskerOverridePipeline"),
+                maa_tasker_override_pipeline: load_fn_optional!(framework_lib, "MaaTaskerOverridePipeline"),
                 
                 // Toolkit - ADB Device
                 maa_toolkit_adb_device_list_create: load_fn!(toolkit_lib, "MaaToolkitAdbDeviceListCreate"),
@@ -505,6 +517,59 @@ pub fn init_maa_library(lib_dir: &Path) -> Result<(), String> {
 pub fn get_maa_version() -> Option<String> {
     let guard = MAA_LIBRARY.lock().ok()?;
     guard.as_ref().map(|lib| lib.version())
+}
+
+/// 缓存的版本号（从独立加载获取）
+static CACHED_VERSION: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+/// 独立获取 MaaFramework 版本（不依赖完整库加载）
+/// 只加载 MaaVersion 函数，用于版本检查
+pub fn get_maa_version_standalone(lib_dir: &Path) -> Option<String> {
+    // 先检查缓存
+    if let Ok(guard) = CACHED_VERSION.lock() {
+        if let Some(ref version) = *guard {
+            return Some(version.clone());
+        }
+    }
+    
+    // 尝试从已加载的库获取
+    if let Some(version) = get_maa_version() {
+        // 缓存结果
+        if let Ok(mut guard) = CACHED_VERSION.lock() {
+            *guard = Some(version.clone());
+        }
+        return Some(version);
+    }
+    
+    // 独立加载 MaaFramework.dll 仅获取版本
+    #[cfg(windows)]
+    let framework_path = lib_dir.join("MaaFramework.dll");
+    #[cfg(target_os = "macos")]
+    let framework_path = lib_dir.join("libMaaFramework.dylib");
+    #[cfg(target_os = "linux")]
+    let framework_path = lib_dir.join("libMaaFramework.so");
+    
+    let version = unsafe {
+        let lib = Library::new(&framework_path).ok()?;
+        let sym = lib.get::<*const ()>(b"MaaVersion").ok()?;
+        let maa_version: FnMaaVersion = std::mem::transmute(*sym);
+        let ptr = maa_version();
+        if ptr.is_null() {
+            return None;
+        }
+        let version = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+        // 注意：这里 lib 会在作用域结束时被 drop，但版本字符串已经复制出来了
+        Some(version)
+    };
+    
+    // 缓存结果
+    if let Some(ref v) = version {
+        if let Ok(mut guard) = CACHED_VERSION.lock() {
+            *guard = Some(v.clone());
+        }
+    }
+    
+    version
 }
 
 /// 辅助函数：将 &str 转换为 CString

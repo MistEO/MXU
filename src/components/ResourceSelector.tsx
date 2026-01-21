@@ -13,6 +13,7 @@ import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
 import type { ResourceItem } from '@/types/interface';
+import { getInterfaceLangKey } from '@/i18n';
 
 interface ResourceSelectorProps {
   instanceId: string;
@@ -78,7 +79,7 @@ export function ResourceSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
 
   // 当前选中的资源

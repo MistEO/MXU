@@ -119,6 +119,7 @@ pub fn run() {
             maa_commands::maa_init,
             maa_commands::maa_set_resource_dir,
             maa_commands::maa_get_version,
+            maa_commands::maa_check_version,
             maa_commands::maa_find_adb_devices,
             maa_commands::maa_find_win32_windows,
             maa_commands::maa_create_instance,

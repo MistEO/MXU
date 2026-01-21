@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { UpdatePanel } from './UpdatePanel';
 import { RecentlyClosedPanel } from './RecentlyClosedPanel';
+import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 
 export function TabBar() {
@@ -59,7 +60,7 @@ export function TabBar() {
   }, [recentlyClosed.length]);
 
   const handleNewTab = () => {
-    createInstance();
+    createInstance(t('instance.defaultName'));
   };
 
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
@@ -100,7 +101,7 @@ export function TabBar() {
     setTheme(theme === 'light' ? 'dark' : 'light');
   };
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
 
   // 右键菜单处理
   const handleTabContextMenu = useCallback(
@@ -114,7 +115,7 @@ export function TabBar() {
           id: 'new',
           label: t('contextMenu.newTab'),
           icon: Plus,
-          onClick: () => createInstance(),
+          onClick: () => createInstance(t('instance.defaultName')),
         },
         {
           id: 'duplicate',

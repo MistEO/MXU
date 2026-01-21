@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 
 use crate::maa_ffi::{
-    emit_agent_output, from_cstr, get_event_callback, get_maa_version, init_maa_library, to_cstring,
-    MaaAgentClient, MaaController, MaaImageBuffer, MaaLibrary, MaaResource, MaaTasker,
-    MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList, SendPtr,
+    emit_agent_output, from_cstr, get_event_callback, get_maa_version, get_maa_version_standalone,
+    init_maa_library, to_cstring, MaaAgentClient, MaaController, MaaImageBuffer, MaaLibrary,
+    MaaResource, MaaTasker, MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList, SendPtr,
     MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE, MAA_GAMEPAD_TYPE_DUALSHOCK4,
     MAA_GAMEPAD_TYPE_XBOX360, MAA_INVALID_ID, MAA_LIBRARY, MAA_STATUS_PENDING,
     MAA_STATUS_RUNNING, MAA_STATUS_SUCCEEDED, MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
@@ -26,6 +26,35 @@ use crate::maa_ffi::{
 // ============================================================================
 // 辅助函数
 // ============================================================================
+
+/// 规范化路径：移除冗余的 `.`、处理 `..`、统一分隔符
+/// 使用 Path::components() 解析，不需要路径实际存在
+fn normalize_path(path: &str) -> PathBuf {
+    use std::path::{Component, Path};
+    
+    let path = Path::new(path);
+    let mut components = Vec::new();
+    
+    for component in path.components() {
+        match component {
+            // 跳过当前目录标记 "."
+            Component::CurDir => {}
+            // 处理父目录 ".."：如果栈顶是普通目录则弹出，否则保留
+            Component::ParentDir => {
+                if matches!(components.last(), Some(Component::Normal(_))) {
+                    components.pop();
+                } else {
+                    components.push(component);
+                }
+            }
+            // 保留其他组件（Prefix、RootDir、Normal）
+            _ => components.push(component),
+        }
+    }
+    
+    // 重建路径
+    components.iter().collect()
+}
 
 /// 获取 exe 所在目录下的 debug/logs 子目录
 fn get_logs_dir() -> PathBuf {
@@ -279,13 +308,14 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         return Err(err);
     }
 
+    // 先设置 lib_dir，即使后续加载失败也能用于版本检查
+    *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(lib_path.clone());
+
     info!("maa_init loading library...");
     init_maa_library(&lib_path)?;
 
     let version = get_maa_version().unwrap_or_default();
     info!("maa_init success, version: {}", version);
-
-    *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(lib_path);
 
     Ok(version)
 }
@@ -306,6 +336,73 @@ pub fn maa_get_version() -> Result<String, String> {
     let version = get_maa_version().ok_or_else(|| "MaaFramework not initialized".to_string())?;
     info!("maa_get_version result: {}", version);
     Ok(version)
+}
+
+/// MaaFramework 最小支持版本
+const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
+
+/// 版本检查结果
+#[derive(Serialize)]
+pub struct VersionCheckResult {
+    /// 当前 MaaFramework 版本
+    pub current: String,
+    /// 最小支持版本
+    pub minimum: String,
+    /// 是否满足最小版本要求
+    pub is_compatible: bool,
+}
+
+/// 检查 MaaFramework 版本是否满足最小要求
+/// 使用独立的版本获取，不依赖完整库加载成功
+#[tauri::command]
+pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResult, String> {
+    debug!("maa_check_version called");
+    
+    // 获取 lib_dir
+    let lib_dir = state.lib_dir.lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "lib_dir not set".to_string())?;
+    
+    // 使用独立的版本获取函数，不依赖完整库加载
+    let current_str = get_maa_version_standalone(&lib_dir)
+        .ok_or_else(|| "Failed to get MaaFramework version".to_string())?;
+    
+    // 去掉版本号前缀 'v'（如 "v5.5.0-beta.1" -> "5.5.0-beta.1"）
+    let current_clean = current_str.trim_start_matches('v');
+    let min_clean = MIN_MAAFW_VERSION.trim_start_matches('v');
+    
+    // 解析最小版本（这个应该总是成功的）
+    let minimum = semver::Version::parse(min_clean).map_err(|e| {
+        error!("Failed to parse minimum version '{}': {}", min_clean, e);
+        format!("Failed to parse minimum version '{}': {}", min_clean, e)
+    })?;
+    
+    // 尝试解析当前版本，如果解析失败（如 "DEBUG_VERSION"），视为不兼容
+    let is_compatible = match semver::Version::parse(current_clean) {
+        Ok(current) => {
+            let compatible = current >= minimum;
+            info!(
+                "maa_check_version: current={}, minimum={}, compatible={}",
+                current, minimum, compatible
+            );
+            compatible
+        }
+        Err(e) => {
+            // 无法解析的版本号（如 DEBUG_VERSION）视为不兼容
+            warn!(
+                "Failed to parse current version '{}': {} - treating as incompatible",
+                current_clean, e
+            );
+            false
+        }
+    };
+    
+    Ok(VersionCheckResult {
+        current: current_str,
+        minimum: format!("v{}", MIN_MAAFW_VERSION),
+        is_compatible,
+    })
 }
 
 /// 查找 ADB 设备（结果会缓存到 MaaState）
@@ -786,12 +883,14 @@ pub fn maa_load_resource(
     // 加载资源（不等待，通过回调通知完成）
     let mut res_ids = Vec::new();
     for path in &paths {
-        let path_c = to_cstring(path);
+        let normalized = normalize_path(path);
+        let normalized_str = normalized.to_string_lossy();
+        let path_c = to_cstring(&normalized_str);
         let res_id = unsafe { (lib.maa_resource_post_bundle)(resource, path_c.as_ptr()) };
-        info!("Posted resource bundle: {} -> id: {}", path, res_id);
+        info!("Posted resource bundle: {} -> id: {}", normalized_str, res_id);
 
         if res_id == MAA_INVALID_ID {
-            warn!("Failed to post resource bundle: {}", path);
+            warn!("Failed to post resource bundle: {}", normalized_str);
             continue;
         }
         
@@ -1012,8 +1111,11 @@ pub fn maa_override_pipeline(
         instance.tasker.ok_or("Tasker not created")?
     };
 
+    let override_fn = lib.maa_tasker_override_pipeline
+        .ok_or("MaaTaskerOverridePipeline not available in this MaaFramework version")?;
+
     let override_c = to_cstring(&pipeline_override);
-    let success = unsafe { (lib.maa_tasker_override_pipeline)(tasker, task_id, override_c.as_ptr()) };
+    let success = unsafe { (override_fn)(tasker, task_id, override_c.as_ptr()) };
 
     info!("MaaTaskerOverridePipeline returned: {}", success);
     Ok(success != 0)
@@ -1245,9 +1347,9 @@ pub async fn maa_start_tasks(
             agent.child_exec, args, cwd
         );
 
-        // 将相对路径转换为绝对路径（Windows 的 Command 不能正确处理 Unix 风格相对路径）
-        let exec_path = std::path::Path::new(&cwd).join(&agent.child_exec);
-        let exec_path = exec_path.canonicalize().unwrap_or(exec_path);
+        // 拼接并规范化路径（处理 ./ 等冗余组件，不依赖路径存在）
+        let joined = std::path::Path::new(&cwd).join(&agent.child_exec);
+        let exec_path = normalize_path(&joined.to_string_lossy());
         debug!(
             "Resolved executable path: {:?}, exists: {}",
             exec_path,
@@ -1522,7 +1624,7 @@ fn get_exe_directory() -> Result<PathBuf, String> {
 #[tauri::command]
 pub fn read_local_file(filename: String) -> Result<String, String> {
     let exe_dir = get_exe_directory()?;
-    let file_path = exe_dir.join(&filename);
+    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
     debug!("Reading local file: {:?}", file_path);
 
     std::fs::read_to_string(&file_path)
@@ -1535,7 +1637,7 @@ pub fn read_local_file_base64(filename: String) -> Result<String, String> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
     let exe_dir = get_exe_directory()?;
-    let file_path = exe_dir.join(&filename);
+    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
     debug!("Reading local file (base64): {:?}", file_path);
 
     let data = std::fs::read(&file_path)
@@ -1548,7 +1650,7 @@ pub fn read_local_file_base64(filename: String) -> Result<String, String> {
 #[tauri::command]
 pub fn local_file_exists(filename: String) -> Result<bool, String> {
     let exe_dir = get_exe_directory()?;
-    let file_path = exe_dir.join(&filename);
+    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
     Ok(file_path.exists())
 }
 

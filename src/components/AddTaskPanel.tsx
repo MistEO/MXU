@@ -4,6 +4,7 @@ import { Search, Plus } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
+import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 
 const log = loggers.task;
@@ -24,7 +25,7 @@ export function AddTaskPanel() {
   } = useAppStore();
 
   const instance = getActiveInstance();
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
 
   // 统计每个任务被添加的次数
   const taskCounts = useMemo(() => {

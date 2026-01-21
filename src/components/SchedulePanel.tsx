@@ -17,10 +17,6 @@ import clsx from 'clsx';
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// 周几标签
-const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-const WEEKDAY_LABELS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 // 小时选项 (0-23)
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -44,9 +40,8 @@ function PolicyCard({
   onToggleExpand: () => void;
 }) {
   const { t } = useTranslation();
-  const { language } = useAppStore();
 
-  const weekdayLabels = language === 'zh-CN' ? WEEKDAY_LABELS : WEEKDAY_LABELS_EN;
+  const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
 
   const handleToggleWeekday = (day: number) => {
     const newWeekdays = policy.weekdays.includes(day)

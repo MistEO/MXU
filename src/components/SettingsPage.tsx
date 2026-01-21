@@ -30,7 +30,7 @@ import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import type { DownloadProgress } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
-import { setLanguage as setI18nLanguage } from '@/i18n';
+import { setLanguage as setI18nLanguage, getInterfaceLangKey } from '@/i18n';
 import { resolveContent, loadIconAsDataUrl, simpleMarkdownToHtml, resolveI18nText } from '@/services/contentResolver';
 import { maaService } from '@/services/maaService';
 import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
@@ -70,6 +70,8 @@ export function SettingsPage() {
     setShowUpdateDialog,
     showOptionPreview,
     setShowOptionPreview,
+    devMode,
+    setDevMode,
     downloadStatus,
     downloadProgress,
     setDownloadStatus,
@@ -238,7 +240,7 @@ export function SettingsPage() {
     return cdkErrorCodes.includes(updateInfo.errorCode);
   }, [updateInfo?.errorCode]);
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
 
   // 版本信息（用于调试展示）
@@ -294,15 +296,9 @@ export function SettingsPage() {
     loadContent();
   }, [projectInterface, langKey, basePath, translations]);
 
-  const handleLanguageChange = (lang: 'zh-CN' | 'en-US') => {
+  const handleLanguageChange = (lang: 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR') => {
     setLanguage(lang);
     setI18nLanguage(lang);
-  };
-
-  // 调试：刷新 UI
-  const handleRefreshUI = () => {
-    addDebugLog('刷新 UI...');
-    window.location.reload();
   };
 
   // 检查更新
@@ -571,28 +567,50 @@ export function SettingsPage() {
                 <Globe className="w-5 h-5 text-accent" />
                 <span className="font-medium text-text-primary">{t('settings.language')}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleLanguageChange('zh-CN')}
                   className={clsx(
-                    'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                     language === 'zh-CN'
                       ? 'bg-accent text-white'
                       : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
                   )}
                 >
-                  中文
+                  简体中文
                 </button>
                 <button
                   onClick={() => handleLanguageChange('en-US')}
                   className={clsx(
-                    'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                     language === 'en-US'
                       ? 'bg-accent text-white'
                       : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
                   )}
                 >
                   English
+                </button>
+                <button
+                  onClick={() => handleLanguageChange('ja-JP')}
+                  className={clsx(
+                    'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    language === 'ja-JP'
+                      ? 'bg-accent text-white'
+                      : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                  )}
+                >
+                  日本語
+                </button>
+                <button
+                  onClick={() => handleLanguageChange('ko-KR')}
+                  className={clsx(
+                    'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    language === 'ko-KR'
+                      ? 'bg-accent text-white'
+                      : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                  )}
+                >
+                  한국어
                 </button>
               </div>
             </div>
@@ -735,7 +753,7 @@ export function SettingsPage() {
                         onClick={() => openMirrorChyanWebsite('mxu_settings_hint')}
                         className="text-accent hover:underline"
                       >
-                        Mirror酱
+                        {t('mirrorChyan.serviceName')}
                       </button>
                       {t('mirrorChyan.cdkHintAfterLink', { projectName })}
                     </p>
@@ -909,18 +927,11 @@ export function SettingsPage() {
 
               {/* 环境信息 */}
               <div className="text-sm text-text-secondary space-y-1">
-                <p>环境: <span className="font-mono text-text-primary">{isTauri() ? 'Tauri 桌面应用' : '浏览器'}</span></p>
+                <p>{t('debug.environment')}: <span className="font-mono text-text-primary">{isTauri() ? t('debug.envTauri') : t('debug.envBrowser')}</span></p>
               </div>
 
               {/* 操作按钮 */}
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={handleRefreshUI}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  {t('debug.refreshUI')}
-                </button>
                 <button
                   onClick={handleResetWindowSize}
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
@@ -952,6 +963,31 @@ export function SettingsPage() {
                   {cacheEntryCount !== null && cacheEntryCount > 0 && (
                     <span className="text-xs text-text-muted">({cacheEntryCount})</span>
                   )}
+                </button>
+              </div>
+
+              {/* 开发模式 */}
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-accent" />
+                  <div>
+                    <span className="font-medium text-text-primary">{t('debug.devMode')}</span>
+                    <p className="text-xs text-text-muted mt-0.5">{t('debug.devModeHint')}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDevMode(!devMode)}
+                  className={clsx(
+                    'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+                    devMode ? 'bg-accent' : 'bg-bg-active'
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
+                      devMode ? 'translate-x-5' : 'translate-x-0'
+                    )}
+                  />
                 </button>
               </div>
             </div>

@@ -5,6 +5,7 @@ import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolve
 import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
 import { Info, AlertCircle, Loader2, FileText, Link } from 'lucide-react';
+import { getInterfaceLangKey } from '@/i18n';
 
 /** 异步加载图标组件 */
 function AsyncIcon({ icon, basePath, className }: { icon?: string; basePath: string; className?: string }) {
@@ -197,7 +198,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
   const optionDef = projectInterface?.option?.[optionKey];
   if (!optionDef) return null;
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const optionLabel = resolveI18nText(optionDef.label, langKey) || optionKey;
   const optionDescription = resolveI18nText(optionDef.description, langKey);
   const translations = interfaceTranslations[langKey];

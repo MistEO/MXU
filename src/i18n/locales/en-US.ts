@@ -239,13 +239,17 @@ export default {
     interfaceVersion: '{{name}} version',
     maafwVersion: 'maafw version',
     mxuVersion: 'mxu version',
-    refreshUI: 'Refresh UI',
+    environment: 'Environment',
+    envTauri: 'Tauri Desktop',
+    envBrowser: 'Browser',
     resetWindowSize: 'Reset Window Size',
     openConfigDir: 'Open Config Dir',
     openLogDir: 'Open Log Dir',
     clearCache: 'Clear Cache',
     cacheCleared: 'Cache cleared',
     cacheStats: 'Cache entries: {{count}}',
+    devMode: 'Developer Mode',
+    devModeHint: 'Allow pressing F5 to refresh UI when enabled',
   },
 
   // Welcome dialog
@@ -293,12 +297,13 @@ export default {
 
   // MirrorChyan Update
   mirrorChyan: {
-    title: 'Software Update',
+    title: 'Update',
     channel: 'Update Channel',
     channelStable: 'Stable',
     channelBeta: 'Beta',
     cdk: 'MirrorChyan CDK',
     cdkPlaceholder: 'Enter your CDK (optional)',
+    serviceName: 'MirrorChyan',
     cdkHintAfterLink: ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
     getCdk: 'No CDKey? Subscribe Now',
     cdkHint: 'Please check if your CDK is correct or has expired',
@@ -391,6 +396,8 @@ export default {
     hint: 'Scheduled tasks will run automatically at set times',
     executingPolicy: 'Running scheduled "{{name}}"',
     startedAt: 'Started at: {{time}}',
+    // Index corresponds to Date.getDay(): 0=Sun, 1=Mon, ..., 6=Sat
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   },
 
   // Error messages
@@ -401,15 +408,6 @@ export default {
     taskNotFound: 'Task not found',
     controllerNotFound: 'Controller not found',
     resourceNotFound: 'Resource not found',
-  },
-
-  // Permission prompt
-  permission: {
-    title: 'Administrator Required',
-    message: 'The current controller requires administrator privileges to run properly. Click the button below to restart the application as administrator.',
-    hint: 'After restarting, you may need to reselect the device and reload resources.',
-    restart: 'Restart as Admin',
-    restarting: 'Restarting...',
   },
 
   // Context Menu
@@ -460,5 +458,13 @@ export default {
     
     // Common
     openFolder: 'Open Containing Folder',
+  },
+
+  // Version warning
+  versionWarning: {
+    title: 'MaaFramework Version Too Low',
+    message: 'Current MaaFramework version ({{current}}) is lower than the minimum supported version ({{minimum}}). Some features may not work properly.',
+    suggestion: 'Please contact the project developer to update MaaFramework.',
+    understand: 'I Understand',
   },
 };

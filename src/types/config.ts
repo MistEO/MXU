@@ -81,7 +81,7 @@ export interface MirrorChyanSettings {
 // 应用设置
 export interface AppSettings {
   theme: 'light' | 'dark';
-  language: 'zh-CN' | 'en-US';
+  language: 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR';
   windowSize?: WindowSize;
   mirrorChyan?: MirrorChyanSettings;
   showOptionPreview?: boolean;  // 是否在任务列表显示选项预览
@@ -92,6 +92,7 @@ export interface AppSettings {
   welcomeShownHash?: string;    // 已显示过的 welcome 内容 hash，用于判断内容变化时重新弹窗
   rightPanelWidth?: number;     // 右侧面板宽度
   rightPanelCollapsed?: boolean;// 右侧面板是否折叠
+  devMode?: boolean;            // 开发模式，启用后允许 F5 刷新 UI
 }
 
 // MXU 配置文件完整结构

@@ -19,6 +19,7 @@ import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
+import { getInterfaceLangKey } from '@/i18n';
 
 const log = loggers.app;
 
@@ -104,6 +105,7 @@ async function getWindowSize(): Promise<{ width: number; height: number } | null
 function App() {
   const [loadingState, setLoadingState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [versionWarning, setVersionWarning] = useState<{ current: string; minimum: string } | null>(null);
 
   const { t } = useTranslation();
 
@@ -246,8 +248,8 @@ function App() {
   // 设置窗口标题（根据 ProjectInterface V2 协议）
   useEffect(() => {
     if (!projectInterface) return;
-
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
 
     // 优先使用 title 字段（支持国际化），否则使用 name + version
@@ -266,8 +268,8 @@ function App() {
   // 设置窗口图标（根据 ProjectInterface V2 协议）
   useEffect(() => {
     if (!projectInterface?.icon || !isTauri()) return;
-
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
 
     // icon 字段支持国际化
@@ -339,6 +341,29 @@ function App() {
       } catch (err) {
         log.warn('恢复后端状态失败:', err);
       }
+      
+      // 检查 MaaFramework 版本兼容性
+      // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作
+      try {
+        // 尝试初始化，即使失败也会设置 lib_dir
+        try {
+          await maaService.init();
+        } catch (initErr) {
+          log.warn('MaaFramework 初始化失败（可能是版本过低）:', initErr);
+        }
+        
+        // 版本检查使用独立的版本获取，不依赖完整库加载
+        const versionCheck = await maaService.checkVersion();
+        if (!versionCheck.is_compatible) {
+          log.warn('MaaFramework 版本过低:', versionCheck.current, '< 最低要求:', versionCheck.minimum);
+          setVersionWarning({
+            current: versionCheck.current,
+            minimum: versionCheck.minimum,
+          });
+        }
+      } catch (err) {
+        log.warn('版本检查失败:', err);
+      }
 
       log.info('加载完成, 项目:', result.interface.name);
       setLoadingState('success');
@@ -347,7 +372,7 @@ function App() {
       setTimeout(() => {
         const currentInstances = useAppStore.getState().instances;
         if (currentInstances.length === 0) {
-          createInstance(t('instance.defaultName', '配置 1'));
+          createInstance(t('instance.defaultName'));
         }
       }, 0);
 
@@ -525,20 +550,22 @@ function App() {
   }, []);
 
   // 屏蔽浏览器默认快捷键
+  const devMode = useAppStore((state) => state.devMode);
+  
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
-      // F5 - 刷新（仅生产环境屏蔽）
-      if (e.key === 'F5' && import.meta.env.PROD) {
+      // F5 - 刷新（生产环境下，开发模式关闭时屏蔽）
+      if (e.key === 'F5' && import.meta.env.PROD && !devMode) {
         e.preventDefault();
         return;
       }
 
       // Ctrl/Cmd 组合键
       if (isCtrlOrMeta) {
-        // Ctrl+R 刷新（仅生产环境屏蔽）
-        if (e.key.toLowerCase() === 'r' && import.meta.env.PROD) {
+        // Ctrl+R 刷新（生产环境下，开发模式关闭时屏蔽）
+        if (e.key.toLowerCase() === 'r' && import.meta.env.PROD && !devMode) {
           e.preventDefault();
           return;
         }
@@ -585,7 +612,7 @@ function App() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [devMode]);
 
   // 设置页面
   if (currentPage === 'settings') {
@@ -601,8 +628,8 @@ function App() {
   // 计算显示标题（根据 ProjectInterface V2 协议）
   const getDisplayTitle = () => {
     if (!projectInterface) return { title: 'MXU', subtitle: 'MaaFramework 下一代通用 GUI' };
-
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
 
     // 优先使用 title 字段（支持国际化），否则使用 name + version
@@ -674,6 +701,43 @@ function App() {
 
       {/* 安装确认模态框 */}
       <InstallConfirmModal />
+      
+      {/* MaaFramework 版本警告弹窗 */}
+      {versionWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setVersionWarning(null)}
+          />
+          <div className="relative bg-bg-secondary rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
+              <AlertCircle className="w-6 h-6 text-amber-500" />
+              <h2 className="text-lg font-semibold text-text-primary">
+                {t('versionWarning.title')}
+              </h2>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-text-secondary">
+                {t('versionWarning.message', { 
+                  current: versionWarning.current, 
+                  minimum: versionWarning.minimum 
+                })}
+              </p>
+              <p className="text-text-secondary text-sm">
+                {t('versionWarning.suggestion')}
+              </p>
+            </div>
+            <div className="flex justify-end px-6 py-4 border-t border-border">
+              <button
+                onClick={() => setVersionWarning(null)}
+                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
+              >
+                {t('versionWarning.understand')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 顶部标签栏 */}
       <TabBar />

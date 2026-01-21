@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  ArrowLeft, 
-  Globe, 
-  Palette, 
+import {
+  ArrowLeft,
+  Globe,
+  Palette,
   Mail,
   FileText,
   Loader2,
@@ -51,10 +51,10 @@ interface ResolvedContent {
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { 
-    theme, 
-    setTheme, 
-    language, 
+  const {
+    theme,
+    setTheme,
+    language,
     setLanguage,
     setCurrentPage,
     projectInterface,
@@ -79,6 +79,8 @@ export function SettingsPage() {
     installStatus,
     setInstallStatus,
     setShowInstallConfirmModal,
+    setRightPanelWidth,
+    setRightPanelCollapsed,
   } = useAppStore();
 
   const [resolvedContent, setResolvedContent] = useState<ResolvedContent>({
@@ -275,16 +277,16 @@ export function SettingsPage() {
 
     const loadContent = async () => {
       setIsLoading(true);
-      
+
       const options = { translations, basePath };
-      
+
       const [description, license, contact, iconPath] = await Promise.all([
         resolveContent(projectInterface.description, options),
         resolveContent(projectInterface.license, options),
         resolveContent(projectInterface.contact, options),
         loadIconAsDataUrl(projectInterface.icon, basePath, translations),
       ]);
-      
+
       setResolvedContent({ description, license, contact, iconPath });
       setIsLoading(false);
     };
@@ -309,10 +311,10 @@ export function SettingsPage() {
       addDebugLog('未配置 mirrorchyan_rid 或 version，无法检查更新');
       return;
     }
-    
+
     setUpdateCheckLoading(true);
     addDebugLog(`开始检查更新... (频道: ${mirrorChyanSettings.channel})`);
-    
+
     try {
       const result = await checkAndPrepareDownload({
         resourceId: projectInterface.mirrorchyan_rid,
@@ -323,7 +325,7 @@ export function SettingsPage() {
         githubUrl: projectInterface.github,
         basePath,
       });
-      
+
       if (result) {
         setUpdateInfo(result);
         if (result.hasUpdate) {
@@ -353,13 +355,18 @@ export function SettingsPage() {
       addDebugLog('仅 Tauri 环境支持重置窗口尺寸');
       return;
     }
-    
+
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const { LogicalSize } = await import('@tauri-apps/api/dpi');
       const currentWindow = getCurrentWindow();
       await currentWindow.setSize(new LogicalSize(defaultWindowSize.width, defaultWindowSize.height));
-      addDebugLog(`窗口尺寸已重置为 ${defaultWindowSize.width}x${defaultWindowSize.height}`);
+
+      // 同时也重置右侧面板尺寸和状态
+      setRightPanelWidth(320);
+      setRightPanelCollapsed(false);
+
+      addDebugLog(`窗口尺寸已重置为 ${defaultWindowSize.width}x${defaultWindowSize.height}，界面布局已重置`);
     } catch (err) {
       addDebugLog(`重置窗口尺寸失败: ${err}`);
     }
@@ -438,7 +445,7 @@ export function SettingsPage() {
   const renderMarkdown = (content: string) => {
     if (!content) return null;
     return (
-      <div 
+      <div
         className="text-sm text-text-secondary prose prose-sm max-w-none"
         dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(content) }}
       />
@@ -491,7 +498,7 @@ export function SettingsPage() {
 
       // 找到当前视口中的 section
       const scrollTop = container.scrollTop;
-      
+
       for (let i = sections.length - 1; i >= 0; i--) {
         const section = sections[i];
         if (section.element) {
@@ -557,7 +564,7 @@ export function SettingsPage() {
               <Paintbrush className="w-4 h-4" />
               {t('settings.appearance')}
             </h2>
-            
+
             {/* 语言 */}
             <div className="bg-bg-secondary rounded-xl p-4 border border-border">
               <div className="flex items-center gap-3 mb-3">
@@ -649,9 +656,9 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* 实时截图帧率 */}
-            <FrameRateSelector />
-          </section>
+              {/* 实时截图帧率 */}
+              <FrameRateSelector />
+            </section>
 
           {/* MirrorChyan 更新设置 */}
           {projectInterface?.mirrorchyan_rid && (
@@ -660,7 +667,7 @@ export function SettingsPage() {
                 <Download className="w-4 h-4" />
                 {t('mirrorChyan.title')}
               </h2>
-              
+
               <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-5">
                 {/* 更新频道 */}
                 <div>
@@ -778,53 +785,53 @@ export function SettingsPage() {
                     </button>
                   )}
 
-                  {/* 更新状态显示 */}
-                  {updateInfo && !updateInfo.hasUpdate && !updateInfo.errorCode && (
-                    <p className="text-xs text-center text-text-muted">
-                      {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}
-                    </p>
-                  )}
+                    {/* 更新状态显示 */}
+                    {updateInfo && !updateInfo.hasUpdate && !updateInfo.errorCode && (
+                      <p className="text-xs text-center text-text-muted">
+                        {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}
+                      </p>
+                    )}
 
-                  {/* 有更新时显示更新内容和下载进度 */}
-                  {updateInfo?.hasUpdate && (
-                    <div className="space-y-4 p-4 bg-bg-tertiary rounded-lg border border-border">
-                      {/* 新版本标题 */}
-                      <div className="flex items-center gap-2">
-                        <Download className="w-4 h-4 text-accent" />
-                        <span className="text-sm font-medium text-text-primary">
-                          {t('mirrorChyan.newVersion')}
-                        </span>
-                        <span className="font-mono text-sm text-accent font-semibold">{updateInfo.versionName}</span>
-                        {updateInfo.channel && updateInfo.channel !== 'stable' && (
-                          <span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded font-medium">
-                            {updateInfo.channel}
+                    {/* 有更新时显示更新内容和下载进度 */}
+                    {updateInfo?.hasUpdate && (
+                      <div className="space-y-4 p-4 bg-bg-tertiary rounded-lg border border-border">
+                        {/* 新版本标题 */}
+                        <div className="flex items-center gap-2">
+                          <Download className="w-4 h-4 text-accent" />
+                          <span className="text-sm font-medium text-text-primary">
+                            {t('mirrorChyan.newVersion')}
                           </span>
-                        )}
-                      </div>
-
-                      {/* 更新日志 */}
-                      {updateInfo.releaseNote && (
-                        <ReleaseNotes
-                          releaseNote={updateInfo.releaseNote}
-                          collapsibleTitle
-                          maxHeightClass="max-h-32"
-                          bgClass="bg-bg-secondary"
-                          textSizeClass="text-xs"
-                        />
-                      )}
-
-                      {/* API 错误提示 */}
-                      {updateInfo.errorCode && errorText && (
-                        <div className={clsx(
-                          'flex items-start gap-2 p-2 rounded-lg text-xs',
-                          isCdkError
-                            ? 'bg-warning/10 text-warning'
-                            : 'bg-error/10 text-error'
-                        )}>
-                          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                          <span>{errorText}</span>
+                          <span className="font-mono text-sm text-accent font-semibold">{updateInfo.versionName}</span>
+                          {updateInfo.channel && updateInfo.channel !== 'stable' && (
+                            <span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded font-medium">
+                              {updateInfo.channel}
+                            </span>
+                          )}
                         </div>
-                      )}
+
+                        {/* 更新日志 */}
+                        {updateInfo.releaseNote && (
+                          <ReleaseNotes
+                            releaseNote={updateInfo.releaseNote}
+                            collapsibleTitle
+                            maxHeightClass="max-h-32"
+                            bgClass="bg-bg-secondary"
+                            textSizeClass="text-xs"
+                          />
+                        )}
+
+                        {/* API 错误提示 */}
+                        {updateInfo.errorCode && errorText && (
+                          <div className={clsx(
+                            'flex items-start gap-2 p-2 rounded-lg text-xs',
+                            isCdkError
+                              ? 'bg-warning/10 text-warning'
+                              : 'bg-error/10 text-error'
+                          )}>
+                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            <span>{errorText}</span>
+                          </div>
+                        )}
 
                       {/* 没有下载链接的提示 */}
                       {!updateInfo.downloadUrl && !updateInfo.errorCode && (
@@ -884,27 +891,27 @@ export function SettingsPage() {
             </section>
           )}
 
-          {/* 调试 */}
-          <section id="section-debug" className="space-y-4 scroll-mt-4">
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
-              <Bug className="w-4 h-4" />
-              {t('debug.title')}
-            </h2>
-            
-            <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
-              {/* 版本信息 */}
-              <div className="text-sm text-text-secondary space-y-1">
-                <p className="font-medium text-text-primary">{t('debug.versions')}</p>
-                <p>{t('debug.interfaceVersion', { name: projectInterface?.name || 'interface' })}: <span className="font-mono text-text-primary">{version || '-'}</span></p>
-                <p>{t('debug.maafwVersion')}: <span className="font-mono text-text-primary">{maafwVersion || t('maa.notInitialized')}</span></p>
-                <p>{t('debug.mxuVersion')}: <span className="font-mono text-text-primary">{mxuVersion || '-'}</span></p>
-              </div>
+            {/* 调试 */}
+            <section id="section-debug" className="space-y-4 scroll-mt-4">
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
+                <Bug className="w-4 h-4" />
+                {t('debug.title')}
+              </h2>
+
+              <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
+                {/* 版本信息 */}
+                <div className="text-sm text-text-secondary space-y-1">
+                  <p className="font-medium text-text-primary">{t('debug.versions')}</p>
+                  <p>{t('debug.interfaceVersion', { name: projectInterface?.name || 'interface' })}: <span className="font-mono text-text-primary">{version || '-'}</span></p>
+                  <p>{t('debug.maafwVersion')}: <span className="font-mono text-text-primary">{maafwVersion || t('maa.notInitialized')}</span></p>
+                  <p>{t('debug.mxuVersion')}: <span className="font-mono text-text-primary">{mxuVersion || '-'}</span></p>
+                </div>
 
               {/* 环境信息 */}
               <div className="text-sm text-text-secondary space-y-1">
                 <p>环境: <span className="font-mono text-text-primary">{isTauri() ? 'Tauri 桌面应用' : '浏览器'}</span></p>
               </div>
-              
+
               {/* 操作按钮 */}
               <div className="flex flex-wrap gap-2">
                 <button
@@ -956,12 +963,12 @@ export function SettingsPage() {
               <Info className="w-4 h-4" />
               {t('about.title')}
             </h2>
-            
+
             <div className="bg-bg-secondary rounded-xl p-6 border border-border">
               {/* Logo 和名称 */}
               <div className="text-center mb-6">
                 {resolvedContent.iconPath ? (
-                  <img 
+                  <img
                     src={resolvedContent.iconPath}
                     alt={projectName}
                     className="w-20 h-20 mx-auto mb-4 rounded-2xl shadow-lg object-contain"
@@ -1017,7 +1024,7 @@ export function SettingsPage() {
                       </div>
                     )}
 
-                    
+
                     {/* 许可证 */}
                     {resolvedContent.license && (
                       <div className="px-4 py-3 rounded-lg bg-bg-tertiary">
@@ -1033,8 +1040,8 @@ export function SettingsPage() {
                       </div>
                     )}
 
-                    {/* GitHub */}
-                    {/* {github && (
+                      {/* GitHub */}
+                      {/* {github && (
                       <a
                         href={github}
                         target="_blank"
@@ -1045,10 +1052,10 @@ export function SettingsPage() {
                         <span className="text-sm text-accent truncate">{github}</span>
                       </a>
                     )} */}
-                    
-                  </div>
-                </>
-              )}
+
+                    </div>
+                  </>
+                )}
 
               {/* 底部信息 */}
               <div className="text-center pt-4 mt-4 border-t border-border">

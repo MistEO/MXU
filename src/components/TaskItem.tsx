@@ -28,6 +28,7 @@ import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import type { SelectedTask } from '@/types/interface';
+import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 
 /** 选项预览标签组件 */
@@ -218,7 +219,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   
   const taskDef = projectInterface?.task.find(t => t.name === task.taskName);
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   
   // 获取翻译表
   const translations = interfaceTranslations[langKey];

@@ -8,6 +8,7 @@ import { defaultWindowSize, defaultMirrorChyanSettings, defaultScreenshotFrameRa
 const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
+import { getInterfaceLangKey } from '@/i18n';
 
 /** 单个任务的运行状态 */
 export type TaskRunStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -445,7 +446,8 @@ export const useAppStore = create<AppState>()(
         
         const newInstance: Instance = {
           id,
-          name: name || `配置 ${instanceNumber}`,
+          // 传入基础名称时拼接数字，未传入时使用 fallback
+          name: name ? `${name} ${instanceNumber}` : `Config ${instanceNumber}`,
           selectedTasks: defaultTasks,
           isRunning: false,
         };
@@ -711,7 +713,7 @@ export const useAppStore = create<AppState>()(
         } else {
           // 获取任务的原始 label
           const taskDef = state.projectInterface?.task.find(t => t.name === originalTask.taskName);
-          const langKey = state.language === 'zh-CN' ? 'zh_cn' : 'en_us';
+          const langKey = getInterfaceLangKey(state.language);
           const originalLabel = state.resolveI18nText(taskDef?.label, langKey) || taskDef?.name || originalTask.taskName;
           newCustomName = `${originalLabel}（副本）`;
         }

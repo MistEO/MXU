@@ -19,6 +19,7 @@ import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
+import { getInterfaceLangKey } from '@/i18n';
 
 const log = loggers.app;
 
@@ -198,7 +199,7 @@ function App() {
   useEffect(() => {
     if (!projectInterface) return;
     
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
     
     // 优先使用 title 字段（支持国际化），否则使用 name + version
@@ -218,7 +219,7 @@ function App() {
   useEffect(() => {
     if (!projectInterface?.icon || !isTauri()) return;
     
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
     
     // icon 字段支持国际化
@@ -298,7 +299,7 @@ function App() {
       setTimeout(() => {
         const currentInstances = useAppStore.getState().instances;
         if (currentInstances.length === 0) {
-          createInstance(t('instance.defaultName', '配置 1'));
+          createInstance(t('instance.defaultName'));
         }
       }, 0);
       
@@ -553,7 +554,7 @@ function App() {
   const getDisplayTitle = () => {
     if (!projectInterface) return { title: 'MXU', subtitle: 'MaaFramework 下一代通用 GUI' };
     
-    const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+    const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
     
     // 优先使用 title 字段（支持国际化），否则使用 name + version

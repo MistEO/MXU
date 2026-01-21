@@ -255,7 +255,7 @@ export default {
 
   // 实例
   instance: {
-    defaultName: '配置 1',
+    defaultName: '配置',
   },
 
   // 连接面板
@@ -401,15 +401,6 @@ export default {
     taskNotFound: '任务不存在',
     controllerNotFound: '控制器不存在',
     resourceNotFound: '资源包不存在',
-  },
-
-  // 权限提示
-  permission: {
-    title: '需要管理员权限',
-    message: '当前控制器配置需要管理员权限才能正常运行。点击下方按钮将以管理员身份重新启动应用程序。',
-    hint: '重启后您可能需要重新选择设备并加载资源。',
-    restart: '以管理员身份重启',
-    restarting: '正在重启...',
   },
 
   // 右键菜单

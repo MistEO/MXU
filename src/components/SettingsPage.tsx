@@ -30,7 +30,7 @@ import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import type { DownloadProgress } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
-import { setLanguage as setI18nLanguage } from '@/i18n';
+import { setLanguage as setI18nLanguage, getInterfaceLangKey } from '@/i18n';
 import { resolveContent, loadIconAsDataUrl, simpleMarkdownToHtml, resolveI18nText } from '@/services/contentResolver';
 import { maaService } from '@/services/maaService';
 import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
@@ -236,7 +236,7 @@ export function SettingsPage() {
     return cdkErrorCodes.includes(updateInfo.errorCode);
   }, [updateInfo?.errorCode]);
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
 
   // 版本信息（用于调试展示）
@@ -728,7 +728,7 @@ export function SettingsPage() {
                         onClick={() => openMirrorChyanWebsite('mxu_settings_hint')}
                         className="text-accent hover:underline"
                       >
-                        Mirror酱
+                        {t('mirrorChyan.serviceName')}
                       </button>
                       {t('mirrorChyan.cdkHintAfterLink', { projectName })}
                     </p>
@@ -902,7 +902,7 @@ export function SettingsPage() {
 
               {/* 环境信息 */}
               <div className="text-sm text-text-secondary space-y-1">
-                <p>环境: <span className="font-mono text-text-primary">{isTauri() ? 'Tauri 桌面应用' : '浏览器'}</span></p>
+                <p>{t('debug.environment')}: <span className="font-mono text-text-primary">{isTauri() ? t('debug.envTauri') : t('debug.envBrowser')}</span></p>
               </div>
               
               {/* 操作按钮 */}

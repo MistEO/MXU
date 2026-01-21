@@ -293,7 +293,7 @@ export default {
 
   // MirrorChyan Update
   mirrorChyan: {
-    title: 'Software Update',
+    title: 'Update',
     channel: 'Update Channel',
     channelStable: 'Stable',
     channelBeta: 'Beta',
@@ -401,15 +401,6 @@ export default {
     taskNotFound: 'Task not found',
     controllerNotFound: 'Controller not found',
     resourceNotFound: 'Resource not found',
-  },
-
-  // Permission prompt
-  permission: {
-    title: 'Administrator Required',
-    message: 'The current controller requires administrator privileges to run properly. Click the button below to restart the application as administrator.',
-    hint: 'After restarting, you may need to reselect the device and reload resources.',
-    restart: 'Restart as Admin',
-    restarting: 'Restarting...',
   },
 
   // Context Menu

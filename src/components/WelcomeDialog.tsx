@@ -3,6 +3,7 @@ import { X, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { resolveContent, simpleMarkdownToHtml } from '@/services/contentResolver';
+import { getInterfaceLangKey } from '@/i18n';
 
 /**
  * 计算字符串的简单 hash，用于判断内容是否变化
@@ -27,7 +28,7 @@ export function WelcomeDialog() {
   // 保存当前内容的 hash，关闭时写入配置
   const contentHashRef = useRef<string>('');
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
 
   useEffect(() => {

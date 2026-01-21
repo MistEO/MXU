@@ -24,6 +24,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
+import { getInterfaceLangKey } from '@/i18n';
 
 // 检测当前操作系统
 const isWindows = navigator.platform.toLowerCase().includes('win');
@@ -218,7 +219,7 @@ export function ConnectionPanel() {
     };
   }, []);
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
   
   // 启动全局回调监听器（只启动一次）

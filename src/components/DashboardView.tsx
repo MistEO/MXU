@@ -25,6 +25,7 @@ import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig, AgentConfig } from '@/types/maa';
+import { getInterfaceLangKey } from '@/i18n';
 
 const log = loggers.ui;
 
@@ -74,7 +75,7 @@ function InstanceCard({
     screenshotFrameRate,
   } = useAppStore();
   
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();

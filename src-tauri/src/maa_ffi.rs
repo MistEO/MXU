@@ -16,9 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use libloading::Library;
-use log::{debug, info};
-#[cfg(windows)]
-use log::warn;
+use log::{debug, info, warn};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};

@@ -36,7 +36,7 @@ const isTauri = () => {
 async function setWindowTitle(title: string) {
   // 同时设置 document.title（对浏览器和 Tauri 都有效）
   document.title = title;
-  
+
   if (isTauri()) {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -67,7 +67,7 @@ async function setWindowSize(width: number, height: number) {
     log.warn('窗口大小无效，跳过设置:', { width, height });
     return;
   }
-  
+
   if (isTauri()) {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -108,7 +108,7 @@ function App() {
   const [versionWarning, setVersionWarning] = useState<{ current: string; minimum: string } | null>(null);
 
   const { t } = useTranslation();
-  
+
   // 启用 MAA 回调日志监听
   useMaaCallbackLogger();
   useMaaAgentLogger();
@@ -140,7 +140,56 @@ function App() {
     setShowUpdateDialog,
     showAddTaskPanel,
     setShowAddTaskPanel,
+    rightPanelWidth,
+    rightPanelCollapsed,
+    setRightPanelWidth: _setRightPanelWidth,
+    setRightPanelCollapsed: _setRightPanelCollapsed,
   } = useAppStore();
+
+  const isResizingRef = useRef(false);
+
+  // 调整右侧面板宽度
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+
+      const newWidth = document.body.clientWidth - e.clientX;
+      const store = useAppStore.getState();
+
+      if (newWidth < 160) {
+        // 如果宽度小于最小宽度的一半 (160px)，折叠
+        store.setRightPanelCollapsed(true);
+      } else {
+        // 否则展开，并更新宽度（限制在 320-800 之间）
+        store.setRightPanelCollapsed(false);
+        const clampedWidth = Math.max(320, Math.min(800, newWidth));
+        store.setRightPanelWidth(clampedWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // 防止选中文本
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
@@ -148,7 +197,7 @@ function App() {
   // 自动下载函数
   const startAutoDownload = useCallback(async (updateResult: NonNullable<Awaited<ReturnType<typeof checkAndPrepareDownload>>>, downloadBasePath: string) => {
     if (!updateResult.downloadUrl || downloadStartedRef.current) return;
-    
+
     downloadStartedRef.current = true;
     setDownloadStatus('downloading');
     setDownloadProgress({
@@ -174,7 +223,7 @@ function App() {
       if (success) {
         setDownloadStatus('completed');
         log.info('更新下载完成');
-        
+
         // 保存待安装更新信息，以便下次启动时自动安装
         savePendingUpdateInfo({
           versionName: updateResult.versionName,
@@ -202,7 +251,7 @@ function App() {
     
     const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
-    
+
     // 优先使用 title 字段（支持国际化），否则使用 name + version
     // 注意：协议规定 title 默认为 name + version，不是 label + version
     let title: string;
@@ -212,7 +261,7 @@ function App() {
       const version = projectInterface.version;
       title = version ? `${projectInterface.name} ${version}` : projectInterface.name;
     }
-    
+
     setWindowTitle(title);
   }, [projectInterface, language, interfaceTranslations]);
 
@@ -222,14 +271,14 @@ function App() {
     
     const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
-    
+
     // icon 字段支持国际化
     const iconPath = resolveI18nText(projectInterface.icon, translations);
     if (!iconPath) return;
-    
+
     // 拼接完整路径（相对于 basePath）
     const fullIconPath = `${basePath}/${iconPath}`;
-    
+
     const setIcon = async () => {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -240,7 +289,7 @@ function App() {
         log.warn('设置窗口图标失败:', err);
       }
     };
-    
+
     setIcon();
   }, [projectInterface, language, interfaceTranslations, basePath]);
 
@@ -263,7 +312,7 @@ function App() {
       // 加载用户配置（mxu-{项目名}.json）
       const projectName = result.interface.name;
       let config = await loadConfig(result.basePath, projectName);
-      
+
       // 浏览器环境下，如果没有从 public 目录加载到配置，尝试从 localStorage 加载
       if (config.instances.length === 0) {
         const storageConfig = loadConfigFromStorage(projectName);
@@ -276,12 +325,12 @@ function App() {
       if (config.instances.length > 0) {
         importConfig(config);
       }
-      
+
       // 应用保存的窗口大小
       if (config.settings.windowSize) {
         await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
       }
-      
+
       // 从后端恢复 MAA 运行时状态（连接状态、资源加载状态、设备缓存等）
       try {
         const backendStates = await maaService.getAllStates();
@@ -326,7 +375,7 @@ function App() {
           createInstance(t('instance.defaultName'));
         }
       }, 0);
-      
+
       // 检查是否刚更新完成（重启后）
       const updateCompleteInfo = consumeUpdateCompleteInfo();
       if (updateCompleteInfo) {
@@ -343,7 +392,7 @@ function App() {
         // 更新完成后跳过自动检查更新
         return;
       }
-      
+
       // 检查是否有待安装的更新（上次下载完成但未安装）
       const pendingUpdate = getPendingUpdateInfo();
       if (pendingUpdate) {
@@ -365,7 +414,7 @@ function App() {
         useAppStore.getState().setInstallStatus('installing');
         return;
       }
-      
+
       // 自动检查更新并下载
       if (result.interface.mirrorchyan_rid && result.interface.version) {
         const appState = useAppStore.getState();
@@ -582,7 +631,7 @@ function App() {
     
     const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
-    
+
     // 优先使用 title 字段（支持国际化），否则使用 name + version
     // 注意：协议规定 title 默认为 name + version，不是 label + version
     let title: string;
@@ -592,19 +641,19 @@ function App() {
       const version = projectInterface.version;
       title = version ? `${projectInterface.name} v${version}` : projectInterface.name;
     }
-    
+
     // 副标题：使用 description（支持国际化）或默认
-    const subtitle = projectInterface.description 
+    const subtitle = projectInterface.description
       ? resolveI18nText(projectInterface.description, translations)
       : 'MaaFramework 下一代通用 GUI';
-    
+
     return { title, subtitle };
   };
 
   // 加载中或错误状态
   if (loadingState !== 'success' || !projectInterface) {
     const { title: displayTitle, subtitle: displaySubtitle } = getDisplayTitle();
-    
+
     return (
       <div className="h-full flex flex-col items-center justify-center bg-bg-primary p-8">
         <div className="max-w-md w-full space-y-6 text-center">
@@ -649,7 +698,7 @@ function App() {
     <div className="h-full flex flex-col bg-bg-primary">
       {/* 欢迎弹窗 */}
       <WelcomeDialog />
-      
+
       {/* 安装确认模态框 */}
       <InstallConfirmModal />
       
@@ -714,25 +763,43 @@ function App() {
             />
           </div>
 
-          {/* 右侧信息面板 */}
-          <div className="w-80 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto">
-            {/* 连接设置和实时截图（可折叠） */}
-            {sidePanelExpanded && (
-              <>
-                {/* 连接设置（设备/资源选择） */}
-                <ConnectionPanel />
 
-                {/* 实时截图 */}
-                <ScreenshotPanel />
-              </>
-            )}
 
-            {/* 运行日志 */}
-            <LogsPanel />
+          {/* 分隔条 Resizer */}
+          <div
+            className={`${rightPanelCollapsed ? 'w-4' : 'w-1'} hover:bg-accent/50 cursor-col-resize flex items-center justify-center group shrink-0 transition-all select-none bg-transparent`}
+            onMouseDown={handleResizeStart}
+            title={t('common.resizeOrCollapse', '拖动调整宽度，向右拖动到底可折叠')}
+          >
+            {/* 可视化把手 */}
+            <div className="w-[2px] h-8 rounded-full transition-colors bg-border group-hover:bg-accent" />
           </div>
+
+          {/* 右侧信息面板 */}
+          {!rightPanelCollapsed && (
+            <div
+              className="shrink-0 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent min-w-[240px] max-w-[50vw]"
+              style={{ width: rightPanelWidth }}
+            >
+              {/* 连接设置和实时截图（可折叠） */}
+              {sidePanelExpanded && (
+                <>
+                  {/* 连接设置（设备/资源选择） */}
+                  <ConnectionPanel />
+
+                  {/* 实时截图 */}
+                  <ScreenshotPanel />
+                </>
+              )}
+
+              {/* 运行日志 */}
+              <LogsPanel />
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 }
 

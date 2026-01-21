@@ -34,11 +34,11 @@ interface AppState {
   language: Language;
   setTheme: (theme: Theme) => void;
   setLanguage: (lang: Language) => void;
-  
+
   // 当前页面
   currentPage: PageView;
   setCurrentPage: (page: PageView) => void;
-  
+
   // Interface 数据
   projectInterface: ProjectInterface | null;
   interfaceTranslations: Record<string, Record<string, string>>;
@@ -46,7 +46,7 @@ interface AppState {
   setProjectInterface: (pi: ProjectInterface) => void;
   setInterfaceTranslations: (lang: string, translations: Record<string, string>) => void;
   setBasePath: (path: string) => void;
-  
+
   // 多开实例
   instances: Instance[];
   activeInstanceId: string | null;
@@ -57,10 +57,10 @@ interface AppState {
   updateInstance: (id: string, updates: Partial<Instance>) => void;
   renameInstance: (id: string, newName: string) => void;
   reorderInstances: (oldIndex: number, newIndex: number) => void;
-  
+
   // 获取活动实例
   getActiveInstance: () => Instance | null;
-  
+
   // 任务操作
   addTaskToInstance: (instanceId: string, task: TaskItem) => void;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
@@ -71,28 +71,28 @@ interface AppState {
   selectAllTasks: (instanceId: string, enabled: boolean) => void;
   collapseAllTasks: (instanceId: string, expanded: boolean) => void;
   renameTask: (instanceId: string, taskId: string, newName: string) => void;
-  
+
   // 任务右键菜单操作
   duplicateTask: (instanceId: string, taskId: string) => void;
   moveTaskUp: (instanceId: string, taskId: string) => void;
   moveTaskDown: (instanceId: string, taskId: string) => void;
   moveTaskToTop: (instanceId: string, taskId: string) => void;
   moveTaskToBottom: (instanceId: string, taskId: string) => void;
-  
+
   // 实例右键菜单操作
   duplicateInstance: (instanceId: string) => string;
-  
+
   // 全局 UI 状态
   showAddTaskPanel: boolean;
   setShowAddTaskPanel: (show: boolean) => void;
-  
+
   // 最近添加的任务 ID（用于自动滚动和展开）
   lastAddedTaskId: string | null;
   clearLastAddedTaskId: () => void;
-  
+
   // 国际化文本解析
   resolveI18nText: (text: string | undefined, lang: string) => string;
-  
+
   // 配置导入
   importConfig: (config: MxuConfig) => void;
 
@@ -100,24 +100,24 @@ interface AppState {
   maaInitialized: boolean;
   maaVersion: string | null;
   setMaaInitialized: (initialized: boolean, version?: string) => void;
-  
+
   // 实例运行时状态
   instanceConnectionStatus: Record<string, ConnectionStatus>;
   instanceResourceLoaded: Record<string, boolean>;
   instanceCurrentTaskId: Record<string, number | null>;
   instanceTaskStatus: Record<string, TaskStatus | null>;
-  
+
   setInstanceConnectionStatus: (instanceId: string, status: ConnectionStatus) => void;
   setInstanceResourceLoaded: (instanceId: string, loaded: boolean) => void;
   setInstanceCurrentTaskId: (instanceId: string, taskId: number | null) => void;
   setInstanceTaskStatus: (instanceId: string, status: TaskStatus | null) => void;
-  
+
   // 选中的控制器和资源（运行时状态，与 Instance 中的保持同步）
   selectedController: Record<string, string>;
   selectedResource: Record<string, string>;
   setSelectedController: (instanceId: string, controllerName: string) => void;
   setSelectedResource: (instanceId: string, resourceName: string) => void;
-  
+
   // 设备信息保存
   setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
 
@@ -126,7 +126,7 @@ interface AppState {
   cachedWin32Windows: Win32Window[];
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
-  
+
   // 从后端恢复 MAA 运行时状态
   restoreBackendStates: (states: {
     instances: Record<string, {
@@ -139,7 +139,7 @@ interface AppState {
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
   }) => void;
-  
+
   // 截图流状态（按实例独立）
   instanceScreenshotStreaming: Record<string, boolean>;
   setInstanceScreenshotStreaming: (instanceId: string, streaming: boolean) => void;
@@ -148,35 +148,41 @@ interface AppState {
   sidePanelExpanded: boolean;
   setSidePanelExpanded: (expanded: boolean) => void;
   toggleSidePanelExpanded: () => void;
-  
+
+  // 右侧面板宽度和折叠状态
+  rightPanelWidth: number;
+  rightPanelCollapsed: boolean;
+  setRightPanelWidth: (width: number) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+
   // 卡片展开状态
   connectionPanelExpanded: boolean;
   screenshotPanelExpanded: boolean;
   setConnectionPanelExpanded: (expanded: boolean) => void;
   setScreenshotPanelExpanded: (expanded: boolean) => void;
-  
+
   // 中控台视图模式（同时显示所有实例的截图和日志）
   dashboardView: boolean;
   setDashboardView: (enabled: boolean) => void;
   toggleDashboardView: () => void;
-  
+
   // 窗口大小
   windowSize: WindowSize;
   setWindowSize: (size: WindowSize) => void;
-  
+
   // MirrorChyan 更新设置
   mirrorChyanSettings: MirrorChyanSettings;
   setMirrorChyanCdk: (cdk: string) => void;
   setMirrorChyanChannel: (channel: UpdateChannel) => void;
-  
+
   // 任务选项预览显示设置
   showOptionPreview: boolean;
   setShowOptionPreview: (show: boolean) => void;
-  
+
   // 实时截图帧率设置
   screenshotFrameRate: ScreenshotFrameRate;
   setScreenshotFrameRate: (rate: ScreenshotFrameRate) => void;
-  
+
   // Welcome 弹窗显示记录
   welcomeShownHash: string;
   setWelcomeShownHash: (hash: string) => void;
@@ -192,7 +198,7 @@ interface AppState {
   setUpdateInfo: (info: UpdateInfo | null) => void;
   setUpdateCheckLoading: (loading: boolean) => void;
   setShowUpdateDialog: (show: boolean) => void;
-  
+
   // 下载状态
   downloadStatus: DownloadStatus;
   downloadProgress: DownloadProgress | null;
@@ -201,7 +207,7 @@ interface AppState {
   setDownloadProgress: (progress: DownloadProgress | null) => void;
   setDownloadSavePath: (path: string | null) => void;
   resetDownloadState: () => void;
-  
+
   // 安装状态
   showInstallConfirmModal: boolean;
   installStatus: InstallStatus;
@@ -212,13 +218,13 @@ interface AppState {
   setInstallError: (error: string | null) => void;
   setJustUpdatedInfo: (info: JustUpdatedInfo | null) => void;
   resetInstallState: () => void;
-  
+
   // 最近关闭的实例
   recentlyClosed: RecentlyClosedInstance[];
   reopenRecentlyClosed: (id: string) => string | null;
   removeFromRecentlyClosed: (id: string) => void;
   clearRecentlyClosed: () => void;
-  
+
   // 任务运行状态（用于显示任务执行进度）
   // instanceTaskRunStatus[instanceId][selectedTaskId] = status
   instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>>;
@@ -236,7 +242,7 @@ interface AppState {
   findMaaTaskIdBySelectedTaskId: (instanceId: string, selectedTaskId: string) => number | null;
   // 清空实例的任务运行状态
   clearTaskRunStatus: (instanceId: string) => void;
-  
+
   // 运行中任务队列管理
   instancePendingTaskIds: Record<string, number[]>;
   instanceCurrentTaskIndex: Record<string, number>;
@@ -245,17 +251,17 @@ interface AppState {
   setCurrentTaskIndex: (instanceId: string, index: number) => void;
   advanceCurrentTaskIndex: (instanceId: string) => void;
   clearPendingTasks: (instanceId: string) => void;
-  
+
   // 定时执行状态
   scheduleExecutions: Record<string, ScheduleExecutionInfo>;
   setScheduleExecution: (instanceId: string, info: ScheduleExecutionInfo | null) => void;
   clearScheduleExecution: (instanceId: string) => void;
-  
+
   // 日志管理
   instanceLogs: Record<string, LogEntry[]>;
   addLog: (instanceId: string, log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   clearLogs: (instanceId: string) => void;
-  
+
   // 回调 ID 与名称的映射（用于日志显示）
   ctrlIdToName: Record<number, string>;
   resIdToName: Record<number, string>;
@@ -327,13 +333,13 @@ const createDefaultOptionValue = (optionDef: OptionDefinition): OptionValue => {
     });
     return { type: 'input', values };
   }
-  
+
   if (optionDef.type === 'switch') {
     const defaultCase = optionDef.default_case || optionDef.cases[1]?.name || 'No';
     const isYes = ['Yes', 'yes', 'Y', 'y'].includes(defaultCase);
     return { type: 'switch', value: isYes };
   }
-  
+
   // select type (default)
   const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || '';
   return { type: 'select', caseName: defaultCase };
@@ -353,18 +359,18 @@ const initializeAllOptionValues = (
   for (const optKey of optionKeys) {
     const optDef = allOptions[optKey];
     if (!optDef) continue;
-    
+
     // 如果已经初始化过，跳过（避免循环引用）
     if (result[optKey]) continue;
-    
+
     // 创建当前选项的默认值
     result[optKey] = createDefaultOptionValue(optDef);
-    
+
     // 处理嵌套选项：根据当前默认值找到对应的 case，递归初始化其子选项
     if (optDef.type === 'switch' || optDef.type === 'select' || !optDef.type) {
       const currentValue = result[optKey];
       let selectedCase;
-      
+
       if (optDef.type === 'switch' && 'cases' in optDef) {
         const isChecked = currentValue.type === 'switch' && currentValue.value;
         selectedCase = optDef.cases?.find((c) => {
@@ -377,14 +383,14 @@ const initializeAllOptionValues = (
         const caseName = currentValue.type === 'select' ? currentValue.caseName : optDef.cases?.[0]?.name;
         selectedCase = optDef.cases?.find((c) => c.name === caseName);
       }
-      
+
       // 递归初始化嵌套选项
       if (selectedCase?.option && selectedCase.option.length > 0) {
         initializeAllOptionValues(selectedCase.option, allOptions, result);
       }
     }
   }
-  
+
   return result;
 };
 
@@ -402,11 +408,11 @@ export const useAppStore = create<AppState>()(
         set({ language: lang });
         localStorage.setItem('mxu-language', lang);
       },
-      
+
       // 当前页面
       currentPage: 'main',
       setCurrentPage: (page) => set({ currentPage: page }),
-      
+
       // Interface 数据
       projectInterface: null,
       interfaceTranslations: {},
@@ -419,17 +425,17 @@ export const useAppStore = create<AppState>()(
         },
       })),
       setBasePath: (path) => set({ basePath: path }),
-      
+
       // 多开实例
       instances: [],
       activeInstanceId: null,
       nextInstanceNumber: 1,
-      
+
       createInstance: (name) => {
         const id = generateId();
         const instanceNumber = get().nextInstanceNumber;
         const pi = get().projectInterface;
-        
+
         // 初始化默认选中的任务
         const defaultTasks: SelectedTask[] = [];
         if (pi) {
@@ -447,7 +453,7 @@ export const useAppStore = create<AppState>()(
             });
           });
         }
-        
+
         const newInstance: Instance = {
           id,
           // 传入基础名称时拼接数字，未传入时使用 fallback
@@ -455,25 +461,25 @@ export const useAppStore = create<AppState>()(
           selectedTasks: defaultTasks,
           isRunning: false,
         };
-        
+
         set((state) => ({
           instances: [...state.instances, newInstance],
           activeInstanceId: id,
           nextInstanceNumber: state.nextInstanceNumber + 1,
         }));
-        
+
         return id;
       },
-      
+
       removeInstance: (id) => set((state) => {
         const instanceToClose = state.instances.find(i => i.id === id);
         const newInstances = state.instances.filter(i => i.id !== id);
         let newActiveId = state.activeInstanceId;
-        
+
         if (state.activeInstanceId === id) {
           newActiveId = newInstances.length > 0 ? newInstances[0].id : null;
         }
-        
+
         // 将关闭的实例添加到最近关闭列表
         let newRecentlyClosed = state.recentlyClosed;
         if (instanceToClose) {
@@ -498,53 +504,53 @@ export const useAppStore = create<AppState>()(
           // 添加到列表头部，并限制最大条目数
           newRecentlyClosed = [closedRecord, ...state.recentlyClosed].slice(0, MAX_RECENTLY_CLOSED);
         }
-        
+
         return {
           instances: newInstances,
           activeInstanceId: newActiveId,
           recentlyClosed: newRecentlyClosed,
         };
       }),
-      
+
       setActiveInstance: (id) => set({ activeInstanceId: id }),
-      
+
       updateInstance: (id, updates) => set((state) => ({
-        instances: state.instances.map(i => 
+        instances: state.instances.map(i =>
           i.id === id ? { ...i, ...updates } : i
         ),
       })),
-      
+
       renameInstance: (id, newName) => set((state) => ({
-        instances: state.instances.map(i => 
+        instances: state.instances.map(i =>
           i.id === id ? { ...i, name: newName } : i
         ),
       })),
-      
+
       reorderInstances: (oldIndex, newIndex) => set((state) => {
         const instances = [...state.instances];
         const [removed] = instances.splice(oldIndex, 1);
         instances.splice(newIndex, 0, removed);
         return { instances };
       }),
-      
+
       getActiveInstance: () => {
         const state = get();
         return state.instances.find(i => i.id === state.activeInstanceId) || null;
       },
-      
+
       // 任务操作
       addTaskToInstance: (instanceId, task) => {
         const pi = get().projectInterface;
         if (!pi) return;
-        
+
         // 递归初始化所有选项（包括嵌套选项）
         const optionValues = task.option && pi.option
           ? initializeAllOptionValues(task.option, pi.option)
           : {};
-        
+
         // 判断新任务是否有选项（用于决定是否展开）
         const hasOptions = !!(task.option && task.option.length > 0);
-        
+
         const newTask: SelectedTask = {
           id: generateId(),
           taskName: task.name,
@@ -552,83 +558,83 @@ export const useAppStore = create<AppState>()(
           optionValues,
           expanded: hasOptions, // 有选项的任务自动展开
         };
-        
+
         set((state) => ({
-          instances: state.instances.map(i => 
-            i.id === instanceId 
+          instances: state.instances.map(i =>
+            i.id === instanceId
               ? { ...i, selectedTasks: [...i.selectedTasks, newTask] }
               : i
           ),
           lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         }));
       },
-      
+
       removeTaskFromInstance: (instanceId, taskId) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? { ...i, selectedTasks: i.selectedTasks.filter(t => t.id !== taskId) }
             : i
         ),
       })),
-      
+
       reorderTasks: (instanceId, oldIndex, newIndex) => set((state) => ({
         instances: state.instances.map(i => {
           if (i.id !== instanceId) return i;
-          
+
           const tasks = [...i.selectedTasks];
           const [removed] = tasks.splice(oldIndex, 1);
           tasks.splice(newIndex, 0, removed);
-          
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
-      
+
       toggleTaskEnabled: (instanceId, taskId) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map(t => 
-                  t.id === taskId ? { ...t, enabled: !t.enabled } : t
-                ),
-              }
+              ...i,
+              selectedTasks: i.selectedTasks.map(t =>
+                t.id === taskId ? { ...t, enabled: !t.enabled } : t
+              ),
+            }
             : i
         ),
       })),
-      
+
       toggleTaskExpanded: (instanceId, taskId) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map(t => 
-                  t.id === taskId ? { ...t, expanded: !t.expanded } : t
-                ),
-              }
+              ...i,
+              selectedTasks: i.selectedTasks.map(t =>
+                t.id === taskId ? { ...t, expanded: !t.expanded } : t
+              ),
+            }
             : i
         ),
       })),
-      
+
       setTaskOptionValue: (instanceId, taskId, optionKey, value) => {
         const pi = get().projectInterface;
-        
+
         set((state) => ({
           instances: state.instances.map(i => {
             if (i.id !== instanceId) return i;
-            
+
             return {
               ...i,
               selectedTasks: i.selectedTasks.map(t => {
                 if (t.id !== taskId) return t;
-                
+
                 const newOptionValues = { ...t.optionValues, [optionKey]: value };
-                
+
                 // 当选项值改变时，初始化新的嵌套选项
                 if (pi?.option) {
                   const optDef = pi.option[optionKey];
                   if (optDef && (optDef.type === 'switch' || optDef.type === 'select' || !optDef.type) && 'cases' in optDef) {
                     let selectedCase;
-                    
+
                     if (optDef.type === 'switch') {
                       const isChecked = value.type === 'switch' && value.value;
                       selectedCase = optDef.cases?.find((c) => {
@@ -641,7 +647,7 @@ export const useAppStore = create<AppState>()(
                       const caseName = value.type === 'select' ? value.caseName : optDef.cases?.[0]?.name;
                       selectedCase = optDef.cases?.find((c) => c.name === caseName);
                     }
-                    
+
                     // 初始化嵌套选项（如果尚未初始化）
                     if (selectedCase?.option && selectedCase.option.length > 0) {
                       for (const nestedKey of selectedCase.option) {
@@ -656,60 +662,60 @@ export const useAppStore = create<AppState>()(
                     }
                   }
                 }
-                
+
                 return { ...t, optionValues: newOptionValues };
               }),
             };
           }),
         }));
       },
-      
+
       selectAllTasks: (instanceId, enabled) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map(t => ({ ...t, enabled })),
-              }
+              ...i,
+              selectedTasks: i.selectedTasks.map(t => ({ ...t, enabled })),
+            }
             : i
         ),
       })),
-      
+
       collapseAllTasks: (instanceId, expanded) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map(t => ({ ...t, expanded })),
-              }
+              ...i,
+              selectedTasks: i.selectedTasks.map(t => ({ ...t, expanded })),
+            }
             : i
         ),
       })),
-      
+
       renameTask: (instanceId, taskId, newName) => set((state) => ({
-        instances: state.instances.map(i => 
-          i.id === instanceId 
+        instances: state.instances.map(i =>
+          i.id === instanceId
             ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map(t => 
-                  t.id === taskId ? { ...t, customName: newName || undefined } : t
-                ),
-              }
+              ...i,
+              selectedTasks: i.selectedTasks.map(t =>
+                t.id === taskId ? { ...t, customName: newName || undefined } : t
+              ),
+            }
             : i
         ),
       })),
-      
+
       // 复制任务
       duplicateTask: (instanceId, taskId) => {
         const state = get();
         const instance = state.instances.find(i => i.id === instanceId);
         if (!instance) return;
-        
+
         const taskIndex = instance.selectedTasks.findIndex(t => t.id === taskId);
         if (taskIndex === -1) return;
-        
+
         const originalTask = instance.selectedTasks[taskIndex];
-        
+
         // 计算新任务的显示名称
         let newCustomName: string;
         if (originalTask.customName) {
@@ -721,95 +727,95 @@ export const useAppStore = create<AppState>()(
           const originalLabel = state.resolveI18nText(taskDef?.label, langKey) || taskDef?.name || originalTask.taskName;
           newCustomName = `${originalLabel}（副本）`;
         }
-        
+
         const newTask: SelectedTask = {
           ...originalTask,
           id: generateId(),
           customName: newCustomName,
           optionValues: { ...originalTask.optionValues },
         };
-        
+
         const tasks = [...instance.selectedTasks];
         tasks.splice(taskIndex + 1, 0, newTask);
-        
+
         set({
-          instances: state.instances.map(i => 
+          instances: state.instances.map(i =>
             i.id === instanceId ? { ...i, selectedTasks: tasks } : i
           ),
         });
       },
-      
+
       // 上移任务
       moveTaskUp: (instanceId, taskId) => set((state) => ({
         instances: state.instances.map(i => {
           if (i.id !== instanceId) return i;
-          
+
           const taskIndex = i.selectedTasks.findIndex(t => t.id === taskId);
           if (taskIndex <= 0) return i;
-          
+
           const tasks = [...i.selectedTasks];
           [tasks[taskIndex - 1], tasks[taskIndex]] = [tasks[taskIndex], tasks[taskIndex - 1]];
-          
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
-      
+
       // 下移任务
       moveTaskDown: (instanceId, taskId) => set((state) => ({
         instances: state.instances.map(i => {
           if (i.id !== instanceId) return i;
-          
+
           const taskIndex = i.selectedTasks.findIndex(t => t.id === taskId);
           if (taskIndex === -1 || taskIndex >= i.selectedTasks.length - 1) return i;
-          
+
           const tasks = [...i.selectedTasks];
           [tasks[taskIndex], tasks[taskIndex + 1]] = [tasks[taskIndex + 1], tasks[taskIndex]];
-          
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
-      
+
       // 置顶任务
       moveTaskToTop: (instanceId, taskId) => set((state) => ({
         instances: state.instances.map(i => {
           if (i.id !== instanceId) return i;
-          
+
           const taskIndex = i.selectedTasks.findIndex(t => t.id === taskId);
           if (taskIndex <= 0) return i;
-          
+
           const tasks = [...i.selectedTasks];
           const [task] = tasks.splice(taskIndex, 1);
           tasks.unshift(task);
-          
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
-      
+
       // 置底任务
       moveTaskToBottom: (instanceId, taskId) => set((state) => ({
         instances: state.instances.map(i => {
           if (i.id !== instanceId) return i;
-          
+
           const taskIndex = i.selectedTasks.findIndex(t => t.id === taskId);
           if (taskIndex === -1 || taskIndex >= i.selectedTasks.length - 1) return i;
-          
+
           const tasks = [...i.selectedTasks];
           const [task] = tasks.splice(taskIndex, 1);
           tasks.push(task);
-          
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
-      
+
       // 复制实例
       duplicateInstance: (instanceId) => {
         const state = get();
         const sourceInstance = state.instances.find(i => i.id === instanceId);
         if (!sourceInstance) return '';
-        
+
         const newId = generateId();
         const instanceNumber = state.nextInstanceNumber;
-        
+
         const newInstance: Instance = {
           ...sourceInstance,
           id: newId,
@@ -821,34 +827,34 @@ export const useAppStore = create<AppState>()(
           })),
           isRunning: false,
         };
-        
+
         set({
           instances: [...state.instances, newInstance],
           activeInstanceId: newId,
           nextInstanceNumber: instanceNumber + 1,
         });
-        
+
         return newId;
       },
-      
+
       // 全局 UI 状态
       showAddTaskPanel: false,
       setShowAddTaskPanel: (show) => set({ showAddTaskPanel: show }),
-      
+
       // 最近添加的任务 ID
       lastAddedTaskId: null,
       clearLastAddedTaskId: () => set({ lastAddedTaskId: null }),
-      
+
       // 国际化文本解析
       resolveI18nText: (text, lang) => {
         if (!text) return '';
         if (!text.startsWith('$')) return text;
-        
+
         const key = text.slice(1);
         const translations = get().interfaceTranslations[lang];
         return translations?.[key] || key;
       },
-      
+
       // 配置导入
       importConfig: (config) => {
         const instances: Instance[] = config.instances.map(inst => ({
@@ -870,7 +876,7 @@ export const useAppStore = create<AppState>()(
           isRunning: false,
           schedulePolicies: inst.schedulePolicies,
         }));
-        
+
         // 恢复选中的控制器和资源状态
         const selectedController: Record<string, string> = {};
         const selectedResource: Record<string, string> = {};
@@ -882,7 +888,7 @@ export const useAppStore = create<AppState>()(
             selectedResource[inst.id] = inst.resourceName;
           }
         });
-        
+
         // 根据已有实例名字计算下一个编号，避免重复
         let maxNumber = 0;
         instances.forEach(inst => {
@@ -891,7 +897,7 @@ export const useAppStore = create<AppState>()(
             maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
           }
         });
-        
+
         set({
           instances,
           activeInstanceId: instances.length > 0 ? instances[0].id : null,
@@ -904,6 +910,8 @@ export const useAppStore = create<AppState>()(
           mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
           showOptionPreview: config.settings.showOptionPreview ?? true,
           sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
+          rightPanelWidth: config.settings.rightPanelWidth ?? 320,
+          rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
           connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
           screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
           screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
@@ -911,7 +919,7 @@ export const useAppStore = create<AppState>()(
           devMode: config.settings.devMode ?? false,
           recentlyClosed: config.recentlyClosed || [],
         });
-        
+
         document.documentElement.classList.toggle('dark', config.settings.theme === 'dark');
         localStorage.setItem('mxu-language', config.settings.language);
       },
@@ -983,7 +991,7 @@ export const useAppStore = create<AppState>()(
           i.id === instanceId ? { ...i, resourceName } : i
         ),
       })),
-      
+
       // 保存设备信息到实例
       setInstanceSavedDevice: (instanceId, savedDevice) => set((state) => ({
         instances: state.instances.map(i =>
@@ -996,13 +1004,13 @@ export const useAppStore = create<AppState>()(
       cachedWin32Windows: [],
       setCachedAdbDevices: (devices) => set({ cachedAdbDevices: devices }),
       setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
-      
+
       // 从后端恢复 MAA 运行时状态
       restoreBackendStates: (states) => set((currentState) => {
         const connectionStatus: Record<string, ConnectionStatus> = {};
         const resourceLoaded: Record<string, boolean> = {};
         const taskStatus: Record<string, TaskStatus | null> = {};
-        
+
         // 更新实例的 isRunning 状态
         const updatedInstances = currentState.instances.map(instance => {
           const backendState = states.instances[instance.id];
@@ -1018,7 +1026,7 @@ export const useAppStore = create<AppState>()(
           }
           return instance;
         });
-        
+
         for (const [instanceId, state] of Object.entries(states.instances)) {
           connectionStatus[instanceId] = state.connected ? 'Connected' : 'Disconnected';
           resourceLoaded[instanceId] = state.resourceLoaded;
@@ -1027,7 +1035,7 @@ export const useAppStore = create<AppState>()(
             taskStatus[instanceId] = 'Running';
           }
         }
-        
+
         return {
           instances: updatedInstances,
           instanceConnectionStatus: connectionStatus,
@@ -1037,7 +1045,7 @@ export const useAppStore = create<AppState>()(
           cachedWin32Windows: states.cachedWin32Windows,
         };
       }),
-      
+
       // 截图流状态
       instanceScreenshotStreaming: {},
       setInstanceScreenshotStreaming: (instanceId, streaming) => set((state) => ({
@@ -1051,22 +1059,28 @@ export const useAppStore = create<AppState>()(
       sidePanelExpanded: true,
       setSidePanelExpanded: (expanded) => set({ sidePanelExpanded: expanded }),
       toggleSidePanelExpanded: () => set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded })),
-      
+
+      // 右侧面板宽度和折叠状态
+      rightPanelWidth: 320,
+      rightPanelCollapsed: false,
+      setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+      setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+
       // 卡片展开状态
       connectionPanelExpanded: true,
       screenshotPanelExpanded: true,
       setConnectionPanelExpanded: (expanded) => set({ connectionPanelExpanded: expanded }),
       setScreenshotPanelExpanded: (expanded) => set({ screenshotPanelExpanded: expanded }),
-      
+
       // 中控台视图模式
       dashboardView: false,
       setDashboardView: (enabled) => set({ dashboardView: enabled }),
       toggleDashboardView: () => set((state) => ({ dashboardView: !state.dashboardView })),
-      
+
       // 窗口大小
       windowSize: defaultWindowSize,
       setWindowSize: (size) => set({ windowSize: size }),
-      
+
       // MirrorChyan 更新设置
       mirrorChyanSettings: defaultMirrorChyanSettings,
       setMirrorChyanCdk: (cdk) => set((state) => ({
@@ -1075,15 +1089,15 @@ export const useAppStore = create<AppState>()(
       setMirrorChyanChannel: (channel) => set((state) => ({
         mirrorChyanSettings: { ...state.mirrorChyanSettings, channel },
       })),
-      
+
       // 任务选项预览显示设置
       showOptionPreview: true,
       setShowOptionPreview: (show) => set({ showOptionPreview: show }),
-      
+
       // 实时截图帧率设置
       screenshotFrameRate: defaultScreenshotFrameRate,
       setScreenshotFrameRate: (rate) => set({ screenshotFrameRate: rate }),
-      
+
       // Welcome 弹窗显示记录
       welcomeShownHash: '',
       setWelcomeShownHash: (hash) => set({ welcomeShownHash: hash }),
@@ -1099,7 +1113,7 @@ export const useAppStore = create<AppState>()(
       setUpdateInfo: (info) => set({ updateInfo: info }),
       setUpdateCheckLoading: (loading) => set({ updateCheckLoading: loading }),
       setShowUpdateDialog: (show) => set({ showUpdateDialog: show }),
-      
+
       // 下载状态
       downloadStatus: 'idle',
       downloadProgress: null,
@@ -1112,7 +1126,7 @@ export const useAppStore = create<AppState>()(
         downloadProgress: null,
         downloadSavePath: null,
       }),
-      
+
       // 安装状态
       showInstallConfirmModal: false,
       installStatus: 'idle',
@@ -1130,15 +1144,15 @@ export const useAppStore = create<AppState>()(
         installStatus: 'idle',
         installError: null,
       }),
-      
+
       // 最近关闭的实例
       recentlyClosed: [],
-      
+
       reopenRecentlyClosed: (id) => {
         const state = get();
         const closedInstance = state.recentlyClosed.find(i => i.id === id);
         if (!closedInstance) return null;
-        
+
         const newId = generateId();
         const newInstance: Instance = {
           id: newId,
@@ -1159,7 +1173,7 @@ export const useAppStore = create<AppState>()(
           isRunning: false,
           schedulePolicies: closedInstance.schedulePolicies,
         };
-        
+
         // 恢复选中的控制器和资源状态
         const newSelectedController = { ...state.selectedController };
         const newSelectedResource = { ...state.selectedResource };
@@ -1169,7 +1183,7 @@ export const useAppStore = create<AppState>()(
         if (closedInstance.resourceName) {
           newSelectedResource[newId] = closedInstance.resourceName;
         }
-        
+
         set({
           instances: [...state.instances, newInstance],
           activeInstanceId: newId,
@@ -1177,20 +1191,20 @@ export const useAppStore = create<AppState>()(
           selectedController: newSelectedController,
           selectedResource: newSelectedResource,
         });
-        
+
         return newId;
       },
-      
+
       removeFromRecentlyClosed: (id) => set((state) => ({
         recentlyClosed: state.recentlyClosed.filter(i => i.id !== id),
       })),
-      
+
       clearRecentlyClosed: () => set({ recentlyClosed: [] }),
-      
+
       // 任务运行状态
       instanceTaskRunStatus: {},
       maaTaskIdMapping: {},
-      
+
       setTaskRunStatus: (instanceId, selectedTaskId, status) => set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1200,7 +1214,7 @@ export const useAppStore = create<AppState>()(
           },
         },
       })),
-      
+
       setAllTasksRunStatus: (instanceId, taskIds, status) => set((state) => {
         const taskStatus: Record<string, TaskRunStatus> = {};
         taskIds.forEach(id => {
@@ -1213,7 +1227,7 @@ export const useAppStore = create<AppState>()(
           },
         };
       }),
-      
+
       registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) => set((state) => ({
         maaTaskIdMapping: {
           ...state.maaTaskIdMapping,
@@ -1223,13 +1237,13 @@ export const useAppStore = create<AppState>()(
           },
         },
       })),
-      
+
       findSelectedTaskIdByMaaTaskId: (instanceId, maaTaskId) => {
         const state = get();
         const mapping = state.maaTaskIdMapping[instanceId];
         return mapping?.[maaTaskId] || null;
       },
-      
+
       findMaaTaskIdBySelectedTaskId: (instanceId, selectedTaskId) => {
         const state = get();
         const mapping = state.maaTaskIdMapping[instanceId];
@@ -1242,7 +1256,7 @@ export const useAppStore = create<AppState>()(
         }
         return null;
       },
-      
+
       clearTaskRunStatus: (instanceId) => set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1253,39 +1267,39 @@ export const useAppStore = create<AppState>()(
           [instanceId]: {},
         },
       })),
-      
+
       // 运行中任务队列管理
       instancePendingTaskIds: {},
       instanceCurrentTaskIndex: {},
-      
+
       setPendingTaskIds: (instanceId, taskIds) => set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: taskIds,
         },
       })),
-      
+
       appendPendingTaskId: (instanceId, taskId) => set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: [...(state.instancePendingTaskIds[instanceId] || []), taskId],
         },
       })),
-      
+
       setCurrentTaskIndex: (instanceId, index) => set((state) => ({
         instanceCurrentTaskIndex: {
           ...state.instanceCurrentTaskIndex,
           [instanceId]: index,
         },
       })),
-      
+
       advanceCurrentTaskIndex: (instanceId) => set((state) => ({
         instanceCurrentTaskIndex: {
           ...state.instanceCurrentTaskIndex,
           [instanceId]: (state.instanceCurrentTaskIndex[instanceId] || 0) + 1,
         },
       })),
-      
+
       clearPendingTasks: (instanceId) => set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
@@ -1296,27 +1310,27 @@ export const useAppStore = create<AppState>()(
           [instanceId]: 0,
         },
       })),
-      
+
       // 定时执行状态
       scheduleExecutions: {},
-      
+
       setScheduleExecution: (instanceId, info) => set((state) => ({
         scheduleExecutions: info
           ? { ...state.scheduleExecutions, [instanceId]: info }
           : Object.fromEntries(
-              Object.entries(state.scheduleExecutions).filter(([id]) => id !== instanceId)
-            ),
+            Object.entries(state.scheduleExecutions).filter(([id]) => id !== instanceId)
+          ),
       })),
-      
+
       clearScheduleExecution: (instanceId) => set((state) => ({
         scheduleExecutions: Object.fromEntries(
           Object.entries(state.scheduleExecutions).filter(([id]) => id !== instanceId)
         ),
       })),
-      
+
       // 日志管理
       instanceLogs: {},
-      
+
       addLog: (instanceId, log) => set((state) => {
         const logs = state.instanceLogs[instanceId] || [];
         const newLog: LogEntry = {
@@ -1333,36 +1347,36 @@ export const useAppStore = create<AppState>()(
           },
         };
       }),
-      
+
       clearLogs: (instanceId) => set((state) => ({
         instanceLogs: {
           ...state.instanceLogs,
           [instanceId]: [],
         },
       })),
-      
+
       // 回调 ID 与名称的映射
       ctrlIdToName: {},
       resIdToName: {},
       taskIdToName: {},
       entryToTaskName: {},
-      
+
       registerCtrlIdName: (ctrlId, name) => set((state) => ({
         ctrlIdToName: { ...state.ctrlIdToName, [ctrlId]: name },
       })),
-      
+
       registerResIdName: (resId, name) => set((state) => ({
         resIdToName: { ...state.resIdToName, [resId]: name },
       })),
-      
+
       registerTaskIdName: (taskId, name) => set((state) => ({
         taskIdToName: { ...state.taskIdToName, [taskId]: name },
       })),
-      
+
       registerEntryTaskName: (entry, name) => set((state) => ({
         entryToTaskName: { ...state.entryToTaskName, [entry]: name },
       })),
-      
+
       getCtrlName: (ctrlId) => get().ctrlIdToName[ctrlId],
       getResName: (resId) => get().resIdToName[resId],
       getTaskName: (taskId) => get().taskIdToName[taskId],
@@ -1400,6 +1414,8 @@ function generateConfig(): MxuConfig {
       mirrorChyan: state.mirrorChyanSettings,
       showOptionPreview: state.showOptionPreview,
       sidePanelExpanded: state.sidePanelExpanded,
+      rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
       connectionPanelExpanded: state.connectionPanelExpanded,
       screenshotPanelExpanded: state.screenshotPanelExpanded,
       screenshotFrameRate: state.screenshotFrameRate,
@@ -1436,6 +1452,8 @@ useAppStore.subscribe(
     mirrorChyanSettings: state.mirrorChyanSettings,
     showOptionPreview: state.showOptionPreview,
     sidePanelExpanded: state.sidePanelExpanded,
+    rightPanelWidth: state.rightPanelWidth,
+    rightPanelCollapsed: state.rightPanelCollapsed,
     connectionPanelExpanded: state.connectionPanelExpanded,
     screenshotPanelExpanded: state.screenshotPanelExpanded,
     screenshotFrameRate: state.screenshotFrameRate,

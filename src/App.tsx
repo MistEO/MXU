@@ -714,7 +714,7 @@ function App() {
           {/* 右侧信息面板 */}
           {!rightPanelCollapsed && (
             <div
-              className="shrink-0 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent min-w-[240px] max-w-[25vw]"
+              className="shrink-0 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent min-w-[240px] max-w-[50vw]"
               style={{ width: rightPanelWidth }}
             >
               {/* 连接设置和实时截图（可折叠） */}

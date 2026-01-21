@@ -148,9 +148,11 @@ interface AppState {
   setSidePanelExpanded: (expanded: boolean) => void;
   toggleSidePanelExpanded: () => void;
 
-  // 右侧面板宽度
+  // 右侧面板宽度和折叠状态
   rightPanelWidth: number;
+  rightPanelCollapsed: boolean;
   setRightPanelWidth: (width: number) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
 
   // 卡片展开状态
   connectionPanelExpanded: boolean;
@@ -903,6 +905,7 @@ export const useAppStore = create<AppState>()(
           showOptionPreview: config.settings.showOptionPreview ?? true,
           sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
           rightPanelWidth: config.settings.rightPanelWidth ?? 320,
+          rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
           connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
           screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
           screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
@@ -1050,9 +1053,11 @@ export const useAppStore = create<AppState>()(
       setSidePanelExpanded: (expanded) => set({ sidePanelExpanded: expanded }),
       toggleSidePanelExpanded: () => set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded })),
 
-      // 右侧面板宽度
+      // 右侧面板宽度和折叠状态
       rightPanelWidth: 320,
+      rightPanelCollapsed: false,
       setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+      setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
 
       // 卡片展开状态
       connectionPanelExpanded: true,
@@ -1399,6 +1404,7 @@ function generateConfig(): MxuConfig {
       showOptionPreview: state.showOptionPreview,
       sidePanelExpanded: state.sidePanelExpanded,
       rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
       connectionPanelExpanded: state.connectionPanelExpanded,
       screenshotPanelExpanded: state.screenshotPanelExpanded,
       screenshotFrameRate: state.screenshotFrameRate,
@@ -1435,6 +1441,7 @@ useAppStore.subscribe(
     showOptionPreview: state.showOptionPreview,
     sidePanelExpanded: state.sidePanelExpanded,
     rightPanelWidth: state.rightPanelWidth,
+    rightPanelCollapsed: state.rightPanelCollapsed,
     connectionPanelExpanded: state.connectionPanelExpanded,
     screenshotPanelExpanded: state.screenshotPanelExpanded,
     screenshotFrameRate: state.screenshotFrameRate,

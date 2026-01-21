@@ -139,7 +139,9 @@ function App() {
     showAddTaskPanel,
     setShowAddTaskPanel,
     rightPanelWidth,
-    setRightPanelWidth: _setRightPanelWidth, // unused, kept for reference or removed
+    rightPanelCollapsed,
+    setRightPanelWidth: _setRightPanelWidth,
+    setRightPanelCollapsed: _setRightPanelCollapsed,
   } = useAppStore();
 
   const isResizingRef = useRef(false);
@@ -149,13 +151,17 @@ function App() {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current) return;
 
-      // 计算新的宽度：窗口宽度 - 鼠标X坐标
-      // 注意：这里假设应用是全屏或者鼠标相对于视口的坐标
       const newWidth = document.body.clientWidth - e.clientX;
+      const store = useAppStore.getState();
 
-      // 限制最小和最大宽度
-      if (newWidth >= 200 && newWidth <= 800) {
-        useAppStore.getState().setRightPanelWidth(newWidth);
+      if (newWidth < 160) {
+        // 如果宽度小于最小宽度的一半 (160px)，折叠
+        store.setRightPanelCollapsed(true);
+      } else {
+        // 否则展开，并更新宽度（限制在 320-800 之间）
+        store.setRightPanelCollapsed(false);
+        const clampedWidth = Math.max(320, Math.min(800, newWidth));
+        store.setRightPanelWidth(clampedWidth);
       }
     };
 
@@ -697,33 +703,35 @@ function App() {
 
           {/* 分隔条 Resizer */}
           <div
-            className="w-1 hover:bg-accent/50 cursor-col-resize flex items-center justify-center group flex-shrink-0 transition-colors select-none bg-transparent"
+            className={`${rightPanelCollapsed ? 'w-4' : 'w-1'} hover:bg-accent/50 cursor-col-resize flex items-center justify-center group shrink-0 transition-all select-none bg-transparent`}
             onMouseDown={handleResizeStart}
-            title={t('common.resize', '拖动调整宽度')}
+            title={t('common.resizeOrCollapse', '拖动调整宽度，向右拖动到底可折叠')}
           >
             {/* 可视化把手 */}
             <div className="w-[2px] h-8 rounded-full transition-colors bg-border group-hover:bg-accent" />
           </div>
 
           {/* 右侧信息面板 */}
-          <div
-            className="flex-shrink-0 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent"
-            style={{ width: rightPanelWidth, minWidth: 200 }}
-          >
-            {/* 连接设置和实时截图（可折叠） */}
-            {sidePanelExpanded && (
-              <>
-                {/* 连接设置（设备/资源选择） */}
-                <ConnectionPanel />
+          {!rightPanelCollapsed && (
+            <div
+              className="shrink-0 flex flex-col gap-3 p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent min-w-[240px] max-w-[25vw]"
+              style={{ width: rightPanelWidth }}
+            >
+              {/* 连接设置和实时截图（可折叠） */}
+              {sidePanelExpanded && (
+                <>
+                  {/* 连接设置（设备/资源选择） */}
+                  <ConnectionPanel />
 
-                {/* 实时截图 */}
-                <ScreenshotPanel />
-              </>
-            )}
+                  {/* 实时截图 */}
+                  <ScreenshotPanel />
+                </>
+              )}
 
-            {/* 运行日志 */}
-            <LogsPanel />
-          </div>
+              {/* 运行日志 */}
+              <LogsPanel />
+            </div>
+          )}
         </div>
       )
       }

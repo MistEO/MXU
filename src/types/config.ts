@@ -91,6 +91,7 @@ export interface AppSettings {
   screenshotFrameRate?: ScreenshotFrameRate; // 实时截图帧率
   welcomeShownHash?: string;    // 已显示过的 welcome 内容 hash，用于判断内容变化时重新弹窗
   rightPanelWidth?: number;     // 右侧面板宽度
+  rightPanelCollapsed?: boolean;// 右侧面板是否折叠
 }
 
 // MXU 配置文件完整结构

@@ -389,6 +389,9 @@ export function ConnectionPanel() {
   // 记录上一次的控制器名称，用于检测切换
   const prevControllerNameRef = useRef<string | undefined>(currentControllerName);
 
+  // 记录每个实例是否已尝试过自动重连（避免重复尝试）
+  const autoReconnectAttemptedRef = useRef<Set<string>>(new Set());
+
   // 当控制器切换时自动触发设备搜索
   useEffect(() => {
     const prevName = prevControllerNameRef.current;
@@ -399,6 +402,35 @@ export function ConnectionPanel() {
       handleSearch();
     }
   }, [currentControllerName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 应用启动/实例切换时自动重连之前保存的设备
+  useEffect(() => {
+    if (!instanceId || !activeInstance || !currentController) return;
+
+    // 如果已连接或正在连接/搜索，不触发自动重连
+    if (isConnected || isConnecting || isSearching) return;
+
+    // 如果该实例已经尝试过自动重连，不再重复
+    if (autoReconnectAttemptedRef.current.has(instanceId)) return;
+
+    const savedDevice = activeInstance.savedDevice;
+    const hasHistoricalDevice =
+      savedDevice &&
+      ((controllerType === 'Adb' && savedDevice.adbDeviceName) ||
+        ((controllerType === 'Win32' || controllerType === 'Gamepad') && savedDevice.windowName) ||
+        (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
+
+    if (hasHistoricalDevice && needsDeviceSearch) {
+      // 标记该实例已尝试过自动重连
+      autoReconnectAttemptedRef.current.add(instanceId);
+      // 触发搜索并自动连接（handleSearch 内部已有匹配+自动连接逻辑）
+      handleSearch();
+    } else if (hasHistoricalDevice && controllerType === 'PlayCover') {
+      // PlayCover 不需要搜索，直接连接
+      autoReconnectAttemptedRef.current.add(instanceId);
+      handleConnect();
+    }
+  }, [instanceId, activeInstance, currentController, isConnected, isConnecting, isSearching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 初始化 MaaFramework
   const ensureMaaInitialized = async () => {

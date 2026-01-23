@@ -1,6 +1,7 @@
 import type { MxuConfig } from '@/types/config';
 import { defaultConfig } from '@/types/config';
 import { loggers } from '@/utils/logger';
+import { parseJsonc } from '@/utils/jsonc';
 
 const log = loggers.config;
 
@@ -60,7 +61,7 @@ export async function loadConfig(basePath: string, projectName?: string): Promis
     if (await exists(configPath)) {
       try {
         const content = await readTextFile(configPath);
-        const config = JSON.parse(content) as MxuConfig;
+        const config = parseJsonc<MxuConfig>(content, configPath);
         log.info('配置加载成功');
         return config;
       } catch (err) {
@@ -80,7 +81,8 @@ export async function loadConfig(basePath: string, projectName?: string): Promis
       if (response.ok) {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
-          const config = (await response.json()) as MxuConfig;
+          const content = await response.text();
+          const config = parseJsonc<MxuConfig>(content, fetchPath);
           log.info('配置加载成功（浏览器环境）');
           return config;
         }

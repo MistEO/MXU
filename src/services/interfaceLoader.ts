@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ProjectInterface } from '@/types/interface';
 import { loggers } from '@/utils/logger';
+import { parseJsonc } from '@/utils/jsonc';
 
 const log = loggers.app;
 
@@ -47,7 +48,7 @@ function joinPath(basePath: string, relativePath: string): string {
  */
 async function loadInterfaceFromLocal(interfacePath: string): Promise<ProjectInterface> {
   const content = await readLocalFile(interfacePath);
-  const pi: ProjectInterface = JSON.parse(content);
+  const pi = parseJsonc<ProjectInterface>(content, interfacePath);
 
   if (pi.interface_version !== 2) {
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
@@ -73,7 +74,7 @@ async function loadTranslationsFromLocal(
     try {
       const fullPath = joinPath(basePath, relativePath);
       const langContent = await readLocalFile(fullPath);
-      translations[lang] = JSON.parse(langContent);
+      translations[lang] = parseJsonc<Record<string, string>>(langContent, fullPath);
     } catch (err) {
       log.warn(`加载翻译文件失败 [${lang}]:`, err);
     }
@@ -108,7 +109,7 @@ async function loadInterfaceFromHttp(path: string): Promise<ProjectInterface> {
     throw new Error(`HTTP ${response.status}`);
   }
   const content = await response.text();
-  const pi: ProjectInterface = JSON.parse(content);
+  const pi = parseJsonc<ProjectInterface>(content, path);
 
   if (pi.interface_version !== 2) {
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
@@ -134,7 +135,7 @@ async function loadTranslationsFromHttp(
       const response = await fetch(langPath);
       if (response.ok) {
         const langContent = await response.text();
-        translations[lang] = JSON.parse(langContent);
+        translations[lang] = parseJsonc<Record<string, string>>(langContent, langPath);
       }
     } catch (err) {
       log.warn(`加载翻译文件失败 [${lang}]:`, err);

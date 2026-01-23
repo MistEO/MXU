@@ -11,7 +11,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,json}\" \"*.{json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,json}\" \"*.{json,md}\"",
     "format:rust": "cd src-tauri && cargo fmt",
-    "format:all": "pnpm format && pnpm format:rust"
+    "format:all": "pnpm format && pnpm format:rust",
+    "prepare": "husky"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -43,9 +44,16 @@
     "@types/react-dom": "^19.1.6",
     "@types/semver": "^7.7.1",
     "@vitejs/plugin-react": "^4.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.5.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   },
-  "packageManager": "pnpm@10.28.0+sha512.05df71d1421f21399e053fde567cea34d446fa02c76571441bfc1c7956e98e363088982d940465fd34480d4d90a0668bc12362f8aa88000a64e83d0b0e47be48"
+  "packageManager": "pnpm@10.28.0+sha512.05df71d1421f21399e053fde567cea34d446fa02c76571441bfc1c7956e98e363088982d940465fd34480d4d90a0668bc12362f8aa88000a64e83d0b0e47be48",
+  "lint-staged": {
+    "src/**/*.{ts,tsx,js,jsx,css,json}": "prettier --write",
+    "*.{json,md}": "prettier --write",
+    "src-tauri/src/**/*.rs": "cargo fmt --manifest-path src-tauri/Cargo.toml --"
+  }
 }

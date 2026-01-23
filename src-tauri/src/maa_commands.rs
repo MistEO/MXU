@@ -1671,33 +1671,48 @@ pub async fn maa_start_tasks(
     Ok(task_ids)
 }
 
-/// 停止 Agent 并断开连接
+/// 停止 Agent 并断开连接（异步执行，避免阻塞 UI）
+/// 不强制 kill 子进程，等待 MaaTaskerPostStop 触发子进程自行退出
 #[tauri::command]
 pub fn maa_stop_agent(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
     info!("maa_stop_agent called for instance: {}", instance_id);
-
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances
         .get_mut(&instance_id)
         .ok_or("Instance not found")?;
 
-    // 断开并销毁 agent
-    if let Some(agent) = instance.agent_client.take() {
-        info!("Disconnecting agent...");
-        unsafe {
-            (lib.maa_agent_client_disconnect)(agent);
-            (lib.maa_agent_client_destroy)(agent);
-        }
-    }
+    // 取出 agent 和 child，准备在后台线程清理
+    let agent_opt = instance.agent_client.take();
+    let child_opt = instance.agent_child.take();
 
-    // 终止子进程
-    if let Some(mut child) = instance.agent_child.take() {
-        info!("Killing agent child process...");
-        let _ = child.kill();
-        let _ = child.wait();
+    // 在后台线程执行阻塞的清理操作（disconnect 和 wait 可能阻塞）
+    // 不 kill 子进程，依赖 MaaTaskerPostStop 让子进程自行结束
+    if agent_opt.is_some() || child_opt.is_some() {
+        let agent_ptr = agent_opt.map(SendPtr::new);
+        thread::spawn(move || {
+            // 断开并销毁 agent（disconnect 会发送 ShutDown 请求，等待子进程响应）
+            if let Some(agent) = agent_ptr {
+                let guard = MAA_LIBRARY.lock();
+                if let Ok(guard) = guard {
+                    if let Some(lib) = guard.as_ref() {
+                        info!("Background: Disconnecting agent...");
+                        unsafe {
+                            (lib.maa_agent_client_disconnect)(agent.as_ptr());
+                            (lib.maa_agent_client_destroy)(agent.as_ptr());
+                        }
+                        info!("Background: Agent disconnected and destroyed");
+                    }
+                }
+            }
+
+            // 等待子进程自行退出，避免僵尸进程
+            if let Some(mut child) = child_opt {
+                info!("Background: Waiting for agent child process to exit...");
+                let _ = child.wait();
+                info!("Background: Agent child process exited");
+            }
+        });
     }
 
     Ok(())

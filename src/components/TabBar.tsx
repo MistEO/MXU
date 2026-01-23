@@ -285,102 +285,115 @@ export function TabBar() {
           const isClosing = closingTabIds.includes(instance.id);
 
           return (
-          <div
-            key={instance.id}
-            ref={(el) => {
-              if (el) tabRefs.current.set(instance.id, el);
-              else tabRefs.current.delete(instance.id);
-            }}
-            onMouseDown={(e) => handleMouseDown(e, index)}
-            onClick={() => !isClosing && setActiveInstance(instance.id)}
-            onDoubleClick={(e) => handleDoubleClick(e, instance.id, instance.name)}
-            onContextMenu={(e) => handleTabContextMenu(e, instance.id, instance.name)}
-            onAnimationEnd={() => {
-              if (isAnimatingIn) {
-                removeAnimatingTabId(instance.id);
-              }
-            }}
-            className={clsx(
-              'group flex items-center gap-1 h-full px-2 cursor-pointer border-r border-border min-w-[120px] max-w-[200px]',
-              instance.id === activeInstanceId
-                ? 'bg-bg-primary text-accent border-b-2 border-b-accent'
-                : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border-b-2 border-b-transparent',
-              dragState.isDragging && dragState.draggedIndex === index && 'opacity-50 bg-accent/10',
-              dragState.isDragging &&
-                dragState.dragOverIndex === index &&
-                'border-l-2 border-l-accent',
-              isAnimatingIn && 'tab-fade-in',
-              isClosing && 'tab-fade-out',
-              !isAnimatingIn && !isClosing && 'transition-all',
-            )}
-          >
-            {/* 拖拽手柄 - 仅多标签时显示 */}
-            {instances.length > 1 && editingId !== instance.id && (
-              <div
-                className="drag-handle p-0.5 cursor-grab opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
-                title={t('titleBar.dragToReorder')}
-              >
-                <GripVertical className="w-3 h-3" />
-              </div>
-            )}
-
-            {editingId === instance.id ? (
-              <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onBlur={handleSaveEdit}
-                  autoFocus
+            <div
+              key={instance.id}
+              ref={(el) => {
+                if (el) tabRefs.current.set(instance.id, el);
+                else tabRefs.current.delete(instance.id);
+              }}
+              onMouseDown={(e) => handleMouseDown(e, index)}
+              onClick={() => !isClosing && setActiveInstance(instance.id)}
+              onDoubleClick={(e) => handleDoubleClick(e, instance.id, instance.name)}
+              onContextMenu={(e) => handleTabContextMenu(e, instance.id, instance.name)}
+              onAnimationEnd={() => {
+                if (isAnimatingIn) {
+                  removeAnimatingTabId(instance.id);
+                }
+              }}
+              className={clsx(
+                'group flex items-center gap-1 h-full px-2 cursor-pointer border-r border-border min-w-[120px] max-w-[200px]',
+                instance.id === activeInstanceId
+                  ? 'bg-bg-primary text-accent border-b-2 border-b-accent'
+                  : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border-b-2 border-b-transparent',
+                dragState.isDragging &&
+                  dragState.draggedIndex === index &&
+                  'opacity-50 bg-accent/10',
+                dragState.isDragging &&
+                  dragState.dragOverIndex === index &&
+                  'border-l-2 border-l-accent',
+                isAnimatingIn && 'tab-fade-in',
+                isClosing && 'tab-fade-out',
+                !isAnimatingIn && !isClosing && 'transition-all',
+              )}
+            >
+              {/* 拖拽手柄 - 单标签时禁用 */}
+              {editingId !== instance.id && (
+                <div
                   className={clsx(
-                    'flex-1 w-full px-1 py-0.5 text-sm rounded border border-accent',
-                    'bg-bg-primary text-text-primary',
-                    'focus:outline-none',
+                    'drag-handle p-0.5 transition-opacity',
+                    instances.length > 1
+                      ? 'cursor-grab opacity-0 group-hover:opacity-60 hover:!opacity-100'
+                      : 'cursor-not-allowed opacity-30',
                   )}
-                />
-                <button
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleSaveEdit();
-                  }}
-                  className="p-0.5 rounded hover:bg-success/10 text-success"
+                  title={instances.length > 1 ? t('titleBar.dragToReorder') : undefined}
                 >
-                  <Check className="w-3 h-3" />
-                </button>
-                <button
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleCancelEdit();
-                  }}
-                  className="p-0.5 rounded hover:bg-error/10 text-error"
+                  <GripVertical className="w-3 h-3" />
+                </div>
+              )}
+
+              {editingId === instance.id ? (
+                <div
+                  className="flex-1 flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <span className="flex-1 truncate text-sm" title={t('titleBar.renameInstance')}>
-                  {instance.name}
-                </span>
-                {instances.length > 1 && !isClosing && (
-                  <button
-                    onClick={(e) => handleCloseTab(e, instance.id)}
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleSaveEdit}
+                    autoFocus
                     className={clsx(
-                      'p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-                      'hover:bg-bg-active',
+                      'flex-1 w-full px-1 py-0.5 text-sm rounded border border-accent',
+                      'bg-bg-primary text-text-primary',
+                      'focus:outline-none',
                     )}
-                    title={t('titleBar.closeTab')}
+                  />
+                  <button
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSaveEdit();
+                    }}
+                    className="p-0.5 rounded hover:bg-success/10 text-success"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Check className="w-3 h-3" />
                   </button>
-                )}
-              </>
-            )}
-          </div>
-        );
+                  <button
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCancelEdit();
+                    }}
+                    className="p-0.5 rounded hover:bg-error/10 text-error"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className="flex-1 truncate text-sm" title={t('titleBar.renameInstance')}>
+                    {instance.name}
+                  </span>
+                  {!isClosing && (
+                    <button
+                      onClick={(e) => handleCloseTab(e, instance.id)}
+                      disabled={instances.length <= 1}
+                      className={clsx(
+                        'p-0.5 rounded transition-opacity',
+                        instances.length > 1
+                          ? 'opacity-0 group-hover:opacity-100 hover:bg-bg-active'
+                          : 'opacity-30 cursor-not-allowed',
+                      )}
+                      title={instances.length > 1 ? t('titleBar.closeTab') : undefined}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
         })}
 
         {/* 新建标签按钮 */}

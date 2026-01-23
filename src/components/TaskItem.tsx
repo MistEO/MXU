@@ -177,12 +177,14 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const taskDef = projectInterface?.task.find((t) => t.name === task.taskName);
 
   // 检查任务是否与当前控制器/资源兼容
-  const currentControllerName = instance?.controllerName;
+  // 未选择控制器时，使用第一个控制器作为默认值判断兼容性
+  const currentControllerName = instance?.controllerName || projectInterface?.controller[0]?.name;
   const currentResourceName = instance?.resourceName;
 
   const isControllerIncompatible = useMemo(() => {
     if (!taskDef?.controller || taskDef.controller.length === 0) return false;
-    return !currentControllerName || !taskDef.controller.includes(currentControllerName);
+    if (!currentControllerName) return false;
+    return !taskDef.controller.includes(currentControllerName);
   }, [taskDef?.controller, currentControllerName]);
 
   const isResourceIncompatible = useMemo(() => {

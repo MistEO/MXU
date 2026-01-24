@@ -2330,8 +2330,7 @@ pub fn fallback_update(
     info!("创建兜底目录: {}", final_fallback_dir.display());
 
     // 创建兜底目录
-    std::fs::create_dir_all(&final_fallback_dir)
-        .map_err(|e| format!("无法创建兜底目录: {}", e))?;
+    std::fs::create_dir_all(&final_fallback_dir).map_err(|e| format!("无法创建兜底目录: {}", e))?;
 
     // 复制解压的新文件到兜底目录
     copy_dir_contents(
@@ -2351,10 +2350,7 @@ pub fn fallback_update(
         }
     }
 
-    let result_path = final_fallback_dir
-        .to_str()
-        .unwrap_or("")
-        .to_string();
+    let result_path = final_fallback_dir.to_str().unwrap_or("").to_string();
     info!("fallback_update success: {}", result_path);
 
     Ok(result_path)

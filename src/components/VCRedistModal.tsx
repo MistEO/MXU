@@ -38,13 +38,7 @@ interface DownloadProgress {
   session_id: number;
 }
 
-type Status =
-  | 'downloading'
-  | 'download_failed'
-  | 'installing'
-  | 'retrying'
-  | 'success'
-  | 'failed';
+type Status = 'downloading' | 'download_failed' | 'installing' | 'retrying' | 'success' | 'failed';
 
 interface VCRedistModalProps {
   show: boolean;
@@ -210,7 +204,12 @@ export function VCRedistModal({ show, onClose }: VCRedistModalProps) {
         <div className="p-4 space-y-4">
           {/* 说明文字 */}
           <div className="text-sm text-text-secondary">
-            <p>{t('vcredist.description', 'MaaFramework 需要 Microsoft Visual C++ 运行库才能正常工作。')}</p>
+            <p>
+              {t(
+                'vcredist.description',
+                'MaaFramework 需要 Microsoft Visual C++ 运行库才能正常工作。',
+              )}
+            </p>
           </div>
 
           {/* 下载中 */}
@@ -224,7 +223,8 @@ export function VCRedistModal({ show, onClose }: VCRedistModalProps) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-text-muted">
                     <span>
-                      {formatSize(downloadProgress.downloaded_size)} / {formatSize(downloadProgress.total_size)}
+                      {formatSize(downloadProgress.downloaded_size)} /{' '}
+                      {formatSize(downloadProgress.total_size)}
                     </span>
                     <span>{formatSpeed(downloadProgress.speed)}</span>
                   </div>
@@ -254,7 +254,9 @@ export function VCRedistModal({ show, onClose }: VCRedistModalProps) {
           {status === 'installing' && (
             <div className="flex items-center gap-2 text-sm text-text-primary">
               <Loader2 className="w-4 h-4 animate-spin text-accent" />
-              <span>{t('vcredist.waitingInstall', '正在等待安装完成，请在弹出的安装程序中完成安装...')}</span>
+              <span>
+                {t('vcredist.waitingInstall', '正在等待安装完成，请在弹出的安装程序中完成安装...')}
+              </span>
             </div>
           )}
 

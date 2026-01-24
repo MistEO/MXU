@@ -706,7 +706,9 @@ pub fn init_maa_library(lib_dir: &Path) -> Result<(), MaaLibraryError> {
         unsafe { (lib.maa_toolkit_config_init_option)(user_path.as_ptr(), default_json.as_ptr()) };
     debug!("MaaToolkitConfigInitOption result: {}", result);
 
-    let mut guard = MAA_LIBRARY.lock().map_err(|e| MaaLibraryError::Other(e.to_string()))?;
+    let mut guard = MAA_LIBRARY
+        .lock()
+        .map_err(|e| MaaLibraryError::Other(e.to_string()))?;
     *guard = Some(lib);
     Ok(())
 }

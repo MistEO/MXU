@@ -513,10 +513,12 @@ export default {
     description: 'MaaFramework requires Microsoft Visual C++ Runtime to work properly.',
     downloading: 'Downloading runtime...',
     downloadFailed: 'Download Failed',
-    waitingInstall: 'Waiting for installation. Please complete the installation in the installer window...',
+    waitingInstall:
+      'Waiting for installation. Please complete the installation in the installer window...',
     retrying: 'Reloading...',
     success: 'Runtime installed successfully!',
-    stillFailed: 'Installation complete, but loading still failed. Please restart your computer and try again.',
+    stillFailed:
+      'Installation complete, but loading still failed. Please restart your computer and try again.',
     restartHint: 'If the problem persists, please restart your computer and try again.',
     retry: 'Retry',
   },

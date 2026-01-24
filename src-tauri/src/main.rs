@@ -10,10 +10,35 @@ mod webview2_check {
     use windows::Win32::System::Registry::{
         RegCloseKey, RegOpenKeyExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
     };
+    use windows::Win32::System::SystemInformation::{
+        GetSystemDirectoryW, GetSystemWow64DirectoryW,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
         MessageBoxW, IDYES, MB_ICONERROR, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO,
     };
     use windows::core::PCWSTR;
+
+    /// 使用 Win32 API 获取系统目录路径
+    fn get_system_directory() -> Option<PathBuf> {
+        let mut buffer = [0u16; 260];
+        let len = unsafe { GetSystemDirectoryW(Some(&mut buffer)) };
+        if len > 0 && (len as usize) < buffer.len() {
+            Some(PathBuf::from(String::from_utf16_lossy(&buffer[..len as usize])))
+        } else {
+            None
+        }
+    }
+
+    /// 使用 Win32 API 获取 SysWOW64 目录路径
+    fn get_system_wow64_directory() -> Option<PathBuf> {
+        let mut buffer = [0u16; 260];
+        let len = unsafe { GetSystemWow64DirectoryW(Some(&mut buffer)) };
+        if len > 0 && (len as usize) < buffer.len() {
+            Some(PathBuf::from(String::from_utf16_lossy(&buffer[..len as usize])))
+        } else {
+            None
+        }
+    }
 
     /// 将 Rust 字符串转换为 Windows 宽字符串 (null-terminated)
     fn to_wide(s: &str) -> Vec<u16> {
@@ -22,9 +47,6 @@ mod webview2_check {
 
     /// 检测 WebView2 是否已安装（注册表 + DLL 双重检测）
     pub fn is_webview2_installed() -> bool {
-        // TODO: 测试完成后删除这行
-        return false; // 强制返回 false 用于测试
-
         // 方法1: 检查注册表
         // WebView2 Runtime 在 64 位系统上的注册表路径
         let registry_paths = [
@@ -57,16 +79,17 @@ mod webview2_check {
         }
 
         // 方法2: 尝试加载 WebView2Loader.dll 确认运行时可用
-        // 检查系统目录中是否存在 WebView2Loader.dll
-        if let Ok(system_dir) = std::env::var("SystemRoot") {
-            let dll_paths = [
-                PathBuf::from(&system_dir).join("System32").join("WebView2Loader.dll"),
-                PathBuf::from(&system_dir).join("SysWOW64").join("WebView2Loader.dll"),
-            ];
-            for dll_path in &dll_paths {
-                if dll_path.exists() {
-                    return true;
-                }
+        // 使用 Win32 API 获取系统目录路径
+        let mut dll_paths = Vec::new();
+        if let Some(sys_dir) = get_system_directory() {
+            dll_paths.push(sys_dir.join("WebView2Loader.dll"));
+        }
+        if let Some(wow64_dir) = get_system_wow64_directory() {
+            dll_paths.push(wow64_dir.join("WebView2Loader.dll"));
+        }
+        for dll_path in &dll_paths {
+            if dll_path.exists() {
+                return true;
             }
         }
 
@@ -159,7 +182,7 @@ mod webview2_check {
                 HWND::default(),
                 PCWSTR::from_raw(message.as_ptr()),
                 PCWSTR::from_raw(title.as_ptr()),
-                MB_OK | MB_ICONWARNING,
+                MB_OK | MB_ICONINFORMATION,
             );
         }
     }

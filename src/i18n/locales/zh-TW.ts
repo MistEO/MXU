@@ -336,7 +336,7 @@ export default {
     debugModeNotice: '目前為除錯版本，已停用自動更新功能',
     channel: '更新頻道',
     channelStable: '正式版',
-    channelBeta: '公测版',
+    channelBeta: '公測版',
     cdk: 'Mirror酱 CDK',
     cdkPlaceholder: '輸入您的 CDK（可選）',
     serviceName: 'Mirror酱',

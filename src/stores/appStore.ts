@@ -28,7 +28,7 @@ const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
 import i18n, { getInterfaceLangKey } from '@/i18n';
-import { applyTheme, type AccentColor } from '@/themes';
+import { applyTheme, resolveThemeMode, type AccentColor } from '@/themes';
 import { loggers } from '@/utils/logger';
 
 /** 单个任务的运行状态 */
@@ -45,7 +45,7 @@ export interface LogEntry {
   message: string;
 }
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'system';
 export type Language = 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR';
 export type PageView = 'main' | 'settings';
 
@@ -460,11 +460,14 @@ export const useAppStore = create<AppState>()(
     language: 'zh-CN',
     setTheme: (theme) => {
       set({ theme });
-      applyTheme(theme, get().accentColor);
+      const mode = resolveThemeMode(theme);
+      applyTheme(mode, get().accentColor);
     },
     setAccentColor: (accent) => {
       set({ accentColor: accent });
-      applyTheme(get().theme, accent);
+      const { theme } = get();
+      const mode = resolveThemeMode(theme);
+      applyTheme(mode, accent);
     },
     setLanguage: (lang) => {
       set({ language: lang });
@@ -1093,7 +1096,9 @@ export const useAppStore = create<AppState>()(
       });
 
       // 应用主题（包括强调色）
-      applyTheme(config.settings.theme, accentColor);
+      const theme = config.settings.theme;
+      const mode = resolveThemeMode(theme);
+      applyTheme(mode, accentColor);
       localStorage.setItem('mxu-language', config.settings.language);
     },
 

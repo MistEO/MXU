@@ -716,6 +716,17 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => setTheme('system')}
+                    className={clsx(
+                      'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      theme === 'system'
+                        ? 'bg-accent text-white'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
+                    )}
+                  >
+                    {t('settings.themeSystem')}
+                  </button>
+                  <button
                     onClick={() => setTheme('light')}
                     className={clsx(
                       'flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',

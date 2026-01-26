@@ -178,6 +178,17 @@ export function getModeTheme(mode: ThemeMode): ModeTheme | undefined {
   return modeThemes[mode];
 }
 
+/**
+ * 解析主题模式，将 'system' 解析为 'light' 或 'dark'
+ */
+export function resolveThemeMode(theme: ThemeMode | 'system'): ThemeMode {
+  return theme === 'system'
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light'
+    : theme;
+}
+
 // 默认导出便于使用
 export default {
   applyTheme,
@@ -188,6 +199,7 @@ export default {
   getAccentInfoList,
   getAccentTheme,
   getModeTheme,
+  resolveThemeMode,
 };
 
 // 重新导出类型

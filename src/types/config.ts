@@ -81,7 +81,7 @@ export interface MirrorChyanSettings {
 
 // 应用设置
 export interface AppSettings {
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'system';
   accentColor?: AccentColor; // 强调色
   language: 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR';
   windowSize?: WindowSize;
@@ -131,7 +131,7 @@ export const defaultConfig: MxuConfig = {
   version: '1.0',
   instances: [],
   settings: {
-    theme: 'light',
+    theme: 'system',
     accentColor: defaultAccentColor,
     language: 'zh-CN',
     windowSize: defaultWindowSize,

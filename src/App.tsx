@@ -41,7 +41,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
-import { applyTheme } from '@/themes';
+import { applyTheme, resolveThemeMode } from '@/themes';
 
 const log = loggers.app;
 
@@ -544,7 +544,8 @@ function App() {
 
     // 应用默认主题（包括模式和强调色）
     const { theme: initialTheme, accentColor: initialAccent } = useAppStore.getState();
-    applyTheme(initialTheme, initialAccent);
+    const mode = resolveThemeMode(initialTheme);
+    applyTheme(mode, initialAccent);
 
     // 先检查程序路径，有问题就弹窗不继续加载
     const initApp = async () => {
@@ -587,7 +588,18 @@ function App() {
 
   // 主题变化时更新 DOM
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (theme === 'system') {
+        const mode = e.matches ? 'dark' : 'light';
+        const { accentColor } = useAppStore.getState();
+        applyTheme(mode, accentColor);
+      }
+    };
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    };
   }, [theme]);
 
   // 回到主界面时，根据状态弹出相应的弹窗

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { resolveThemeMode } from '@/themes';
 import {
   Plus,
   X,
@@ -121,7 +122,8 @@ export function TabBar() {
   };
 
   const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
+    const currentMode = resolveThemeMode(theme);
+    setTheme(currentMode === 'light' ? 'dark' : 'light');
   };
 
   const langKey = getInterfaceLangKey(language);
@@ -461,9 +463,11 @@ export function TabBar() {
         <button
           onClick={toggleTheme}
           className="p-2 rounded-md hover:bg-bg-hover transition-colors"
-          title={theme === 'light' ? t('settings.themeDark') : t('settings.themeLight')}
+          title={
+            resolveThemeMode(theme) === 'light' ? t('settings.themeDark') : t('settings.themeLight')
+          }
         >
-          {theme === 'light' ? (
+          {resolveThemeMode(theme) === 'light' ? (
             <Moon className="w-4 h-4 text-text-secondary" />
           ) : (
             <Sun className="w-4 h-4 text-text-secondary" />

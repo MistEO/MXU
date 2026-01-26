@@ -500,7 +500,7 @@ export default {
 
   // 版本警告
   versionWarning: {
-    title: 'MaaFramework 版本过低',
+    title: 'MaaFramework 版本過低',
     message:
       '目前 MaaFramework 版本 ({{current}}) 低於最低支援版本 ({{minimum}})，部分功能可能無法正常工作。',
     suggestion: '請聯絡專案開發者更新 MaaFramework 版本。',

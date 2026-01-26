@@ -518,15 +518,24 @@ export const useAppStore = create<AppState>()(
       // 只添加 default_check 为 true 的任务
       const defaultTasks: SelectedTask[] = [];
       if (pi) {
+        // 获取默认控制器名称，用于检查任务兼容性
+        const defaultControllerName = pi.controller[0]?.name;
+
         pi.task.forEach((task) => {
           if (!task.default_check) return;
+
+          // 检查任务是否支持默认控制器
+          const isControllerCompatible =
+            !task.controller ||
+            task.controller.length === 0 ||
+            !!(defaultControllerName && task.controller.includes(defaultControllerName));
 
           const optionValues =
             task.option && pi.option ? initializeAllOptionValues(task.option, pi.option) : {};
           defaultTasks.push({
             id: generateId(),
             taskName: task.name,
-            enabled: true,
+            enabled: isControllerCompatible, // 不兼容默认控制器的任务不勾选
             optionValues,
             expanded: true, // 新建配置时自动展开所有任务
           });

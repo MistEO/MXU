@@ -408,6 +408,17 @@ export default {
     },
   },
 
+  // 代理设置
+  proxy: {
+    title: '网络代理',
+    url: '代理地址',
+    urlPlaceholder: '例如：http://127.0.0.1:7890',
+    urlHint: '支持 HTTP/SOCKS5，留空则不使用代理',
+    urlHintDisabled: '已填写 Mirror酱 CDK，代理功能已禁用',
+    invalid: '代理地址格式不正确',
+    examples: '示例格式',
+  },
+
   // 定时执行
   schedule: {
     title: '定时执行',

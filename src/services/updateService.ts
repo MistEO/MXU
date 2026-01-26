@@ -1,7 +1,7 @@
 // MirrorChyan 更新检查服务
 // API 文档: https://github.com/MirrorChyan/docs
 
-import type { UpdateChannel } from '@/types/config';
+import type { UpdateChannel, ProxySettings } from '@/types/config';
 import type { UpdateInfo, DownloadProgress } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
@@ -10,6 +10,7 @@ import { exists } from '@tauri-apps/plugin-fs';
 import { join, dirname } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import * as semver from 'semver';
+import { downloadWithProxy } from './proxyService';
 
 const log = loggers.app;
 
@@ -519,11 +520,12 @@ export async function getGitHubDownloadUrl(
   };
 }
 
-export interface DownloadUpdateOptions {
+interface DownloadUpdateOptions {
   url: string;
   savePath: string;
   totalSize?: number;
   onProgress?: (progress: DownloadProgress) => void;
+  proxySettings?: ProxySettings; // 代理设置
 }
 
 // 当前下载的保存路径，用于取消时清理临时文件
@@ -551,7 +553,7 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
     return false;
   }
 
-  const { url, savePath, totalSize, onProgress } = options;
+  const { url, savePath, totalSize, onProgress, proxySettings } = options;
 
   log.info(`开始下载更新: ${url}`);
   log.info(`保存路径: ${savePath}`);
@@ -566,11 +568,10 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
   let currentSessionId: number | null = null;
 
   try {
-    // 先启动下载，获取 session_id
-    const downloadPromise = invoke<number>('download_file', {
-      url,
-      savePath,
-      totalSize: totalSize || null,
+    // 使用统一的代理下载接口（内部已包含日志记录）
+    const downloadPromise = downloadWithProxy(url, savePath, {
+      totalSize,
+      proxyUrl: proxySettings?.url,
     });
 
     // 监听 Rust 后端发送的下载进度事件

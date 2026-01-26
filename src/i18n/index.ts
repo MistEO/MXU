@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import zhCN from './locales/zh-CN';
+import zhTW from './locales/zh-TW';
 import enUS from './locales/en-US';
 import jaJP from './locales/ja-JP';
 import koKR from './locales/ko-KR';
@@ -12,6 +13,7 @@ import koKR from './locales/ko-KR';
  */
 export const SUPPORTED_LANGUAGES = {
   'zh-CN': { interfaceKey: 'zh_cn' },
+  'zh-TW': { interfaceKey: 'zh_tw' },
   'en-US': { interfaceKey: 'en_us' },
   'ja-JP': { interfaceKey: 'ja_jp' },
   'ko-KR': { interfaceKey: 'ko_kr' },
@@ -33,6 +35,7 @@ export const getSupportedLanguages = (): SupportedLanguage[] => {
 
 const resources = {
   'zh-CN': { translation: zhCN },
+  'zh-TW': { translation: zhTW },
   'en-US': { translation: enUS },
   'ja-JP': { translation: jaJP },
   'ko-KR': { translation: koKR },

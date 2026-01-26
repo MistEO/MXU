@@ -387,7 +387,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     loadContent();
   }, [projectInterface, langKey, basePath, translations]);
 
-  const handleLanguageChange = (lang: 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR') => {
+  const handleLanguageChange = (lang: 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR') => {
     setLanguage(lang);
     setI18nLanguage(lang);
   };
@@ -671,6 +671,17 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                     )}
                   >
                     简体中文
+                  </button>
+                  <button
+                    onClick={() => handleLanguageChange('zh-TW')}
+                    className={clsx(
+                      'px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      language === 'zh-TW'
+                        ? 'bg-accent text-white'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
+                    )}
+                  >
+                    繁體中文
                   </button>
                   <button
                     onClick={() => handleLanguageChange('en-US')}

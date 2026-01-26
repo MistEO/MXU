@@ -83,7 +83,7 @@ export interface MirrorChyanSettings {
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   accentColor?: AccentColor; // 强调色
-  language: 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR';
+  language: 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
   windowSize?: WindowSize;
   mirrorChyan?: MirrorChyanSettings;
   showOptionPreview?: boolean; // 是否在任务列表显示选项预览

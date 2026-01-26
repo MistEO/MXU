@@ -431,7 +431,7 @@ export default {
     multiSelect: '可多選',
     enable: '啟用策略',
     disable: '停用策略',
-    hint: '定時策略將在设定時间自動開始任務',
+    hint: '定時策略將在設定時間自動開始任務',
     executingPolicy: '正在按照「{{name}}」定時執行',
     startedAt: '開始時間: {{time}}',
     // 索引對應 Date.getDay()：0=週日, 1=週一, ..., 6=週六

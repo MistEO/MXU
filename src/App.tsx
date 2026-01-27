@@ -25,6 +25,7 @@ import {
   resolveI18nText,
   checkAndPrepareDownload,
   maaService,
+  shouldUseProxy,
 } from '@/services';
 import {
   downloadUpdate,
@@ -274,10 +275,17 @@ function App() {
         const savePath = await getUpdateSavePath(downloadBasePath, updateResult.filename);
         setDownloadSavePath(savePath);
 
+        const appState = useAppStore.getState();
+        // 仅在 GitHub 下载时尝试使用代理（如果配置了的话）
+        const useProxy =
+          updateResult.downloadSource === 'github' &&
+          shouldUseProxy(appState.proxySettings, appState.mirrorChyanSettings.cdk || '');
+
         const success = await downloadUpdate({
           url: updateResult.downloadUrl,
           savePath,
           totalSize: updateResult.fileSize,
+          proxySettings: useProxy ? appState.proxySettings : undefined,
           onProgress: (progress: DownloadProgress) => {
             setDownloadProgress(progress);
           },

@@ -115,7 +115,7 @@ function OptionDescription({
       {/* 内容 */}
       {resolved.html && (
         <div
-          className="text-xs text-text-muted [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+          className="text-xs text-text-secondary [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
           dangerouslySetInnerHTML={{ __html: resolved.html }}
         />
       )}

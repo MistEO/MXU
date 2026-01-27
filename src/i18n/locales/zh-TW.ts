@@ -49,6 +49,20 @@ export default {
     showOptionPreview: '顯示選項預覽',
     showOptionPreviewHint: '在任務列表中顯示選項的快捷預覽資訊',
     openLogDir: '開啟日誌目錄',
+    // 自訂強調色
+    customAccents: '自訂強調色',
+    addCustomAccent: '新增',
+    editCustomAccent: '編輯自訂強調色',
+    deleteCustomAccent: '刪除',
+    noCustomAccents: '暫無自訂強調色',
+    customAccentNameRequired: '請輸入名稱',
+    deleteCustomAccentConfirm: '確定要刪除這個自訂強調色嗎？',
+    accentName: '名稱',
+    accentNamePlaceholder: '例如：寶石綠',
+    accentMainColor: '主色',
+    accentHoverColor: '懸停色',
+    accentLightColor: '淺色背景',
+    accentLightDarkColor: '深色背景',
   },
 
   // 任務列表

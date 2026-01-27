@@ -49,6 +49,20 @@ export default {
     showOptionPreview: 'Show Option Preview',
     showOptionPreviewHint: 'Display quick preview of options in the task list',
     openLogDir: 'Open Log Directory',
+    // Custom accent colors
+    customAccents: 'Custom Accent Colors',
+    addCustomAccent: 'Add',
+    editCustomAccent: 'Edit Custom Accent Color',
+    deleteCustomAccent: 'Delete',
+    noCustomAccents: 'No custom accent colors',
+    customAccentNameRequired: 'Please enter a name',
+    deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent color?',
+    accentName: 'Name',
+    accentNamePlaceholder: 'e.g., Emerald',
+    accentMainColor: 'Main Color',
+    accentHoverColor: 'Hover Color',
+    accentLightColor: 'Light Background',
+    accentLightDarkColor: 'Dark Background',
   },
 
   // Task list

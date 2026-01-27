@@ -49,6 +49,20 @@ export default {
     showOptionPreview: '옵션 미리보기 표시',
     showOptionPreviewHint: '작업 목록에 옵션의 빠른 미리보기를 표시합니다',
     openLogDir: '로그 폴더 열기',
+    // 사용자 정의 강조 색상
+    customAccents: '사용자 정의 강조 색상',
+    addCustomAccent: '추가',
+    editCustomAccent: '사용자 정의 강조 색상 편집',
+    deleteCustomAccent: '삭제',
+    noCustomAccents: '사용자 정의 강조 색상이 없습니다',
+    customAccentNameRequired: '이름을 입력하세요',
+    deleteCustomAccentConfirm: '이 사용자 정의 강조 색상을 삭제하시겠습니까?',
+    accentName: '이름',
+    accentNamePlaceholder: '예: 에메랄드',
+    accentMainColor: '메인 색상',
+    accentHoverColor: '호버 색상',
+    accentLightColor: '라이트 배경',
+    accentLightDarkColor: '다크 배경',
   },
 
   // 작업 목록

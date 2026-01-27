@@ -49,6 +49,20 @@ export default {
     showOptionPreview: '显示选项预览',
     showOptionPreviewHint: '在任务列表中显示选项的快捷预览信息',
     openLogDir: '打开日志目录',
+    // 自定义强调色
+    customAccents: '自定义强调色',
+    addCustomAccent: '添加',
+    editCustomAccent: '编辑自定义强调色',
+    deleteCustomAccent: '删除',
+    noCustomAccents: '暂无自定义强调色',
+    customAccentNameRequired: '请输入名称',
+    deleteCustomAccentConfirm: '确定要删除这个自定义强调色吗？',
+    accentName: '名称',
+    accentNamePlaceholder: '例如：宝石绿',
+    accentMainColor: '主色',
+    accentHoverColor: '悬停色',
+    accentLightColor: '浅色背景',
+    accentLightDarkColor: '深色背景',
   },
 
   // 任务列表

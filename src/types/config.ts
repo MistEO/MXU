@@ -106,6 +106,7 @@ export interface MxuConfig {
   recentlyClosed?: RecentlyClosedInstance[]; // 最近关闭的实例列表（最多30条）
   interfaceTaskSnapshot?: string[]; // 保存时 interface.json 中的任务名列表快照，用于检测新增任务
   newTaskNames?: string[]; // 用户尚未查看的新增任务名称列表
+  customAccents?: import('@/themes/types').CustomAccent[]; // 自定义强调色列表
 }
 
 // 默认窗口大小

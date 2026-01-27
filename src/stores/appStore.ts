@@ -28,7 +28,15 @@ const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
 import i18n, { getInterfaceLangKey } from '@/i18n';
-import { applyTheme, resolveThemeMode, type AccentColor } from '@/themes';
+import {
+  applyTheme,
+  resolveThemeMode,
+  type AccentColor,
+  type CustomAccent,
+  registerCustomAccent,
+  unregisterCustomAccent,
+  clearCustomAccents,
+} from '@/themes';
 import { loggers } from '@/utils/logger';
 
 /** 单个任务的运行状态 */
@@ -54,9 +62,13 @@ interface AppState {
   theme: Theme;
   accentColor: AccentColor;
   language: Language;
+  customAccents: CustomAccent[]; // 自定义强调色列表
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
   setLanguage: (lang: Language) => void;
+  addCustomAccent: (accent: CustomAccent) => void;
+  updateCustomAccent: (id: string, accent: CustomAccent) => void;
+  removeCustomAccent: (id: string) => void;
 
   // 当前页面
   currentPage: PageView;
@@ -458,6 +470,7 @@ export const useAppStore = create<AppState>()(
     theme: 'light',
     accentColor: 'emerald',
     language: 'zh-CN',
+    customAccents: [],
     setTheme: (theme) => {
       set({ theme });
       const mode = resolveThemeMode(theme);
@@ -472,6 +485,52 @@ export const useAppStore = create<AppState>()(
     setLanguage: (lang) => {
       set({ language: lang });
       localStorage.setItem('mxu-language', lang);
+    },
+    addCustomAccent: (accent) => {
+      set((state) => ({
+        customAccents: [...state.customAccents, accent],
+      }));
+      registerCustomAccent(accent);
+      // 如果当前使用的是这个自定义强调色，重新应用主题
+      const { theme, accentColor } = get();
+      if (accentColor === accent.name) {
+        const mode = resolveThemeMode(theme);
+        applyTheme(mode, accent.name);
+      }
+    },
+    updateCustomAccent: (id, accent) => {
+      set((state) => ({
+        customAccents: state.customAccents.map((a) => (a.id === id ? accent : a)),
+      }));
+      // 先移除旧的，再注册新的
+      const oldAccent = get().customAccents.find((a) => a.id === id);
+      if (oldAccent) {
+        unregisterCustomAccent(oldAccent.name);
+      }
+      registerCustomAccent(accent);
+      // 如果当前使用的是这个自定义强调色，重新应用主题
+      const { theme, accentColor } = get();
+      if (accentColor === accent.name) {
+        const mode = resolveThemeMode(theme);
+        applyTheme(mode, accent.name);
+      }
+    },
+    removeCustomAccent: (id) => {
+      const accent = get().customAccents.find((a) => a.id === id);
+      if (accent) {
+        unregisterCustomAccent(accent.name);
+        set((state) => ({
+          customAccents: state.customAccents.filter((a) => a.id !== id),
+        }));
+        // 如果当前使用的是这个自定义强调色，切换到默认强调色
+        const { theme, accentColor } = get();
+        if (accentColor === accent.name) {
+          const defaultAccent: AccentColor = 'emerald';
+          set({ accentColor: defaultAccent });
+          const mode = resolveThemeMode(theme);
+          applyTheme(mode, defaultAccent);
+        }
+      }
     },
 
     // 当前页面
@@ -1077,12 +1136,22 @@ export const useAppStore = create<AppState>()(
 
       const accentColor = (config.settings.accentColor as AccentColor) || 'deepsea';
 
+      // 加载自定义强调色
+      const customAccents = config.customAccents || [];
+      // 清除旧的自定义强调色
+      clearCustomAccents();
+      // 注册新的自定义强调色
+      customAccents.forEach((accent) => {
+        registerCustomAccent(accent);
+      });
+
       set({
         instances,
         activeInstanceId: instances.length > 0 ? instances[0].id : null,
         theme: config.settings.theme,
         accentColor,
         language: config.settings.language,
+        customAccents,
         selectedController,
         selectedResource,
         nextInstanceNumber: maxNumber + 1,
@@ -1692,6 +1761,8 @@ function generateConfig(): MxuConfig {
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
     // 保存用户尚未查看的新增任务
     newTaskNames: state.newTaskNames,
+    // 保存自定义强调色
+    customAccents: state.customAccents,
   };
 }
 
@@ -1732,6 +1803,7 @@ useAppStore.subscribe(
     onboardingCompleted: state.onboardingCompleted,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
+    customAccents: state.customAccents,
   }),
   () => {
     debouncedSaveConfig();

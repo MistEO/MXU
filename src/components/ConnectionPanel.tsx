@@ -1172,11 +1172,20 @@ export function ConnectionPanel() {
                         if (isConnected) {
                           await maaService.destroyInstance(instanceId).catch(() => {});
                         }
+                        
+                        // 重新创建实例
+                        await maaService.createInstance(instanceId).catch(() => {});
+                        
                         setSelectedController(instanceId, controller.name);
                         setIsConnected(false);
                         setInstanceConnectionStatus(instanceId, 'Disconnected');
                         setSelectedAdbDevice(null);
                         setSelectedWindow(null);
+                        
+                        // 清除资源加载状态（新实例需要重新加载资源）
+                        setIsResourceLoaded(false);
+                        setInstanceResourceLoaded(instanceId, false);
+                        lastLoadedResourceRef.current = null;
 
                         // 检查当前资源是否支持新控制器，如果不支持则切换到第一个可用资源
                         const newControllerResources = allResources.filter((r) => {
@@ -1193,10 +1202,6 @@ export function ConnectionPanel() {
                         if (!currentResourceSupported && newControllerResources.length > 0) {
                           // 当前资源不支持新控制器，切换到第一个可用资源
                           setSelectedResource(instanceId, newControllerResources[0].name);
-                          // 同时清除资源加载状态
-                          setIsResourceLoaded(false);
-                          setInstanceResourceLoaded(instanceId, false);
-                          lastLoadedResourceRef.current = null;
                         }
                       }}
                       disabled={isConnecting || isSearching || isRunning}

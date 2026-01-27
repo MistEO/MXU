@@ -40,6 +40,7 @@ export default {
   settings: {
     title: '設定',
     appearance: '外觀',
+    hotkeys: '快捷鍵',
     language: '語言',
     theme: '主題',
     themeLight: '淺色',
@@ -63,6 +64,11 @@ export default {
     accentHoverColor: '懸停色',
     accentLightColor: '淺色背景',
     accentLightDarkColor: '深色背景',
+    hotkeysStartTasks: '開始任務快捷鍵',
+    hotkeysStopTasks: '結束任務快捷鍵',
+    hotkeysHint:
+      '僅在主畫面中生效，用於開始 / 結束當前執行個體的任務。支援組合鍵（例如 Ctrl+F10、Ctrl+Shift+F11），純 F5/F12 仍保留給系統 / 瀏覽器快捷鍵。',
+    hotkeysConflict: '開始與結束快捷鍵不應相同，請選擇不同的按鍵',
   },
 
   // 任務列表

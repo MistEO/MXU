@@ -84,6 +84,14 @@ export interface ProxySettings {
   url: string; // 代理地址，格式：http://host:port 或 socks5://host:port
 }
 
+// 快捷键设置
+export interface HotkeySettings {
+  /** 开始任务快捷键（例如：F10） */
+  startTasks: string;
+  /** 结束任务快捷键（例如：F11） */
+  stopTasks: string;
+}
+
 // 应用设置
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -102,6 +110,7 @@ export interface AppSettings {
   rightPanelCollapsed?: boolean; // 右侧面板是否折叠
   devMode?: boolean; // 开发模式，启用后允许 F5 刷新 UI
   onboardingCompleted?: boolean; // 新用户引导是否已完成
+  hotkeys?: HotkeySettings; // 快捷键设置
 }
 
 // MXU 配置文件完整结构
@@ -133,6 +142,12 @@ export const defaultScreenshotFrameRate: ScreenshotFrameRate = '5';
 
 // 默认强调色
 export const defaultAccentColor: AccentColor = 'emerald';
+
+// 默认快捷键设置
+export const defaultHotkeySettings: HotkeySettings = {
+  startTasks: 'F10',
+  stopTasks: 'F11',
+};
 
 // 默认配置
 export const defaultConfig: MxuConfig = {

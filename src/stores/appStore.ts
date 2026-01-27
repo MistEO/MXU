@@ -17,6 +17,7 @@ import type {
   ProxySettings,
   RecentlyClosedInstance,
   ScreenshotFrameRate,
+  HotkeySettings,
 } from '@/types/config';
 import {
   defaultWindowSize,
@@ -244,6 +245,10 @@ interface AppState {
   // 代理设置
   proxySettings: ProxySettings | undefined;
   setProxySettings: (settings: ProxySettings | undefined) => void;
+
+  // 快捷键设置
+  hotkeys: HotkeySettings;
+  setHotkeys: (hotkeys: HotkeySettings) => void;
 
   // 任务选项预览显示设置
   showOptionPreview: boolean;
@@ -539,6 +544,13 @@ export const useAppStore = create<AppState>()(
         }
       }
     },
+
+    // 快捷键设置（默认：F10 开始任务，F11 结束任务）
+    hotkeys: {
+      startTasks: 'F10',
+      stopTasks: 'F11',
+    },
+    setHotkeys: (hotkeys) => set({ hotkeys }),
 
     // 当前页面
     currentPage: 'main',
@@ -1175,6 +1187,7 @@ export const useAppStore = create<AppState>()(
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         onboardingCompleted: config.settings.onboardingCompleted ?? false,
+        hotkeys: config.settings.hotkeys ?? { startTasks: 'F10', stopTasks: 'F11' },
         recentlyClosed: config.recentlyClosed || [],
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
@@ -1768,6 +1781,7 @@ function generateConfig(): MxuConfig {
       welcomeShownHash: state.welcomeShownHash,
       devMode: state.devMode,
       onboardingCompleted: state.onboardingCompleted,
+      hotkeys: state.hotkeys,
     },
     recentlyClosed: state.recentlyClosed,
     // 保存当前 interface.json 的任务名列表快照，用于下次加载时检测新增任务
@@ -1815,6 +1829,7 @@ useAppStore.subscribe(
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
     onboardingCompleted: state.onboardingCompleted,
+    hotkeys: state.hotkeys,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
     customAccents: state.customAccents,

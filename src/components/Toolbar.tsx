@@ -1095,6 +1095,29 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
+  // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
+  useEffect(() => {
+    const handleStartTasks = () => {
+      // 始终复用现有的开始/停止逻辑，由 handleStartStop 内部判断是否可运行
+      handleStartStop();
+    };
+
+    const handleStopTasks = () => {
+      // 仅在当前实例正在运行时响应停止事件
+      if (!instance?.isRunning) return;
+      handleStartStop();
+    };
+
+    document.addEventListener('mxu-start-tasks', handleStartTasks);
+    document.addEventListener('mxu-stop-tasks', handleStopTasks);
+
+    return () => {
+      document.removeEventListener('mxu-start-tasks', handleStartTasks);
+      document.removeEventListener('mxu-stop-tasks', handleStopTasks);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance?.isRunning]);
+
   const isDisabled =
     tasks.length === 0 || !tasks.some((t) => t.enabled) || (!canRun && !instance?.isRunning);
 
@@ -1317,6 +1340,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         {/* 开始/停止按钮 */}
         <button
+          data-role="start-stop-button"
           onClick={handleStartStop}
           disabled={isDisabled || isStarting || isStopping}
           className={clsx(

@@ -40,6 +40,7 @@ export default {
   settings: {
     title: 'Settings',
     appearance: 'Appearance',
+    hotkeys: 'Hotkeys',
     language: 'Language',
     theme: 'Theme',
     themeLight: 'Light',
@@ -63,6 +64,11 @@ export default {
     accentHoverColor: 'Hover Color',
     accentLightColor: 'Light Background',
     accentLightDarkColor: 'Dark Background',
+    hotkeysStartTasks: 'Start Tasks Hotkey',
+    hotkeysStopTasks: 'Stop Tasks Hotkey',
+    hotkeysHint:
+      'Effective only on the main screen, used to start/stop tasks of the current instance. Modifier combinations are supported (e.g. Ctrl+F10, Ctrl+Shift+F11); plain F5/F12 remain reserved by the system/browser.',
+    hotkeysConflict: 'Start and stop hotkeys should not be the same. Please choose different keys.',
   },
 
   // Task list

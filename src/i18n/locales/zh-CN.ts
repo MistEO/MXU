@@ -40,6 +40,7 @@ export default {
   settings: {
     title: '设置',
     appearance: '外观',
+    hotkeys: '快捷键',
     language: '语言',
     theme: '主题',
     themeLight: '浅色',
@@ -63,6 +64,11 @@ export default {
     accentHoverColor: '悬停色',
     accentLightColor: '浅色背景',
     accentLightDarkColor: '深色背景',
+    hotkeysStartTasks: '开始任务快捷键',
+    hotkeysStopTasks: '结束任务快捷键',
+    hotkeysHint:
+      '仅在主界面中生效，用于开始 / 结束当前实例的任务。支持组合键（如 Ctrl+F10、Ctrl+Shift+F11），纯 F5/F12 仍保留为系统/浏览器快捷键。',
+    hotkeysConflict: '开始和结束快捷键不应相同，请选择不同的按键',
   },
 
   // 任务列表

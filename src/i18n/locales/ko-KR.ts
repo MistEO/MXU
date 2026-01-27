@@ -40,6 +40,7 @@ export default {
   settings: {
     title: '설정',
     appearance: '외관',
+    hotkeys: '단축키',
     language: '언어',
     theme: '테마',
     themeLight: '라이트',
@@ -63,6 +64,11 @@ export default {
     accentHoverColor: '호버 색상',
     accentLightColor: '라이트 배경',
     accentLightDarkColor: '다크 배경',
+    hotkeysStartTasks: '작업 시작 단축키',
+    hotkeysStopTasks: '작업 중지 단축키',
+    hotkeysHint:
+      '메인 화면에서만 동작하며, 현재 인스턴스의 작업 시작 / 중지에 사용됩니다. Ctrl+F10, Ctrl+Shift+F11 과 같은 조합키도 지원합니다. F5 / F12 단독 키는 계속해서 시스템 / 브라우저용으로 예약됩니다.',
+    hotkeysConflict: '시작과 중지 단축키는 서로 다른 키여야 합니다. 다른 키를 선택해 주세요.',
   },
 
   // 작업 목록

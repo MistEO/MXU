@@ -685,8 +685,32 @@ function App() {
     return () => document.removeEventListener('contextmenu', handleContextMenu);
   }, []);
 
-  // 屏蔽浏览器默认快捷键
+  // 屏蔽浏览器默认快捷键 & 应用内快捷键
   const devMode = useAppStore((state) => state.devMode);
+
+  // 生成统一的快捷键组合字符串，例如：Ctrl+Shift+F10、Alt+Enter、F10
+  function getKeyCombo(e: KeyboardEvent): string {
+    const parts: string[] = [];
+    if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+
+    let key = e.key;
+    // 过滤纯修饰键
+    if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') {
+      return parts.join('+');
+    }
+
+    // 统一大小写：Function 键保持原样，其他转大写单字母
+    if (/^f\d+$/i.test(key)) {
+      key = key.toUpperCase();
+    } else if (key.length === 1) {
+      key = key.toUpperCase();
+    }
+
+    parts.push(key);
+    return parts.join('+');
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -737,6 +761,29 @@ function App() {
             return;
           }
         }
+      }
+
+      // 应用内快捷键：开始/结束任务（默认 F10/F11，可在设置中自定义，支持组合键）
+      // 使用自定义事件通知 Toolbar 组件，以复用现有启动/停止逻辑
+      const combo = getKeyCombo(e);
+      if (!combo) {
+        return;
+      }
+
+      const { hotkeys } = useAppStore.getState();
+      const startKey = hotkeys?.startTasks || 'F10';
+      const stopKey = hotkeys?.stopTasks || 'F11';
+
+      if (combo === startKey) {
+        e.preventDefault();
+        document.dispatchEvent(new Event('mxu-start-tasks'));
+        return;
+      }
+
+      if (combo === stopKey) {
+        e.preventDefault();
+        document.dispatchEvent(new Event('mxu-stop-tasks'));
+        return;
       }
 
       // F12 - 开发者工具（生产环境屏蔽）

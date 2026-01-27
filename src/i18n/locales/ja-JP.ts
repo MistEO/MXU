@@ -40,6 +40,7 @@ export default {
   settings: {
     title: '設定',
     appearance: '外観',
+    hotkeys: 'ショートカットキー',
     language: '言語',
     theme: 'テーマ',
     themeLight: 'ライト',
@@ -63,6 +64,11 @@ export default {
     accentHoverColor: 'ホバーカラー',
     accentLightColor: 'ライト背景',
     accentLightDarkColor: 'ダーク背景',
+    hotkeysStartTasks: 'タスク開始ショートカット',
+    hotkeysStopTasks: 'タスク停止ショートカット',
+    hotkeysHint:
+      'メイン画面でのみ有効です。現在のインスタンスのタスク開始 / 停止に使用します。Ctrl+F10 や Ctrl+Shift+F11 などの修飾キー付きの組み合わせもサポートします。F5 / F12 単体は引き続きシステム / ブラウザ用に予約されています。',
+    hotkeysConflict: '開始と停止のショートカットは同じキーにしないでください。別のキーを選択してください。',
   },
 
   // タスクリスト

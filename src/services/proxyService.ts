@@ -156,8 +156,11 @@ export async function downloadWithProxy(
   if (hasProxy) {
     const parsed = parseProxyUrl(options.proxyUrl!);
     if (parsed) {
-      log.info(`使用代理下载: ${parsed.type}://${parsed.host}:${parsed.port}`);
+      log.info(`[下载] 使用代理: ${parsed.type}://${parsed.host}:${parsed.port}`);
+      log.info(`[下载] 目标: ${url}`);
     }
+  } else {
+    log.info(`[下载] 直连（无代理）: ${url}`);
   }
 
   return invoke<number>('download_file', {

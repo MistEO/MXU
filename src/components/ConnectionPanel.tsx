@@ -271,6 +271,9 @@ export function ConnectionPanel() {
   // 获取当前实例 ID
   const instanceId = activeInstanceId || '';
 
+  // 任务运行中时禁止切换控制器
+  const isRunning = activeInstance?.isRunning || false;
+
   // 获取控制器列表并根据操作系统过滤不支持的类型
   const allControllers = projectInterface?.controller || [];
   const controllers = useMemo(() => {
@@ -1196,13 +1199,14 @@ export function ConnectionPanel() {
                           lastLoadedResourceRef.current = null;
                         }
                       }}
-                      disabled={isConnecting || isSearching}
+                      disabled={isConnecting || isSearching || isRunning}
                       className={clsx(
                         'px-2 py-0.5 text-xs rounded-md transition-colors',
                         currentControllerName === controller.name
                           ? 'bg-accent text-white'
                           : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
-                        (isConnecting || isSearching) && 'opacity-50 cursor-not-allowed',
+                        (isConnecting || isSearching || isRunning) &&
+                          'opacity-50 cursor-not-allowed',
                       )}
                     >
                       {getControllerDisplayName(controller)}
@@ -1220,22 +1224,22 @@ export function ConnectionPanel() {
                   value={playcoverAddress}
                   onChange={(e) => setPlaycoverAddress(e.target.value)}
                   placeholder="127.0.0.1:1717"
-                  disabled={isConnected || isConnecting}
+                  disabled={isConnected || isConnecting || isRunning}
                   className={clsx(
                     'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
                     'text-text-primary placeholder:text-text-muted',
                     'focus:outline-none focus:border-accent transition-colors',
-                    isConnected && 'opacity-60 cursor-not-allowed',
+                    (isConnected || isRunning) && 'opacity-60 cursor-not-allowed',
                   )}
                 />
                 <button
                   onClick={handleConnect}
-                  disabled={isConnecting || isConnected || !canConnect()}
+                  disabled={isConnecting || isConnected || !canConnect() || isRunning}
                   className={clsx(
                     'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
                     isConnected
                       ? 'bg-success/20 border-success/50 cursor-not-allowed'
-                      : isConnecting || !canConnect()
+                      : isConnecting || !canConnect() || isRunning
                         ? 'bg-bg-tertiary border-border opacity-50 cursor-not-allowed'
                         : 'bg-accent border-accent text-white hover:bg-accent-hover',
                   )}
@@ -1264,11 +1268,11 @@ export function ConnectionPanel() {
                       }
                       setShowDeviceDropdown(!showDeviceDropdown);
                     }}
-                    disabled={isConnecting}
+                    disabled={isConnecting || isRunning}
                     className={clsx(
                       'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border transition-colors text-sm',
                       'bg-bg-tertiary border-border',
-                      isConnecting
+                      isConnecting || isRunning
                         ? 'opacity-60 cursor-not-allowed'
                         : 'hover:border-accent cursor-pointer',
                     )}
@@ -1353,11 +1357,11 @@ export function ConnectionPanel() {
                 {/* 刷新按钮 - 与加载资源按钮保持一致的尺寸 */}
                 <button
                   onClick={handleSearch}
-                  disabled={isSearching || isConnecting}
+                  disabled={isSearching || isConnecting || isRunning}
                   className={clsx(
                     'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
                     'bg-bg-tertiary border-border',
-                    isSearching || isConnecting
+                    isSearching || isConnecting || isRunning
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-bg-hover hover:border-accent',
                   )}

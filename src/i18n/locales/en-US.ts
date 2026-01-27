@@ -58,7 +58,7 @@ export default {
     customAccentNameRequired: 'Please enter a name',
     deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent?',
     accentName: 'Name',
-    accentNamePlaceholder: 'e.g. Emerald Green',
+    accentNamePlaceholder: 'e.g. Dark Violet',
     accentMainColor: 'Main Color',
     accentHoverColor: 'Hover Color',
     accentLightColor: 'Light Background',
@@ -561,5 +561,15 @@ export default {
       'The program is running from a temporary folder. It may disappear when closed. Please extract the archive to a folder first, then run the program from there.',
     hint: 'Tip: We recommend extracting to a dedicated folder like "D:\\MaaXXX". Avoid Desktop or Downloads for easier management.',
     exit: 'Exit',
+  },
+  // Proxy Settings
+  proxy: {
+    title: 'Network Proxy',
+    url: 'Proxy URL',
+    urlPlaceholder: 'e.g., http://127.0.0.1:7890',
+    urlHint: 'Supports HTTP/SOCKS5, leave empty to disable proxy',
+    urlHintDisabled: 'MirrorChyan CDK filled, proxy is disabled',
+    invalid: 'Invalid proxy URL format',
+    examples: 'Example Formats',
   },
 };

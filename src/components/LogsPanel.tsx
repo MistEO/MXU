@@ -224,17 +224,30 @@ export function LogsPanel() {
           </div>
         ) : (
           <>
-            {logs.map((log) => (
-              <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
-                <span className="text-text-muted flex-shrink-0">
-                  [{log.timestamp.toLocaleTimeString()}]
-                </span>
-                <span className="break-all">
-                  {getLogPrefix(log.type)}
-                  {log.message}
-                </span>
-              </div>
-            ))}
+            {logs.map((log) =>
+              log.html ? (
+                // 富文本内容（focus 消息支持 Markdown/HTML）
+                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
+                  <span className="text-text-muted flex-shrink-0">
+                    [{log.timestamp.toLocaleTimeString()}]
+                  </span>
+                  <span
+                    className="break-all focus-content"
+                    dangerouslySetInnerHTML={{ __html: log.html }}
+                  />
+                </div>
+              ) : (
+                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
+                  <span className="text-text-muted flex-shrink-0">
+                    [{log.timestamp.toLocaleTimeString()}]
+                  </span>
+                  <span className="break-all">
+                    {getLogPrefix(log.type)}
+                    {log.message}
+                  </span>
+                </div>
+              ),
+            )}
             <div ref={logsEndRef} />
           </>
         )}

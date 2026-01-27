@@ -183,6 +183,8 @@ type FnMaaTaskerRunning = unsafe extern "C" fn(*mut MaaTasker) -> MaaBool;
 type FnMaaTaskerPostStop = unsafe extern "C" fn(*mut MaaTasker) -> MaaId;
 type FnMaaTaskerAddSink =
     unsafe extern "C" fn(*mut MaaTasker, MaaEventCallback, *mut c_void) -> MaaId;
+type FnMaaTaskerAddContextSink =
+    unsafe extern "C" fn(*mut MaaTasker, MaaEventCallback, *mut c_void) -> MaaId;
 type FnMaaTaskerOverridePipeline =
     unsafe extern "C" fn(*mut MaaTasker, MaaId, *const c_char) -> MaaBool;
 
@@ -294,6 +296,7 @@ pub struct MaaLibrary {
     pub maa_tasker_running: FnMaaTaskerRunning,
     pub maa_tasker_post_stop: FnMaaTaskerPostStop,
     pub maa_tasker_add_sink: FnMaaTaskerAddSink,
+    pub maa_tasker_add_context_sink: FnMaaTaskerAddContextSink,
     /// 可选函数：旧版本 MaaFramework 可能不支持
     pub maa_tasker_override_pipeline: Option<FnMaaTaskerOverridePipeline>,
 
@@ -496,6 +499,7 @@ impl MaaLibrary {
                 maa_tasker_running: load_fn!(framework_lib, "MaaTaskerRunning"),
                 maa_tasker_post_stop: load_fn!(framework_lib, "MaaTaskerPostStop"),
                 maa_tasker_add_sink: load_fn!(framework_lib, "MaaTaskerAddSink"),
+                maa_tasker_add_context_sink: load_fn!(framework_lib, "MaaTaskerAddContextSink"),
                 maa_tasker_override_pipeline: load_fn_optional!(
                     framework_lib,
                     "MaaTaskerOverridePipeline"
@@ -834,24 +838,27 @@ fn strip_ansi_escapes(s: &str) -> String {
 /// 发送 Agent 输出事件到前端
 pub fn emit_agent_output(instance_id: &str, stream: &str, line: &str) {
     // 使用 catch_unwind 捕获潜在的 panic
-    let result =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match APP_HANDLE.lock() {
-            Ok(guard) => {
-                if let Some(handle) = guard.as_ref() {
-                    let event = AgentOutputEvent {
-                        instance_id: instance_id.to_string(),
-                        stream: stream.to_string(),
-                        line: strip_ansi_escapes(line),
-                    };
-                    if let Err(e) = handle.emit("maa-agent-output", event) {
-                        log::error!("[agent_output] Failed to emit event: {}", e);
-                    }
-                }
-            }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // 快速克隆 AppHandle 后立即释放锁，避免阻塞 MaaFramework 工作线程
+        let handle = match APP_HANDLE.lock() {
+            Ok(guard) => guard.clone(),
             Err(e) => {
                 log::error!("[agent_output] Failed to lock APP_HANDLE: {}", e);
+                return;
             }
-        }));
+        };
+
+        if let Some(handle) = handle {
+            let event = AgentOutputEvent {
+                instance_id: instance_id.to_string(),
+                stream: stream.to_string(),
+                line: strip_ansi_escapes(line),
+            };
+            if let Err(e) = handle.emit("maa-agent-output", event) {
+                log::error!("[agent_output] Failed to emit event: {}", e);
+            }
+        }
+    }));
 
     if let Err(e) = result {
         log::error!("[agent_output] Panic caught in emit_agent_output: {:?}", e);
@@ -859,7 +866,8 @@ pub fn emit_agent_output(instance_id: &str, stream: &str, line: &str) {
 }
 
 /// MaaFramework 回调处理函数
-/// 由 MaaFramework 在子线程中调用，将消息转发到前端
+/// 由 MaaFramework 在工作线程中调用，将消息转发到前端
+/// 注意：此函数必须尽快返回，避免阻塞 MaaFramework 的工作线程
 extern "C" fn maa_event_callback(
     _handle: *mut c_void,
     message: *const c_char,
@@ -868,7 +876,7 @@ extern "C" fn maa_event_callback(
 ) {
     // 使用 catch_unwind 捕获潜在的 panic，避免回调中的 panic 导致整个程序崩溃
     let result = std::panic::catch_unwind(|| {
-        // 安全地读取 C 字符串，添加额外的日志
+        // 安全地读取 C 字符串
         let message_str = if message.is_null() {
             log::warn!("[callback] Received null message pointer");
             String::new()
@@ -889,24 +897,26 @@ extern "C" fn maa_event_callback(
             details_str
         );
 
-        // 发送事件到前端
-        match APP_HANDLE.lock() {
-            Ok(guard) => {
-                if let Some(handle) = guard.as_ref() {
-                    let event = MaaCallbackEvent {
-                        message: message_str,
-                        details: details_str,
-                    };
-                    if let Err(e) = handle.emit("maa-callback", event) {
-                        log::error!("[callback] Failed to emit event: {}", e);
-                    }
-                } else {
-                    log::warn!("[callback] APP_HANDLE is None, cannot emit event");
-                }
-            }
+        // 快速克隆 AppHandle 后立即释放锁，避免阻塞 MaaFramework 工作线程
+        let handle = match APP_HANDLE.lock() {
+            Ok(guard) => guard.clone(),
             Err(e) => {
                 log::error!("[callback] Failed to lock APP_HANDLE: {}", e);
+                return;
             }
+        };
+
+        // 使用克隆的 handle 发送事件（锁已释放）
+        if let Some(handle) = handle {
+            let event = MaaCallbackEvent {
+                message: message_str,
+                details: details_str,
+            };
+            if let Err(e) = handle.emit("maa-callback", event) {
+                log::error!("[callback] Failed to emit event: {}", e);
+            }
+        } else {
+            log::warn!("[callback] APP_HANDLE is None, cannot emit event");
         }
     });
 

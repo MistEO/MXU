@@ -58,7 +58,7 @@ export default {
     customAccentNameRequired: '請輸入名稱',
     deleteCustomAccentConfirm: '確定要刪除這個自訂強調色嗎？',
     accentName: '名稱',
-    accentNamePlaceholder: '例如：寶石綠',
+    accentNamePlaceholder: '例如：小黑紫',
     accentMainColor: '主色',
     accentHoverColor: '懸停色',
     accentLightColor: '淺色背景',
@@ -555,5 +555,15 @@ export default {
       '程式現在在暫存目錄裡跑著呢，一關掉可能就沒了。先把壓縮檔解壓到一個資料夾裡，再開啟裡面的程式吧。',
     hint: '小提示：建議解壓到一個專門的資料夾，比如「D:\\MaaXXX」，别放桌面或者下載資料夾，那樣更方便管理。',
     exit: '退出程式',
+  },
+  // 代理設定
+  proxy: {
+    title: '網路代理',
+    url: '代理位址',
+    urlPlaceholder: '例如：http://127.0.0.1:7890',
+    urlHint: '支援 HTTP/SOCKS5，留空則不使用代理',
+    urlHintDisabled: '已填寫 Mirror酱 CDK，代理功能已停用',
+    invalid: '代理位址格式不正確',
+    examples: '示例格式',
   },
 };

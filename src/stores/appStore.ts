@@ -52,6 +52,8 @@ export interface LogEntry {
   timestamp: Date;
   type: LogType;
   message: string;
+  /** 可选的富文本 HTML 内容（用于 focus 消息） */
+  html?: string;
 }
 
 export type Theme = 'light' | 'dark' | 'system';

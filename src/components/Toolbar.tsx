@@ -20,6 +20,8 @@ import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
 import type { Instance } from '@/types/interface';
+import { resolveI18nText } from '@/services/contentResolver';
+import { getInterfaceLangKey } from '@/i18n';
 
 const log = loggers.task;
 
@@ -75,6 +77,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     addLog,
     // 添加任务面板
     setShowAddTaskPanel,
+    // 国际化
+    interfaceTranslations,
+    language,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -97,6 +102,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const tasks = instance?.selectedTasks || [];
   const allEnabled = tasks.length > 0 && tasks.every((t) => t.enabled);
   const anyExpanded = tasks.some((t) => t.expanded);
+
+  // 获取当前语言的翻译
+  const langKey = getInterfaceLangKey(language);
+  const translations = interfaceTranslations[langKey];
 
   // 检查是否可以运行
   const instanceId = instance?.id || '';
@@ -669,7 +678,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
           });
           // 预注册 entry -> taskName 映射，确保回调时能找到任务名
-          const taskDisplayName = selectedTask.customName || taskDef.label || selectedTask.taskName;
+          const taskDisplayName =
+            selectedTask.customName ||
+            resolveI18nText(taskDef.label, translations) ||
+            selectedTask.taskName;
           registerEntryTaskName(taskDef.entry, taskDisplayName);
         }
 
@@ -722,7 +734,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               (t) => t.name === enabledTasks[index].taskName,
             );
             const taskDisplayName =
-              enabledTasks[index].customName || taskDef?.label || enabledTasks[index].taskName;
+              enabledTasks[index].customName ||
+              resolveI18nText(taskDef?.label, translations) ||
+              enabledTasks[index].taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }
         });
@@ -987,7 +1001,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
           });
           // 预注册 entry -> taskName 映射，确保回调时能找到任务名
-          const taskDisplayName = selectedTask.customName || taskDef.label || selectedTask.taskName;
+          const taskDisplayName =
+            selectedTask.customName ||
+            resolveI18nText(taskDef.label, translations) ||
+            selectedTask.taskName;
           registerEntryTaskName(taskDef.entry, taskDisplayName);
         }
 
@@ -1038,7 +1055,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               (t) => t.name === enabledTasks[index].taskName,
             );
             const taskDisplayName =
-              enabledTasks[index].customName || taskDef?.label || enabledTasks[index].taskName;
+              enabledTasks[index].customName ||
+              resolveI18nText(taskDef?.label, translations) ||
+              enabledTasks[index].taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }
         });

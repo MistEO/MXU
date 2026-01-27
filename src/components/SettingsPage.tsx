@@ -126,10 +126,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [isAccentModalOpen, setIsAccentModalOpen] = useState(false);
   const [editingAccentId, setEditingAccentId] = useState<string | null>(null);
   const [accentName, setAccentName] = useState('');
-  const [accentMainColor, setAccentMainColor] = useState('#10b981'); // 默认接近 emerald
-  const [accentHoverColor, setAccentHoverColor] = useState('#059669');
-  const [accentLightColor, setAccentLightColor] = useState('#6ee7b7');
-  const [accentLightDarkColor, setAccentLightDarkColor] = useState('#047857');
+  const [accentMainColor, setAccentMainColor] = useState('#5D4E6D'); // 默认小黑紫
+  const [accentHoverColor, setAccentHoverColor] = useState('#534361');
+  const [accentLightColor, setAccentLightColor] = useState('#746B7D');
+  const [accentLightDarkColor, setAccentLightDarkColor] = useState('#413647');
   const [nameError, setNameError] = useState<string | null>(null);
 
   // 将十六进制颜色稍微变亮/变暗的辅助函数（简单 HSL 近似）
@@ -164,10 +164,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const resetAccentForm = useCallback(() => {
     setEditingAccentId(null);
     setAccentName('');
-    setAccentMainColor('#10b981');
-    setAccentHoverColor('#059669');
-    setAccentLightColor('#6ee7b7');
-    setAccentLightDarkColor('#047857');
+    setAccentMainColor('#5D4E6D');
+    setAccentHoverColor('#534361');
+    setAccentLightColor('#746B7D');
+    setAccentLightDarkColor('#413647');
     setNameError(null);
   }, []);
 
@@ -241,11 +241,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
   const handleDeleteAccent = useCallback(
     (id: string) => {
-      if (window.confirm(t('settings.deleteCustomAccentConfirm'))) {
-        removeCustomAccent(id);
-      }
+      removeCustomAccent(id);
     },
-    [removeCustomAccent, t],
+    [removeCustomAccent],
   );
 
   const [resolvedContent, setResolvedContent] = useState<ResolvedContent>({

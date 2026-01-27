@@ -1025,6 +1025,12 @@ pub fn maa_run_task(
                 (lib.maa_tasker_add_sink)(tasker, get_event_callback(), std::ptr::null_mut());
             }
 
+            // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
+            debug!("Adding tasker context sink...");
+            unsafe {
+                (lib.maa_tasker_add_context_sink)(tasker, get_event_callback(), std::ptr::null_mut());
+            }
+
             // 绑定资源和控制器
             unsafe {
                 (lib.maa_tasker_bind_resource)(tasker, resource);
@@ -1349,6 +1355,13 @@ pub async fn maa_start_tasks(
                 (lib.maa_tasker_add_sink)(tasker, get_event_callback(), std::ptr::null_mut());
             }
             debug!("[start_tasks] Tasker sink added");
+
+            // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
+            debug!("[start_tasks] Adding tasker context sink...");
+            unsafe {
+                (lib.maa_tasker_add_context_sink)(tasker, get_event_callback(), std::ptr::null_mut());
+            }
+            debug!("[start_tasks] Tasker context sink added");
 
             // 绑定资源和控制器
             debug!("[start_tasks] Binding resource...");
@@ -2616,10 +2629,11 @@ pub async fn download_file(
         .connect_timeout(std::time::Duration::from_secs(10));
 
     // 配置代理（如果提供）
-    if let Some(proxy) = proxy_url {
+    if let Some(ref proxy) = proxy_url {
         if !proxy.is_empty() {
-            info!("使用代理: {}", proxy);
-            let reqwest_proxy = reqwest::Proxy::all(&proxy).map_err(|e| {
+            info!("[下载] 使用代理: {}", proxy);
+            info!("[下载] 目标: {}", url);
+            let reqwest_proxy = reqwest::Proxy::all(proxy).map_err(|e| {
                 error!("代理配置失败: {} (代理地址: {})", e, proxy);
                 format!(
                     "代理配置失败: {}。请检查代理格式是否正确（支持 http:// 或 socks5://）",
@@ -2627,7 +2641,11 @@ pub async fn download_file(
                 )
             })?;
             client_builder = client_builder.proxy(reqwest_proxy);
+        } else {
+            info!("[下载] 直连（无代理）: {}", url);
         }
+    } else {
+        info!("[下载] 直连（无代理）: {}", url);
     }
 
     let client = client_builder

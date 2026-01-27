@@ -221,7 +221,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
               pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
             });
             const taskDisplayName =
-              selectedTask.customName || taskDef.label || selectedTask.taskName;
+              selectedTask.customName ||
+              resolveI18nText(taskDef.label, translations) ||
+              selectedTask.taskName;
             registerEntryTaskName(taskDef.entry, taskDisplayName);
           }
 
@@ -268,7 +270,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                 (t) => t.name === enabledTasks[index].taskName,
               );
               const taskDisplayName =
-                enabledTasks[index].customName || taskDef?.label || enabledTasks[index].taskName;
+                enabledTasks[index].customName ||
+                resolveI18nText(taskDef?.label, translations) ||
+                enabledTasks[index].taskName;
               registerTaskIdName(maaTaskId, taskDisplayName);
             }
           });

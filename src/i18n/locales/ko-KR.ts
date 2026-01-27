@@ -58,7 +58,7 @@ export default {
     customAccentNameRequired: '이름을 입력하세요',
     deleteCustomAccentConfirm: '이 사용자 지정 강조 색상을 삭제하시겠습니까?',
     accentName: '이름',
-    accentNamePlaceholder: '예: 에메랄드 그린',
+    accentNamePlaceholder: '예: 다크 바이올렛',
     accentMainColor: '메인 색상',
     accentHoverColor: '호버 색상',
     accentLightColor: '라이트 배경',
@@ -554,5 +554,15 @@ export default {
       '프로그램이 임시 폴더에서 실행 중입니다. 닫으면 사라질 수 있습니다. 먼저 압축 파일을 폴더에 풀고 거기서 프로그램을 실행하세요.',
     hint: '팁: "D:\\MaaXXX"와 같은 전용 폴더에 압축을 푸는 것이 좋습니다. 관리하기 쉽도록 바탕화면이나 다운로드 폴더는 피하세요.',
     exit: '종료',
+  },
+  // 프록시 설정
+  proxy: {
+    title: '네트워크 프록시',
+    url: '프록시 주소',
+    urlPlaceholder: '예: http://127.0.0.1:7890',
+    urlHint: 'HTTP/SOCKS5 지원, 비워두면 프록시를 사용하지 않음',
+    urlHintDisabled: 'Mirror짱 CDK가 입력되어 프록시 기능이 비활성화되었습니다',
+    invalid: '프록시 주소 형식이 올바르지 않습니다',
+    examples: '예시 형식',
   },
 };

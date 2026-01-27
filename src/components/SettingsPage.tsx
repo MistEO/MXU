@@ -27,6 +27,7 @@ import {
   Plus,
   Edit,
   X,
+  Network,
 } from 'lucide-react';
 import {
   checkAndPrepareDownload,
@@ -38,7 +39,7 @@ import {
   isDebugVersion,
 } from '@/services/updateService';
 import { clearAllCache, getCacheStats } from '@/services/cacheService';
-import type { DownloadProgress } from '@/stores/appStore';
+
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
 import { setLanguage as setI18nLanguage, getInterfaceLangKey } from '@/i18n';
@@ -53,6 +54,7 @@ import { maaService } from '@/services/maaService';
 import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
 import { loggers } from '@/utils/logger';
 import { FrameRateSelector } from './FrameRateSelector';
+import { createProxySettings, shouldUseProxy } from '@/services/proxyService';
 import clsx from 'clsx';
 
 // 检测是否在 Tauri 环境中
@@ -87,6 +89,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     mirrorChyanSettings,
     setMirrorChyanCdk,
     setMirrorChyanChannel,
+    proxySettings,
+    setProxySettings,
     updateInfo,
     updateCheckLoading,
     setUpdateInfo,
@@ -148,11 +152,49 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     light: '#E6F3EC',
     lightDark: '#003D1E',
   });
+  // 代理设置相关状态
+  const [proxyInput, setProxyInput] = useState(proxySettings?.url || '');
+  const [proxyError, setProxyError] = useState(false);
 
   // 调试：添加日志（提前定义以便在 handleCdkChange 中使用）
   const addDebugLog = useCallback((msg: string) => {
     setDebugLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   }, []);
+
+  // 处理代理输入框失焦事件
+  const handleProxyBlur = useCallback(() => {
+    const trimmed = proxyInput.trim();
+
+    // 如果为空，清空代理设置
+    if (trimmed === '') {
+      setProxySettings(undefined);
+      setProxyError(false);
+      return;
+    }
+
+    // 验证并创建代理设置（createProxySettings 内部会规范化）
+    const settings = createProxySettings(trimmed);
+
+    if (settings) {
+      setProxySettings(settings);
+      setProxyInput(settings.url); // 使用规范化后的 URL
+      setProxyError(false);
+    } else {
+      setProxyError(true);
+    }
+  }, [proxyInput, setProxySettings]);
+
+  // 同步 proxySettings 到 proxyInput
+  useEffect(() => {
+    if (proxySettings?.url && proxySettings.url !== proxyInput) {
+      setProxyInput(proxySettings.url);
+    }
+  }, [proxySettings]);
+
+  // 检查是否禁用代理（填写了 MirrorChyan CDK）
+  const isProxyDisabled = useMemo(() => {
+    return mirrorChyanSettings.cdk && mirrorChyanSettings.cdk.trim() !== '';
+  }, [mirrorChyanSettings.cdk]);
 
   // 开始下载（支持指定 updateInfo，用于切换下载源后重新下载）
   const startDownload = useCallback(
@@ -172,11 +214,17 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         const savePath = await getUpdateSavePath(basePath, info.filename);
         setDownloadSavePath(savePath);
 
+        // 仅在 GitHub 下载时使用代理
+        const useProxy =
+          info.downloadSource === 'github' &&
+          shouldUseProxy(proxySettings, mirrorChyanSettings.cdk);
+
         const success = await downloadUpdate({
           url: info.downloadUrl,
           savePath,
           totalSize: info.fileSize,
-          onProgress: (progress: DownloadProgress) => {
+          proxySettings: useProxy ? proxySettings : undefined,
+          onProgress: (progress) => {
             setDownloadProgress(progress);
           },
         });
@@ -1285,6 +1333,43 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                           </p>
                         </div>
                       </div>
+
+                      {/* 代理设置 */}
+                      {!isProxyDisabled && (
+                        <div className="pt-4 border-t border-border">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Network className="w-5 h-5 text-accent" />
+                            <span className="font-medium text-text-primary">
+                              {t('proxy.title')}
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={proxyInput}
+                              onChange={(e) => {
+                                setProxyInput(e.target.value);
+                                setProxyError(false);
+                              }}
+                              onBlur={handleProxyBlur}
+                              placeholder={t('proxy.urlPlaceholder')}
+                              className={clsx(
+                                'w-full px-3 py-2.5 rounded-lg bg-bg-tertiary border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50',
+                                proxyError ? 'border-error' : 'border-border',
+                              )}
+                            />
+                          </div>
+                          {proxyError && (
+                            <p className="mt-2 text-xs text-error flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {t('proxy.invalid')}
+                            </p>
+                          )}
+                          <div className="mt-3 text-xs text-text-muted leading-relaxed space-y-1">
+                            <p>{t('proxy.urlHint')}</p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* 检查更新按钮 */}
                       <div className="pt-4 border-t border-border space-y-4">

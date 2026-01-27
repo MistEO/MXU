@@ -79,6 +79,11 @@ export interface MirrorChyanSettings {
   channel: UpdateChannel; // 更新频道：stable(正式版) / beta(公测版)
 }
 
+// 代理设置
+export interface ProxySettings {
+  url: string; // 代理地址，格式：http://host:port 或 socks5://host:port
+}
+
 // 应用设置
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -86,6 +91,7 @@ export interface AppSettings {
   language: 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
   windowSize?: WindowSize;
   mirrorChyan?: MirrorChyanSettings;
+  proxy?: ProxySettings; // 代理设置
   showOptionPreview?: boolean; // 是否在任务列表显示选项预览
   sidePanelExpanded?: boolean; // 右侧面板是否展开（连接+截图）
   connectionPanelExpanded?: boolean; // 连接设置卡片是否展开

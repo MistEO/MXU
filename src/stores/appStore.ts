@@ -14,6 +14,7 @@ import type {
   WindowSize,
   UpdateChannel,
   MirrorChyanSettings,
+  ProxySettings,
   RecentlyClosedInstance,
   ScreenshotFrameRate,
 } from '@/types/config';
@@ -69,6 +70,8 @@ interface AppState {
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
+  setAccentColor: (color: AccentColor) => void;
+  setLanguage: (language: Language) => void;
 
   // 当前页面
   currentPage: PageView;
@@ -237,6 +240,10 @@ interface AppState {
   mirrorChyanSettings: MirrorChyanSettings;
   setMirrorChyanCdk: (cdk: string) => void;
   setMirrorChyanChannel: (channel: UpdateChannel) => void;
+
+  // 代理设置
+  proxySettings: ProxySettings | undefined;
+  setProxySettings: (settings: ProxySettings | undefined) => void;
 
   // 任务选项预览显示设置
   showOptionPreview: boolean;
@@ -1157,6 +1164,7 @@ export const useAppStore = create<AppState>()(
         nextInstanceNumber: maxNumber + 1,
         windowSize: config.settings.windowSize || defaultWindowSize,
         mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
+        proxySettings: config.settings.proxy,
         showOptionPreview: config.settings.showOptionPreview ?? true,
         sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: config.settings.rightPanelWidth ?? 320,
@@ -1394,6 +1402,10 @@ export const useAppStore = create<AppState>()(
       set((state) => ({
         mirrorChyanSettings: { ...state.mirrorChyanSettings, channel },
       })),
+
+    // 代理设置
+    proxySettings: undefined,
+    setProxySettings: (settings) => set({ proxySettings: settings }),
 
     // 任务选项预览显示设置
     showOptionPreview: true,
@@ -1745,6 +1757,7 @@ function generateConfig(): MxuConfig {
       language: state.language,
       windowSize: state.windowSize,
       mirrorChyan: state.mirrorChyanSettings,
+      proxy: state.proxySettings,
       showOptionPreview: state.showOptionPreview,
       sidePanelExpanded: state.sidePanelExpanded,
       rightPanelWidth: state.rightPanelWidth,
@@ -1791,6 +1804,7 @@ useAppStore.subscribe(
     language: state.language,
     windowSize: state.windowSize,
     mirrorChyanSettings: state.mirrorChyanSettings,
+    proxySettings: state.proxySettings,
     showOptionPreview: state.showOptionPreview,
     sidePanelExpanded: state.sidePanelExpanded,
     rightPanelWidth: state.rightPanelWidth,

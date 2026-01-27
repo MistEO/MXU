@@ -2585,6 +2585,7 @@ pub async fn download_file(
     url: String,
     save_path: String,
     total_size: Option<u64>,
+    proxy_url: Option<String>,
 ) -> Result<u64, String> {
     use futures_util::StreamExt;
     use std::io::Write;
@@ -2609,8 +2610,27 @@ pub async fn download_file(
     let temp_path = format!("{}.downloading", save_path);
 
     // 构建 HTTP 客户端和请求
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
         .user_agent(build_user_agent())
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10));
+
+    // 配置代理（如果提供）
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            info!("使用代理: {}", proxy);
+            let reqwest_proxy = reqwest::Proxy::all(&proxy).map_err(|e| {
+                error!("代理配置失败: {} (代理地址: {})", e, proxy);
+                format!(
+                    "代理配置失败: {}。请检查代理格式是否正确（支持 http:// 或 socks5://）",
+                    e
+                )
+            })?;
+            client_builder = client_builder.proxy(reqwest_proxy);
+        }
+    }
+
+    let client = client_builder
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 

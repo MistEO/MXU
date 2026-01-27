@@ -8,56 +8,11 @@ use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 
-/// 检查目录是否可写（通过尝试创建并写入临时文件）
-fn is_dir_writable(dir: &std::path::Path) -> bool {
-    if std::fs::create_dir_all(dir).is_err() {
-        return false;
-    }
-    let test_file = dir.join(".write_test");
-    match std::fs::write(&test_file, b"test") {
-        Ok(_) => {
-            let _ = std::fs::remove_file(&test_file);
-            true
-        }
-        Err(_) => false,
-    }
-}
-
-/// 获取日志目录
-/// 按优先级尝试多个位置，确保找到一个可写的目录
+/// 获取 exe 所在目录下的 debug/logs 子目录
 fn get_logs_dir() -> PathBuf {
-    // 1. 首先尝试程序所在目录
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            let logs_dir = exe_dir.join("debug");
-            if is_dir_writable(&logs_dir) {
-                return logs_dir;
-            }
-        }
-    }
-
-    // 2. 尝试 ProgramData 目录（通常所有用户都有写入权限）
-    #[cfg(target_os = "windows")]
-    if let Some(program_data) = std::env::var_os("ProgramData") {
-        let fallback_dir = PathBuf::from(program_data).join("MXU").join("debug");
-        if is_dir_writable(&fallback_dir) {
-            return fallback_dir;
-        }
-    }
-
-    // 3. 尝试 AppData/Local 目录
-    #[cfg(target_os = "windows")]
-    if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
-        let fallback_dir = PathBuf::from(local_app_data).join("MXU").join("debug");
-        if is_dir_writable(&fallback_dir) {
-            return fallback_dir;
-        }
-    }
-
-    // 4. 最后回退：使用临时目录
-    let temp_dir = std::env::temp_dir().join("MXU").join("debug");
-    let _ = std::fs::create_dir_all(&temp_dir);
-    temp_dir
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+    exe_dir.join("debug")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

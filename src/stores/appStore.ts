@@ -70,8 +70,6 @@ interface AppState {
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
-  setAccentColor: (color: AccentColor) => void;
-  setLanguage: (language: Language) => void;
 
   // 当前页面
   currentPage: PageView;
@@ -1148,7 +1146,7 @@ export const useAppStore = create<AppState>()(
       // 清除旧的自定义强调色
       clearCustomAccents();
       // 注册新的自定义强调色
-      customAccents.forEach((accent) => {
+      customAccents.forEach((accent: CustomAccent) => {
         registerCustomAccent(accent);
       });
 

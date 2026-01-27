@@ -10,7 +10,6 @@ import type {
   AccentColor,
   AccentInfo,
   CustomAccent,
-  PresetAccentColor,
 } from './types';
 import { createLogger } from '@/utils/logger';
 
@@ -35,8 +34,8 @@ const modeThemes: Record<ThemeMode, ModeTheme> = {
   dark: darkTheme as ModeTheme,
 };
 
-/** 预设强调色主题映射 */
-const presetAccentThemes: Record<PresetAccentColor, AccentTheme> = {
+/** 强调色主题映射（内置预设） */
+const accentThemes: Record<AccentColor, AccentTheme> = {
   emerald: emeraldAccent as AccentTheme,
   lava: lavaAccent as AccentTheme,
   titanium: titaniumAccent as AccentTheme,
@@ -48,18 +47,14 @@ const presetAccentThemes: Record<PresetAccentColor, AccentTheme> = {
   pearl: pearlAccent as AccentTheme,
 };
 
-/** 自定义强调色主题映射 */
-const customAccentThemes = new Map<string, AccentTheme>();
+/** 运行时注册的自定义强调色主题
+ *
+ * 使用索引簽名避免要求預先包含所有內建鍵
+ */
+const customAccentThemes: { [key: string]: AccentTheme } = {};
 
-/** 获取强调色主题（包括预设和自定义） */
-function getAccentTheme(accent: AccentColor): AccentTheme | undefined {
-  // 先检查预设
-  if (accent in presetAccentThemes) {
-    return presetAccentThemes[accent as PresetAccentColor];
-  }
-  // 再检查自定义
-  return customAccentThemes.get(accent);
-}
+/** 记录当前已注册的自定义强调色名称，便于清理 */
+const registeredCustomAccentNames = new Set<AccentColor>();
 
 /**
  * 语义色配置
@@ -124,7 +119,7 @@ function applyCSSVariables(mode: ModeTheme, accent: AccentTheme, isDark: boolean
  */
 export function applyTheme(mode: ThemeMode, accent: AccentColor): void {
   const modeTheme = modeThemes[mode];
-  const accentTheme = getAccentTheme(accent);
+  const accentTheme = customAccentThemes[accent] || accentThemes[accent];
 
   if (!modeTheme || !accentTheme) {
     logger.warn(`Theme not found: mode=${mode}, accent=${accent}`);
@@ -166,9 +161,10 @@ export function getAvailableModes(): ThemeMode[] {
  * 获取所有可用的强调色
  */
 export function getAvailableAccents(): AccentColor[] {
-  const presetAccents = Object.keys(presetAccentThemes) as AccentColor[];
-  const customAccents = Array.from(customAccentThemes.keys());
-  return [...presetAccents, ...customAccents];
+  return [
+    ...(Object.keys(accentThemes) as AccentColor[]),
+    ...(Object.keys(customAccentThemes) as AccentColor[]),
+  ];
 }
 
 /**
@@ -177,63 +173,35 @@ export function getAvailableAccents(): AccentColor[] {
  */
 export function getAccentInfoList(lang: string): AccentInfo[] {
   const langKey = lang as keyof AccentTheme['label'];
-  const presetAccents = (Object.keys(presetAccentThemes) as PresetAccentColor[]).map((name) => {
-    const accent = presetAccentThemes[name];
+  return getAvailableAccents().map((name) => {
+    const accent =
+      customAccentThemes[name as string] || accentThemes[name as keyof typeof accentThemes];
+    if (!accent) {
+      // 理论上不会发生，仅做兜底保护
+      return {
+        name,
+        label: String(name),
+        color: '#ffffff',
+        isCustom: false,
+      };
+    }
+
+    const isCustom = !!customAccentThemes[name as string];
+
     return {
-      name: name as AccentColor,
+      name,
       label: accent.label[langKey] || accent.label['en-US'],
       color: accent.default,
-      isCustom: false,
+      isCustom,
     };
   });
-  const customAccents = Array.from(customAccentThemes.entries()).map(([name, accent]) => ({
-    name: name as AccentColor,
-    label: accent.label[langKey] || accent.label['en-US'],
-    color: accent.default,
-    isCustom: true,
-  }));
-  return [...presetAccents, ...customAccents];
-}
-
-/**
- * 注册自定义强调色
- * @param customAccent 自定义强调色配置
- */
-export function registerCustomAccent(customAccent: CustomAccent): void {
-  const accentTheme: AccentTheme = {
-    name: customAccent.name,
-    label: customAccent.label,
-    default: customAccent.default,
-    hover: customAccent.hover,
-    light: customAccent.light,
-    lightDark: customAccent.lightDark,
-  };
-  customAccentThemes.set(customAccent.name, accentTheme);
-  logger.debug(`Registered custom accent: ${customAccent.name}`);
-}
-
-/**
- * 移除自定义强调色
- * @param accentName 强调色名称
- */
-export function unregisterCustomAccent(accentName: string): void {
-  customAccentThemes.delete(accentName);
-  logger.debug(`Unregistered custom accent: ${accentName}`);
-}
-
-/**
- * 清除所有自定义强调色
- */
-export function clearCustomAccents(): void {
-  customAccentThemes.clear();
-  logger.debug('Cleared all custom accents');
 }
 
 /**
  * 获取指定强调色的主题配置
  */
-export function getAccentThemeByName(accent: AccentColor): AccentTheme | undefined {
-  return getAccentTheme(accent);
+export function getAccentTheme(accent: AccentColor): AccentTheme | undefined {
+  return customAccentThemes[accent] || accentThemes[accent];
 }
 
 /**
@@ -262,12 +230,9 @@ export default {
   getAvailableModes,
   getAvailableAccents,
   getAccentInfoList,
-  getAccentTheme: getAccentThemeByName,
+  getAccentTheme,
   getModeTheme,
   resolveThemeMode,
-  registerCustomAccent,
-  unregisterCustomAccent,
-  clearCustomAccents,
 };
 
 // 重新导出类型
@@ -278,5 +243,46 @@ export type {
   AccentColor,
   AccentInfo,
   CustomAccent,
-  PresetAccentColor,
 } from './types';
+
+/**
+ * 注册自定义强调色
+ * - 会在运行时将其加入主题映射中
+ */
+export function registerCustomAccent(accent: CustomAccent): void {
+  const name = accent.name;
+
+  customAccentThemes[name] = {
+    name,
+    label: accent.label,
+    default: accent.colors.default,
+    hover: accent.colors.hover,
+    light: accent.colors.light,
+    lightDark: accent.colors.lightDark,
+  };
+
+  registeredCustomAccentNames.add(name);
+
+  // 如果当前正在使用这个强调色，则重新应用主题
+  if (currentAccent === name) {
+    applyTheme(currentMode, name);
+  }
+}
+
+/**
+ * 取消注册自定义强调色
+ */
+export function unregisterCustomAccent(name: AccentColor): void {
+  delete customAccentThemes[name];
+  registeredCustomAccentNames.delete(name);
+}
+
+/**
+ * 清空所有自定义强调色
+ */
+export function clearCustomAccents(): void {
+  for (const name of registeredCustomAccentNames) {
+    delete customAccentThemes[name];
+  }
+  registeredCustomAccentNames.clear();
+}

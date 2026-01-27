@@ -62,7 +62,7 @@ export interface ThemeConfig {
 /** 支持的主题模式 */
 export type ThemeMode = 'light' | 'dark';
 
-/** 预设强调色名称 */
+/** 预设强调色名称（内置） */
 export type PresetAccentColor =
   | 'emerald' // 宝石绿
   | 'lava' // 熔岩橙
@@ -74,30 +74,39 @@ export type PresetAccentColor =
   | 'cambrian' // 寒武岩灰
   | 'pearl'; // 珍珠白
 
-/** 支持的强调色名称（包括预设和自定义） */
-export type AccentColor = PresetAccentColor | string;
-
-/** 自定义强调色配置 */
-export interface CustomAccent {
-  id: string; // 唯一标识符
-  name: string; // 内部名称（用于 AccentColor）
-  label: {
-    'zh-CN': string;
-    'zh-TW'?: string;
-    'en-US': string;
-    'ja-JP'?: string;
-    'ko-KR'?: string;
-  };
-  default: string; // 主色
-  hover: string; // 悬停色
-  light: string; // 浅色模式下的背景色
-  lightDark: string; // 深色模式下的背景色
-}
+/** 支持的强调色名称
+ *
+ * - 预设强调色使用字面量联合类型（便于补全和类型检查）
+ * - 通过交叉类型 (string & {}) 支持运行时注册的自定义强调色名称
+ */
+export type AccentColor = PresetAccentColor | (string & {}); // 允许运行时扩展的自定义名称
 
 /** 强调色信息（用于 UI 展示） */
 export interface AccentInfo {
   name: AccentColor;
   label: string;
   color: string;
-  isCustom?: boolean; // 是否为自定义强调色
+  /** 是否为自定义强调色（用于在 UI 中区分） */
+  isCustom?: boolean;
+}
+
+/** 自定义强调色配置（保存在配置文件中） */
+export interface CustomAccent {
+  id: string;
+  /** 自定义强调色的名称，用于选择和应用 */
+  name: AccentColor;
+  /** 不同语言下的显示名称 */
+  label: {
+    'zh-CN': string;
+    'en-US': string;
+    'ja-JP'?: string;
+    'ko-KR'?: string;
+  };
+  /** 颜色配置 */
+  colors: {
+    default: string;
+    hover: string;
+    light: string;
+    lightDark: string;
+  };
 }

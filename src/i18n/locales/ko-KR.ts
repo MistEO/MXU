@@ -76,7 +76,7 @@ export default {
     noTasks: '작업이 없습니다',
     dragToReorder: '드래그하여 순서 변경',
     startTasks: '실행 시작',
-    stopTasks: '실행 중지',
+    stopTasks: '실행 중지 (F11)',
     startingTasks: '시작 중...',
     stoppingTasks: '중지 중...',
     // 자동 연결 관련

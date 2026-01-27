@@ -76,7 +76,7 @@ export default {
     noTasks: '暂无任务',
     dragToReorder: '拖拽以重新排序',
     startTasks: '开始任务',
-    stopTasks: '停止任务',
+    stopTasks: '停止任务 (F11)',
     startingTasks: '启动中...',
     stoppingTasks: '停止中...',
     // 自动连接相关

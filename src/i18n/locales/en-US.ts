@@ -76,7 +76,7 @@ export default {
     noTasks: 'No tasks',
     dragToReorder: 'Drag to reorder',
     startTasks: 'Start Tasks',
-    stopTasks: 'Stop Tasks',
+    stopTasks: 'Stop Tasks (F11)',
     startingTasks: 'Starting...',
     stoppingTasks: 'Stopping...',
     // Auto connect

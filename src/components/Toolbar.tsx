@@ -909,7 +909,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
-  const handleStartStop = async () => {
+  // 使用 ref 保存最新的状态，避免事件监听器频繁重新绑定
+  const instanceRunningRef = useRef(instance?.isRunning || false);
+  const isStoppingRef = useRef(isStopping);
+  
+  useEffect(() => {
+    instanceRunningRef.current = instance?.isRunning || false;
+  }, [instance?.isRunning]);
+  
+  useEffect(() => {
+    isStoppingRef.current = isStopping;
+  }, [isStopping]);
+
+  const handleStartStop = useCallback(async () => {
     if (!instance) return;
 
     if (instance.isRunning) {
@@ -930,6 +942,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         clearPendingTasks(instance.id);
         clearScheduleExecution(instance.id);
         runningInstanceIdRef.current = null;
+        // 重置自动连接状态
+        setAutoConnectPhase('idle');
+        setAutoConnectError(null);
       } catch (err) {
         log.error('停止任务失败:', err);
       } finally {
@@ -1074,7 +1089,52 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         setIsStarting(false);
       }
     }
-  };
+  }, [
+    instance,
+    projectInterface,
+    canRun,
+    isStopping,
+    updateInstance,
+    setInstanceTaskStatus,
+    setInstanceCurrentTaskId,
+    clearTaskRunStatus,
+    clearPendingTasks,
+    clearScheduleExecution,
+    setIsStarting,
+    setAutoConnectError,
+    t,
+    addLog,
+    tasks,
+    basePath,
+    registerEntryTaskName,
+    setShowAddTaskPanel,
+    registerMaaTaskMapping,
+    registerTaskIdName,
+    setAllTasksRunStatus,
+    setTaskRunStatus,
+    setPendingTaskIds,
+    setCurrentTaskIndexStore,
+    checkPermissionRequired,
+    autoConnectDevice,
+    autoLoadResource,
+    collapseAllTasks,
+  ]);
+
+  // F11 快捷键：相当于点击停止按钮
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        // 只在任务运行时才响应 F11
+        if (instanceRunningRef.current && !isStoppingRef.current) {
+          handleStartStop();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleStartStop]);
 
   const isDisabled =
     tasks.length === 0 || !tasks.some((t) => t.enabled) || (!canRun && !instance?.isRunning);

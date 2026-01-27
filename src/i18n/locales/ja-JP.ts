@@ -76,7 +76,7 @@ export default {
     noTasks: 'タスクがありません',
     dragToReorder: 'ドラッグして並べ替え',
     startTasks: '実行開始',
-    stopTasks: '実行停止',
+    stopTasks: '実行停止 (F11)',
     startingTasks: '開始中...',
     stoppingTasks: '停止中...',
     // 自動接続関連

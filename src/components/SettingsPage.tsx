@@ -121,10 +121,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   } = useAppStore();
 
   // 获取强调色列表（包含自定义强调色）
-  const accentColors = useMemo(
-    () => getAccentInfoList(language),
-    [language, customAccents],
-  );
+  const accentColors = useMemo(() => getAccentInfoList(language), [language, customAccents]);
 
   // 自定义强调色编辑状态
   const [isAccentModalOpen, setIsAccentModalOpen] = useState(false);
@@ -143,8 +140,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     const r = parseInt(clean.slice(0, 2), 16);
     const g = parseInt(clean.slice(2, 4), 16);
     const b = parseInt(clean.slice(4, 6), 16);
-    const adjust = (c: number) =>
-      Math.max(0, Math.min(255, Math.round(c * factor)));
+    const adjust = (c: number) => Math.max(0, Math.min(255, Math.round(c * factor)));
     const nr = adjust(r);
     const ng = adjust(g);
     const nb = adjust(b);
@@ -180,19 +176,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setIsAccentModalOpen(true);
   }, [resetAccentForm]);
 
-  const openEditAccentModal = useCallback(
-    (accent: CustomAccent) => {
-      setEditingAccentId(accent.id);
-      setAccentName(accent.label['zh-CN'] || accent.name);
-      setAccentMainColor(accent.colors.default);
-      setAccentHoverColor(accent.colors.hover);
-      setAccentLightColor(accent.colors.light);
-      setAccentLightDarkColor(accent.colors.lightDark);
-      setNameError(null);
-      setIsAccentModalOpen(true);
-    },
-    [],
-  );
+  const openEditAccentModal = useCallback((accent: CustomAccent) => {
+    setEditingAccentId(accent.id);
+    setAccentName(accent.label['zh-CN'] || accent.name);
+    setAccentMainColor(accent.colors.default);
+    setAccentHoverColor(accent.colors.hover);
+    setAccentLightColor(accent.colors.light);
+    setAccentLightDarkColor(accent.colors.lightDark);
+    setNameError(null);
+    setIsAccentModalOpen(true);
+  }, []);
 
   const handleCloseAccentModal = useCallback(() => {
     setIsAccentModalOpen(false);
@@ -975,9 +968,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
                 <div className="flex items-center gap-3 mb-3">
                   <Palette className="w-5 h-5 text-accent" />
-                  <span className="font-medium text-text-primary">
-                    {t('settings.accentColor')}
-                  </span>
+                  <span className="font-medium text-text-primary">{t('settings.accentColor')}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {accentColors.map((accent) => (
@@ -1026,9 +1017,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   </div>
 
                   {customAccents.length === 0 ? (
-                    <p className="text-xs text-text-muted">
-                      {t('settings.noCustomAccents')}
-                    </p>
+                    <p className="text-xs text-text-muted">{t('settings.noCustomAccents')}</p>
                   ) : (
                     <div className="space-y-2 max-h-40 overflow-auto pr-1">
                       {customAccents.map((accent) => (
@@ -1042,8 +1031,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                               style={{ backgroundColor: accent.colors.default }}
                             />
                             <span className="truncate text-text-secondary">
-                              {accent.label[language as keyof typeof accent.label] ||
-                                accent.name}
+                              {accent.label[language as keyof typeof accent.label] || accent.name}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
@@ -1738,9 +1726,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           <div className="w-full max-w-md max-h-[80vh] bg-bg-secondary rounded-xl border border-border shadow-xl overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <h2 className="text-sm font-semibold text-text-primary">
-                {editingAccentId
-                  ? t('settings.editCustomAccent')
-                  : t('settings.addCustomAccent')}
+                {editingAccentId ? t('settings.editCustomAccent') : t('settings.addCustomAccent')}
               </h2>
               <button
                 onClick={handleCloseAccentModal}
@@ -1765,9 +1751,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   placeholder={t('settings.accentNamePlaceholder')}
                   className="w-full px-3 py-2 rounded-md bg-bg-tertiary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
                 />
-                {nameError && (
-                  <p className="text-xs text-error mt-1">{nameError}</p>
-                )}
+                {nameError && <p className="text-xs text-error mt-1">{nameError}</p>}
               </div>
 
               {/* 颜色选择器 */}

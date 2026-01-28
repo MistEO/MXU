@@ -112,9 +112,7 @@ export function shouldUseProxy(
   mirrorChyanCdk: string,
 ): boolean {
   return (
-    !mirrorChyanCdk?.trim() &&
-    !!proxySettings?.url?.trim() &&
-    isValidProxyUrl(proxySettings.url)
+    !mirrorChyanCdk?.trim() && !!proxySettings?.url?.trim() && isValidProxyUrl(proxySettings.url)
   );
 }
 

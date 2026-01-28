@@ -1,4 +1,4 @@
-mod maa_commands;
+pub mod maa_commands;
 mod maa_ffi;
 
 use maa_commands::MaaState;

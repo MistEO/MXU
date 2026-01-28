@@ -1168,10 +1168,11 @@ export function ConnectionPanel() {
                         // 点击当前已选中的控制器，不做任何操作
                         if (currentControllerName === controller.name) return;
 
-                        // 切换控制器时先断开旧连接
-                        if (isConnected) {
-                          await maaService.destroyInstance(instanceId).catch(() => {});
-                        }
+                        // 切换控制器：销毁实例（清除 tasker）并重新创建
+                        // 保留资源加载状态（资源在 Rust 后端独立存储）
+                        await maaService.destroyInstance(instanceId).catch(() => {});
+                        await maaService.createInstance(instanceId).catch(() => {});
+
                         setSelectedController(instanceId, controller.name);
                         setIsConnected(false);
                         setInstanceConnectionStatus(instanceId, 'Disconnected');
@@ -1193,7 +1194,12 @@ export function ConnectionPanel() {
                         if (!currentResourceSupported && newControllerResources.length > 0) {
                           // 当前资源不支持新控制器，切换到第一个可用资源
                           setSelectedResource(instanceId, newControllerResources[0].name);
-                          // 同时清除资源加载状态
+                          // 资源切换后需要重新加载
+                          setIsResourceLoaded(false);
+                          setInstanceResourceLoaded(instanceId, false);
+                          lastLoadedResourceRef.current = null;
+                        } else {
+                          // 资源不变，但新实例需要重新绑定资源
                           setIsResourceLoaded(false);
                           setInstanceResourceLoaded(instanceId, false);
                           lastLoadedResourceRef.current = null;

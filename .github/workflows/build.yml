@@ -104,7 +104,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p install
-          cp -r src-tauri/target/${{ matrix.arch == 'x86_64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}/release/mxu.exe install/ || true
+          TARGET_DIR="src-tauri/target/${{ matrix.arch == 'x86_64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}/release"
+          cp -r "$TARGET_DIR/mxu.exe" install/ || true
+          cp -r "$TARGET_DIR/mxu.pdb" install/ || true
           cp LICENSE README.md install/ || true
           ls -la install/
 

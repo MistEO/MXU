@@ -183,6 +183,50 @@ export function useMaaCallbackLogger() {
   }, [t, addLog]);
 }
 
+/**
+ * 根据 task_id 获取任务显示名
+ * 优先使用 maaTaskIdMapping 查找 selectedTaskId，然后从实例任务列表获取显示名
+ * 这样可以避免 entry 覆盖问题和竞态条件
+ */
+function getTaskDisplayName(
+  instanceId: string,
+  taskId: number | undefined,
+  entry: string | undefined,
+): string | undefined {
+  const state = useAppStore.getState();
+
+  // 1. 优先通过 task_id 查找
+  if (taskId !== undefined) {
+    // 先尝试 taskIdToName（快速路径）
+    const directName = state.taskIdToName[taskId];
+    if (directName) return directName;
+
+    // 通过 maaTaskIdMapping 查找 selectedTaskId，然后从实例任务列表获取
+    const selectedTaskId = state.maaTaskIdMapping[instanceId]?.[taskId];
+    if (selectedTaskId) {
+      const instance = state.instances.find((i) => i.id === instanceId);
+      const selectedTask = instance?.selectedTasks.find((t) => t.id === selectedTaskId);
+      if (selectedTask) {
+        const taskDef = state.projectInterface?.task.find((t) => t.name === selectedTask.taskName);
+        const langKey = getInterfaceLangKey(state.language);
+        const translations = state.interfaceTranslations[langKey];
+        return (
+          selectedTask.customName ||
+          resolveI18nText(taskDef?.label, translations) ||
+          selectedTask.taskName
+        );
+      }
+    }
+  }
+
+  // 2. 尝试通过 entry 查找（兼容旧逻辑，但优先级降低）
+  if (entry) {
+    return state.entryToTaskName[entry];
+  }
+
+  return undefined;
+}
+
 async function handleCallback(
   instanceId: string,
   message: string,
@@ -191,8 +235,7 @@ async function handleCallback(
   addLog: (instanceId: string, log: { type: LogType; message: string; html?: string }) => void,
 ) {
   // 获取 ID 名称映射函数
-  const { getCtrlName, getCtrlType, getResName, getTaskName, getTaskNameByEntry } =
-    useAppStore.getState();
+  const { getCtrlName, getCtrlType, getResName } = useAppStore.getState();
 
   // 首先检查是否有 focus 字段，有则优先处理 focus 消息
   const focus = details.focus as Record<string, string> | undefined;
@@ -302,11 +345,8 @@ async function handleCallback(
         });
         break;
       }
-      // 优先用 task_id 查找，如果没有则用 entry 查找（解决时序问题）
-      let taskName = details.task_id !== undefined ? getTaskName(details.task_id) : undefined;
-      if (!taskName && details.entry) {
-        taskName = getTaskNameByEntry(details.entry);
-      }
+      // 使用改进的任务名查找逻辑，避免 entry 覆盖和竞态问题
+      const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
       addLog(instanceId, {
         type: 'info',
         message: t('logs.messages.taskStarting', {
@@ -325,10 +365,7 @@ async function handleCallback(
         });
         break;
       }
-      let taskName = details.task_id !== undefined ? getTaskName(details.task_id) : undefined;
-      if (!taskName && details.entry) {
-        taskName = getTaskNameByEntry(details.entry);
-      }
+      const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
       addLog(instanceId, {
         type: 'success',
         message: t('logs.messages.taskSucceeded', {
@@ -347,10 +384,7 @@ async function handleCallback(
         });
         break;
       }
-      let taskName = details.task_id !== undefined ? getTaskName(details.task_id) : undefined;
-      if (!taskName && details.entry) {
-        taskName = getTaskNameByEntry(details.entry);
-      }
+      const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
       addLog(instanceId, {
         type: 'error',
         message: t('logs.messages.taskFailed', {

@@ -42,6 +42,10 @@ futures-util = "0.3"
 libc = "0.2.180"
 semver = "1.0"
 
+[profile.release]
+# 保留调试符号以生成 PDB 文件，便于崩溃分析
+debug = true
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Foundation",

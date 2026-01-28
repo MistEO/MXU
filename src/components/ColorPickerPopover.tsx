@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import clsx from 'clsx';
 import { normalizeHex } from '@/utils/color';
@@ -42,18 +42,43 @@ export function ColorPickerPopover({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const color = useMemo(() => normalizeHex(value) ?? '#000000', [value]);
-  const rgb = useMemo(() => hexToRgb(color), [color]);
+
+  const [rgbInput, setRgbInput] = useState(() => {
+    const { r, g, b } = hexToRgb(color);
+    return { r: String(r), g: String(g), b: String(b) };
+  });
+
+  // sync RGB inputs when external color changes (picker / parent)
+  useEffect(() => {
+    const { r, g, b } = hexToRgb(color);
+    setRgbInput({ r: String(r), g: String(g), b: String(b) });
+  }, [color]);
 
   const handleRgbChange =
     (channel: 'r' | 'g' | 'b') =>
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      const parsed = parseInt(raw, 10);
-      const nextValue = clampChannel(parsed);
+
+      // allow empty string while typing
+      if (raw === '') {
+        setRgbInput((prev) => ({ ...prev, [channel]: '' }));
+        return;
+      }
+
+      // only allow digits
+      if (!/^\d+$/.test(raw)) return;
+
+      const numeric = parseInt(raw, 10);
+      if (Number.isNaN(numeric)) return;
+
+      // keep input within 0-255
+      const clamped = clampChannel(numeric);
+      setRgbInput((prev) => ({ ...prev, [channel]: String(clamped) }));
+
       const current = hexToRgb(color);
       const merged = {
         ...current,
-        [channel]: nextValue,
+        [channel]: clamped,
       };
       const nextHex = rgbToHex(merged.r, merged.g, merged.b);
       onChange(nextHex);
@@ -121,7 +146,7 @@ export function ColorPickerPopover({
                     type="number"
                     min={0}
                     max={255}
-                    value={rgb.r}
+                    value={rgbInput.r}
                     onChange={handleRgbChange('r')}
                     className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
                   />
@@ -132,7 +157,7 @@ export function ColorPickerPopover({
                     type="number"
                     min={0}
                     max={255}
-                    value={rgb.g}
+                    value={rgbInput.g}
                     onChange={handleRgbChange('g')}
                     className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
                   />
@@ -143,7 +168,7 @@ export function ColorPickerPopover({
                     type="number"
                     min={0}
                     max={255}
-                    value={rgb.b}
+                    value={rgbInput.b}
                     onChange={handleRgbChange('b')}
                     className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
                   />

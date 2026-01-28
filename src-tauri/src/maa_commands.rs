@@ -3019,10 +3019,9 @@ pub async fn open_file(file_path: String) -> Result<(), String> {
 pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
     info!("run_and_wait: {}", file_path);
 
-    use std::process::Command;
-
     #[cfg(windows)]
     {
+        use std::process::Command;
         let status = Command::new(&file_path)
             .status()
             .map_err(|e| format!("Failed to run file: {}", e))?;

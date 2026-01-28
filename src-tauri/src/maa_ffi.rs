@@ -680,6 +680,7 @@ pub fn check_dlls_exist(lib_dir: &Path) -> bool {
     #[cfg(not(windows))]
     {
         // 非 Windows 平台不需要 VC++ 运行库
+        let _ = lib_dir;
         false
     }
 }

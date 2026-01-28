@@ -306,7 +306,7 @@ export default {
     saveDraw: '儲存除錯圖像',
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
-    tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+    tcpCompatModeHint: '若「開始任務」後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
   },
 
   // 欢迎彈窗

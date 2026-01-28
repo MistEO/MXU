@@ -308,7 +308,7 @@ export default {
     saveDrawHint:
       'Save recognition and action debug images to log directory (auto-disabled on restart)',
     tcpCompatMode: 'Communication Compat Mode',
-    tcpCompatModeHint: 'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+    tcpCompatModeHint: 'Try enabling this if the app crashes immediately after "Start Tasks". Only use in this case, as it may reduce performance',
   },
 
   // Welcome dialog

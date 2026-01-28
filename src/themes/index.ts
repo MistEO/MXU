@@ -171,9 +171,19 @@ export function getAvailableAccents(): AccentColor[] {
  * 获取强调色信息列表（用于 UI 展示）
  * @param lang 语言代码
  */
-export function getAccentInfoList(lang: string): AccentInfo[] {
+export function getAccentInfoList(lang: string, customAccents?: CustomAccent[]): AccentInfo[] {
   const langKey = lang as keyof AccentTheme['label'];
-  return getAvailableAccents().map((name) => {
+  const base = Object.keys(accentThemes) as AccentColor[];
+  const customOrdered = (customAccents ?? []).map((a) => a.name as AccentColor);
+  const seen = new Set<string>();
+  const all = [...base, ...customOrdered].filter((name) => {
+    if (seen.has(String(name))) return false;
+    seen.add(String(name));
+    // only include if exists (custom accents can be empty during boot)
+    return !!(customAccentThemes[name as string] || accentThemes[name as keyof typeof accentThemes]);
+  });
+
+  return all.map((name) => {
     const accent =
       customAccentThemes[name as string] || accentThemes[name as keyof typeof accentThemes];
     if (!accent) {

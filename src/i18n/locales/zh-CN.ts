@@ -3,6 +3,7 @@ export default {
   common: {
     confirm: '确定',
     cancel: '取消',
+    undo: '撤销',
     save: '保存',
     delete: '删除',
     edit: '编辑',
@@ -58,6 +59,7 @@ export default {
     noCustomAccents: '暂无自定义强调色',
     customAccentNameRequired: '请输入名称',
     deleteCustomAccentConfirm: '确定要删除这个自定义强调色吗？',
+    customAccentDeleted: '已删除 {{name}}',
     accentName: '名称',
     accentNamePlaceholder: '例如：小黑紫',
     autoAccentName: '{{hex}}',

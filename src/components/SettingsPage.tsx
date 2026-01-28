@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -45,7 +45,7 @@ import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
 import { setLanguage as setI18nLanguage, getInterfaceLangKey } from '@/i18n';
-import { getAccentInfoList, type AccentColor, type CustomAccent } from '@/themes';
+import { getAccentInfoList, type AccentColor, type CustomAccent, type AccentInfo } from '@/themes';
 import {
   resolveContent,
   loadIconAsDataUrl,
@@ -61,6 +61,16 @@ import clsx from 'clsx';
 import { ColorPickerPopover } from './ColorPickerPopover';
 import { ConfirmDialog } from './ConfirmDialog';
 import { HexColorTextInput } from './HexColorTextInput';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 检测是否在 Tauri 环境中
 const isTauri = () => {
@@ -89,6 +99,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     addCustomAccent,
     updateCustomAccent,
     removeCustomAccent,
+    reorderCustomAccents,
     language,
     setLanguage,
     setCurrentPage,
@@ -127,7 +138,94 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   } = useAppStore();
 
   // 获取强调色列表（包含自定义强调色）
-  const accentColors = useMemo(() => getAccentInfoList(language), [language, customAccents]);
+  const accentColors = useMemo(
+    () => getAccentInfoList(language, customAccents),
+    [language, customAccents],
+  );
+
+  const customAccentNames = useMemo(() => customAccents.map((a) => a.name), [customAccents]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const handleAccentDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = customAccentNames.indexOf(String(active.id));
+      const newIndex = customAccentNames.indexOf(String(over.id));
+      if (oldIndex === -1 || newIndex === -1) return;
+      reorderCustomAccents(oldIndex, newIndex);
+    },
+    [customAccentNames, reorderCustomAccents],
+  );
+
+  const SortableAccentTile = ({
+    accent,
+    customAccent,
+    isSelected,
+  }: {
+    accent: AccentInfo;
+    customAccent: CustomAccent;
+    isSelected: boolean;
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: customAccent.name,
+    });
+    const style: CSSProperties = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.7 : 1,
+    };
+
+    return (
+      <button
+        ref={setNodeRef}
+        style={style}
+        onClick={() => setAccentColor(accent.name as AccentColor)}
+        className={clsx(
+          'relative group flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-bg-tertiary border',
+          isSelected
+            ? 'ring-2 ring-offset-2 ring-offset-bg-secondary border-transparent'
+            : 'border-border hover:bg-bg-hover',
+          isDragging && 'cursor-grabbing',
+        )}
+        // drag handle = 整块（但编辑/删除会 stopPropagation）
+        {...attributes}
+        {...listeners}
+      >
+        <span
+          className="w-4 h-4 rounded-full flex-shrink-0 border border-border-strong"
+          style={{ backgroundColor: accent.color }}
+        />
+        <span className="truncate text-text-secondary pr-8">{accent.label}</span>
+
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditAccentModal(customAccent);
+            }}
+            className="p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-bg-hover"
+            title={t('settings.editCustomAccent')}
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPendingDeleteAccentId(customAccent.id);
+            }}
+            className="p-1 rounded-md text-text-muted hover:text-error hover:bg-error/10"
+            title={t('settings.deleteCustomAccent')}
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </button>
+    );
+  };
 
   // 自定义强调色编辑状态
   const [isAccentModalOpen, setIsAccentModalOpen] = useState(false);
@@ -140,6 +238,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [accentLightDarkColor, setAccentLightDarkColor] = useState('#413647');
   const [nameError, setNameError] = useState<string | null>(null);
   const [pendingDeleteAccentId, setPendingDeleteAccentId] = useState<string | null>(null);
+  const [undoDeletedAccent, setUndoDeletedAccent] = useState<CustomAccent | null>(null);
+  const undoTimerRef = useRef<number | null>(null);
   const accentModalRef = useRef<HTMLDivElement>(null);
   const accentNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -307,6 +407,43 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     },
     [removeCustomAccent],
   );
+
+  const performDeleteCustomAccent = useCallback(
+    (id: string) => {
+      const accent = customAccents.find((a) => a.id === id);
+      if (!accent) return;
+
+      // clear existing undo timer
+      if (undoTimerRef.current) {
+        window.clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = null;
+      }
+
+      handleDeleteAccent(id);
+      setUndoDeletedAccent(accent);
+      undoTimerRef.current = window.setTimeout(() => {
+        setUndoDeletedAccent(null);
+        undoTimerRef.current = null;
+      }, 5000);
+    },
+    [customAccents, handleDeleteAccent],
+  );
+
+  const handleUndoDeleteAccent = useCallback(() => {
+    if (!undoDeletedAccent) return;
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    addCustomAccent(undoDeletedAccent);
+    setUndoDeletedAccent(null);
+  }, [undoDeletedAccent, addCustomAccent]);
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) window.clearTimeout(undoTimerRef.current);
+    };
+  }, []);
 
   const [resolvedContent, setResolvedContent] = useState<ResolvedContent>({
     description: '',
@@ -1035,79 +1172,61 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   <Palette className="w-5 h-5 text-accent" />
                   <span className="font-medium text-text-primary">{t('settings.accentColor')}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {accentColors.map((accent) => {
-                    const isSelected = accentColor === accent.name;
-                    const customAccent = accent.isCustom
-                      ? customAccents.find((a) => a.name === accent.name)
-                      : undefined;
-
-                    return (
-                      <button
-                        key={accent.name}
-                        onClick={() => setAccentColor(accent.name as AccentColor)}
-                        className={clsx(
-                          'relative group flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-bg-tertiary border',
-                          isSelected
-                            ? 'ring-2 ring-offset-2 ring-offset-bg-secondary border-transparent'
-                            : 'border-border hover:bg-bg-hover',
-                        )}
-                        style={
-                          // 选中时使用该颜色作为 ring 颜色
-                          isSelected
-                            ? ({ '--tw-ring-color': accent.color } as React.CSSProperties)
-                            : undefined
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleAccentDragEnd}>
+                  <SortableContext items={customAccentNames} strategy={rectSortingStrategy}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {accentColors.map((accent) => {
+                        const isSelected = accentColor === accent.name;
+                        if (accent.isCustom) {
+                          const customAccent = customAccents.find((a) => a.name === accent.name);
+                          if (!customAccent) return null;
+                          return (
+                            <SortableAccentTile
+                              key={accent.name}
+                              accent={accent}
+                              customAccent={customAccent}
+                              isSelected={isSelected}
+                            />
+                          );
                         }
+
+                        return (
+                          <button
+                            key={accent.name}
+                            onClick={() => setAccentColor(accent.name as AccentColor)}
+                            className={clsx(
+                              'relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-bg-tertiary border',
+                              isSelected
+                                ? 'ring-2 ring-offset-2 ring-offset-bg-secondary border-transparent'
+                                : 'border-border hover:bg-bg-hover',
+                            )}
+                            style={
+                              isSelected
+                                ? ({ '--tw-ring-color': accent.color } as CSSProperties)
+                                : undefined
+                            }
+                          >
+                            <span
+                              className="w-4 h-4 rounded-full flex-shrink-0 border border-border-strong"
+                              style={{ backgroundColor: accent.color }}
+                            />
+                            <span className="truncate text-text-secondary">{accent.label}</span>
+                          </button>
+                        );
+                      })}
+
+                      {/* + 新增自定义强调色（与色票同一网格，符合截图布局） */}
+                      <button
+                        type="button"
+                        onClick={openCreateAccentModal}
+                        className="flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium bg-bg-tertiary border-2 border-dashed border-border hover:bg-bg-hover text-text-muted transition-colors"
+                        title={t('settings.addCustomAccent')}
                       >
-                        <span
-                          className="w-4 h-4 rounded-full flex-shrink-0 border border-border-strong"
-                          style={{ backgroundColor: accent.color }}
-                        />
-                        <span className="truncate text-text-secondary pr-8">
-                          {accent.label}
-                        </span>
-
-                        {/* 自定义强调色：悬停时显示编辑/删除（不影响常态布局） */}
-                        {accent.isCustom && customAccent && (
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditAccentModal(customAccent);
-                              }}
-                              className="p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-bg-hover"
-                              title={t('settings.editCustomAccent')}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPendingDeleteAccentId(customAccent.id);
-                              }}
-                              className="p-1 rounded-md text-text-muted hover:text-error hover:bg-error/10"
-                              title={t('settings.deleteCustomAccent')}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
+                        <Plus className="w-5 h-5" />
                       </button>
-                    );
-                  })}
-
-                  {/* + 新增自定义强调色（与色票同一网格，符合截图布局） */}
-                  <button
-                    type="button"
-                    onClick={openCreateAccentModal}
-                    className="flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium bg-bg-tertiary border-2 border-dashed border-border hover:bg-bg-hover text-text-muted transition-colors"
-                    title={t('settings.addCustomAccent')}
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
 
               {/* 选项预览 */}
@@ -1995,10 +2114,28 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         destructive
         onCancel={() => setPendingDeleteAccentId(null)}
         onConfirm={() => {
-          if (pendingDeleteAccentId) handleDeleteAccent(pendingDeleteAccentId);
+          if (pendingDeleteAccentId) performDeleteCustomAccent(pendingDeleteAccentId);
           setPendingDeleteAccentId(null);
         }}
       />
+
+      {/* Undo 删除提示 */}
+      {undoDeletedAccent && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-bg-secondary shadow-2xl">
+            <span className="text-sm text-text-secondary">
+              {t('settings.customAccentDeleted', { name: undoDeletedAccent.name })}
+            </span>
+            <button
+              type="button"
+              onClick={handleUndoDeleteAccent}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-bg-tertiary hover:bg-bg-hover text-text-secondary transition-colors"
+            >
+              {t('common.undo')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

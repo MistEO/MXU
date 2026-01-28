@@ -73,6 +73,7 @@ interface AppState {
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
+  reorderCustomAccents: (oldIndex: number, newIndex: number) => void;
 
   // 当前页面
   currentPage: PageView;
@@ -543,6 +544,17 @@ export const useAppStore = create<AppState>()(
           applyTheme(mode, defaultAccent);
         }
       }
+    },
+    reorderCustomAccents: (oldIndex, newIndex) => {
+      set((state) => {
+        const next = [...state.customAccents];
+        if (oldIndex < 0 || newIndex < 0 || oldIndex >= next.length || newIndex >= next.length) {
+          return { customAccents: next };
+        }
+        const [moved] = next.splice(oldIndex, 1);
+        next.splice(newIndex, 0, moved);
+        return { customAccents: next };
+      });
     },
 
     // 快捷键设置（默认：F10 开始任务，F11 结束任务）

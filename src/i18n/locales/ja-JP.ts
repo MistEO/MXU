@@ -3,6 +3,7 @@ export default {
   common: {
     confirm: '確定',
     cancel: 'キャンセル',
+    undo: '元に戻す',
     save: '保存',
     delete: '削除',
     edit: '編集',
@@ -58,6 +59,7 @@ export default {
     noCustomAccents: 'カスタムアクセントはまだありません',
     customAccentNameRequired: '名前を入力してください',
     deleteCustomAccentConfirm: 'このカスタムアクセントを削除してもよろしいですか？',
+    customAccentDeleted: '{{name}} を削除しました',
     accentName: '名前',
     accentNamePlaceholder: '例：ダークバイオレット',
     autoAccentName: '{{hex}}',

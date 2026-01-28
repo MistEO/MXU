@@ -3,6 +3,7 @@ export default {
   common: {
     confirm: 'Confirm',
     cancel: 'Cancel',
+    undo: 'Undo',
     save: 'Save',
     delete: 'Delete',
     edit: 'Edit',
@@ -58,6 +59,7 @@ export default {
     noCustomAccents: 'No custom accents yet',
     customAccentNameRequired: 'Please enter a name',
     deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent?',
+    customAccentDeleted: 'Deleted {{name}}',
     accentName: 'Name',
     accentNamePlaceholder: 'e.g. Dark Violet',
     autoAccentName: '{{hex}}',

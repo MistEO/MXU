@@ -259,15 +259,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     maaService.overridePipeline(instanceId, maaTaskId, pipelineOverride).catch((err) => {
       loggers.task.error('Failed to override pipeline:', err);
     });
-  }, [
-    task.optionValues,
-    taskRunStatus,
-    instanceId,
-    task.id,
-    task,
-    projectInterface,
-    findMaaTaskIdBySelectedTaskId,
-  ]);
+  }, [task.optionValues, taskRunStatus, instanceId, task.id, projectInterface]);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 

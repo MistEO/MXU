@@ -244,9 +244,31 @@ jobs:
           name: MXU-macos-${{ matrix.arch }}
           path: "install"
 
+  changelog:
+    name: Generate changelog
+    needs: meta
+    runs-on: ubuntu-latest
+    outputs:
+      release_body: ${{ steps.git-cliff.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: .github/cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
   release:
     if: ${{ needs.meta.outputs.is-release == 'true' }}
-    needs: [meta, windows, linux, macos]
+    needs: [meta, windows, linux, macos, changelog]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -269,12 +291,13 @@ jobs:
           ls -la
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.meta.outputs.tag }}
           name: Release ${{ needs.meta.outputs.tag }}
           draft: false
           prerelease: false
+          body: ${{ needs.changelog.outputs.release_body }}
           files: artifacts/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

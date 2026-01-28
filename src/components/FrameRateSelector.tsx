@@ -1,5 +1,6 @@
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera } from 'lucide-react';
+import { Camera, ChevronDown, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import type { ScreenshotFrameRate } from '@/types/config';
@@ -72,17 +73,88 @@ export function FrameRateSelector({ compact = false, className }: FrameRateSelec
           <p className="text-xs text-text-muted mt-0.5">{t('screenshot.frameRate.hint')}</p>
         </div>
       </div>
-      <select
+
+      {/* 自定义美化下拉菜单 */}
+      <FrameRateDropdown
         value={screenshotFrameRate}
-        onChange={(e) => setScreenshotFrameRate(e.target.value as ScreenshotFrameRate)}
-        className="w-full px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50"
+        onChange={(next) => setScreenshotFrameRate(next)}
+      />
+    </div>
+  );
+}
+
+interface FrameRateDropdownProps {
+  value: ScreenshotFrameRate;
+  onChange: (value: ScreenshotFrameRate) => void;
+}
+
+function FrameRateDropdown({ value, onChange }: FrameRateDropdownProps) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedOption =
+    FRAME_RATE_OPTIONS.find((option) => option.value === value) ?? FRAME_RATE_OPTIONS[0];
+
+  // 点击外部关闭
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        className={clsx(
+          'w-full px-3 py-2.5 rounded-lg border text-sm flex items-center justify-between gap-2',
+          'bg-bg-tertiary border-border text-text-primary',
+          'hover:bg-bg-hover transition-colors',
+          'focus:outline-none focus:ring-2 focus:ring-accent/50',
+        )}
+        onClick={() => setOpen((prev) => !prev)}
       >
-        {FRAME_RATE_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {t(option.labelKey)}
-          </option>
-        ))}
-      </select>
+        <span className="truncate">{t(selectedOption.labelKey)}</span>
+        <ChevronDown
+          className={clsx(
+            'w-4 h-4 text-text-secondary transition-transform',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg">
+          {FRAME_RATE_OPTIONS.map((option) => {
+            const isActive = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={clsx(
+                  'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
+                  isActive
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-text-primary hover:bg-bg-hover',
+                )}
+              >
+                <span className="truncate">{t(option.labelKey)}</span>
+                {isActive && <Check className="w-4 h-4 flex-shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

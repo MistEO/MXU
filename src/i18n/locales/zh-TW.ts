@@ -306,7 +306,7 @@ export default {
     saveDraw: '儲存除錯圖像',
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
-    tcpCompatModeHint: '若「開始任務」後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+    tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
   },
 
   // 欢迎彈窗
@@ -342,6 +342,11 @@ export default {
     succeeded: '已完成',
     failed: '已失敗',
     noEnabledTasks: '沒有啟用的任務',
+    alignLeft: '靠左排列',
+    alignCenter: '置中排列',
+    alignRight: '靠右排列',
+    zoomIn: '放大',
+    zoomOut: '縮小',
   },
 
   // 最近關閉
@@ -460,9 +465,13 @@ export default {
     multiSelect: '可多選',
     enable: '啟用策略',
     disable: '停用策略',
+    enableAll: '啟用所有策略',
+    disableAll: '停用所有策略',
     hint: '定時策略將在設定時間自動開始任務',
     executingPolicy: '正在按照「{{name}}」定時執行',
     startedAt: '開始時間: {{time}}',
+    deletePolicyTitle: '刪除策略',
+    deletePolicyConfirm: '確定要刪除策略「{{name}}」嗎？',
     // 索引對應 Date.getDay()：0=週日, 1=週一, ..., 6=週六
     weekdays: ['週日', '週一', '週二', '週三', '週四', '週五', '週六'],
   },

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutGrid,
@@ -16,6 +16,11 @@ import {
   CheckCircle,
   Loader2,
   StopCircle,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
@@ -329,6 +334,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       registerTaskIdName,
       registerEntryTaskName,
       setShowAddTaskPanel,
+      translations,
+      tcpCompatMode,
     ],
   );
 
@@ -824,6 +831,18 @@ export function DashboardView({ onClose }: DashboardViewProps) {
   const { t } = useTranslation();
   const { instances, activeInstanceId, setActiveInstance, toggleDashboardView } = useAppStore();
 
+  // 实例网格对齐方式：left / center / right
+  const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
+  // 实例网格缩放
+  const [zoom, setZoom] = useState(1);
+
+  const handleZoom = (delta: number) => {
+    setZoom((prev) => {
+      const next = Math.min(1.5, Math.max(0.6, prev + delta));
+      return Math.round(next * 100) / 100;
+    });
+  };
+
   const handleClose = onClose ?? toggleDashboardView;
 
   const handleSelectInstance = (instanceId: string) => {
@@ -842,25 +861,45 @@ export function DashboardView({ onClose }: DashboardViewProps) {
         ) : (
           <div
             className={clsx(
-              'grid gap-4',
-              instances.length === 1
-                ? 'grid-cols-1 max-w-2xl mx-auto'
-                : instances.length === 2
-                  ? 'grid-cols-2 max-w-4xl mx-auto'
-                  : instances.length <= 4
-                    ? 'grid-cols-2 lg:grid-cols-2 max-w-5xl mx-auto'
-                    : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+              'w-full flex',
+              align === 'left' && 'justify-start',
+              align === 'center' && 'justify-center',
+              align === 'right' && 'justify-end',
             )}
           >
-            {instances.map((instance) => (
-              <InstanceCard
-                key={instance.id}
-                instanceId={instance.id}
-                instanceName={instance.name}
-                isActive={instance.id === activeInstanceId}
-                onSelect={() => handleSelectInstance(instance.id)}
-              />
-            ))}
+            <div
+              className={clsx(
+                'grid gap-4',
+                instances.length === 1
+                  ? 'grid-cols-1 max-w-2xl'
+                  : instances.length === 2
+                    ? 'grid-cols-2 max-w-4xl'
+                    : instances.length <= 4
+                      ? 'grid-cols-2 lg:grid-cols-2 max-w-5xl'
+                      : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+              )}
+              style={
+                {
+                  transform: `scale(${zoom})`,
+                  transformOrigin:
+                    align === 'left'
+                      ? 'top left'
+                      : align === 'right'
+                        ? 'top right'
+                        : 'top center',
+                } as CSSProperties
+              }
+            >
+              {instances.map((instance) => (
+                <InstanceCard
+                  key={instance.id}
+                  instanceId={instance.id}
+                  instanceName={instance.name}
+                  isActive={instance.id === activeInstanceId}
+                  onSelect={() => handleSelectInstance(instance.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -874,6 +913,77 @@ export function DashboardView({ onClose }: DashboardViewProps) {
             {instances.length} {t('dashboard.instances')}
           </span>
         </div>
+
+        {/* 中间：排列 + 缩放（放在底部中间区域） */}
+        <div className="flex items-center justify-center gap-4">
+          {/* 对齐方式切换 */}
+          <div className="flex items-center gap-1 bg-bg-tertiary rounded-md px-1.5 py-1">
+            <button
+              type="button"
+              onClick={() => setAlign('left')}
+              className={clsx(
+                'p-1.5 rounded-md text-xs flex items-center justify-center',
+                align === 'left'
+                  ? 'bg-accent text-white'
+                  : 'text-text-secondary hover:bg-bg-hover',
+              )}
+              title={t('dashboard.alignLeft')}
+            >
+              <AlignLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlign('center')}
+              className={clsx(
+                'p-1.5 rounded-md text-xs flex items-center justify-center',
+                align === 'center'
+                  ? 'bg-accent text-white'
+                  : 'text-text-secondary hover:bg-bg-hover',
+              )}
+              title={t('dashboard.alignCenter')}
+            >
+              <AlignCenter className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlign('right')}
+              className={clsx(
+                'p-1.5 rounded-md text-xs flex items-center justify-center',
+                align === 'right'
+                  ? 'bg-accent text-white'
+                  : 'text-text-secondary hover:bg-bg-hover',
+              )}
+              title={t('dashboard.alignRight')}
+            >
+              <AlignRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 缩放调整 */}
+          <div className="flex items-center gap-1 bg-bg-tertiary rounded-md px-1.5 py-1">
+            <button
+              type="button"
+              onClick={() => handleZoom(-0.1)}
+              className="p-1.5 rounded-md text-xs flex items-center justify-center text-text-secondary hover:bg-bg-hover"
+              title={t('dashboard.zoomOut')}
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="px-1 text-xs text-text-secondary w-10 text-center select-none">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => handleZoom(0.1)}
+              className="p-1.5 rounded-md text-xs flex items-center justify-center text-text-secondary hover:bg-bg-hover"
+              title={t('dashboard.zoomIn')}
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* 右侧：帧率 + 退出按钮 */}
         <div className="flex items-center gap-4">
           <FrameRateSelector compact />
           <button
@@ -887,3 +997,4 @@ export function DashboardView({ onClose }: DashboardViewProps) {
     </div>
   );
 }
+

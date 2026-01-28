@@ -306,7 +306,7 @@ export default {
     saveDraw: '保存调试图像',
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
-    tcpCompatModeHint: '若「开始任务」后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+    tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
   },
 
   // 欢迎弹窗
@@ -342,6 +342,11 @@ export default {
     succeeded: '已完成',
     failed: '已失败',
     noEnabledTasks: '没有启用的任务',
+    alignLeft: '靠左排列',
+    alignCenter: '居中排列',
+    alignRight: '靠右排列',
+    zoomIn: '放大',
+    zoomOut: '缩小',
   },
 
   // 最近关闭
@@ -471,9 +476,13 @@ export default {
     multiSelect: '可多选',
     enable: '启用策略',
     disable: '禁用策略',
+    enableAll: '启用所有策略',
+    disableAll: '禁用所有策略',
     hint: '定时策略将在设定时间自动开始任务',
     executingPolicy: '正在按照「{{name}}」定时执行',
     startedAt: '开始时间: {{time}}',
+    deletePolicyTitle: '删除策略',
+    deletePolicyConfirm: '确定要删除策略「{{name}}」吗？',
     // 索引对应 Date.getDay()：0=周日, 1=周一, ..., 6=周六
     weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
   },

@@ -308,7 +308,7 @@ export default {
     saveDrawHint:
       'Save recognition and action debug images to log directory (auto-disabled on restart)',
     tcpCompatMode: 'Communication Compat Mode',
-    tcpCompatModeHint: 'Try enabling this if the app crashes immediately after "Start Tasks". Only use in this case, as it may reduce performance',
+    tcpCompatModeHint: 'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
   },
 
   // Welcome dialog
@@ -345,6 +345,11 @@ export default {
     succeeded: 'Succeeded',
     failed: 'Failed',
     noEnabledTasks: 'No enabled tasks',
+    alignLeft: 'Align cards to left',
+    alignCenter: 'Align cards to center',
+    alignRight: 'Align cards to right',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
   },
 
   // Recently Closed
@@ -463,9 +468,13 @@ export default {
     multiSelect: 'multi-select',
     enable: 'Enable schedule',
     disable: 'Disable schedule',
+    enableAll: 'Enable all schedules',
+    disableAll: 'Disable all schedules',
     hint: 'Scheduled tasks will run automatically at set times',
     executingPolicy: 'Running scheduled "{{name}}"',
     startedAt: 'Started at: {{time}}',
+    deletePolicyTitle: 'Delete schedule',
+    deletePolicyConfirm: 'Are you sure you want to delete schedule "{{name}}"?',
     // Index corresponds to Date.getDay(): 0=Sun, 1=Mon, ..., 6=Sat
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   },

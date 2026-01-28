@@ -3,6 +3,29 @@ import { HexColorPicker } from 'react-colorful';
 import clsx from 'clsx';
 import { normalizeHex } from '@/utils/color';
 
+function clampChannel(value: number) {
+  if (Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(255, value));
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return { r: 0, g: 0, b: 0 };
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return { r, g, b };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const nr = clampChannel(r);
+  const ng = clampChannel(g);
+  const nb = clampChannel(b);
+  return `#${nr.toString(16).padStart(2, '0')}${ng
+    .toString(16)
+    .padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`.toUpperCase();
+}
+
 export function ColorPickerPopover({
   value,
   onChange,
@@ -19,6 +42,22 @@ export function ColorPickerPopover({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const color = useMemo(() => normalizeHex(value) ?? '#000000', [value]);
+  const rgb = useMemo(() => hexToRgb(color), [color]);
+
+  const handleRgbChange =
+    (channel: 'r' | 'g' | 'b') =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      const parsed = parseInt(raw, 10);
+      const nextValue = clampChannel(parsed);
+      const current = hexToRgb(color);
+      const merged = {
+        ...current,
+        [channel]: nextValue,
+      };
+      const nextHex = rgbToHex(merged.r, merged.g, merged.b);
+      onChange(nextHex);
+    };
 
   useEffect(() => {
     if (!open) return;
@@ -59,14 +98,58 @@ export function ColorPickerPopover({
           className="absolute z-50 mt-2 w-64 rounded-xl border border-border bg-bg-secondary shadow-2xl p-3"
         >
           {label && <div className="text-xs font-medium text-text-secondary mb-2">{label}</div>}
-          <div className="rounded-lg overflow-hidden border border-border bg-bg-tertiary">
-            <HexColorPicker
-              color={color}
-              onChange={(c) => {
-                const next = normalizeHex(c);
-                if (next) onChange(next);
-              }}
-            />
+          <div className="space-y-3">
+            <div className="rounded-lg overflow-hidden border border-border bg-bg-tertiary">
+              <HexColorPicker
+                color={color}
+                onChange={(c) => {
+                  const next = normalizeHex(c);
+                  if (next) onChange(next);
+                }}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div
+                className="w-8 h-8 rounded-md border border-border-strong shadow-sm flex-shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <div className="flex items-center gap-1 flex-1">
+                <div className="flex flex-col gap-0.5 flex-1">
+                  <span className="text-[10px] font-medium text-text-muted leading-none">R</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={255}
+                    value={rgb.r}
+                    onChange={handleRgbChange('r')}
+                    className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1">
+                  <span className="text-[10px] font-medium text-text-muted leading-none">G</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={255}
+                    value={rgb.g}
+                    onChange={handleRgbChange('g')}
+                    className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1">
+                  <span className="text-[10px] font-medium text-text-muted leading-none">B</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={255}
+                    value={rgb.b}
+                    onChange={handleRgbChange('b')}
+                    className="w-full px-1.5 py-1 rounded-md bg-bg-tertiary border border-border text-[11px] font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/60 focus:border-accent/60"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

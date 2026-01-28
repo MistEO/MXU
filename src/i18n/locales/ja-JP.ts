@@ -310,7 +310,7 @@ export default {
     saveDrawHint:
       '認識と操作のデバッグ画像をログフォルダに保存します（再起動後は自動的にオフになります）',
     tcpCompatMode: '通信互換モード',
-    tcpCompatModeHint: '「実行開始」後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
+    tcpCompatModeHint: 'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
   },
 
   // ウェルカムダイアログ
@@ -346,6 +346,11 @@ export default {
     succeeded: '完了',
     failed: '失敗',
     noEnabledTasks: '有効なタスクがありません',
+    alignLeft: '左寄せ',
+    alignCenter: '中央寄せ',
+    alignRight: '右寄せ',
+    zoomIn: '拡大',
+    zoomOut: '縮小',
   },
 
   // 最近閉じたタブ
@@ -465,9 +470,13 @@ export default {
     multiSelect: '複数選択可',
     enable: 'スケジュールを有効化',
     disable: 'スケジュールを無効化',
+    enableAll: 'すべてのスケジュールを有効化',
+    disableAll: 'すべてのスケジュールを無効化',
     hint: 'スケジュールされたタスクは設定された時刻に自動的に実行されます',
     executingPolicy: '「{{name}}」のスケジュールを実行中',
     startedAt: '開始時刻: {{time}}',
+    deletePolicyTitle: 'スケジュールを削除',
+    deletePolicyConfirm: 'スケジュール「{{name}}」を削除してもよろしいですか？',
     // Date.getDay() に対応: 0=日, 1=月, ..., 6=土
     weekdays: ['日', '月', '火', '水', '木', '金', '土'],
   },

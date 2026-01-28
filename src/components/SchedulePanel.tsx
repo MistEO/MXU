@@ -13,6 +13,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import type { SchedulePolicy } from '@/types/interface';
 import clsx from 'clsx';
+import { ConfirmDialog } from './ConfirmDialog';
 
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -40,6 +41,7 @@ function PolicyCard({
   onToggleExpand: () => void;
 }) {
   const { t } = useTranslation();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
 
@@ -101,7 +103,14 @@ function PolicyCard({
     >
       {/* 卡片头部 */}
       <div className="flex items-center gap-2 p-3">
-        {/* 启用开关 */}
+        {/* 策略名称 */}
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-text-primary truncate block">
+            {policy.name}
+          </span>
+        </div>
+
+        {/* 单个策略启用开关（靠右，位于展开按钮左侧） */}
         <button
           onClick={() => onUpdate({ enabled: !policy.enabled })}
           className="p-1 rounded hover:bg-bg-hover"
@@ -114,13 +123,6 @@ function PolicyCard({
           )}
         </button>
 
-        {/* 策略名称 */}
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium text-text-primary truncate block">
-            {policy.name}
-          </span>
-        </div>
-
         {/* 展开/折叠 */}
         <button onClick={onToggleExpand} className="p-1 rounded hover:bg-bg-hover">
           {isExpanded ? (
@@ -132,7 +134,7 @@ function PolicyCard({
 
         {/* 删除按钮 */}
         <button
-          onClick={onDelete}
+          onClick={() => setShowDeleteConfirm(true)}
           className="p-1 rounded hover:bg-error/10 text-text-muted hover:text-error"
           title={t('common.delete')}
         >
@@ -256,6 +258,21 @@ function PolicyCard({
           </p>
         </div>
       )}
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={t('schedule.deletePolicyTitle')}
+        message={t('schedule.deletePolicyConfirm', { name: policy.name })}
+        cancelText={t('common.cancel')}
+        confirmText={t('common.confirm')}
+        destructive
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete();
+        }}
+      />
     </div>
   );
 }
@@ -268,6 +285,7 @@ export function SchedulePanel({ instanceId, onClose }: SchedulePanelProps) {
 
   const instance = getActiveInstance();
   const policies = instance?.schedulePolicies || [];
+  const anyEnabled = policies.some((p) => p.enabled);
 
   // 点击外部关闭面板
   useEffect(() => {
@@ -313,6 +331,13 @@ export function SchedulePanel({ instanceId, onClose }: SchedulePanelProps) {
     [instanceId, policies, expandedPolicyId, updateInstance],
   );
 
+  const handleToggleAll = useCallback(() => {
+    if (policies.length === 0) return;
+    const nextEnabled = !anyEnabled;
+    const updatedPolicies = policies.map((p) => ({ ...p, enabled: nextEnabled }));
+    updateInstance(instanceId, { schedulePolicies: updatedPolicies });
+  }, [anyEnabled, instanceId, policies, updateInstance]);
+
   return (
     <div
       ref={panelRef}
@@ -328,9 +353,27 @@ export function SchedulePanel({ instanceId, onClose }: SchedulePanelProps) {
           <Clock className="w-4 h-4 text-accent" />
           <span className="text-sm font-medium text-text-primary">{t('schedule.title')}</span>
         </div>
-        <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover">
-          <X className="w-4 h-4 text-text-muted" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* 总开关：启用/禁用所有策略 */}
+          <button
+            onClick={handleToggleAll}
+            disabled={policies.length === 0}
+            className={clsx(
+              'p-1 rounded hover:bg-bg-hover',
+              policies.length === 0 && 'opacity-50 cursor-not-allowed',
+            )}
+            title={anyEnabled ? t('schedule.disableAll') : t('schedule.enableAll')}
+          >
+            {anyEnabled ? (
+              <ToggleRight className="w-5 h-5 text-accent" />
+            ) : (
+              <ToggleLeft className="w-5 h-5 text-text-muted" />
+            )}
+          </button>
+          <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover">
+            <X className="w-4 h-4 text-text-muted" />
+          </button>
+        </div>
       </div>
 
       {/* 策略列表 */}

@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/appStore';
 import type { RecentlyClosedInstance } from '@/types/config';
 import type { ProjectInterface } from '@/types/interface';
 import clsx from 'clsx';
+import { getInterfaceLangKey } from '@/i18n';
 
 interface RecentlyClosedPanelProps {
   onClose: () => void;
@@ -43,20 +44,26 @@ function formatFullTime(timestamp: number): string {
 function getControllerLabel(
   controllerName: string | undefined,
   projectInterface: ProjectInterface | null,
+  langKey: string,
+  resolveI18nText: (text: string | undefined, lang: string) => string,
 ): string {
   if (!controllerName) return '';
   const controller = projectInterface?.controller.find((c) => c.name === controllerName);
-  return controller?.label || controllerName;
+  if (!controller) return controllerName;
+  return resolveI18nText(controller.label, langKey) || controller.name;
 }
 
 // 获取资源显示名称（优先 label，回退到 name）
 function getResourceLabel(
   resourceName: string | undefined,
   projectInterface: ProjectInterface | null,
+  langKey: string,
+  resolveI18nText: (text: string | undefined, lang: string) => string,
 ): string {
   if (!resourceName) return '';
   const resource = projectInterface?.resource.find((r) => r.name === resourceName);
-  return resource?.label || resourceName;
+  if (!resource) return resourceName;
+  return resolveI18nText(resource.label, langKey) || resource.name;
 }
 
 // 格式化任务摘要
@@ -64,6 +71,8 @@ function formatTasksSummary(
   item: RecentlyClosedInstance,
   t: (key: string) => string,
   projectInterface: ProjectInterface | null,
+  langKey: string,
+  resolveI18nText: (text: string | undefined, lang: string) => string,
 ): string {
   const taskCount = item.tasks.length;
   if (taskCount === 0) {
@@ -73,7 +82,9 @@ function formatTasksSummary(
   // 优先使用 customName，其次通过 taskName 查找对应的 label，最后回退到 taskName
   const firstTask = item.tasks[0];
   const taskDef = projectInterface?.task.find((task) => task.name === firstTask.taskName);
-  const firstTaskLabel = firstTask.customName || taskDef?.label || firstTask.taskName;
+  const firstTaskLabel =
+    firstTask.customName ||
+    (taskDef ? resolveI18nText(taskDef.label, langKey) || taskDef.name || firstTask.taskName : firstTask.taskName);
 
   if (taskCount === 1) {
     return firstTaskLabel;
@@ -95,7 +106,11 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
     removeFromRecentlyClosed,
     clearRecentlyClosed,
     projectInterface,
+    language,
+    resolveI18nText,
   } = useAppStore();
+
+  const langKey = getInterfaceLangKey(language);
 
   // 计算面板位置
   useEffect(() => {
@@ -243,7 +258,7 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
                     >
                       <Gamepad2 className="w-3 h-3" />
                       <span className="max-w-[80px] truncate">
-                        {getControllerLabel(item.controllerName, projectInterface)}
+                        {getControllerLabel(item.controllerName, projectInterface, langKey, resolveI18nText)}
                       </span>
                     </span>
                   )}
@@ -254,7 +269,7 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
                     <span className="flex items-center gap-1 shrink-0" title={t('resource.title')}>
                       <Package className="w-3 h-3" />
                       <span className="max-w-[80px] truncate">
-                        {getResourceLabel(item.resourceName, projectInterface)}
+                        {getResourceLabel(item.resourceName, projectInterface, langKey, resolveI18nText)}
                       </span>
                     </span>
                   )}
@@ -264,11 +279,11 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
                   {item.tasks.length > 0 && (
                     <span
                       className="flex items-center gap-1 truncate"
-                      title={formatTasksSummary(item, t, projectInterface)}
+                      title={formatTasksSummary(item, t, projectInterface, langKey, resolveI18nText)}
                     >
                       <ListChecks className="w-3 h-3 shrink-0" />
                       <span className="truncate">
-                        {formatTasksSummary(item, t, projectInterface)}
+                        {formatTasksSummary(item, t, projectInterface, langKey, resolveI18nText)}
                       </span>
                     </span>
                   )}

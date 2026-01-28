@@ -303,7 +303,7 @@ export default {
     saveDrawHint:
       '인식 및 작업의 디버그 이미지를 로그 폴더에 저장합니다 (재시작 후 자동으로 비활성화됨)',
     tcpCompatMode: '통신 호환 모드',
-    tcpCompatModeHint: '「실행 시작」 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+    tcpCompatModeHint: '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
   },
 
   // 환영 대화상자
@@ -339,6 +339,11 @@ export default {
     succeeded: '완료',
     failed: '실패',
     noEnabledTasks: '활성화된 작업이 없습니다',
+    alignLeft: '왼쪽 정렬',
+    alignCenter: '가운데 정렬',
+    alignRight: '오른쪽 정렬',
+    zoomIn: '확대',
+    zoomOut: '축소',
   },
 
   // 최근 닫은 탭
@@ -457,9 +462,13 @@ export default {
     multiSelect: '다중 선택',
     enable: '예약 활성화',
     disable: '예약 비활성화',
+    enableAll: '모든 예약 활성화',
+    disableAll: '모든 예약 비활성화',
     hint: '예약된 작업은 설정된 시간에 자동으로 실행됩니다',
     executingPolicy: '「{{name}}」 예약 실행 중',
     startedAt: '시작 시간: {{time}}',
+    deletePolicyTitle: '예약 삭제',
+    deletePolicyConfirm: '예약 "{{name}}"을(를) 삭제하시겠습니까?',
     // Date.getDay()에 대응: 0=일, 1=월, ..., 6=토
     weekdays: ['일', '월', '화', '수', '목', '금', '토'],
   },

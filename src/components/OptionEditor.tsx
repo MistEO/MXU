@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useId, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
-import { Info, AlertCircle, Loader2, FileText, Link } from 'lucide-react';
+import { Info, AlertCircle, Loader2, FileText, Link, ChevronDown, Check } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
 
@@ -367,32 +367,22 @@ export function OptionEditor({
     <div className={clsx('space-y-2', depth > 0 && 'ml-4 pl-3 border-l-2 border-border')}>
       <div className="flex items-center gap-3">
         <OptionLabel label={optionLabel} icon={optionDef.icon} basePath={basePath} />
-        <select
+        <OptionSelectDropdown
+          className="flex-1"
           value={selectedCaseName}
-          onChange={(e) => {
+          disabled={disabled}
+          options={optionDef.cases.map((caseItem) => ({
+            value: caseItem.name,
+            label: resolveI18nText(caseItem.label, langKey) || caseItem.name,
+          }))}
+          onChange={(next) => {
             if (disabled) return;
             setTaskOptionValue(instanceId, taskId, optionKey, {
               type: 'select',
-              caseName: e.target.value,
+              caseName: next,
             });
           }}
-          disabled={disabled}
-          className={clsx(
-            'flex-1 px-3 py-1.5 text-sm rounded-md border border-border',
-            'bg-bg-secondary text-text-primary',
-            'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
-            disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-          )}
-        >
-          {optionDef.cases.map((caseItem) => {
-            const caseLabel = resolveI18nText(caseItem.label, langKey) || caseItem.name;
-            return (
-              <option key={caseItem.name} value={caseItem.name}>
-                {caseLabel}
-              </option>
-            );
-          })}
-        </select>
+        />
       </div>
       <OptionDescription
         description={optionDescription}
@@ -413,6 +403,191 @@ export function OptionEditor({
               disabled={disabled}
             />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface OptionSelectDropdownProps {
+  value: string;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+  className?: string;
+  onChange: (value: string) => void;
+}
+
+function OptionSelectDropdown({
+  value,
+  options,
+  disabled = false,
+  className,
+  onChange,
+}: OptionSelectDropdownProps) {
+  const triggerId = useId();
+  const listboxId = useId();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listboxRef = useRef<HTMLDivElement | null>(null);
+
+  const initialIndex = Math.max(
+    0,
+    options.findIndex((opt) => opt.value === value),
+  );
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+
+  const selectedOption = options.find((opt) => opt.value === value) ?? options[0];
+
+  // 点击外部关闭
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  // 打开时初始化活动项并将焦点移动到列表
+  useEffect(() => {
+    if (open && !disabled) {
+      const index = Math.max(
+        0,
+        options.findIndex((opt) => opt.value === value),
+      );
+      setActiveIndex(index);
+      setTimeout(() => {
+        listboxRef.current?.focus();
+      }, 0);
+    }
+  }, [open, disabled, options, value]);
+
+  const closeAndFocusTrigger = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      setOpen((prev) => !prev);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setOpen(true);
+    } else if (event.key === 'Escape') {
+      if (open) {
+        event.preventDefault();
+        setOpen(false);
+      }
+    }
+  };
+
+  const handleListboxKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((prev) => Math.min(options.length - 1, prev + 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((prev) => Math.max(0, prev - 1));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(options.length - 1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAndFocusTrigger();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const opt = options[activeIndex];
+      if (opt) {
+        onChange(opt.value);
+        closeAndFocusTrigger();
+      }
+    }
+  };
+
+  const isDisabled = disabled || options.length === 0;
+
+  return (
+    <div ref={containerRef} className={clsx('relative', className)}>
+      <button
+        type="button"
+        id={triggerId}
+        ref={triggerRef}
+        disabled={isDisabled}
+        className={clsx(
+          'w-full px-3 py-1.5 text-sm rounded-md border flex items-center justify-between gap-2',
+          'bg-bg-secondary text-text-primary border-border',
+          'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
+          isDisabled
+            ? 'cursor-not-allowed opacity-60'
+            : 'cursor-pointer hover:bg-bg-hover transition-colors',
+        )}
+        onClick={() => {
+          if (isDisabled) return;
+          setOpen((prev) => !prev);
+        }}
+        onKeyDown={handleTriggerKeyDown}
+        role="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+      >
+        <span className="truncate">{selectedOption?.label}</span>
+        <ChevronDown
+          className={clsx(
+            'w-4 h-4 text-text-secondary transition-transform',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && !isDisabled && (
+        <div
+          id={listboxId}
+          ref={listboxRef}
+          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
+          role="listbox"
+          aria-labelledby={triggerId}
+          tabIndex={-1}
+          onKeyDown={handleListboxKeyDown}
+        >
+          {options.map((opt, index) => {
+            const isSelected = opt.value === value;
+            const isActive = index === activeIndex;
+            const optionId = `${listboxId}-option-${opt.value}`;
+            return (
+              <button
+                key={optionId}
+                id={optionId}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  closeAndFocusTrigger();
+                }}
+                className={clsx(
+                  'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
+                  isActive
+                    ? 'bg-bg-active text-text-primary'
+                    : isSelected
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-text-primary hover:bg-bg-hover',
+                )}
+                role="option"
+                aria-selected={isSelected}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

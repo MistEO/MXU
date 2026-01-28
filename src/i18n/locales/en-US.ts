@@ -289,6 +289,10 @@ export default {
     environment: 'Environment',
     envTauri: 'Tauri Desktop',
     envBrowser: 'Browser',
+    systemInfo: 'System Information',
+    operatingSystem: 'Operating System',
+    architecture: 'Architecture',
+    tauriVersion: 'Tauri Version',
     pathInfo: 'Path Information',
     cwd: 'Current Working Directory',
     exeDir: 'Executable Directory',
@@ -303,6 +307,8 @@ export default {
     saveDraw: 'Save Debug Images',
     saveDrawHint:
       'Save recognition and action debug images to log directory (auto-disabled on restart)',
+    tcpCompatMode: 'Communication Compat Mode',
+    tcpCompatModeHint: 'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
   },
 
   // Welcome dialog

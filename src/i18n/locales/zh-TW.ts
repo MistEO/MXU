@@ -288,6 +288,10 @@ export default {
     environment: '執行環境',
     envTauri: 'Tauri 桌面端',
     envBrowser: '瀏覽器',
+    systemInfo: '系統資訊',
+    operatingSystem: '作業系統',
+    architecture: '系統架構',
+    tauriVersion: 'Tauri 版本',
     pathInfo: '路徑資訊',
     cwd: '目前工作目錄',
     exeDir: '程式所在目錄',
@@ -301,6 +305,8 @@ export default {
     devModeHint: '啟用後允許按 F5 重新整理 UI',
     saveDraw: '儲存除錯圖像',
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
+    tcpCompatMode: '通訊相容模式',
+    tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
   },
 
   // 欢迎彈窗

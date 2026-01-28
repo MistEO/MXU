@@ -80,6 +80,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     // 国际化
     interfaceTranslations,
     language,
+    // 调试设置
+    tcpCompatMode,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -714,7 +716,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }
 
         // 启动任务
-        const taskIds = await maaService.startTasks(targetId, taskConfigs, agentConfig, basePath);
+        const taskIds = await maaService.startTasks(targetId, taskConfigs, agentConfig, basePath, tcpCompatMode);
 
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);
 
@@ -1035,6 +1037,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           taskConfigs,
           agentConfig,
           basePath,
+          tcpCompatMode,
         );
 
         log.info('任务已提交, task_ids:', taskIds);

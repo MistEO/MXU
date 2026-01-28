@@ -291,6 +291,10 @@ export default {
     environment: '実行環境',
     envTauri: 'Tauri デスクトップ',
     envBrowser: 'ブラウザ',
+    systemInfo: 'システム情報',
+    operatingSystem: 'オペレーティングシステム',
+    architecture: 'アーキテクチャ',
+    tauriVersion: 'Tauri バージョン',
     pathInfo: 'パス情報',
     cwd: '現在の作業ディレクトリ',
     exeDir: '実行ファイルのディレクトリ',
@@ -305,6 +309,8 @@ export default {
     saveDraw: 'デバッグ画像を保存',
     saveDrawHint:
       '認識と操作のデバッグ画像をログフォルダに保存します（再起動後は自動的にオフになります）',
+    tcpCompatMode: '通信互換モード',
+    tcpCompatModeHint: 'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
   },
 
   // ウェルカムダイアログ

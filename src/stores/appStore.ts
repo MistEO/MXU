@@ -267,6 +267,10 @@ interface AppState {
   devMode: boolean;
   setDevMode: (devMode: boolean) => void;
 
+  // 通信兼容模式（强制使用 TCP 而非 IPC）
+  tcpCompatMode: boolean;
+  setTcpCompatMode: (enabled: boolean) => void;
+
   // 新用户引导
   onboardingCompleted: boolean;
   setOnboardingCompleted: (completed: boolean) => void;
@@ -1198,6 +1202,7 @@ export const useAppStore = create<AppState>()(
         screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
+        tcpCompatMode: config.settings.tcpCompatMode ?? false,
         onboardingCompleted: config.settings.onboardingCompleted ?? false,
         hotkeys: config.settings.hotkeys ?? { startTasks: 'F10', stopTasks: 'F11' },
         recentlyClosed: config.recentlyClosed || [],
@@ -1447,6 +1452,10 @@ export const useAppStore = create<AppState>()(
     // 开发模式
     devMode: false,
     setDevMode: (devMode) => set({ devMode }),
+
+    // 通信兼容模式
+    tcpCompatMode: false,
+    setTcpCompatMode: (enabled) => set({ tcpCompatMode: enabled }),
 
     // 新用户引导
     onboardingCompleted: false,
@@ -1792,6 +1801,7 @@ function generateConfig(): MxuConfig {
       screenshotFrameRate: state.screenshotFrameRate,
       welcomeShownHash: state.welcomeShownHash,
       devMode: state.devMode,
+      tcpCompatMode: state.tcpCompatMode,
       onboardingCompleted: state.onboardingCompleted,
       hotkeys: state.hotkeys,
     },
@@ -1840,6 +1850,7 @@ useAppStore.subscribe(
     screenshotFrameRate: state.screenshotFrameRate,
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
+    tcpCompatMode: state.tcpCompatMode,
     onboardingCompleted: state.onboardingCompleted,
     hotkeys: state.hotkeys,
     recentlyClosed: state.recentlyClosed,

@@ -69,6 +69,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     registerEntryTaskName,
     screenshotFrameRate,
     setShowAddTaskPanel,
+    tcpCompatMode,
   } = useAppStore();
 
   const langKey = getInterfaceLangKey(language);
@@ -254,6 +255,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             taskConfigs,
             agentConfig,
             basePath,
+            tcpCompatMode,
           );
 
           log.info(`[${instanceName}] 任务已提交, task_ids:`, taskIds);

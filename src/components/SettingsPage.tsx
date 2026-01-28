@@ -122,6 +122,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     setDevMode,
     saveDraw,
     setSaveDraw,
+    tcpCompatMode,
+    setTcpCompatMode,
     downloadStatus,
     downloadProgress,
     setDownloadStatus,
@@ -458,6 +460,12 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [showCdk, setShowCdk] = useState(false);
   const [exeDir, setExeDir] = useState<string | null>(null);
   const [cwd, setCwd] = useState<string | null>(null);
+  const [systemInfo, setSystemInfo] = useState<{
+    os: string;
+    osVersion: string;
+    arch: string;
+    tauriVersion: string;
+  } | null>(null);
 
   // 代理设置相关状态
   const [proxyInput, setProxyInput] = useState(proxySettings?.url || '');
@@ -723,19 +731,29 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         setMaafwVersion(null);
       }
 
-      // 路径信息（仅在 Tauri 环境有意义）
+      // 路径信息和系统信息（仅在 Tauri 环境有意义）
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult] = await Promise.all([
+          const [exeDirResult, cwdResult, sysInfo] = await Promise.all([
             invoke<string>('get_exe_dir'),
             invoke<string>('get_cwd'),
+            invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
+              'get_system_info',
+            ),
           ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
+          setSystemInfo({
+            os: sysInfo.os,
+            osVersion: sysInfo.os_version,
+            arch: sysInfo.arch,
+            tauriVersion: sysInfo.tauri_version,
+          });
         } catch {
           setExeDir(null);
           setCwd(null);
+          setSystemInfo(null);
         }
       }
     };
@@ -1659,6 +1677,25 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   </p>
                 </div>
 
+                {/* 系统信息 */}
+                {systemInfo && (
+                  <div className="text-sm text-text-secondary space-y-1">
+                    <p className="font-medium text-text-primary">{t('debug.systemInfo')}</p>
+                    <p>
+                      {t('debug.operatingSystem')}:{' '}
+                      <span className="font-mono text-text-primary">{systemInfo.osVersion}</span>
+                    </p>
+                    <p>
+                      {t('debug.architecture')}:{' '}
+                      <span className="font-mono text-text-primary">{systemInfo.arch}</span>
+                    </p>
+                    <p>
+                      {t('debug.tauriVersion')}:{' '}
+                      <span className="font-mono text-text-primary">{systemInfo.tauriVersion}</span>
+                    </p>
+                  </div>
+                )}
+
                 {/* 路径信息（仅 Tauri 环境显示） */}
                 {isTauri() && (exeDir || cwd) && (
                   <div className="text-sm text-text-secondary space-y-1">
@@ -1763,6 +1800,31 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       className={clsx(
                         'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
                         saveDraw ? 'translate-x-5' : 'translate-x-0',
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {/* 通信兼容模式 */}
+                <div className="flex items-center justify-between pt-4 border-t border-border">
+                  <div className="flex items-center gap-3">
+                    <Network className="w-5 h-5 text-accent" />
+                    <div>
+                      <span className="font-medium text-text-primary">{t('debug.tcpCompatMode')}</span>
+                      <p className="text-xs text-text-muted mt-0.5">{t('debug.tcpCompatModeHint')}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTcpCompatMode(!tcpCompatMode)}
+                    className={clsx(
+                      'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+                      tcpCompatMode ? 'bg-accent' : 'bg-bg-active',
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
+                        tcpCompatMode ? 'translate-x-5' : 'translate-x-0',
                       )}
                     />
                   </button>

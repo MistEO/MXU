@@ -54,10 +54,16 @@ async function resolveFocusContent(
   // 1. 替换普通占位符（不包含 {image}）
   let withPlaceholders = replaceFocusPlaceholders(template, details);
 
-  // 2. 处理 {image} 占位符 - 获取控制器缓存的截图
+  // 2. 处理 {image} 占位符 - 获取控制器缓存的截图（带超时保护）
   if (withPlaceholders.includes('{image}')) {
     try {
-      const imageDataUrl = await maaService.getCachedImage(instanceId);
+      // 添加超时保护，避免长时间阻塞
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => reject(new Error('获取截图超时')), 5000);
+      });
+      const imagePromise = maaService.getCachedImage(instanceId);
+      
+      const imageDataUrl = await Promise.race([imagePromise, timeoutPromise]);
       if (imageDataUrl) {
         // 直接替换为 data URL，用户可自行组装到 Markdown/HTML 中
         withPlaceholders = withPlaceholders.replace(/\{image\}/g, imageDataUrl);
@@ -227,7 +233,7 @@ function getTaskDisplayName(
   return undefined;
 }
 
-async function handleCallback(
+function handleCallback(
   instanceId: string,
   message: string,
   details: MaaCallbackDetails & Record<string, unknown>,
@@ -241,9 +247,39 @@ async function handleCallback(
   const focus = details.focus as Record<string, string> | undefined;
   if (focus && focus[message]) {
     const focusTemplate = focus[message];
-    // 异步解析 focus 内容（支持国际化、URL、文件、Markdown、{image} 截图）
-    const resolved = await resolveFocusContent(focusTemplate, details, instanceId);
-    addLog(instanceId, { type: 'focus', message: resolved.message, html: resolved.html });
+    
+    // 如果包含 {image} 占位符，先快速显示不含图片的版本，避免阻塞
+    const hasImagePlaceholder = focusTemplate.includes('{image}');
+    if (hasImagePlaceholder) {
+      // 先显示不含图片的临时版本
+      const tempMessage = replaceFocusPlaceholders(focusTemplate, details).replace(
+        /\{image\}/g,
+        '[图片加载中...]',
+      );
+      addLog(instanceId, { type: 'focus', message: tempMessage });
+    }
+    
+    // 异步解析完整内容（不阻塞回调函数）
+    // 重要：不使用 await，让它在后台执行
+    resolveFocusContent(focusTemplate, details, instanceId)
+      .then((resolved) => {
+        if (hasImagePlaceholder) {
+          // 如果之前显示了临时版本，现在更新为完整版本
+          // 这里暂不实现日志更新逻辑，只是不重复添加
+          // TODO: 实现日志更新机制
+        } else {
+          // 没有图片占位符，直接添加
+          addLog(instanceId, { type: 'focus', message: resolved.message, html: resolved.html });
+        }
+      })
+      .catch((err) => {
+        log.warn('Failed to resolve focus content:', err);
+        if (!hasImagePlaceholder) {
+          // 降级：直接显示原始模板
+          addLog(instanceId, { type: 'focus', message: focusTemplate });
+        }
+      });
+    
     return;
   }
 

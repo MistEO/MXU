@@ -163,6 +163,7 @@ pub fn run() {
             maa_commands::retry_load_maa_library,
             maa_commands::check_vcredist_missing,
             maa_commands::get_arch,
+            maa_commands::get_system_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

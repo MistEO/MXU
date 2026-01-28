@@ -284,6 +284,10 @@ export default {
     environment: '실행 환경',
     envTauri: 'Tauri 데스크톱',
     envBrowser: '브라우저',
+    systemInfo: '시스템 정보',
+    operatingSystem: '운영 체제',
+    architecture: '시스템 아키텍처',
+    tauriVersion: 'Tauri 버전',
     pathInfo: '경로 정보',
     cwd: '현재 작업 디렉토리',
     exeDir: '실행 파일 디렉토리',
@@ -298,6 +302,8 @@ export default {
     saveDraw: '디버그 이미지 저장',
     saveDrawHint:
       '인식 및 작업의 디버그 이미지를 로그 폴더에 저장합니다 (재시작 후 자동으로 비활성화됨)',
+    tcpCompatMode: '통신 호환 모드',
+    tcpCompatModeHint: '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
   },
 
   // 환영 대화상자

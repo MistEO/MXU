@@ -288,6 +288,10 @@ export default {
     environment: '运行环境',
     envTauri: 'Tauri 桌面端',
     envBrowser: '浏览器',
+    systemInfo: '系统信息',
+    operatingSystem: '操作系统',
+    architecture: '系统架构',
+    tauriVersion: 'Tauri 版本',
     pathInfo: '路径信息',
     cwd: '当前工作目录',
     exeDir: '程序所在目录',
@@ -301,6 +305,8 @@ export default {
     devModeHint: '启用后允许按 F5 刷新 UI',
     saveDraw: '保存调试图像',
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
+    tcpCompatMode: '通信兼容模式',
+    tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
   },
 
   // 欢迎弹窗

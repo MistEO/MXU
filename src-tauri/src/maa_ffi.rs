@@ -116,7 +116,7 @@ pub type MaaEventCallback = Option<
 
 // 函数指针类型定义
 type FnMaaVersion = unsafe extern "C" fn() -> *const c_char;
-type FnMaaSetGlobalOption =
+type FnMaaGlobalSetOption =
     unsafe extern "C" fn(MaaGlobalOption, *const c_void, MaaSize) -> MaaBool;
 type FnMaaStringBufferCreate = unsafe extern "C" fn() -> *mut MaaStringBuffer;
 type FnMaaStringBufferDestroy = unsafe extern "C" fn(*mut MaaStringBuffer);
@@ -249,7 +249,7 @@ pub struct MaaLibrary {
 
     // MaaFramework 函数
     pub maa_version: FnMaaVersion,
-    pub maa_set_global_option: FnMaaSetGlobalOption,
+    pub maa_set_global_option: FnMaaGlobalSetOption,
 
     // StringBuffer
     pub maa_string_buffer_create: FnMaaStringBufferCreate,
@@ -442,7 +442,7 @@ impl MaaLibrary {
             Ok(Self {
                 // Version
                 maa_version: load_fn!(framework_lib, "MaaVersion"),
-                maa_set_global_option: load_fn!(framework_lib, "MaaSetGlobalOption"),
+                maa_set_global_option: load_fn!(framework_lib, "MaaGlobalSetOption"),
 
                 // StringBuffer
                 maa_string_buffer_create: load_fn!(framework_lib, "MaaStringBufferCreate"),

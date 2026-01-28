@@ -24,6 +24,7 @@ import {
   defaultMirrorChyanSettings,
   defaultScreenshotFrameRate,
 } from '@/types/config';
+import { findSwitchCase } from '@/utils/optionHelpers';
 
 // 最近关闭列表最大条目数
 const MAX_RECENTLY_CLOSED = 30;
@@ -459,12 +460,7 @@ const initializeAllOptionValues = (
 
       if (optDef.type === 'switch' && 'cases' in optDef) {
         const isChecked = currentValue.type === 'switch' && currentValue.value;
-        selectedCase = optDef.cases?.find((c) => {
-          if (isChecked) {
-            return ['Yes', 'yes', 'Y', 'y'].includes(c.name);
-          }
-          return ['No', 'no', 'N', 'n'].includes(c.name);
-        });
+        selectedCase = findSwitchCase(optDef.cases, isChecked);
       } else if ('cases' in optDef) {
         const caseName =
           currentValue.type === 'select' ? currentValue.caseName : optDef.cases?.[0]?.name;
@@ -832,12 +828,7 @@ export const useAppStore = create<AppState>()(
 
                   if (optDef.type === 'switch') {
                     const isChecked = value.type === 'switch' && value.value;
-                    selectedCase = optDef.cases?.find((c) => {
-                      if (isChecked) {
-                        return ['Yes', 'yes', 'Y', 'y'].includes(c.name);
-                      }
-                      return ['No', 'no', 'N', 'n'].includes(c.name);
-                    });
+                    selectedCase = findSwitchCase(optDef.cases, isChecked);
                   } else {
                     const caseName =
                       value.type === 'select' ? value.caseName : optDef.cases?.[0]?.name;

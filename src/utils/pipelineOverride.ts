@@ -11,6 +11,7 @@ import type {
   OptionDefinition,
 } from '@/types/interface';
 import { loggers } from './logger';
+import { findSwitchCase } from './optionHelpers';
 
 /**
  * 递归处理选项的 pipeline_override，收集到数组中
@@ -30,9 +31,8 @@ const collectOptionOverrides = (
     let caseName: string;
     if (optionValue.type === 'switch') {
       const isChecked = optionValue.value;
-      const yesCase = optionDef.cases?.find((c) => ['Yes', 'yes', 'Y', 'y'].includes(c.name));
-      const noCase = optionDef.cases?.find((c) => ['No', 'no', 'N', 'n'].includes(c.name));
-      caseName = isChecked ? yesCase?.name || 'Yes' : noCase?.name || 'No';
+      const switchCase = findSwitchCase(optionDef.cases, isChecked);
+      caseName = switchCase?.name || (isChecked ? 'Yes' : 'No');
     } else {
       caseName = optionValue.caseName;
     }

@@ -6,6 +6,7 @@ import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
 import { Info, AlertCircle, Loader2, FileText, Link } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
+import { findSwitchCase } from '@/utils/optionHelpers';
 
 /** 异步加载图标组件 */
 function AsyncIcon({
@@ -249,13 +250,7 @@ export function OptionEditor({
   const getSelectedCase = (): CaseItem | undefined => {
     if (optionDef.type === 'switch') {
       const isChecked = value?.type === 'switch' ? value.value : false;
-      // switch 类型需要匹配 Yes/yes/Y/y 或 No/no/N/n
-      return optionDef.cases?.find((c) => {
-        if (isChecked) {
-          return ['Yes', 'yes', 'Y', 'y'].includes(c.name);
-        }
-        return ['No', 'no', 'N', 'n'].includes(c.name);
-      });
+      return findSwitchCase(optionDef.cases, isChecked);
     }
     if (optionDef.type === 'select' || !optionDef.type) {
       const caseName =

@@ -1,24 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import clsx from 'clsx';
-
-function normalizeHex(input: string): string {
-  let v = input.trim();
-  if (!v) return '#000000';
-  if (!v.startsWith('#')) v = `#${v}`;
-  v = v.toLowerCase();
-  // Allow short values during typing elsewhere; here we normalize on blur/commit.
-  if (/^#[0-9a-f]{3}$/.test(v)) {
-    const r = v[1];
-    const g = v[2];
-    const b = v[3];
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  if (/^#[0-9a-f]{6}$/.test(v)) return v;
-  // pad / truncate
-  const hex = v.replace(/[^0-9a-f]/g, '').slice(0, 6).padEnd(6, '0');
-  return `#${hex}`;
-}
+import { normalizeHex } from '@/utils/color';
 
 export function ColorPickerPopover({
   value,
@@ -35,7 +18,7 @@ export function ColorPickerPopover({
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const color = useMemo(() => normalizeHex(value), [value]);
+  const color = useMemo(() => normalizeHex(value) ?? '#000000', [value]);
 
   useEffect(() => {
     if (!open) return;
@@ -77,7 +60,13 @@ export function ColorPickerPopover({
         >
           {label && <div className="text-xs font-medium text-text-secondary mb-2">{label}</div>}
           <div className="rounded-lg overflow-hidden border border-border bg-bg-tertiary">
-            <HexColorPicker color={color} onChange={(c) => onChange(normalizeHex(c))} />
+            <HexColorPicker
+              color={color}
+              onChange={(c) => {
+                const next = normalizeHex(c);
+                if (next) onChange(next);
+              }}
+            />
           </div>
         </div>
       )}

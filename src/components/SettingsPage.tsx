@@ -60,6 +60,7 @@ import { createProxySettings, shouldUseProxy } from '@/services/proxyService';
 import clsx from 'clsx';
 import { ColorPickerPopover } from './ColorPickerPopover';
 import { ConfirmDialog } from './ConfirmDialog';
+import { HexColorTextInput } from './HexColorTextInput';
 
 // 检测是否在 Tauri 环境中
 const isTauri = () => {
@@ -139,6 +140,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [accentLightDarkColor, setAccentLightDarkColor] = useState('#413647');
   const [nameError, setNameError] = useState<string | null>(null);
   const [pendingDeleteAccentId, setPendingDeleteAccentId] = useState<string | null>(null);
+  const accentModalRef = useRef<HTMLDivElement>(null);
+  const accentNameInputRef = useRef<HTMLInputElement>(null);
 
   const buildAutoAccentName = useCallback(
     (hex: string) => t('settings.autoAccentName', { hex: hex.toUpperCase() }),
@@ -213,6 +216,45 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const handleCloseAccentModal = useCallback(() => {
     setIsAccentModalOpen(false);
   }, []);
+
+  // 自定义强调色弹窗：Esc 关闭 + 基础 focus trap + 初始聚焦
+  useEffect(() => {
+    if (!isAccentModalOpen) return;
+    // initial focus
+    setTimeout(() => accentNameInputRef.current?.focus(), 0);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCloseAccentModal();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const panel = accentModalRef.current;
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey) {
+        if (!active || active === first || !panel.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (!active || active === last || !panel.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isAccentModalOpen, handleCloseAccentModal]);
 
   const handleSaveAccent = useCallback(() => {
     const trimmedName = accentName.trim();
@@ -1735,8 +1777,20 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       </div>
       {/* 自定义强调色编辑模态框 */}
       {isAccentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-lg max-h-[85vh] bg-bg-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleCloseAccentModal();
+          }}
+        >
+          <div
+            ref={accentModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingAccentId ? t('settings.editCustomAccent') : t('settings.addCustomAccent')}
+            className="w-full max-w-lg max-h-[85vh] bg-bg-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             {/* 标题栏 */}
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1761,6 +1815,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   {t('settings.accentName')}
                 </label>
                 <input
+                  ref={accentNameInputRef}
                   type="text"
                   value={accentName}
                   onChange={(e) => {
@@ -1794,43 +1849,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         onChange={(c) => handleMainColorChange(c)}
                         label={t('settings.accentMainColor')}
                       />
-                      <input
-                        type="text"
-                        value={accentMainColor.toUpperCase()}
-                        onChange={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          // 如果没有 #，自动添加
-                          if (value && !value.startsWith('#')) {
-                            value = '#' + value.replace(/^#/, '');
-                          }
-                          // 验证并更新（允许输入过程中不完整的值）
-                          if (/^#?[0-9A-Fa-f]{0,6}$/.test(value)) {
-                            if (value === '#' || value === '') {
-                              handleMainColorChange('#000000');
-                            } else {
-                              handleMainColorChange(value);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // 失焦时确保格式正确
-                          let value = e.target.value.toUpperCase().trim();
-                          if (!value || value === '#') {
-                            value = '#000000';
-                          } else if (!value.startsWith('#')) {
-                            value = '#' + value;
-                          }
-                          // 补齐到 7 位（# + 6位十六进制）
-                          if (value.length < 7) {
-                            const hexPart = value.slice(1).padEnd(6, '0');
-                            value = '#' + hexPart;
-                          } else if (value.length > 7) {
-                            value = value.slice(0, 7);
-                          }
-                          handleMainColorChange(value);
-                        }}
+                      <HexColorTextInput
+                        value={accentMainColor}
+                        onCommit={(normalized) => handleMainColorChange(normalized)}
                         className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50 transition-all"
-                        placeholder="#000000"
+                        placeholder="#4F46E5"
                       />
                     </div>
                   </div>
@@ -1846,39 +1869,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         onChange={(c) => setAccentHoverColor(c)}
                         label={t('settings.accentHoverColor')}
                       />
-                      <input
-                        type="text"
-                        value={accentHoverColor.toUpperCase()}
-                        onChange={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (value && !value.startsWith('#')) {
-                            value = '#' + value.replace(/^#/, '');
-                          }
-                          if (/^#?[0-9A-Fa-f]{0,6}$/.test(value)) {
-                            if (value === '#' || value === '') {
-                              setAccentHoverColor('#000000');
-                            } else {
-                              setAccentHoverColor(value);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (!value || value === '#') {
-                            value = '#000000';
-                          } else if (!value.startsWith('#')) {
-                            value = '#' + value;
-                          }
-                          if (value.length < 7) {
-                            const hexPart = value.slice(1).padEnd(6, '0');
-                            value = '#' + hexPart;
-                          } else if (value.length > 7) {
-                            value = value.slice(0, 7);
-                          }
-                          setAccentHoverColor(value);
-                        }}
+                      <HexColorTextInput
+                        value={accentHoverColor}
+                        onCommit={(normalized) => setAccentHoverColor(normalized)}
                         className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50 transition-all"
-                        placeholder="#000000"
+                        placeholder="#4F46E5"
                       />
                     </div>
                   </div>
@@ -1894,39 +1889,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         onChange={(c) => setAccentLightColor(c)}
                         label={t('settings.accentLightColor')}
                       />
-                      <input
-                        type="text"
-                        value={accentLightColor.toUpperCase()}
-                        onChange={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (value && !value.startsWith('#')) {
-                            value = '#' + value.replace(/^#/, '');
-                          }
-                          if (/^#?[0-9A-Fa-f]{0,6}$/.test(value)) {
-                            if (value === '#' || value === '') {
-                              setAccentLightColor('#000000');
-                            } else {
-                              setAccentLightColor(value);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (!value || value === '#') {
-                            value = '#000000';
-                          } else if (!value.startsWith('#')) {
-                            value = '#' + value;
-                          }
-                          if (value.length < 7) {
-                            const hexPart = value.slice(1).padEnd(6, '0');
-                            value = '#' + hexPart;
-                          } else if (value.length > 7) {
-                            value = value.slice(0, 7);
-                          }
-                          setAccentLightColor(value);
-                        }}
+                      <HexColorTextInput
+                        value={accentLightColor}
+                        onCommit={(normalized) => setAccentLightColor(normalized)}
                         className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50 transition-all"
-                        placeholder="#000000"
+                        placeholder="#4F46E5"
                       />
                     </div>
                   </div>
@@ -1942,39 +1909,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         onChange={(c) => setAccentLightDarkColor(c)}
                         label={t('settings.accentLightDarkColor')}
                       />
-                      <input
-                        type="text"
-                        value={accentLightDarkColor.toUpperCase()}
-                        onChange={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (value && !value.startsWith('#')) {
-                            value = '#' + value.replace(/^#/, '');
-                          }
-                          if (/^#?[0-9A-Fa-f]{0,6}$/.test(value)) {
-                            if (value === '#' || value === '') {
-                              setAccentLightDarkColor('#000000');
-                            } else {
-                              setAccentLightDarkColor(value);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          let value = e.target.value.toUpperCase().trim();
-                          if (!value || value === '#') {
-                            value = '#000000';
-                          } else if (!value.startsWith('#')) {
-                            value = '#' + value;
-                          }
-                          if (value.length < 7) {
-                            const hexPart = value.slice(1).padEnd(6, '0');
-                            value = '#' + hexPart;
-                          } else if (value.length > 7) {
-                            value = value.slice(0, 7);
-                          }
-                          setAccentLightDarkColor(value);
-                        }}
+                      <HexColorTextInput
+                        value={accentLightDarkColor}
+                        onCommit={(normalized) => setAccentLightDarkColor(normalized)}
                         className="flex-1 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50 transition-all"
-                        placeholder="#000000"
+                        placeholder="#4F46E5"
                       />
                     </div>
                   </div>

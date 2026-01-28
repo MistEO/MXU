@@ -60,6 +60,7 @@ export default {
     deleteCustomAccentConfirm: 'このカスタムアクセントを削除してもよろしいですか？',
     accentName: '名前',
     accentNamePlaceholder: '例：ダークバイオレット',
+    autoAccentName: '{{hex}}',
     accentMainColor: 'メインカラー',
     accentHoverColor: 'ホバーカラー',
     accentLightColor: 'ライト背景',

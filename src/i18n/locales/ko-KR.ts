@@ -60,6 +60,7 @@ export default {
     deleteCustomAccentConfirm: '이 사용자 지정 강조 색상을 삭제하시겠습니까?',
     accentName: '이름',
     accentNamePlaceholder: '예: 다크 바이올렛',
+    autoAccentName: '{{hex}}',
     accentMainColor: '메인 색상',
     accentHoverColor: '호버 색상',
     accentLightColor: '라이트 배경',

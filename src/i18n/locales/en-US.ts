@@ -60,6 +60,7 @@ export default {
     deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent?',
     accentName: 'Name',
     accentNamePlaceholder: 'e.g. Dark Violet',
+    autoAccentName: '{{hex}}',
     accentMainColor: 'Main Color',
     accentHoverColor: 'Hover Color',
     accentLightColor: 'Light Background',

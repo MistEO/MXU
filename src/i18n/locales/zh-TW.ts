@@ -60,6 +60,7 @@ export default {
     deleteCustomAccentConfirm: '確定要刪除這個自訂強調色嗎？',
     accentName: '名稱',
     accentNamePlaceholder: '例如：小黑紫',
+    autoAccentName: '{{hex}}',
     accentMainColor: '主色',
     accentHoverColor: '懸停色',
     accentLightColor: '淺色背景',

@@ -211,8 +211,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
   const isCompact = isInstanceRunning && !task.enabled;
 
-  // 判断是否可以编辑选项（只有 pending 或 idle 状态的任务可以编辑）
-  const canEditOptions = taskRunStatus === 'idle' || taskRunStatus === 'pending';
+  // 判断是否可以编辑选项（只有非运行状态的任务可以编辑）
+  const canEditOptions = taskRunStatus !== 'running';
 
   // 判断是否可以调整顺序/删除（实例运行时禁用）
   const canReorder = !isInstanceRunning;

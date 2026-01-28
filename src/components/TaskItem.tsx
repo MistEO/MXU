@@ -796,7 +796,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             <div className="border-t border-border bg-bg-tertiary p-3">
               {/* 任务描述 */}
               {hasDescription && (
-                <div className={hasOptions ? 'mb-3' : ''}>
+                <div className={hasOptions || isIncompatible ? 'mb-3' : ''}>
                   <DescriptionContent
                     html={resolvedDescription.html}
                     loading={resolvedDescription.loading}
@@ -806,16 +806,21 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                   />
                 </div>
               )}
+              {/* 不兼容提示 - 独立于选项列表显示 */}
+              {isIncompatible && (
+                <div
+                  className={clsx(
+                    'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning text-xs',
+                    hasOptions && 'mb-3',
+                  )}
+                >
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{incompatibleReason}</span>
+                </div>
+              )}
               {/* 选项列表 - 仅在有选项时显示 */}
               {hasOptions && (
                 <div className="space-y-3">
-                  {/* 不兼容提示 */}
-                  {isIncompatible && (
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning text-xs">
-                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{incompatibleReason}</span>
-                    </div>
-                  )}
                   {taskDef.option?.map((optionKey) => (
                     <OptionEditor
                       key={optionKey}

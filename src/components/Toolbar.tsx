@@ -1106,15 +1106,48 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
   // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
   useEffect(() => {
-    const handleStartTasks = () => {
+    const handleStartTasks = async (evt: Event) => {
+      if (!instance) return;
+      const detail = (evt as CustomEvent | undefined)?.detail as
+        | { source?: string; combo?: string }
+        | undefined;
+      const combo = detail?.combo || '';
+      addLog(instance.id, {
+        type: 'info',
+        message: t('logs.messages.hotkeyDetected', { combo, action: t('logs.messages.hotkeyActionStart') }),
+      });
+
       // 始终复用现有的开始/停止逻辑，由 handleStartStop 内部判断是否可运行
-      handleStartStop();
+      const before = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      await handleStartStop();
+      const after = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      const success = !before && !!after;
+      addLog(instance.id, {
+        type: success ? 'success' : 'error',
+        message: success ? t('logs.messages.hotkeyStartSuccess') : t('logs.messages.hotkeyStartFailed'),
+      });
     };
 
-    const handleStopTasks = () => {
+    const handleStopTasks = async (evt: Event) => {
       // 仅在当前实例正在运行时响应停止事件
       if (!instance?.isRunning) return;
-      handleStartStop();
+      const detail = (evt as CustomEvent | undefined)?.detail as
+        | { source?: string; combo?: string }
+        | undefined;
+      const combo = detail?.combo || '';
+      addLog(instance.id, {
+        type: 'info',
+        message: t('logs.messages.hotkeyDetected', { combo, action: t('logs.messages.hotkeyActionStop') }),
+      });
+
+      const before = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      await handleStartStop();
+      const after = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      const success = !!before && !after;
+      addLog(instance.id, {
+        type: success ? 'success' : 'error',
+        message: success ? t('logs.messages.hotkeyStopSuccess') : t('logs.messages.hotkeyStopFailed'),
+      });
     };
 
     document.addEventListener('mxu-start-tasks', handleStartTasks);

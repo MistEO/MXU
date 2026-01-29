@@ -122,6 +122,18 @@ body {
   animation-fill-mode: forwards;
 }
 
+/* Hide native number input spinners (we style the input ourselves) */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinner[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .fade-in {
   --tw-enter-opacity: initial;
 }

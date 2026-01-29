@@ -251,6 +251,18 @@ function App() {
     document.body.style.userSelect = 'none';
   }, []);
 
+  // 允许其他组件触发同一套分隔条拖拽逻辑（例如 AddTaskPanel 顶部也可拖拽）
+  useEffect(() => {
+    const onExternalResizeStart = () => {
+      isResizingRef.current = true;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    };
+    document.addEventListener('mxu-resize-start', onExternalResizeStart as EventListener);
+    return () =>
+      document.removeEventListener('mxu-resize-start', onExternalResizeStart as EventListener);
+  }, []);
+
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
 
@@ -721,6 +733,18 @@ function App() {
   }
 
   useEffect(() => {
+    const shouldIgnoreHotkey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el) return false;
+      // 输入场景不触发（避免在输入框/文本编辑时误触）
+      const tag = el.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+      if (el.isContentEditable) return true;
+      const role = el.getAttribute?.('role');
+      if (role === 'textbox') return true;
+      return false;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
@@ -773,6 +797,7 @@ function App() {
 
       // 应用内快捷键：开始/结束任务（默认 F10/F11，可在设置中自定义，支持组合键）
       // 使用自定义事件通知 Toolbar 组件，以复用现有启动/停止逻辑
+      if (shouldIgnoreHotkey(e)) return;
       const combo = getKeyCombo(e);
       if (!combo) {
         return;
@@ -784,13 +809,17 @@ function App() {
 
       if (combo === startKey) {
         e.preventDefault();
-        document.dispatchEvent(new Event('mxu-start-tasks'));
+        document.dispatchEvent(
+          new CustomEvent('mxu-start-tasks', { detail: { source: 'hotkey', combo } }),
+        );
         return;
       }
 
       if (combo === stopKey) {
         e.preventDefault();
-        document.dispatchEvent(new Event('mxu-stop-tasks'));
+        document.dispatchEvent(
+          new CustomEvent('mxu-stop-tasks', { detail: { source: 'hotkey', combo } }),
+        );
         return;
       }
 
@@ -817,6 +846,17 @@ function App() {
           className={`flex-1 min-h-0 flex flex-col ${isSettingsExiting ? 'page-slide-right-exit' : 'page-slide-right-enter'}`}
         >
           <SettingsPage onClose={closeSettingsWithAnimation} />
+        </div>
+        {/* 
+          让全局快捷键（开始/结束任务）在设置页也能触发：
+          Toolbar 内部监听 mxu-start-tasks / mxu-stop-tasks 并复用既有启动/停止逻辑。
+          这里不显示 Toolbar，仅用于挂载快捷键处理逻辑。
+        */}
+        <div className="hidden">
+          <Toolbar
+            showAddPanel={showAddTaskPanel}
+            onToggleAddPanel={() => setShowAddTaskPanel(!showAddTaskPanel)}
+          />
         </div>
       </div>
     );

@@ -6,6 +6,7 @@ import type { RecentlyClosedInstance } from '@/types/config';
 import type { ProjectInterface } from '@/types/interface';
 import clsx from 'clsx';
 import { getInterfaceLangKey } from '@/i18n';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface RecentlyClosedPanelProps {
   onClose: () => void;
@@ -101,12 +102,14 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
   const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, right: 0 });
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const {
     recentlyClosed,
     reopenRecentlyClosed,
     removeFromRecentlyClosed,
     clearRecentlyClosed,
+    confirmBeforeDelete,
     projectInterface,
     language,
     resolveI18nText,
@@ -165,63 +168,70 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
   };
 
   const handleClearAll = () => {
-    clearRecentlyClosed();
+    if (!confirmBeforeDelete) {
+      clearRecentlyClosed();
+      return;
+    }
+    setShowClearConfirm(true);
   };
 
   return (
-    <div
-      ref={panelRef}
-      className="fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
-      style={{
-        top: position.top,
-        right: position.right,
-      }}
-    >
-      {/* 标题栏 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
-        <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-text-secondary" />
-          <span className="text-sm font-medium text-text-primary">{t('recentlyClosed.title')}</span>
-          {recentlyClosed.length > 0 && (
-            <span className="px-1.5 py-0.5 bg-bg-active text-text-muted text-xs rounded">
-              {recentlyClosed.length}
+    <>
+      <div
+        ref={panelRef}
+        className="fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
+        style={{
+          top: position.top,
+          right: position.right,
+        }}
+      >
+        {/* 标题栏 */}
+        <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-text-secondary" />
+            <span className="text-sm font-medium text-text-primary">
+              {t('recentlyClosed.title')}
             </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {recentlyClosed.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="p-1 rounded-md hover:bg-bg-hover transition-colors text-text-muted hover:text-error"
-              title={t('recentlyClosed.clearAll')}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-bg-hover transition-colors">
-            <X className="w-4 h-4 text-text-muted" />
-          </button>
-        </div>
-      </div>
-
-      {/* 内容区 */}
-      <div className="max-h-80 overflow-y-auto">
-        {recentlyClosed.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-text-muted">
-            <History className="w-8 h-8 mb-2 opacity-50" />
-            <span className="text-sm">{t('recentlyClosed.empty')}</span>
+            {recentlyClosed.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-bg-active text-text-muted text-xs rounded">
+                {recentlyClosed.length}
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="py-1">
-            {recentlyClosed.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => handleReopen(item.id)}
-                className={clsx(
-                  'group px-4 py-2.5 cursor-pointer',
-                  'hover:bg-bg-hover transition-colors',
-                )}
+          <div className="flex items-center gap-1">
+            {recentlyClosed.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="p-1 rounded-md hover:bg-bg-hover transition-colors text-text-muted hover:text-error"
+                title={t('recentlyClosed.clearAll')}
               >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="p-1 rounded-md hover:bg-bg-hover transition-colors">
+              <X className="w-4 h-4 text-text-muted" />
+            </button>
+          </div>
+        </div>
+
+        {/* 内容区 */}
+        <div className="max-h-80 overflow-y-auto">
+          {recentlyClosed.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-text-muted">
+              <History className="w-8 h-8 mb-2 opacity-50" />
+              <span className="text-sm">{t('recentlyClosed.empty')}</span>
+            </div>
+          ) : (
+            <div className="py-1">
+              {recentlyClosed.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleReopen(item.id)}
+                  className={clsx(
+                    'group px-4 py-2.5 cursor-pointer',
+                    'hover:bg-bg-hover transition-colors',
+                  )}
+                >
                 {/* 第一行：名称 + 操作按钮 */}
                 <div className="flex items-center gap-2">
                   <div
@@ -315,9 +325,24 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
                 </div>
               </div>
             ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title={t('recentlyClosed.clearAllConfirmTitle')}
+        message={t('recentlyClosed.clearAllConfirmMessage')}
+        cancelText={t('common.cancel')}
+        confirmText={t('recentlyClosed.clearAll')}
+        destructive
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+          clearRecentlyClosed();
+          setShowClearConfirm(false);
+        }}
+      />
+    </>
   );
 }

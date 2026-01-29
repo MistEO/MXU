@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -19,11 +19,16 @@ import { ListTodo, Plus, CheckSquare, Square, ChevronDown, ChevronUp } from 'luc
 import { useAppStore } from '@/stores/appStore';
 import { TaskItem } from './TaskItem';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import type { OptionValue, SelectedTask } from '@/types/interface';
+import { ConfirmDialog } from './ConfirmDialog';
+import { getInterfaceLangKey } from '@/i18n';
+import { TaskTransferPreview } from './TaskTransferPreview';
 
 export function TaskList() {
   const { t } = useTranslation();
   const {
     getActiveInstance,
+    updateInstance,
     reorderTasks,
     selectAllTasks,
     collapseAllTasks,
@@ -31,11 +36,150 @@ export function TaskList() {
     showAddTaskPanel,
     lastAddedTaskId,
     clearLastAddedTaskId,
+    projectInterface,
+    resolveI18nText,
+    language,
+    interfaceTranslations,
   } = useAppStore();
 
   const instance = getActiveInstance();
   const isInstanceRunning = instance?.isRunning || false;
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [exportSelected, setExportSelected] = useState<Record<string, boolean>>({});
+  const [pendingImportTasks, setPendingImportTasks] = useState<SelectedTask[] | null>(null);
+  const [importPreviewJson, setImportPreviewJson] = useState<string>('');
+  const [importSelected, setImportSelected] = useState<Record<string, boolean>>({});
+  const [importMode, setImportMode] = useState<'overwrite' | 'merge'>('overwrite');
+
+  const exportPayload = useMemo(() => {
+    if (!instance) return null;
+    return {
+      version: 1,
+      tasks: instance.selectedTasks.map((t) => ({
+        id: t.id,
+        taskName: t.taskName,
+        customName: t.customName,
+        enabled: t.enabled,
+        optionValues: t.optionValues,
+      })),
+    };
+  }, [instance]);
+
+  const taskNameToLabel = useMemo(() => {
+    const langKey = getInterfaceLangKey(language);
+    const translations = interfaceTranslations[langKey];
+    const map: Record<string, string> = {};
+    for (const td of projectInterface?.task ?? []) {
+      map[td.name] = resolveI18nText(td.label, langKey) || td.name;
+    }
+    // fallback: if translations missing, still show task name
+    void translations;
+    return map;
+  }, [projectInterface, resolveI18nText, language, interfaceTranslations]);
+
+  const getTaskDisplayName = useCallback(
+    (taskName: string, customName?: string) => {
+      return customName || taskNameToLabel[taskName] || taskName;
+    },
+    [taskNameToLabel],
+  );
+
+  // 初始化匯出勾選（預設全選）
+  useEffect(() => {
+    if (!exportPreviewOpen || !exportPayload) return;
+    const next: Record<string, boolean> = {};
+    exportPayload.tasks.forEach((t) => {
+      next[String(t.id)] = true;
+    });
+    setExportSelected(next);
+  }, [exportPreviewOpen, exportPayload]);
+
+  const exportJson = useMemo(() => {
+    if (!exportPayload) return '';
+    const filtered = {
+      version: exportPayload.version,
+      tasks: exportPayload.tasks
+        .filter((t) => exportSelected[String(t.id)] !== false)
+        .map(({ id: _id, ...rest }) => rest),
+    };
+    return JSON.stringify(filtered, null, 2);
+  }, [exportPayload, exportSelected]);
+
+  const exportSelectedCount = useMemo(() => {
+    if (!exportPayload) return 0;
+    return exportPayload.tasks.filter((t) => exportSelected[String(t.id)] !== false).length;
+  }, [exportPayload, exportSelected]);
+
+  const importSelectedCount = useMemo(() => {
+    if (!pendingImportTasks) return 0;
+    return pendingImportTasks.filter((t) => importSelected[t.id] !== false).length;
+  }, [pendingImportTasks, importSelected]);
+
+  const downloadJson = (filename: string, data: unknown) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTasks = useCallback(() => {
+    if (!instance || !exportPayload) return;
+    setExportPreviewOpen(true);
+  }, [instance, exportPayload]);
+
+  const parseImportText = (text: string): SelectedTask[] => {
+    const parsed = JSON.parse(text) as any;
+    const rawTasks: any[] = Array.isArray(parsed) ? parsed : parsed?.tasks;
+    if (!Array.isArray(rawTasks)) throw new Error('Invalid format');
+
+    return rawTasks.map((rt) => {
+      const taskName = String(rt.taskName ?? '');
+      if (!taskName) throw new Error('Invalid task');
+      const optionValues = (rt.optionValues ?? {}) as Record<string, OptionValue>;
+      return {
+        id: crypto.randomUUID(),
+        taskName,
+        customName: rt.customName ? String(rt.customName) : undefined,
+        enabled: rt.enabled !== false,
+        optionValues,
+        expanded: false,
+      } satisfies SelectedTask;
+    });
+  };
+
+  const handleImportTasks = useCallback(async () => {
+    if (!instance || isInstanceRunning) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const imported = parseImportText(text);
+        setImportPreviewJson(text);
+        setPendingImportTasks(imported);
+        setImportMode('overwrite');
+        // 預設全選
+        const next: Record<string, boolean> = {};
+        imported.forEach((t) => {
+          next[t.id] = true;
+        });
+        setImportSelected(next);
+      } catch {
+        // ignore (could add toast later)
+      }
+    };
+    input.click();
+  }, [instance, isInstanceRunning]);
 
   // 滚动容器引用
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +252,22 @@ export function TaskList() {
           ? [
               { id: 'divider-1', label: '', divider: true },
               {
+                id: 'export-tasks',
+                label: t('contextMenu.exportTasks'),
+                icon: ListTodo,
+                onClick: () => handleExportTasks(),
+              },
+              {
+                id: 'import-tasks',
+                label: t('contextMenu.importTasks'),
+                icon: Plus,
+                disabled: isInstanceRunning,
+                onClick: () => {
+                  void handleImportTasks();
+                },
+              },
+              { id: 'divider-0', label: '', divider: true },
+              {
                 id: 'select-all',
                 label: hasEnabledTasks ? t('contextMenu.deselectAll') : t('contextMenu.selectAll'),
                 icon: hasEnabledTasks ? Square : CheckSquare,
@@ -135,6 +295,9 @@ export function TaskList() {
       selectAllTasks,
       collapseAllTasks,
       showMenu,
+      handleExportTasks,
+      handleImportTasks,
+      isInstanceRunning,
     ],
   );
 
@@ -191,6 +354,167 @@ export function TaskList() {
       {menuState.isOpen && (
         <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
       )}
+
+      {/* 匯出預覽/確認（可勾選） */}
+      <ConfirmDialog
+        open={exportPreviewOpen && !!instance && !!exportPayload}
+        title={t('taskList.exportConfirmTitle')}
+        message={
+          exportPayload
+            ? t('taskList.exportConfirmHint', { count: exportPayload.tasks.length })
+            : undefined
+        }
+        cancelText={t('common.cancel')}
+        confirmText={t('taskList.exportConfirmAction')}
+        confirmDisabled={exportSelectedCount === 0}
+        onCancel={() => setExportPreviewOpen(false)}
+        onConfirm={() => {
+          if (!instance || !exportPayload) return;
+          const safeName = instance.name.replace(/[\\/:*?"<>|]/g, '_');
+          const filtered = {
+            version: exportPayload.version,
+            tasks: exportPayload.tasks
+              .filter((t) => exportSelected[String(t.id)] !== false)
+              .map(({ id: _id, ...rest }) => rest),
+          };
+          downloadJson(`mxu-tasks-${safeName}.json`, filtered);
+          setExportPreviewOpen(false);
+        }}
+      >
+        {exportPayload && (
+          <TaskTransferPreview
+            countText={t('taskList.selectionCount', {
+              selected: exportSelectedCount,
+              total: exportPayload.tasks.length,
+            })}
+            selectAllText={t('taskList.selectAll')}
+            selectNoneText={t('taskList.selectNone')}
+            onSelectAll={() => {
+              const next: Record<string, boolean> = {};
+              exportPayload.tasks.forEach((t) => (next[String(t.id)] = true));
+              setExportSelected(next);
+            }}
+            onSelectNone={() => {
+              const next: Record<string, boolean> = {};
+              exportPayload.tasks.forEach((t) => (next[String(t.id)] = false));
+              setExportSelected(next);
+            }}
+            items={exportPayload.tasks.map((t) => ({
+              id: String(t.id),
+              label: getTaskDisplayName(t.taskName, t.customName),
+            }))}
+            selected={exportSelected}
+            onToggle={(id, checked) => setExportSelected((prev) => ({ ...prev, [id]: checked }))}
+            emptySelectionWarning={exportSelectedCount === 0 ? t('taskList.mustSelectAtLeastOne') : undefined}
+            previewJson={exportJson}
+          />
+        )}
+      </ConfirmDialog>
+
+      {/* 匯入預覽/確認（可勾選） */}
+      <ConfirmDialog
+        open={pendingImportTasks !== null}
+        title={t('taskList.importConfirmTitle')}
+        message={
+          importMode === 'overwrite'
+            ? t('taskList.importConfirmMessageOverwrite')
+            : t('taskList.importConfirmMessageMerge')
+        }
+        cancelText={t('common.cancel')}
+        confirmText={t('taskList.importConfirmAction')}
+        destructive={importMode === 'overwrite'}
+        confirmDisabled={pendingImportTasks !== null && importSelectedCount === 0}
+        onCancel={() => setPendingImportTasks(null)}
+        onConfirm={() => {
+          if (!instance || !pendingImportTasks) return;
+          const filtered = pendingImportTasks.filter((t) => importSelected[t.id] !== false);
+          if (importMode === 'overwrite') {
+            updateInstance(instance.id, { selectedTasks: filtered });
+          } else {
+            const existing = instance.selectedTasks;
+            const seen = new Set(existing.map((t) => `${t.taskName}::${t.customName ?? ''}`));
+            const merged = [
+              ...existing,
+              ...filtered.filter((t) => {
+                const key = `${t.taskName}::${t.customName ?? ''}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              }),
+            ];
+            updateInstance(instance.id, { selectedTasks: merged });
+          }
+          setPendingImportTasks(null);
+        }}
+      >
+        {pendingImportTasks && (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-text-secondary">
+                {t('taskList.importModeLabel')}
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="flex items-start gap-2 p-2 rounded-lg bg-bg-tertiary border border-border cursor-pointer">
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={importMode === 'overwrite'}
+                    onChange={() => setImportMode('overwrite')}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-text-primary">
+                      {t('taskList.importModeOverwrite')}
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-0.5">
+                      {t('taskList.importModeOverwriteHint')}
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 p-2 rounded-lg bg-bg-tertiary border border-border cursor-pointer">
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={importMode === 'merge'}
+                    onChange={() => setImportMode('merge')}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-text-primary">
+                      {t('taskList.importModeMerge')}
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-0.5">
+                      {t('taskList.importModeMergeHint')}
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <TaskTransferPreview
+              countText={t('taskList.importPreviewCount', { count: pendingImportTasks.length })}
+              selectAllText={t('taskList.selectAll')}
+              selectNoneText={t('taskList.selectNone')}
+              onSelectAll={() => {
+                const next: Record<string, boolean> = {};
+                pendingImportTasks.forEach((t) => (next[t.id] = true));
+                setImportSelected(next);
+              }}
+              onSelectNone={() => {
+                const next: Record<string, boolean> = {};
+                pendingImportTasks.forEach((t) => (next[t.id] = false));
+                setImportSelected(next);
+              }}
+              items={pendingImportTasks.map((t) => ({
+                id: t.id,
+                label: getTaskDisplayName(t.taskName, t.customName),
+              }))}
+              selected={importSelected}
+              onToggle={(id, checked) => setImportSelected((prev) => ({ ...prev, [id]: checked }))}
+              emptySelectionWarning={importSelectedCount === 0 ? t('taskList.mustSelectAtLeastOne') : undefined}
+              previewJson={importPreviewJson}
+            />
+          </div>
+        )}
+      </ConfirmDialog>
     </>
   );
 }

@@ -12,6 +12,7 @@ import type {
   CustomAccent,
 } from './types';
 import { createLogger } from '@/utils/logger';
+import { resolveLanguagePreference, type LanguagePreference } from '@/i18n';
 
 const logger = createLogger('Theme');
 
@@ -172,7 +173,8 @@ export function getAvailableAccents(): AccentColor[] {
  * @param lang 语言代码
  */
 export function getAccentInfoList(lang: string, customAccents?: CustomAccent[]): AccentInfo[] {
-  const langKey = lang as keyof AccentTheme['label'];
+  const resolvedLang = resolveLanguagePreference(lang as LanguagePreference);
+  const langKey = resolvedLang as keyof AccentTheme['label'];
   const base = Object.keys(accentThemes) as AccentColor[];
   const customOrdered = (customAccents ?? []).map((a) => a.name as AccentColor);
   const seen = new Set<string>();

@@ -30,7 +30,7 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 const MAX_RECENTLY_CLOSED = 30;
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import { saveConfig } from '@/services/configService';
-import i18n, { getInterfaceLangKey } from '@/i18n';
+import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
 import {
   applyTheme,
   resolveThemeMode,
@@ -59,7 +59,7 @@ export interface LogEntry {
 }
 
 export type Theme = 'light' | 'dark' | 'system';
-export type Language = 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
+export type Language = 'system' | 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
 export type PageView = 'main' | 'settings';
 
 interface AppState {
@@ -67,10 +67,16 @@ interface AppState {
   theme: Theme;
   accentColor: AccentColor;
   language: Language;
+  /** 删除等危险操作是否需要二次确认 */
+  confirmBeforeDelete: boolean;
+  /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
+  maxLogsPerInstance: number;
   customAccents: CustomAccent[]; // 自定义强调色列表
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
   setLanguage: (lang: Language) => void;
+  setConfirmBeforeDelete: (enabled: boolean) => void;
+  setMaxLogsPerInstance: (value: number) => void;
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
@@ -482,7 +488,9 @@ export const useAppStore = create<AppState>()(
     // 主题和语言
     theme: 'light',
     accentColor: 'emerald',
-    language: 'zh-CN',
+    language: 'system',
+    confirmBeforeDelete: true,
+    maxLogsPerInstance: 2000,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -497,8 +505,11 @@ export const useAppStore = create<AppState>()(
     },
     setLanguage: (lang) => {
       set({ language: lang });
-      localStorage.setItem('mxu-language', lang);
+      setI18nLanguage(lang);
     },
+    setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
+    setMaxLogsPerInstance: (value) =>
+      set({ maxLogsPerInstance: Math.max(100, Math.min(10000, Math.floor(value))) }),
     addCustomAccent: (accent) => {
       set((state) => ({
         customAccents: [...state.customAccents, accent],
@@ -1177,6 +1188,8 @@ export const useAppStore = create<AppState>()(
         theme: config.settings.theme,
         accentColor,
         language: config.settings.language,
+        confirmBeforeDelete: config.settings.confirmBeforeDelete ?? true,
+        maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
         customAccents,
         selectedController,
         selectedResource,
@@ -1206,7 +1219,7 @@ export const useAppStore = create<AppState>()(
       const theme = config.settings.theme;
       const mode = resolveThemeMode(theme);
       applyTheme(mode, accentColor);
-      localStorage.setItem('mxu-language', config.settings.language);
+      setI18nLanguage(config.settings.language);
     },
 
     // MaaFramework 状态
@@ -1700,8 +1713,9 @@ export const useAppStore = create<AppState>()(
           timestamp: new Date(),
           ...log,
         };
-        // 限制每个实例最多保留 500 条日志
-        const updatedLogs = [...logs, newLog].slice(-500);
+        // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）
+        const limit = Math.max(0, state.maxLogsPerInstance || 0);
+        const updatedLogs = limit > 0 ? [...logs, newLog].slice(-limit) : [...logs, newLog];
         return {
           instanceLogs: {
             ...state.instanceLogs,
@@ -1780,6 +1794,8 @@ function generateConfig(): MxuConfig {
       theme: state.theme,
       accentColor: state.accentColor,
       language: state.language,
+      confirmBeforeDelete: state.confirmBeforeDelete,
+      maxLogsPerInstance: state.maxLogsPerInstance,
       windowSize: state.windowSize,
       mirrorChyan: state.mirrorChyanSettings,
       proxy: state.proxySettings,
@@ -1829,6 +1845,8 @@ useAppStore.subscribe(
     theme: state.theme,
     accentColor: state.accentColor,
     language: state.language,
+    confirmBeforeDelete: state.confirmBeforeDelete,
+    maxLogsPerInstance: state.maxLogsPerInstance,
     windowSize: state.windowSize,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,

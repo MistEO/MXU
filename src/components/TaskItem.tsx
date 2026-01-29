@@ -27,6 +27,7 @@ import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
@@ -140,6 +141,7 @@ function DescriptionContent({
 export function TaskItem({ instanceId, task }: TaskItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editName, setEditName] = useState('');
 
   const {
@@ -147,6 +149,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     toggleTaskEnabled,
     toggleTaskExpanded,
     removeTaskFromInstance,
+    confirmBeforeDelete,
     renameTask,
     duplicateTask,
     moveTaskUp,
@@ -505,7 +508,13 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           icon: Trash2,
           danger: true,
           disabled: !canDelete,
-          onClick: () => removeTaskFromInstance(instanceId, task.id),
+          onClick: () => {
+            if (!confirmBeforeDelete) {
+              removeTaskFromInstance(instanceId, task.id);
+              return;
+            }
+            setShowDeleteConfirm(true);
+          },
         },
       ];
 
@@ -767,7 +776,13 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         {/* 删除按钮 - hover 时显示，运行时隐藏 */}
         {!isEditing && canDelete && (
           <button
-            onClick={() => removeTaskFromInstance(instanceId, task.id)}
+            onClick={() => {
+              if (!confirmBeforeDelete) {
+                removeTaskFromInstance(instanceId, task.id);
+                return; 
+              }
+              setShowDeleteConfirm(true);
+            }}
             className={clsx(
               'p-1 rounded opacity-0 group-hover:opacity-100 transition-all',
               'text-text-muted hover:bg-error/10 hover:text-error',
@@ -835,6 +850,21 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       {menuState.isOpen && (
         <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
       )}
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={t('taskItem.removeConfirmTitle')}
+        message={t('taskItem.removeConfirmMessage')}
+        cancelText={t('common.cancel')}
+        confirmText={t('common.delete')}
+        destructive
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          removeTaskFromInstance(instanceId, task.id);
+        }}
+      />
     </div>
   );
 }

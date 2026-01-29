@@ -96,7 +96,11 @@ export interface HotkeySettings {
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   accentColor?: AccentColor; // 强调色
-  language: 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
+  language: 'system' | 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
+  /** 删除等危险操作是否需要二次确认 */
+  confirmBeforeDelete?: boolean;
+  /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
+  maxLogsPerInstance?: number;
   windowSize?: WindowSize;
   mirrorChyan?: MirrorChyanSettings;
   proxy?: ProxySettings; // 代理设置
@@ -157,7 +161,9 @@ export const defaultConfig: MxuConfig = {
   settings: {
     theme: 'system',
     accentColor: defaultAccentColor,
-    language: 'zh-CN',
+    language: 'system',
+    confirmBeforeDelete: true,
+    maxLogsPerInstance: 2000,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
   },

@@ -92,7 +92,10 @@ export default {
     noTasks: 'タスクがありません',
     dragToReorder: 'ドラッグして並べ替え',
     importConfirmTitle: 'タスクリストをインポート',
-    importConfirmMessage: 'インポートすると現在のインスタンスのタスクリストが上書きされます。続行しますか？',
+    importConfirmMessageOverwrite:
+      'インポートすると現在のインスタンスのタスクリストが上書きされます。続行しますか？',
+    importConfirmMessageMerge:
+      'インポート内容を現在のインスタンスのタスクリストにマージします。続行しますか？',
     importConfirmAction: 'インポート',
     importPreviewCount: 'インポート内容：{{count}} 件のタスク',
     importModeLabel: 'インポート方法',

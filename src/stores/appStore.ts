@@ -1713,9 +1713,14 @@ export const useAppStore = create<AppState>()(
           timestamp: new Date(),
           ...log,
         };
-        // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）
-        const limit = Math.max(0, state.maxLogsPerInstance || 0);
-        const updatedLogs = limit > 0 ? [...logs, newLog].slice(-limit) : [...logs, newLog];
+        // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）。
+        // 这里也做归一化，避免配置错误导致无限增长；与 UI 限制保持一致：[100, 10000]，默认 2000。
+        const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
+        const rawLimit = Number.isFinite(state.maxLogsPerInstance)
+          ? state.maxLogsPerInstance
+          : DEFAULT_MAX_LOGS_PER_INSTANCE;
+        const limit = Math.min(10000, Math.max(100, Math.floor(rawLimit)));
+        const updatedLogs = [...logs, newLog].slice(-limit);
         return {
           instanceLogs: {
             ...state.instanceLogs,

@@ -48,6 +48,26 @@ export function ConfirmDialog({
         onCancel();
         return;
       }
+      // Enter: trigger primary confirm when enabled.
+      // - If primary confirm is disabled, fall back to secondary confirm (if present and enabled).
+      // - Do NOT hijack Enter while focusing form controls (input/select/textarea), to avoid surprising submits.
+      if (e.key === 'Enter') {
+        const active = document.activeElement as HTMLElement | null;
+        const tag = active?.tagName;
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+        if (!confirmDisabled) {
+          e.preventDefault();
+          onConfirm();
+          return;
+        }
+
+        if (secondaryConfirmText && onSecondaryConfirm && !secondaryConfirmDisabled) {
+          e.preventDefault();
+          onSecondaryConfirm();
+        }
+        return;
+      }
       if (e.key !== 'Tab') return;
       const panel = panelRef.current;
       if (!panel) return;
@@ -74,7 +94,15 @@ export function ConfirmDialog({
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onCancel]);
+  }, [
+    open,
+    onCancel,
+    onConfirm,
+    confirmDisabled,
+    secondaryConfirmText,
+    onSecondaryConfirm,
+    secondaryConfirmDisabled,
+  ]);
 
   return (
     <div

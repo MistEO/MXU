@@ -22,6 +22,7 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import type { OptionValue, SelectedTask } from '@/types/interface';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
+import { TaskTransferPreview } from './TaskTransferPreview';
 
 export function TaskList() {
   const { t } = useTranslation();
@@ -132,8 +133,7 @@ export function TaskList() {
     setExportPreviewOpen(true);
   }, [instance, exportPayload]);
 
-  const parseImportFile = async (file: File): Promise<SelectedTask[]> => {
-    const text = await file.text();
+  const parseImportText = (text: string): SelectedTask[] => {
     const parsed = JSON.parse(text) as any;
     const rawTasks: any[] = Array.isArray(parsed) ? parsed : parsed?.tasks;
     if (!Array.isArray(rawTasks)) throw new Error('Invalid format');
@@ -163,8 +163,9 @@ export function TaskList() {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const imported = await parseImportFile(file);
-        setImportPreviewJson(await file.text());
+        const text = await file.text();
+        const imported = parseImportText(text);
+        setImportPreviewJson(text);
         setPendingImportTasks(imported);
         setImportMode('overwrite');
         // 預設全選
@@ -381,70 +382,32 @@ export function TaskList() {
         }}
       >
         {exportPayload && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-text-muted">
-                {t('taskList.selectionCount', {
-                  selected: exportSelectedCount,
-                  total: exportPayload.tasks.length,
-                })}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="text-xs text-accent hover:underline"
-                  onClick={() => {
-                    const next: Record<string, boolean> = {};
-                    exportPayload.tasks.forEach((t) => (next[String(t.id)] = true));
-                    setExportSelected(next);
-                  }}
-                >
-                  {t('taskList.selectAll')}
-                </button>
-                <button
-                  type="button"
-                  className="text-xs text-accent hover:underline"
-                  onClick={() => {
-                    const next: Record<string, boolean> = {};
-                    exportPayload.tasks.forEach((t) => (next[String(t.id)] = false));
-                    setExportSelected(next);
-                  }}
-                >
-                  {t('taskList.selectNone')}
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-40 overflow-auto rounded-lg border border-border bg-bg-tertiary">
-              {exportPayload.tasks.map((t) => {
-                const checked = exportSelected[String(t.id)] !== false;
-                const label = getTaskDisplayName(t.taskName, t.customName);
-                return (
-                  <label
-                    key={String(t.id)}
-                    className="flex items-center gap-2 px-3 py-2 text-xs text-text-secondary border-b border-border last:border-b-0 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) =>
-                        setExportSelected((prev) => ({ ...prev, [String(t.id)]: e.target.checked }))
-                      }
-                    />
-                    <span className="truncate">{label}</span>
-                  </label>
-                );
-              })}
-            </div>
-
-            {exportSelectedCount === 0 && (
-              <div className="text-xs text-warning">{t('taskList.mustSelectAtLeastOne')}</div>
-            )}
-
-            <pre className="text-xs bg-bg-tertiary rounded-lg border border-border p-3 overflow-auto whitespace-pre max-h-52">
-              {exportJson}
-            </pre>
-          </div>
+          <TaskTransferPreview
+            countText={t('taskList.selectionCount', {
+              selected: exportSelectedCount,
+              total: exportPayload.tasks.length,
+            })}
+            selectAllText={t('taskList.selectAll')}
+            selectNoneText={t('taskList.selectNone')}
+            onSelectAll={() => {
+              const next: Record<string, boolean> = {};
+              exportPayload.tasks.forEach((t) => (next[String(t.id)] = true));
+              setExportSelected(next);
+            }}
+            onSelectNone={() => {
+              const next: Record<string, boolean> = {};
+              exportPayload.tasks.forEach((t) => (next[String(t.id)] = false));
+              setExportSelected(next);
+            }}
+            items={exportPayload.tasks.map((t) => ({
+              id: String(t.id),
+              label: getTaskDisplayName(t.taskName, t.customName),
+            }))}
+            selected={exportSelected}
+            onToggle={(id, checked) => setExportSelected((prev) => ({ ...prev, [id]: checked }))}
+            emptySelectionWarning={exportSelectedCount === 0 ? t('taskList.mustSelectAtLeastOne') : undefined}
+            previewJson={exportJson}
+          />
         )}
       </ConfirmDialog>
 
@@ -452,7 +415,11 @@ export function TaskList() {
       <ConfirmDialog
         open={pendingImportTasks !== null}
         title={t('taskList.importConfirmTitle')}
-        message={t('taskList.importConfirmMessage')}
+        message={
+          importMode === 'overwrite'
+            ? t('taskList.importConfirmMessageOverwrite')
+            : t('taskList.importConfirmMessageMerge')
+        }
         cancelText={t('common.cancel')}
         confirmText={t('taskList.importConfirmAction')}
         destructive={importMode === 'overwrite'}
@@ -522,65 +489,29 @@ export function TaskList() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-text-muted">
-                {t('taskList.importPreviewCount', { count: pendingImportTasks.length })}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="text-xs text-accent hover:underline"
-                  onClick={() => {
-                    const next: Record<string, boolean> = {};
-                    pendingImportTasks.forEach((t) => (next[t.id] = true));
-                    setImportSelected(next);
-                  }}
-                >
-                  {t('taskList.selectAll')}
-                </button>
-                <button
-                  type="button"
-                  className="text-xs text-accent hover:underline"
-                  onClick={() => {
-                    const next: Record<string, boolean> = {};
-                    pendingImportTasks.forEach((t) => (next[t.id] = false));
-                    setImportSelected(next);
-                  }}
-                >
-                  {t('taskList.selectNone')}
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-40 overflow-auto rounded-lg border border-border bg-bg-tertiary">
-              {pendingImportTasks.map((t) => {
-                const checked = importSelected[t.id] !== false;
-                const label = getTaskDisplayName(t.taskName, t.customName);
-                return (
-                  <label
-                    key={t.id}
-                    className="flex items-center gap-2 px-3 py-2 text-xs text-text-secondary border-b border-border last:border-b-0 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) =>
-                        setImportSelected((prev) => ({ ...prev, [t.id]: e.target.checked }))
-                      }
-                    />
-                    <span className="truncate">{label}</span>
-                  </label>
-                );
-              })}
-            </div>
-
-            {importSelectedCount === 0 && (
-              <div className="text-xs text-warning">{t('taskList.mustSelectAtLeastOne')}</div>
-            )}
-
-            <pre className="text-xs bg-bg-tertiary rounded-lg border border-border p-3 overflow-auto whitespace-pre max-h-52">
-              {importPreviewJson}
-            </pre>
+            <TaskTransferPreview
+              countText={t('taskList.importPreviewCount', { count: pendingImportTasks.length })}
+              selectAllText={t('taskList.selectAll')}
+              selectNoneText={t('taskList.selectNone')}
+              onSelectAll={() => {
+                const next: Record<string, boolean> = {};
+                pendingImportTasks.forEach((t) => (next[t.id] = true));
+                setImportSelected(next);
+              }}
+              onSelectNone={() => {
+                const next: Record<string, boolean> = {};
+                pendingImportTasks.forEach((t) => (next[t.id] = false));
+                setImportSelected(next);
+              }}
+              items={pendingImportTasks.map((t) => ({
+                id: t.id,
+                label: getTaskDisplayName(t.taskName, t.customName),
+              }))}
+              selected={importSelected}
+              onToggle={(id, checked) => setImportSelected((prev) => ({ ...prev, [id]: checked }))}
+              emptySelectionWarning={importSelectedCount === 0 ? t('taskList.mustSelectAtLeastOne') : undefined}
+              previewJson={importPreviewJson}
+            />
           </div>
         )}
       </ConfirmDialog>

@@ -49,9 +49,9 @@ export default defineConfig(async () => ({
             ) {
               return "vendor-utils";
             }
-            // 国际化
+            // 国际化（并入 React vendor，避免 chunk 环依赖）
             if (normalizedId.includes("/i18next/") || normalizedId.includes("/react-i18next/")) {
-              return "vendor-i18n";
+              return "vendor-react";
             }
             // UI 组件
             if (

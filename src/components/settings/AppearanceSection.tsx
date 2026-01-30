@@ -48,7 +48,7 @@ export function AppearanceSection({
     [language, customAccents],
   );
 
-  const customAccentNames = useMemo(() => customAccents.map((a) => a.name), [customAccents]);
+  const customAccentIds = useMemo(() => customAccents.map((a) => a.id), [customAccents]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -56,12 +56,12 @@ export function AppearanceSection({
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
-      const oldIndex = customAccentNames.indexOf(String(active.id));
-      const newIndex = customAccentNames.indexOf(String(over.id));
+      const oldIndex = customAccentIds.indexOf(String(active.id));
+      const newIndex = customAccentIds.indexOf(String(over.id));
       if (oldIndex === -1 || newIndex === -1) return;
       reorderCustomAccents(oldIndex, newIndex);
     },
-    [customAccentNames, reorderCustomAccents],
+    [customAccentIds, reorderCustomAccents],
   );
 
   const handleLanguageChange = (
@@ -146,7 +146,7 @@ export function AppearanceSection({
           collisionDetection={closestCenter}
           onDragEnd={handleAccentDragEnd}
         >
-          <SortableContext items={customAccentNames} strategy={rectSortingStrategy}>
+          <SortableContext items={customAccentIds} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-3 gap-2">
               {accentColors.map((accent) => {
                 const isSelected = accentColor === accent.name;
@@ -155,7 +155,7 @@ export function AppearanceSection({
                   if (!customAccent) return null;
                   return (
                     <SortableAccentTile
-                      key={accent.name}
+                      key={customAccent.id}
                       accent={accent}
                       customAccent={customAccent}
                       isSelected={isSelected}

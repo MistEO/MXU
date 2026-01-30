@@ -69,6 +69,11 @@ export default {
     accentHoverColor: '悬停色',
     accentLightColor: '浅色背景',
     accentLightDarkColor: '深色背景',
+    accentColorConfig: '颜色配置',
+    accentPreview: '预览效果',
+    accentPreviewMainButton: '主要按钮',
+    accentPreviewLightBg: '浅色背景',
+    accentPreviewDarkBg: '深色背景',
     hotkeysStartTasks: '开始任务快捷键',
     hotkeysStopTasks: '结束任务快捷键',
     hotkeysHint:

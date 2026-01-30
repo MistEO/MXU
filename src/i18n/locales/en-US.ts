@@ -69,6 +69,11 @@ export default {
     accentHoverColor: 'Hover Color',
     accentLightColor: 'Light Background',
     accentLightDarkColor: 'Dark Background',
+    accentColorConfig: 'Color Configuration',
+    accentPreview: 'Preview',
+    accentPreviewMainButton: 'Primary Button',
+    accentPreviewLightBg: 'Light Background',
+    accentPreviewDarkBg: 'Dark Background',
     hotkeysStartTasks: 'Start Tasks Hotkey',
     hotkeysStopTasks: 'Stop Tasks Hotkey',
     hotkeysHint:

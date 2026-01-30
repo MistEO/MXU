@@ -69,6 +69,11 @@ export default {
     accentHoverColor: '호버 색상',
     accentLightColor: '라이트 배경',
     accentLightDarkColor: '다크 배경',
+    accentColorConfig: '색상 구성',
+    accentPreview: '미리보기',
+    accentPreviewMainButton: '주요 버튼',
+    accentPreviewLightBg: '라이트 배경',
+    accentPreviewDarkBg: '다크 배경',
     hotkeysStartTasks: '작업 시작 단축키',
     hotkeysStopTasks: '작업 중지 단축키',
     hotkeysHint:

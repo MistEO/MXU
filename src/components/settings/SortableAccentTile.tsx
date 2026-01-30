@@ -26,8 +26,9 @@ export function SortableAccentTile({
 }: SortableAccentTileProps) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: customAccent.name,
+    id: customAccent.id,
   });
+  const { onKeyDown: sortableOnKeyDown, ...sortableListeners } = listeners;
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -35,10 +36,18 @@ export function SortableAccentTile({
   };
 
   return (
-    <button
+    <div
       ref={setNodeRef}
       style={style}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        sortableOnKeyDown?.(event);
+        if (event.defaultPrevented) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       className={clsx(
         'relative group flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-bg-tertiary border',
         isSelected
@@ -47,7 +56,7 @@ export function SortableAccentTile({
         isDragging && 'cursor-grabbing',
       )}
       {...attributes}
-      {...listeners}
+      {...sortableListeners}
     >
       <span
         className="w-4 h-4 rounded-full flex-shrink-0 border border-border-strong"
@@ -79,6 +88,6 @@ export function SortableAccentTile({
           <Trash2 className="w-3 h-3" />
         </button>
       </div>
-    </button>
+    </div>
   );
 }

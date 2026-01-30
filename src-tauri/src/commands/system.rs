@@ -251,8 +251,8 @@ pub fn get_system_info() -> SystemInfo {
     // 获取系统架构
     let arch = std::env::consts::ARCH.to_string();
 
-    // 获取 Tauri 版本（从编译时环境变量）
-    let tauri_version = env!("CARGO_PKG_VERSION").to_string();
+    // 获取 Tauri 框架版本（来自 Tauri 常量）
+    let tauri_version = tauri::VERSION.to_string();
 
     SystemInfo {
         os,

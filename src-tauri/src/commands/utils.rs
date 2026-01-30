@@ -30,14 +30,14 @@ pub fn normalize_path(path: &str) -> PathBuf {
     }
 
     // 重建路径
-    components.iter().collect()
+    components.into_iter().collect()
 }
 
 /// 获取 exe 所在目录下的 debug/logs 子目录
 pub fn get_logs_dir() -> PathBuf {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
-    exe_dir.join("debug")
+    exe_dir.join("debug").join("logs")
 }
 
 /// 获取 exe 所在目录路径（内部使用）
@@ -74,8 +74,11 @@ pub fn get_maafw_dir() -> Result<PathBuf, String> {
 /// 构建 User-Agent 字符串
 pub fn build_user_agent() -> String {
     let version = env!("CARGO_PKG_VERSION");
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let tauri_version = tauri::VERSION;
     format!(
-        "MXU/{} (Windows NT 10.0; Win64; x64; amd64) Tauri/2.0",
-        version
+        "MXU/{} ({}; {}) Tauri/{}",
+        version, os, arch, tauri_version
     )
 }

@@ -227,7 +227,9 @@ export function CustomAccentModal({
 
           {/* 颜色选择器 */}
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-text-primary">颜色配置</label>
+            <label className="block text-sm font-medium text-text-primary">
+              {t('settings.accentColorConfig')}
+            </label>
             <div className="grid grid-cols-2 gap-4">
               {/* 主色 */}
               <div className="space-y-2">
@@ -313,7 +315,7 @@ export function CustomAccentModal({
             {/* 颜色预览 */}
             <div className="pt-4 border-t border-border">
               <label className="block text-xs font-medium text-text-secondary mb-3">
-                预览效果
+                {t('settings.accentPreview')}
               </label>
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -332,7 +334,7 @@ export function CustomAccentModal({
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
-                  主要按钮
+                  {t('settings.accentPreviewMainButton')}
                 </button>
                 <div
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-border/50"
@@ -341,7 +343,7 @@ export function CustomAccentModal({
                     color: '#000000',
                   }}
                 >
-                  浅色背景
+                  {t('settings.accentPreviewLightBg')}
                 </div>
                 <div
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-border/50"
@@ -350,7 +352,7 @@ export function CustomAccentModal({
                     color: '#ffffff',
                   }}
                 >
-                  深色背景
+                  {t('settings.accentPreviewDarkBg')}
                 </div>
               </div>
             </div>

@@ -416,7 +416,7 @@ async function getGitHubReleaseByVersion(
     };
 
     if (githubPat && githubPat.trim()) {
-      headers['Authorization'] = `Bearer ${githubPat.trim()}`;
+      headers['Authorization'] = `token ${githubPat.trim()}`;
       log.info('使用 GitHub PAT 进行认证请求');
     }
 

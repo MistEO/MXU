@@ -386,7 +386,7 @@ export function openMirrorChyanWebsite(source?: string) {
 
 /**
  * 从 GitHub URL 提取 owner 和 repo
- * 支持格式: https://github.com/owner/repo 或 https://github.com/owner/repo.git * @param githubPat 可选的 GitHub Personal Access Token，用于提高 API 速率限制或访问私有仓库
+ * 支持格式: https://github.com/owner/repo 或 https://github.com/owner/repo.git
  */
 function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   const match = url.match(/github\.com\/([^/]+)\/([^/.]+)/);

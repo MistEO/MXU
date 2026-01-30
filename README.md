@@ -21,7 +21,7 @@
 
 ### 依赖文件
 
-[MXU Releases](https://github.com/MistEO/MXU/releases) 中提供了单 exec 文件（mxu.exe），您需要配置以下依赖：
+[MXU Releases](https://github.com/MistEO/MXU/releases) 中提供了单可执行文件（Windows 为 `mxu.exe`，Linux/macOS 为 `mxu`），您需要配置以下依赖：
 
 - [MaaFramework](https://github.com/MaaXYZ/MaaFramework/releases) 运行库 ( >= `v5.5.0-beta.1` ) ，将压缩包中的 `bin` 文件夹内容解压到 `maafw` 文件夹中
 - [interface.json](https://github.com/MaaXYZ/MaaFramework/blob/main/sample/interface.json) 及相关资源文件，请参考 [PI 协议文档](https://github.com/MaaXYZ/MaaFramework/blob/main/docs/zh_cn/3.3-ProjectInterfaceV2%E5%8D%8F%E8%AE%AE.md) 编写
@@ -30,7 +30,7 @@
 
 ```text
 your-project/
-├── mxu.exe (或 mxu / mxu.app)
+├── mxu.exe (或 mxu)
 ├── maafw/
 │   ├── MaaFramework.dll (Windows)
 │   ├── MaaToolkit.dll
@@ -39,7 +39,7 @@ your-project/
 └── resource/
 ```
 
-随后双击打开 `mxu.exe` 即可！~
+随后运行 `mxu.exe`（Windows）或 `./mxu`（Linux/macOS）即可！~
 
 ### 用户文件
 

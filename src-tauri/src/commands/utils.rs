@@ -33,7 +33,7 @@ pub fn normalize_path(path: &str) -> PathBuf {
     components.into_iter().collect()
 }
 
-/// 获取 exe 所在目录下的 debug/logs 子目录
+/// 获取 exe 所在目录下的 debug 子目录
 pub fn get_logs_dir() -> PathBuf {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
@@ -56,17 +56,6 @@ pub fn get_maafw_dir() -> Result<PathBuf, String> {
     let exe_dir = exe_path
         .parent()
         .ok_or_else(|| "Failed to get executable directory".to_string())?;
-
-    // macOS app bundle 需要特殊处理：exe 在 Contents/MacOS 下，maafw 应在 Contents/Resources 下
-    #[cfg(target_os = "macos")]
-    {
-        if exe_dir.ends_with("Contents/MacOS") {
-            let resources_dir = exe_dir.parent().unwrap().join("Resources").join("maafw");
-            if resources_dir.exists() {
-                return Ok(resources_dir);
-            }
-        }
-    }
 
     Ok(exe_dir.join("maafw"))
 }

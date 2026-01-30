@@ -28,7 +28,6 @@ export function SortableAccentTile({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: customAccent.id,
   });
-  const { onKeyDown: sortableOnKeyDown, ...sortableListeners } = listeners;
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -41,8 +40,6 @@ export function SortableAccentTile({
       style={style}
       onClick={onSelect}
       onKeyDown={(event) => {
-        sortableOnKeyDown?.(event);
-        if (event.defaultPrevented) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onSelect();
@@ -56,7 +53,7 @@ export function SortableAccentTile({
         isDragging && 'cursor-grabbing',
       )}
       {...attributes}
-      {...sortableListeners}
+      {...(listeners ?? {})}
     >
       <span
         className="w-4 h-4 rounded-full flex-shrink-0 border border-border-strong"

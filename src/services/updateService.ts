@@ -386,7 +386,7 @@ export function openMirrorChyanWebsite(source?: string) {
 
 /**
  * 从 GitHub URL 提取 owner 和 repo
- * 支持格式: https://github.com/owner/repo 或 https://github.com/owner/repo.git
+ * 支持格式: https://github.com/owner/repo 或 https://github.com/owner/repo.git * @param githubPat 可选的 GitHub Personal Access Token，用于提高 API 速率限制或访问私有仓库
  */
 function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   const match = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
@@ -404,16 +404,23 @@ async function getGitHubReleaseByVersion(
   owner: string,
   repo: string,
   targetVersion: string,
+  githubPat?: string,
 ): Promise<GitHubRelease | null> {
   try {
     const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases`;
 
-    const response = await tauriFetch(url, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': buildUserAgent(),
-      },
-    });
+    // 构建请求头，如果有 PAT 则添加认证
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json',
+      'User-Agent': buildUserAgent(),
+    };
+
+    if (githubPat && githubPat.trim()) {
+      headers['Authorization'] = `Bearer ${githubPat.trim()}`;
+      log.info('使用 GitHub PAT 进行认证请求');
+    }
+
+    const response = await tauriFetch(url, { headers });
 
     if (!response.ok) {
       log.warn(`GitHub API 返回错误: ${response.status}`);
@@ -493,6 +500,7 @@ function matchGitHubAsset(assets: GitHubAsset[]): GitHubAsset | null {
 export interface GetGitHubDownloadUrlOptions {
   githubUrl: string;
   targetVersion: string; // Mirror酱返回的目标版本号
+  githubPat?: string; // GitHub Personal Access Token (支持 classic 和 fine-grained)
 }
 
 /**
@@ -503,7 +511,7 @@ export interface GetGitHubDownloadUrlOptions {
 export async function getGitHubDownloadUrl(
   options: GetGitHubDownloadUrlOptions,
 ): Promise<{ url: string; size: number; filename: string } | null> {
-  const { githubUrl, targetVersion } = options;
+  const { githubUrl, targetVersion, githubPat } = options;
 
   const parsed = parseGitHubUrl(githubUrl);
   if (!parsed) {
@@ -513,8 +521,8 @@ export async function getGitHubDownloadUrl(
 
   const { owner, repo } = parsed;
 
-  // 根据 Mirror酱返回的版本号查找对应的 release
-  const release = await getGitHubReleaseByVersion(owner, repo, targetVersion);
+  // 根据 Mirror酱返回的版本号查找对应的 release（传递 PAT）
+  const release = await getGitHubReleaseByVersion(owner, repo, targetVersion, githubPat);
   if (!release) {
     log.warn('未找到 GitHub Release');
     return null;
@@ -642,6 +650,7 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
 export interface CheckAndDownloadOptions extends CheckUpdateOptions {
   githubUrl?: string;
   basePath: string;
+  githubPat?: string; // GitHub Personal Access Token
 }
 
 /**
@@ -657,7 +666,7 @@ export async function checkAndPrepareDownload(
     return null;
   }
 
-  const { githubUrl, basePath, cdk, channel, ...checkOptions } = options;
+  const { githubUrl, basePath, cdk, channel, githubPat, ...checkOptions } = options;
 
   // 始终使用 Mirror酱 检查更新
   const updateInfo = await checkUpdate({ ...checkOptions, cdk, channel });
@@ -678,6 +687,7 @@ export async function checkAndPrepareDownload(
     const githubDownload = await getGitHubDownloadUrl({
       githubUrl,
       targetVersion: updateInfo.versionName,
+      githubPat,
     });
 
     if (githubDownload) {

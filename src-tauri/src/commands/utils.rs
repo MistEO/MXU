@@ -37,7 +37,7 @@ pub fn normalize_path(path: &str) -> PathBuf {
 pub fn get_logs_dir() -> PathBuf {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
-    exe_dir.join("debug").join("logs")
+    exe_dir.join("debug")
 }
 
 /// 获取 exe 所在目录路径（内部使用）

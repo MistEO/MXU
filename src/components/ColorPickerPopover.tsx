@@ -125,7 +125,7 @@ export function ColorPickerPopover({
             <div className="rounded-lg overflow-hidden border border-border bg-bg-tertiary">
               <HexColorPicker
                 color={color}
-                onChange={(c) => {
+                onChange={(c: string) => {
                   const next = normalizeHex(c);
                   if (next) onChange(next);
                 }}

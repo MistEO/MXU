@@ -44,6 +44,7 @@ import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode } from '@/themes';
 import {
   isTauri,
+  isValidWindowSize,
   setWindowTitle,
   setWindowSize,
   getWindowSize,

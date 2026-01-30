@@ -20,7 +20,8 @@ import { SchedulePanel } from './SchedulePanel';
 import type { Instance } from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
-import { PermissionModal, ScheduleButton } from './toolbar';
+import { PermissionModal } from './toolbar/PermissionModal';
+import { ScheduleButton } from './toolbar/ScheduleButton';
 
 const log = loggers.task;
 

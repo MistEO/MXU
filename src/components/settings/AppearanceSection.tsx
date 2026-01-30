@@ -13,7 +13,7 @@ import {
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 
 import { useAppStore } from '@/stores/appStore';
-import { getAccentInfoList, type AccentColor, type CustomAccent, type AccentInfo } from '@/themes';
+import { getAccentInfoList, type AccentColor, type CustomAccent } from '@/themes';
 import { FrameRateSelector } from '../FrameRateSelector';
 import { SortableAccentTile } from './SortableAccentTile';
 

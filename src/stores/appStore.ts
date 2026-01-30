@@ -1,13 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type {
-  ProjectInterface,
-  Instance,
-  SelectedTask,
-  OptionValue,
-  TaskItem,
-  OptionDefinition,
-} from '@/types/interface';
+import type { Instance, SelectedTask } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -31,7 +24,7 @@ import { loggers } from '@/utils/logger';
 
 // 从独立模块导入类型和辅助函数
 import type { AppState, TaskRunStatus, LogEntry } from './types';
-import { generateId, initializeAllOptionValues, createDefaultOptionValue } from './helpers';
+import { generateId, initializeAllOptionValues } from './helpers';
 
 // 重新导出类型供外部使用
 export type {

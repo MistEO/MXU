@@ -1,10 +1,4 @@
-import type {
-  ProjectInterface,
-  Instance,
-  SelectedTask,
-  OptionValue,
-  SavedDeviceInfo,
-} from '@/types/interface';
+import type { ProjectInterface, Instance, OptionValue, SavedDeviceInfo } from '@/types/interface';
 import type {
   MxuConfig,
   WindowSize,

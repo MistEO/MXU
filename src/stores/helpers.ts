@@ -1,4 +1,4 @@
-import type { OptionValue, OptionDefinition, SelectedTask } from '@/types/interface';
+import type { OptionValue, OptionDefinition } from '@/types/interface';
 import { findSwitchCase } from '@/utils/optionHelpers';
 
 /** 生成唯一 ID */

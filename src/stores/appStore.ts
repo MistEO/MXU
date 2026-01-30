@@ -21,6 +21,7 @@ import {
   clearCustomAccents,
 } from '@/themes';
 import { loggers } from '@/utils/logger';
+import { maaService } from '@/services/maaService';
 
 // 从独立模块导入类型和辅助函数
 import type { AppState, TaskRunStatus, LogEntry } from './types';
@@ -147,7 +148,6 @@ export const useAppStore = create<AppState>()(
       set({ saveDraw: enabled });
       // 调用 MaaFramework API 设置全局选项
       try {
-        const { maaService } = await import('@/services/maaService');
         await maaService.setSaveDraw(enabled);
       } catch (err) {
         loggers.app.error('设置保存调试图像失败:', err);

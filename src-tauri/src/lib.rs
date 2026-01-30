@@ -1,24 +1,16 @@
-pub mod maa_commands;
+pub mod commands;
 mod maa_ffi;
 
-use maa_commands::MaaState;
+use commands::MaaState;
 use maa_ffi::MaaLibraryError;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 
-/// 获取 exe 所在目录下的 debug/logs 子目录
-fn get_logs_dir() -> PathBuf {
-    let exe_path = std::env::current_exe().unwrap_or_default();
-    let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
-    exe_dir.join("debug")
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 日志目录：exe 目录/debug/logs（与前端日志同目录）
-    let logs_dir = get_logs_dir();
+    let logs_dir = commands::utils::get_logs_dir();
 
     // 确保日志目录存在
     let _ = std::fs::create_dir_all(&logs_dir);
@@ -62,11 +54,11 @@ pub fn run() {
             }
 
             // 启动时异步清理 cache/old 目录（更新残留的旧文件），不阻塞应用启动
-            if let Ok(exe_dir) = maa_commands::get_exe_dir() {
+            if let Ok(exe_dir) = commands::get_exe_dir() {
                 let old_dir = std::path::Path::new(&exe_dir).join("cache").join("old");
                 if old_dir.exists() {
                     std::thread::spawn(move || {
-                        let (deleted, failed) = maa_commands::cleanup_dir_contents(&old_dir);
+                        let (deleted, failed) = commands::cleanup_dir_contents(&old_dir);
                         if deleted > 0 || failed > 0 {
                             if failed == 0 {
                                 log::info!("Cleaned up cache/old: {} items deleted", deleted);
@@ -83,7 +75,7 @@ pub fn run() {
             }
 
             // 启动时自动加载 MaaFramework DLL
-            if let Ok(maafw_dir) = maa_commands::get_maafw_dir() {
+            if let Ok(maafw_dir) = commands::get_maafw_dir() {
                 if maafw_dir.exists() {
                     match maa_ffi::init_maa_library(&maafw_dir) {
                         Ok(()) => log::info!("MaaFramework loaded from {:?}", maafw_dir),
@@ -108,62 +100,63 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            maa_commands::maa_init,
-            maa_commands::maa_set_resource_dir,
-            maa_commands::maa_get_version,
-            maa_commands::maa_check_version,
-            maa_commands::maa_find_adb_devices,
-            maa_commands::maa_find_win32_windows,
-            maa_commands::maa_create_instance,
-            maa_commands::maa_destroy_instance,
-            maa_commands::maa_connect_controller,
-            maa_commands::maa_get_connection_status,
-            maa_commands::maa_load_resource,
-            maa_commands::maa_is_resource_loaded,
-            maa_commands::maa_destroy_resource,
-            maa_commands::maa_run_task,
-            maa_commands::maa_get_task_status,
-            maa_commands::maa_stop_task,
-            maa_commands::maa_override_pipeline,
-            maa_commands::maa_is_running,
-            maa_commands::maa_post_screencap,
-            maa_commands::maa_get_cached_image,
-            maa_commands::maa_start_tasks,
-            maa_commands::maa_stop_agent,
-            maa_commands::read_local_file,
-            maa_commands::read_local_file_base64,
-            maa_commands::local_file_exists,
-            maa_commands::get_exe_dir,
-            maa_commands::get_cwd,
-            maa_commands::check_exe_path,
-            // 状态查询命令
-            maa_commands::maa_get_instance_state,
-            maa_commands::maa_get_all_states,
-            maa_commands::maa_get_cached_adb_devices,
-            maa_commands::maa_get_cached_win32_windows,
-            // 更新安装命令
-            maa_commands::extract_zip,
-            maa_commands::check_changes_json,
-            maa_commands::apply_incremental_update,
-            maa_commands::apply_full_update,
-            maa_commands::cleanup_extract_dir,
-            maa_commands::fallback_update,
-            maa_commands::move_file_to_old,
-            // 下载命令
-            maa_commands::download_file,
-            maa_commands::cancel_download,
-            // 权限检查命令
-            maa_commands::is_elevated,
-            maa_commands::restart_as_admin,
-            // 全局选项命令
-            maa_commands::maa_set_save_draw,
+            // Maa 核心命令
+            commands::maa_core::maa_init,
+            commands::maa_core::maa_set_resource_dir,
+            commands::maa_core::maa_get_version,
+            commands::maa_core::maa_check_version,
+            commands::maa_core::maa_find_adb_devices,
+            commands::maa_core::maa_find_win32_windows,
+            commands::maa_core::maa_create_instance,
+            commands::maa_core::maa_destroy_instance,
+            commands::maa_core::maa_connect_controller,
+            commands::maa_core::maa_get_connection_status,
+            commands::maa_core::maa_load_resource,
+            commands::maa_core::maa_is_resource_loaded,
+            commands::maa_core::maa_destroy_resource,
+            commands::maa_core::maa_run_task,
+            commands::maa_core::maa_get_task_status,
+            commands::maa_core::maa_stop_task,
+            commands::maa_core::maa_override_pipeline,
+            commands::maa_core::maa_is_running,
+            commands::maa_core::maa_post_screencap,
+            commands::maa_core::maa_get_cached_image,
+            // Agent 命令
+            commands::maa_agent::maa_start_tasks,
+            commands::maa_agent::maa_stop_agent,
             // 文件操作命令
-            maa_commands::open_file,
-            maa_commands::run_and_wait,
-            maa_commands::retry_load_maa_library,
-            maa_commands::check_vcredist_missing,
-            maa_commands::get_arch,
-            maa_commands::get_system_info,
+            commands::file_ops::read_local_file,
+            commands::file_ops::read_local_file_base64,
+            commands::file_ops::local_file_exists,
+            commands::file_ops::get_exe_dir,
+            commands::file_ops::get_cwd,
+            commands::file_ops::check_exe_path,
+            // 状态查询命令
+            commands::state::maa_get_instance_state,
+            commands::state::maa_get_all_states,
+            commands::state::maa_get_cached_adb_devices,
+            commands::state::maa_get_cached_win32_windows,
+            // 更新安装命令
+            commands::update::extract_zip,
+            commands::update::check_changes_json,
+            commands::update::apply_incremental_update,
+            commands::update::apply_full_update,
+            commands::update::cleanup_extract_dir,
+            commands::update::fallback_update,
+            commands::update::move_file_to_old,
+            // 下载命令
+            commands::download::download_file,
+            commands::download::cancel_download,
+            // 系统相关命令
+            commands::system::is_elevated,
+            commands::system::restart_as_admin,
+            commands::system::maa_set_save_draw,
+            commands::system::open_file,
+            commands::system::run_and_wait,
+            commands::system::retry_load_maa_library,
+            commands::system::check_vcredist_missing,
+            commands::system::get_arch,
+            commands::system::get_system_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

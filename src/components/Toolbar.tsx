@@ -9,8 +9,6 @@ import {
   Play,
   StopCircle,
   Loader2,
-  Clock,
-  ShieldAlert,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -22,6 +20,7 @@ import { SchedulePanel } from './SchedulePanel';
 import type { Instance } from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
+import { PermissionModal, ScheduleButton } from './toolbar';
 
 const log = loggers.task;
 
@@ -1267,69 +1266,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       {/* 右侧执行按钮组 */}
       <div className="flex items-center gap-2 relative">
         {/* 定时执行按钮和状态气泡 */}
-        {(() => {
-          const enabledCount = instance?.schedulePolicies?.filter((p) => p.enabled).length || 0;
-          const scheduleExecution = instance ? scheduleExecutions[instance.id] : null;
-
-          // 格式化开始时间
-          const formatStartTime = (timestamp: number) => {
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-          };
-
-          return (
-            <div className="relative">
-              <button
-                onClick={() => setShowSchedulePanel(!showSchedulePanel)}
-                className={clsx(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors relative',
-                  scheduleExecution
-                    ? 'bg-success text-white'
-                    : showSchedulePanel
-                      ? 'bg-accent text-white'
-                      : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
-                )}
-                title={
-                  scheduleExecution
-                    ? t('schedule.executingPolicy', { name: scheduleExecution.policyName })
-                    : t('schedule.title')
-                }
-              >
-                <Clock className={clsx('w-4 h-4', scheduleExecution && 'animate-pulse')} />
-                <span className="hidden sm:inline">{t('schedule.button')}</span>
-                {/* 启用数量徽章 */}
-                {enabledCount > 0 && !showSchedulePanel && !scheduleExecution && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-accent text-white text-xs font-medium rounded-full">
-                    {enabledCount}
-                  </span>
-                )}
-              </button>
-
-              {/* 定时执行状态气泡 */}
-              {scheduleExecution && !showSchedulePanel && (
-                <div
-                  className={clsx(
-                    'absolute bottom-full left-1/2 -translate-x-1/2 mb-2',
-                    'px-3 py-2 rounded-lg shadow-lg',
-                    'bg-success text-white text-xs whitespace-nowrap',
-                    'animate-fade-in',
-                  )}
-                >
-                  <div className="font-medium">
-                    {t('schedule.executingPolicy', { name: scheduleExecution.policyName })}
-                  </div>
-                  <div className="text-white/80 mt-0.5">
-                    {t('schedule.startedAt', {
-                      time: formatStartTime(scheduleExecution.startTime),
-                    })}
-                  </div>
-                  {/* 气泡箭头 */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-success" />
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        <ScheduleButton
+          enabledCount={instance?.schedulePolicies?.filter((p) => p.enabled).length || 0}
+          scheduleExecution={instance ? scheduleExecutions[instance.id] : null}
+          showPanel={showSchedulePanel}
+          onToggle={() => setShowSchedulePanel(!showSchedulePanel)}
+        />
 
         {/* 定时执行面板 */}
         {showSchedulePanel && instance && (
@@ -1337,58 +1279,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         )}
 
         {/* 权限提示弹窗 */}
-        {showPermissionModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-bg-primary rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
-              {/* 标题栏 */}
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-bg-secondary">
-                <ShieldAlert className="w-5 h-5 text-warning" />
-                <h3 className="font-medium text-text-primary">{t('permission.title')}</h3>
-              </div>
-
-              {/* 内容 */}
-              <div className="px-5 py-4">
-                <p className="text-text-secondary text-sm leading-relaxed">
-                  {t('permission.message')}
-                </p>
-                <p className="text-text-muted text-xs mt-3">{t('permission.hint')}</p>
-              </div>
-
-              {/* 按钮 */}
-              <div className="flex justify-end gap-2 px-5 py-4 border-t border-border bg-bg-secondary">
-                <button
-                  onClick={() => setShowPermissionModal(false)}
-                  disabled={isRestartingAsAdmin}
-                  className="px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-hover transition-colors"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={handleRestartAsAdmin}
-                  disabled={isRestartingAsAdmin}
-                  className={clsx(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                    isRestartingAsAdmin
-                      ? 'bg-accent/70 text-white cursor-wait'
-                      : 'bg-accent hover:bg-accent-hover text-white',
-                  )}
-                >
-                  {isRestartingAsAdmin ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{t('permission.restarting')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldAlert className="w-4 h-4" />
-                      <span>{t('permission.restart')}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PermissionModal
+          isOpen={showPermissionModal}
+          isRestarting={isRestartingAsAdmin}
+          onCancel={() => setShowPermissionModal(false)}
+          onRestart={handleRestartAsAdmin}
+        />
 
         {/* 开始/停止按钮 */}
         <button

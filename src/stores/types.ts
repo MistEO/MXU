@@ -1,0 +1,383 @@
+import type {
+  ProjectInterface,
+  Instance,
+  SelectedTask,
+  OptionValue,
+  SavedDeviceInfo,
+} from '@/types/interface';
+import type {
+  MxuConfig,
+  WindowSize,
+  UpdateChannel,
+  MirrorChyanSettings,
+  ProxySettings,
+  RecentlyClosedInstance,
+  ScreenshotFrameRate,
+  HotkeySettings,
+} from '@/types/config';
+import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
+import type { AccentColor, CustomAccent } from '@/themes';
+
+/** 单个任务的运行状态 */
+export type TaskRunStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
+
+/** 日志条目类型 */
+export type LogType = 'info' | 'success' | 'warning' | 'error' | 'agent' | 'focus';
+
+/** 日志条目 */
+export interface LogEntry {
+  id: string;
+  timestamp: Date;
+  type: LogType;
+  message: string;
+  /** 可选的富文本 HTML 内容（用于 focus 消息） */
+  html?: string;
+}
+
+export type Theme = 'light' | 'dark' | 'system';
+export type Language = 'system' | 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
+export type PageView = 'main' | 'settings';
+
+// 定时执行状态信息
+export interface ScheduleExecutionInfo {
+  policyName: string;
+  startTime: number; // timestamp
+}
+
+// 更新信息类型
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  versionName: string;
+  releaseNote: string;
+  downloadUrl?: string;
+  updateType?: 'incremental' | 'full';
+  channel?: string;
+  fileSize?: number;
+  filename?: string;
+  downloadSource?: 'mirrorchyan' | 'github';
+  // MirrorChyan API 错误信息
+  errorCode?: number;
+  errorMessage?: string;
+}
+
+// 下载进度类型
+export interface DownloadProgress {
+  downloadedSize: number;
+  totalSize: number;
+  speed: number;
+  progress: number; // 0-100
+}
+
+// 下载状态类型
+export type DownloadStatus = 'idle' | 'downloading' | 'completed' | 'failed';
+
+// 安装状态类型
+export type InstallStatus = 'idle' | 'installing' | 'completed' | 'failed';
+
+// 更新完成信息（重启后显示）
+export interface JustUpdatedInfo {
+  previousVersion: string;
+  newVersion: string;
+  releaseNote: string;
+  channel?: string;
+}
+
+export interface AppState {
+  // 主题和语言
+  theme: Theme;
+  accentColor: AccentColor;
+  language: Language;
+  /** 删除等危险操作是否需要二次确认 */
+  confirmBeforeDelete: boolean;
+  /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
+  maxLogsPerInstance: number;
+  customAccents: CustomAccent[];
+  setTheme: (theme: Theme) => void;
+  setAccentColor: (accent: AccentColor) => void;
+  setLanguage: (lang: Language) => void;
+  setConfirmBeforeDelete: (enabled: boolean) => void;
+  setMaxLogsPerInstance: (value: number) => void;
+  addCustomAccent: (accent: CustomAccent) => void;
+  updateCustomAccent: (id: string, accent: CustomAccent) => void;
+  removeCustomAccent: (id: string) => void;
+  reorderCustomAccents: (oldIndex: number, newIndex: number) => void;
+
+  // 当前页面
+  currentPage: PageView;
+  setCurrentPage: (page: PageView) => void;
+
+  // 调试选项（不落盘，每次启动默认关闭）
+  saveDraw: boolean;
+  setSaveDraw: (enabled: boolean) => void;
+
+  // Interface 数据
+  projectInterface: ProjectInterface | null;
+  interfaceTranslations: Record<string, Record<string, string>>;
+  basePath: string;
+  setProjectInterface: (pi: ProjectInterface) => void;
+  setInterfaceTranslations: (lang: string, translations: Record<string, string>) => void;
+  setBasePath: (path: string) => void;
+
+  // 多开实例
+  instances: Instance[];
+  activeInstanceId: string | null;
+  nextInstanceNumber: number;
+  createInstance: (name?: string) => string;
+  removeInstance: (id: string) => void;
+  setActiveInstance: (id: string) => void;
+  updateInstance: (id: string, updates: Partial<Instance>) => void;
+  renameInstance: (id: string, newName: string) => void;
+  reorderInstances: (oldIndex: number, newIndex: number) => void;
+
+  // 获取活动实例
+  getActiveInstance: () => Instance | null;
+
+  // 任务操作
+  addTaskToInstance: (instanceId: string, task: { name: string; option?: string[]; description?: string }) => void;
+  removeTaskFromInstance: (instanceId: string, taskId: string) => void;
+  reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
+  toggleTaskEnabled: (instanceId: string, taskId: string) => void;
+  toggleTaskExpanded: (instanceId: string, taskId: string) => void;
+  setTaskOptionValue: (
+    instanceId: string,
+    taskId: string,
+    optionKey: string,
+    value: OptionValue,
+  ) => void;
+  selectAllTasks: (instanceId: string, enabled: boolean) => void;
+  collapseAllTasks: (instanceId: string, expanded: boolean) => void;
+  renameTask: (instanceId: string, taskId: string, newName: string) => void;
+
+  // 任务右键菜单操作
+  duplicateTask: (instanceId: string, taskId: string) => void;
+  moveTaskUp: (instanceId: string, taskId: string) => void;
+  moveTaskDown: (instanceId: string, taskId: string) => void;
+  moveTaskToTop: (instanceId: string, taskId: string) => void;
+  moveTaskToBottom: (instanceId: string, taskId: string) => void;
+
+  // 实例右键菜单操作
+  duplicateInstance: (instanceId: string) => string;
+
+  // 全局 UI 状态
+  showAddTaskPanel: boolean;
+  setShowAddTaskPanel: (show: boolean) => void;
+
+  // 最近添加的任务 ID（用于自动滚动和展开）
+  lastAddedTaskId: string | null;
+  clearLastAddedTaskId: () => void;
+
+  // 正在播放入场动画的任务 ID 列表
+  animatingTaskIds: string[];
+  removeAnimatingTaskId: (taskId: string) => void;
+
+  // 标签页动画状态
+  animatingTabIds: string[];
+  closingTabIds: string[];
+  removeAnimatingTabId: (tabId: string) => void;
+  startTabCloseAnimation: (tabId: string) => void;
+
+  // 新增任务名称列表
+  newTaskNames: string[];
+  setNewTaskNames: (names: string[]) => void;
+  removeNewTaskName: (name: string) => void;
+  clearNewTaskNames: () => void;
+
+  // 国际化文本解析
+  resolveI18nText: (text: string | undefined, lang: string) => string;
+
+  // 配置导入
+  importConfig: (config: MxuConfig) => void;
+
+  // MaaFramework 状态
+  maaInitialized: boolean;
+  maaVersion: string | null;
+  setMaaInitialized: (initialized: boolean, version?: string) => void;
+
+  // 实例运行时状态
+  instanceConnectionStatus: Record<string, ConnectionStatus>;
+  instanceResourceLoaded: Record<string, boolean>;
+  instanceCurrentTaskId: Record<string, number | null>;
+  instanceTaskStatus: Record<string, TaskStatus | null>;
+
+  setInstanceConnectionStatus: (instanceId: string, status: ConnectionStatus) => void;
+  setInstanceResourceLoaded: (instanceId: string, loaded: boolean) => void;
+  setInstanceCurrentTaskId: (instanceId: string, taskId: number | null) => void;
+  setInstanceTaskStatus: (instanceId: string, status: TaskStatus | null) => void;
+
+  // 选中的控制器和资源
+  selectedController: Record<string, string>;
+  selectedResource: Record<string, string>;
+  setSelectedController: (instanceId: string, controllerName: string) => void;
+  setSelectedResource: (instanceId: string, resourceName: string) => void;
+
+  // 设备信息保存
+  setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
+
+  // 设备列表缓存
+  cachedAdbDevices: AdbDevice[];
+  cachedWin32Windows: Win32Window[];
+  setCachedAdbDevices: (devices: AdbDevice[]) => void;
+  setCachedWin32Windows: (windows: Win32Window[]) => void;
+
+  // 从后端恢复 MAA 运行时状态
+  restoreBackendStates: (states: {
+    instances: Record<
+      string,
+      {
+        connected: boolean;
+        resourceLoaded: boolean;
+        taskerInited: boolean;
+        isRunning: boolean;
+        taskIds: number[];
+      }
+    >;
+    cachedAdbDevices: AdbDevice[];
+    cachedWin32Windows: Win32Window[];
+  }) => void;
+
+  // 截图流状态
+  instanceScreenshotStreaming: Record<string, boolean>;
+  setInstanceScreenshotStreaming: (instanceId: string, streaming: boolean) => void;
+
+  // 右侧面板折叠状态
+  sidePanelExpanded: boolean;
+  setSidePanelExpanded: (expanded: boolean) => void;
+  toggleSidePanelExpanded: () => void;
+
+  // 右侧面板宽度和折叠状态
+  rightPanelWidth: number;
+  rightPanelCollapsed: boolean;
+  setRightPanelWidth: (width: number) => void;
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+
+  // 卡片展开状态
+  connectionPanelExpanded: boolean;
+  screenshotPanelExpanded: boolean;
+  setConnectionPanelExpanded: (expanded: boolean) => void;
+  setScreenshotPanelExpanded: (expanded: boolean) => void;
+
+  // 中控台视图模式
+  dashboardView: boolean;
+  setDashboardView: (enabled: boolean) => void;
+  toggleDashboardView: () => void;
+
+  // 窗口大小
+  windowSize: WindowSize;
+  setWindowSize: (size: WindowSize) => void;
+
+  // MirrorChyan 更新设置
+  mirrorChyanSettings: MirrorChyanSettings;
+  setMirrorChyanCdk: (cdk: string) => void;
+  setMirrorChyanChannel: (channel: UpdateChannel) => void;
+
+  // 代理设置
+  proxySettings: ProxySettings | undefined;
+  setProxySettings: (settings: ProxySettings | undefined) => void;
+
+  // 快捷键设置
+  hotkeys: HotkeySettings;
+  setHotkeys: (hotkeys: HotkeySettings) => void;
+
+  // 任务选项预览显示设置
+  showOptionPreview: boolean;
+  setShowOptionPreview: (show: boolean) => void;
+
+  // 实时截图帧率设置
+  screenshotFrameRate: ScreenshotFrameRate;
+  setScreenshotFrameRate: (rate: ScreenshotFrameRate) => void;
+
+  // Welcome 弹窗显示记录
+  welcomeShownHash: string;
+  setWelcomeShownHash: (hash: string) => void;
+
+  // 开发模式
+  devMode: boolean;
+  setDevMode: (devMode: boolean) => void;
+
+  // 通信兼容模式
+  tcpCompatMode: boolean;
+  setTcpCompatMode: (enabled: boolean) => void;
+
+  // 新用户引导
+  onboardingCompleted: boolean;
+  setOnboardingCompleted: (completed: boolean) => void;
+
+  // 更新检查状态
+  updateInfo: UpdateInfo | null;
+  updateCheckLoading: boolean;
+  showUpdateDialog: boolean;
+  setUpdateInfo: (info: UpdateInfo | null) => void;
+  setUpdateCheckLoading: (loading: boolean) => void;
+  setShowUpdateDialog: (show: boolean) => void;
+
+  // 下载状态
+  downloadStatus: DownloadStatus;
+  downloadProgress: DownloadProgress | null;
+  downloadSavePath: string | null;
+  setDownloadStatus: (status: DownloadStatus) => void;
+  setDownloadProgress: (progress: DownloadProgress | null) => void;
+  setDownloadSavePath: (path: string | null) => void;
+  resetDownloadState: () => void;
+
+  // 安装状态
+  showInstallConfirmModal: boolean;
+  installStatus: InstallStatus;
+  installError: string | null;
+  justUpdatedInfo: JustUpdatedInfo | null;
+  setShowInstallConfirmModal: (show: boolean) => void;
+  setInstallStatus: (status: InstallStatus) => void;
+  setInstallError: (error: string | null) => void;
+  setJustUpdatedInfo: (info: JustUpdatedInfo | null) => void;
+  resetInstallState: () => void;
+
+  // 最近关闭的实例
+  recentlyClosed: RecentlyClosedInstance[];
+  reopenRecentlyClosed: (id: string) => string | null;
+  removeFromRecentlyClosed: (id: string) => void;
+  clearRecentlyClosed: () => void;
+
+  // 任务运行状态
+  instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>>;
+  maaTaskIdMapping: Record<string, Record<number, string>>;
+  setTaskRunStatus: (instanceId: string, selectedTaskId: string, status: TaskRunStatus) => void;
+  setAllTasksRunStatus: (instanceId: string, taskIds: string[], status: TaskRunStatus) => void;
+  registerMaaTaskMapping: (instanceId: string, maaTaskId: number, selectedTaskId: string) => void;
+  findSelectedTaskIdByMaaTaskId: (instanceId: string, maaTaskId: number) => string | null;
+  findMaaTaskIdBySelectedTaskId: (instanceId: string, selectedTaskId: string) => number | null;
+  clearTaskRunStatus: (instanceId: string) => void;
+
+  // 运行中任务队列管理
+  instancePendingTaskIds: Record<string, number[]>;
+  instanceCurrentTaskIndex: Record<string, number>;
+  setPendingTaskIds: (instanceId: string, taskIds: number[]) => void;
+  appendPendingTaskId: (instanceId: string, taskId: number) => void;
+  setCurrentTaskIndex: (instanceId: string, index: number) => void;
+  advanceCurrentTaskIndex: (instanceId: string) => void;
+  clearPendingTasks: (instanceId: string) => void;
+
+  // 定时执行状态
+  scheduleExecutions: Record<string, ScheduleExecutionInfo>;
+  setScheduleExecution: (instanceId: string, info: ScheduleExecutionInfo | null) => void;
+  clearScheduleExecution: (instanceId: string) => void;
+
+  // 日志管理
+  instanceLogs: Record<string, LogEntry[]>;
+  addLog: (instanceId: string, log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
+  clearLogs: (instanceId: string) => void;
+
+  // 回调 ID 与名称的映射
+  ctrlIdToName: Record<number, string>;
+  ctrlIdToType: Record<number, 'device' | 'window'>;
+  resIdToName: Record<number, string>;
+  taskIdToName: Record<number, string>;
+  entryToTaskName: Record<string, string>;
+  registerCtrlIdName: (ctrlId: number, name: string, type: 'device' | 'window') => void;
+  registerResIdName: (resId: number, name: string) => void;
+  registerTaskIdName: (taskId: number, name: string) => void;
+  registerEntryTaskName: (entry: string, name: string) => void;
+  getCtrlName: (ctrlId: number) => string | undefined;
+  getCtrlType: (ctrlId: number) => 'device' | 'window' | undefined;
+  getResName: (resId: number) => string | undefined;
+  getTaskName: (taskId: number) => string | undefined;
+  getTaskNameByEntry: (entry: string) => string | undefined;
+}

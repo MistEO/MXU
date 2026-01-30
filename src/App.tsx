@@ -36,97 +36,24 @@ import {
   clearPendingUpdateInfo,
   isDebugVersion,
 } from '@/services/updateService';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode } from '@/themes';
+import {
+  isTauri,
+  setWindowTitle,
+  setWindowSize,
+  getWindowSize,
+  MIN_LEFT_PANEL_WIDTH,
+} from '@/utils/windowUtils';
+import { VersionWarningModal, LoadingScreen } from './components/app';
 
 const log = loggers.app;
 
 type LoadingState = 'loading' | 'success' | 'error';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
-
-/**
- * 设置窗口标题
- */
-async function setWindowTitle(title: string) {
-  // 同时设置 document.title（对浏览器和 Tauri 都有效）
-  document.title = title;
-
-  if (isTauri()) {
-    try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const currentWindow = getCurrentWindow();
-      await currentWindow.setTitle(title);
-    } catch (err) {
-      log.warn('设置窗口标题失败:', err);
-    }
-  }
-}
-
-// 最小窗口尺寸
-const MIN_WINDOW_WIDTH = 800;
-const MIN_WINDOW_HEIGHT = 500;
-
-// 左侧面板最小宽度（确保工具栏按钮文字不换行）
-const MIN_LEFT_PANEL_WIDTH = 530;
-
-/**
- * 验证窗口尺寸是否有效
- */
-function isValidWindowSize(width: number, height: number): boolean {
-  return width >= MIN_WINDOW_WIDTH && height >= MIN_WINDOW_HEIGHT;
-}
-
-/**
- * 设置窗口大小
- */
-async function setWindowSize(width: number, height: number) {
-  if (!isValidWindowSize(width, height)) {
-    log.warn('窗口大小无效，跳过设置:', { width, height });
-    return;
-  }
-
-  if (isTauri()) {
-    try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const { LogicalSize } = await import('@tauri-apps/api/dpi');
-      const currentWindow = getCurrentWindow();
-      await currentWindow.setSize(new LogicalSize(width, height));
-    } catch (err) {
-      log.warn('设置窗口大小失败:', err);
-    }
-  }
-}
-
-/**
- * 获取当前窗口大小
- */
-async function getWindowSize(): Promise<{ width: number; height: number } | null> {
-  if (isTauri()) {
-    try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const currentWindow = getCurrentWindow();
-      const size = await currentWindow.innerSize();
-      const scaleFactor = await currentWindow.scaleFactor();
-      // 转换为逻辑像素
-      return {
-        width: Math.round(size.width / scaleFactor),
-        height: Math.round(size.height / scaleFactor),
-      };
-    } catch (err) {
-      log.warn('获取窗口大小失败:', err);
-    }
-  }
-  return null;
-}
 
 // 页面过渡动画时长（ms）
 const PAGE_TRANSITION_DURATION = 120;
@@ -892,48 +819,15 @@ function App() {
     const { title: displayTitle, subtitle: displaySubtitle } = getDisplayTitle();
 
     return (
-      <div className="h-full flex flex-col bg-bg-primary">
-        <TitleBar />
-
-        {/* 程序路径问题提示模态框 - 在加载阶段也需要能弹出 */}
-        <BadPathModal show={showBadPathModal} type={badPathType} />
-
-        <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="max-w-md w-full space-y-6 text-center">
-            {/* Logo/标题 */}
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold text-text-primary">{displayTitle}</h1>
-              <p className="text-text-secondary">{displaySubtitle}</p>
-            </div>
-
-            {/* 加载状态 - 路径检查中或正常加载中 */}
-            {loadingState === 'loading' && !showBadPathModal && (
-              <div className="flex flex-col items-center gap-3 py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-accent" />
-                <p className="text-text-secondary">正在加载 interface.json...</p>
-              </div>
-            )}
-
-            {/* 错误状态 */}
-            {loadingState === 'error' && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="font-medium">加载失败</span>
-                </div>
-                <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
-                <button
-                  onClick={loadInterface}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  重试
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <LoadingScreen
+        loadingState={loadingState}
+        errorMessage={errorMessage}
+        showBadPathModal={showBadPathModal}
+        badPathType={badPathType}
+        displayTitle={displayTitle}
+        displaySubtitle={displaySubtitle}
+        onRetry={loadInterface}
+      />
     );
   }
 
@@ -960,37 +854,11 @@ function App() {
 
       {/* MaaFramework 版本警告弹窗 */}
       {versionWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setVersionWarning(null)}
-          />
-          <div className="relative bg-bg-secondary rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-              <AlertCircle className="w-6 h-6 text-amber-500" />
-              <h2 className="text-lg font-semibold text-text-primary">
-                {t('versionWarning.title')}
-              </h2>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              <p className="text-text-secondary">
-                {t('versionWarning.message', {
-                  current: versionWarning.current,
-                  minimum: versionWarning.minimum,
-                })}
-              </p>
-              <p className="text-text-secondary text-sm">{t('versionWarning.suggestion')}</p>
-            </div>
-            <div className="flex justify-end px-6 py-4 border-t border-border">
-              <button
-                onClick={() => setVersionWarning(null)}
-                className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
-              >
-                {t('versionWarning.understand')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <VersionWarningModal
+          current={versionWarning.current}
+          minimum={versionWarning.minimum}
+          onClose={() => setVersionWarning(null)}
+        />
       )}
 
       {/* 顶部标签栏 */}

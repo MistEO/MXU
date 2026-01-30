@@ -25,7 +25,7 @@ fn main() {
         // 启动时自动请求管理员权限：如果当前不是管理员，则自提权重启并退出当前进程
         // 说明：用户取消 UAC 时 ShellExecuteW 会失败，此时继续以普通权限启动。
         // 调试模式下不请求管理员权限，方便开发调试
-        if !cfg!(debug_assertions) && !mxu_lib::maa_commands::is_elevated() {
+        if !cfg!(debug_assertions) && !mxu_lib::commands::system::is_elevated() {
             use std::ffi::OsStr;
             use std::os::windows::ffi::OsStrExt;
             use windows::core::PCWSTR;

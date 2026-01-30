@@ -24,117 +24,16 @@ import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
+import {
+  startGlobalCallbackListener,
+  waitForCtrlResult,
+  waitForResResult,
+  autoReconnectAttempted,
+} from './connection';
 
 // 检测当前操作系统
 const isWindows = navigator.platform.toLowerCase().includes('win');
 const isMacOS = navigator.platform.toLowerCase().includes('mac');
-
-// ============================================================================
-// 全局回调结果缓存（解决回调早于 post 返回的竞态问题）
-// ============================================================================
-type CallbackResult = 'succeeded' | 'failed';
-
-// 控制器连接结果缓存
-const ctrlCallbackCache = new Map<number, CallbackResult>();
-// 资源加载结果缓存
-const resCallbackCache = new Map<number, CallbackResult>();
-
-// 缓存清理超时时间（30秒）
-const CACHE_CLEANUP_TIMEOUT = 30000;
-
-// 全局监听器是否已启动
-let globalListenerStarted = false;
-
-// 记录每个实例是否已尝试过自动重连（模块级变量，避免组件卸载后重置）
-const autoReconnectAttempted = new Set<string>();
-
-// 启动全局回调监听器
-function startGlobalCallbackListener() {
-  if (globalListenerStarted) return;
-  globalListenerStarted = true;
-
-  maaService.onCallback((message, details) => {
-    // 缓存控制器连接结果
-    if (details.ctrl_id !== undefined) {
-      if (message === 'Controller.Action.Succeeded') {
-        ctrlCallbackCache.set(details.ctrl_id, 'succeeded');
-        // 30秒后自动清理
-        setTimeout(() => ctrlCallbackCache.delete(details.ctrl_id!), CACHE_CLEANUP_TIMEOUT);
-      } else if (message === 'Controller.Action.Failed') {
-        ctrlCallbackCache.set(details.ctrl_id, 'failed');
-        setTimeout(() => ctrlCallbackCache.delete(details.ctrl_id!), CACHE_CLEANUP_TIMEOUT);
-      }
-    }
-
-    // 缓存资源加载结果
-    if (details.res_id !== undefined) {
-      if (message === 'Resource.Loading.Succeeded') {
-        resCallbackCache.set(details.res_id, 'succeeded');
-        setTimeout(() => resCallbackCache.delete(details.res_id!), CACHE_CLEANUP_TIMEOUT);
-      } else if (message === 'Resource.Loading.Failed') {
-        resCallbackCache.set(details.res_id, 'failed');
-        setTimeout(() => resCallbackCache.delete(details.res_id!), CACHE_CLEANUP_TIMEOUT);
-      }
-    }
-  });
-}
-
-// 等待控制器连接结果（先查缓存，没有则等待回调）
-async function waitForCtrlResult(
-  ctrlId: number,
-  timeoutMs: number = 30000,
-): Promise<CallbackResult> {
-  // 先检查缓存
-  const cached = ctrlCallbackCache.get(ctrlId);
-  if (cached) {
-    ctrlCallbackCache.delete(ctrlId);
-    return cached;
-  }
-
-  // 缓存中没有，等待回调
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-
-    const checkInterval = setInterval(() => {
-      const result = ctrlCallbackCache.get(ctrlId);
-      if (result) {
-        clearInterval(checkInterval);
-        ctrlCallbackCache.delete(ctrlId);
-        resolve(result);
-      } else if (Date.now() - startTime > timeoutMs) {
-        clearInterval(checkInterval);
-        resolve('failed'); // 超时视为失败
-      }
-    }, 50); // 每50ms检查一次
-  });
-}
-
-// 等待资源加载结果（先查缓存，没有则等待回调）
-async function waitForResResult(resId: number, timeoutMs: number = 30000): Promise<CallbackResult> {
-  // 先检查缓存
-  const cached = resCallbackCache.get(resId);
-  if (cached) {
-    resCallbackCache.delete(resId);
-    return cached;
-  }
-
-  // 缓存中没有，等待回调
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-
-    const checkInterval = setInterval(() => {
-      const result = resCallbackCache.get(resId);
-      if (result) {
-        clearInterval(checkInterval);
-        resCallbackCache.delete(resId);
-        resolve(result);
-      } else if (Date.now() - startTime > timeoutMs) {
-        clearInterval(checkInterval);
-        resolve('failed'); // 超时视为失败
-      }
-    }, 50);
-  });
-}
 
 export function ConnectionPanel() {
   const { t } = useTranslation();

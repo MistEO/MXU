@@ -137,9 +137,11 @@ export function CustomAccentModal({
       return;
     }
 
+    const accentId = editingAccent?.id ?? crypto.randomUUID();
+    const accentInternalName = editingAccent?.name ?? `custom-${accentId}`;
     const newAccent: CustomAccent = {
-      id: editingAccent?.id ?? crypto.randomUUID(),
-      name: trimmedName,
+      id: accentId,
+      name: accentInternalName,
       label: {
         'zh-CN': trimmedName,
         'zh-TW': trimmedName,

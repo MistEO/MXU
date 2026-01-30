@@ -27,45 +27,46 @@ export default defineConfig(async () => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules")) {
+          const normalizedId = id.replace(/\\/g, "/");
+          if (normalizedId.includes("node_modules")) {
             // React 核心 - 必须精确匹配 react-dom
-            if (id.includes("/react-dom/")) {
+            if (normalizedId.includes("/react-dom/")) {
               return "vendor-react-dom";
             }
-            if (id.includes("/react/")) {
+            if (normalizedId.includes("/react/")) {
               return "vendor-react";
             }
             // Markdown 渲染
-            if (id.includes("/marked/") || id.includes("/dompurify/")) {
+            if (normalizedId.includes("/marked/") || normalizedId.includes("/dompurify/")) {
               return "vendor-markdown";
             }
             // 工具库
             if (
-              id.includes("/semver/") ||
-              id.includes("/jsonc-parser/") ||
-              id.includes("/clsx/") ||
-              id.includes("/loglevel/")
+              normalizedId.includes("/semver/") ||
+              normalizedId.includes("/jsonc-parser/") ||
+              normalizedId.includes("/clsx/") ||
+              normalizedId.includes("/loglevel/")
             ) {
               return "vendor-utils";
             }
             // 国际化
-            if (id.includes("/i18next/") || id.includes("/react-i18next/")) {
+            if (normalizedId.includes("/i18next/") || normalizedId.includes("/react-i18next/")) {
               return "vendor-i18n";
             }
             // UI 组件
             if (
-              id.includes("/lucide-react/") ||
-              id.includes("/react-colorful/") ||
-              id.includes("/@radix-ui/")
+              normalizedId.includes("/lucide-react/") ||
+              normalizedId.includes("/react-colorful/") ||
+              normalizedId.includes("/@radix-ui/")
             ) {
               return "vendor-ui";
             }
             // 拖拽
-            if (id.includes("/@dnd-kit/")) {
+            if (normalizedId.includes("/@dnd-kit/")) {
               return "vendor-dnd";
             }
             // Tauri 相关
-            if (id.includes("/@tauri-apps/")) {
+            if (normalizedId.includes("/@tauri-apps/")) {
               return "vendor-tauri";
             }
           }

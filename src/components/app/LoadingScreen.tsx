@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { TitleBar, BadPathModal } from '@/components';
 import type { BadPathType } from '@/components';
@@ -23,6 +24,8 @@ export function LoadingScreen({
   displaySubtitle,
   onRetry,
 }: LoadingScreenProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="h-full flex flex-col bg-bg-primary">
       <TitleBar />
@@ -42,7 +45,7 @@ export function LoadingScreen({
           {loadingState === 'loading' && !showBadPathModal && (
             <div className="flex flex-col items-center gap-3 py-8">
               <Loader2 className="w-8 h-8 animate-spin text-accent" />
-              <p className="text-text-secondary">正在加载 interface.json...</p>
+              <p className="text-text-secondary">{t('loadingScreen.loadingInterface')}</p>
             </div>
           )}
 
@@ -51,7 +54,7 @@ export function LoadingScreen({
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
                 <AlertCircle className="w-5 h-5" />
-                <span className="font-medium">加载失败</span>
+                <span className="font-medium">{t('loadingScreen.loadFailed')}</span>
               </div>
               <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
               <button
@@ -59,7 +62,7 @@ export function LoadingScreen({
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                重试
+                {t('loadingScreen.retry')}
               </button>
             </div>
           )}

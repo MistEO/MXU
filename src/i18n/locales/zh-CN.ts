@@ -606,6 +606,13 @@ export default {
     restarting: '正在重启...',
   },
 
+  // 加载屏幕
+  loadingScreen: {
+    loadingInterface: '正在加载 interface.json...',
+    loadFailed: '加载失败',
+    retry: '重试',
+  },
+
   // VC++ 运行库
   vcredist: {
     title: '缺少运行库',

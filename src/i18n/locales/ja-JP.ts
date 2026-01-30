@@ -605,6 +605,13 @@ export default {
     restarting: '再起動中...',
   },
 
+  // ローディング画面
+  loadingScreen: {
+    loadingInterface: 'interface.json を読み込み中...',
+    loadFailed: '読み込みに失敗しました',
+    retry: '再試行',
+  },
+
   // VC++ ランタイム
   vcredist: {
     title: 'ランタイムが見つかりません',

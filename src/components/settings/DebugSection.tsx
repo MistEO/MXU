@@ -16,11 +16,7 @@ import { defaultWindowSize } from '@/types/config';
 import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
+import { isTauri } from '@/utils/windowUtils';
 
 export function DebugSection() {
   const { t } = useTranslation();

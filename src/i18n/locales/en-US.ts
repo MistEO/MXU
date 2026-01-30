@@ -603,6 +603,13 @@ export default {
     restarting: 'Restarting...',
   },
 
+  // Loading screen
+  loadingScreen: {
+    loadingInterface: 'Loading interface.json...',
+    loadFailed: 'Loading Failed',
+    retry: 'Retry',
+  },
+
   // VC++ Runtime
   vcredist: {
     title: 'Missing Runtime',

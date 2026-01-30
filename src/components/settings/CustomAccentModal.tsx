@@ -19,7 +19,7 @@ export function CustomAccentModal({
   onClose,
   onSave,
 }: CustomAccentModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,7 +71,10 @@ export function CustomAccentModal({
     if (!isOpen) return;
 
     if (editingAccent) {
-      setAccentName(editingAccent.label['zh-CN'] || editingAccent.name);
+      const langKey = i18n.language as keyof CustomAccent['label'];
+      const resolvedName =
+        editingAccent.label?.[langKey] || editingAccent.label['en-US'] || editingAccent.name;
+      setAccentName(resolvedName);
       setIsAutoAccentName(false);
       setAccentMainColor(editingAccent.colors.default);
       setAccentHoverColor(editingAccent.colors.hover);
@@ -88,7 +91,7 @@ export function CustomAccentModal({
     setNameError(null);
 
     setTimeout(() => nameInputRef.current?.focus(), 0);
-  }, [isOpen, editingAccent, buildAutoAccentName]);
+  }, [isOpen, editingAccent, buildAutoAccentName, i18n.language]);
 
   // Esc 关闭 + 基础 focus trap
   useEffect(() => {
@@ -139,6 +142,7 @@ export function CustomAccentModal({
       name: trimmedName,
       label: {
         'zh-CN': trimmedName,
+        'zh-TW': trimmedName,
         'en-US': trimmedName,
         'ja-JP': trimmedName,
         'ko-KR': trimmedName,

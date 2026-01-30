@@ -597,6 +597,13 @@ export default {
     restarting: '재시작 중...',
   },
 
+  // 로딩 화면
+  loadingScreen: {
+    loadingInterface: 'interface.json을 로드 중...',
+    loadFailed: '로드 실패',
+    retry: '다시 시도',
+  },
+
   // VC++ 런타임
   vcredist: {
     title: '런타임 누락',

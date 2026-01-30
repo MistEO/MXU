@@ -3,14 +3,24 @@
 //! 提供本地文件读取和路径检查功能
 
 use log::debug;
+use std::path::PathBuf;
 
 use super::utils::{get_exe_directory, normalize_path};
+
+fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
+    let exe_dir = get_exe_directory()?;
+    let file_path = normalize_path(&exe_dir.join(filename).to_string_lossy());
+    // 防止路径穿越，确保仍在 exe 目录下
+    if !file_path.starts_with(&exe_dir) {
+        return Err(format!("非法文件路径: {}", filename));
+    }
+    Ok(file_path)
+}
 
 /// 读取 exe 同目录下的文本文件
 #[tauri::command]
 pub fn read_local_file(filename: String) -> Result<String, String> {
-    let exe_dir = get_exe_directory()?;
-    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
+    let file_path = resolve_local_file_path(&filename)?;
     debug!("Reading local file: {:?}", file_path);
 
     std::fs::read_to_string(&file_path)
@@ -22,8 +32,7 @@ pub fn read_local_file(filename: String) -> Result<String, String> {
 pub fn read_local_file_base64(filename: String) -> Result<String, String> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
-    let exe_dir = get_exe_directory()?;
-    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
+    let file_path = resolve_local_file_path(&filename)?;
     debug!("Reading local file (base64): {:?}", file_path);
 
     let data = std::fs::read(&file_path)
@@ -35,8 +44,7 @@ pub fn read_local_file_base64(filename: String) -> Result<String, String> {
 /// 检查 exe 同目录下的文件是否存在
 #[tauri::command]
 pub fn local_file_exists(filename: String) -> Result<bool, String> {
-    let exe_dir = get_exe_directory()?;
-    let file_path = normalize_path(&exe_dir.join(&filename).to_string_lossy());
+    let file_path = resolve_local_file_path(&filename)?;
     Ok(file_path.exists())
 }
 

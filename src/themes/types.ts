@@ -35,6 +35,7 @@ export interface AccentTheme {
   name: string;
   label: {
     'zh-CN': string;
+    'zh-TW'?: string;
     'en-US': string;
     'ja-JP'?: string;
     'ko-KR'?: string;
@@ -98,6 +99,7 @@ export interface CustomAccent {
   /** 不同语言下的显示名称 */
   label: {
     'zh-CN': string;
+    'zh-TW'?: string;
     'en-US': string;
     'ja-JP'?: string;
     'ko-KR'?: string;

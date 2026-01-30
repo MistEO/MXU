@@ -595,6 +595,13 @@ export default {
     restarting: '正在重啟...',
   },
 
+  // 載入畫面
+  loadingScreen: {
+    loadingInterface: '正在載入 interface.json...',
+    loadFailed: '載入失敗',
+    retry: '重試',
+  },
+
   // VC++ 執行库
   vcredist: {
     title: '缺少執行库',

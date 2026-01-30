@@ -143,7 +143,7 @@ export const defaultMirrorChyanSettings: MirrorChyanSettings = {
 };
 
 // 默认截图帧率
-export const defaultScreenshotFrameRate: ScreenshotFrameRate = '5';
+export const defaultScreenshotFrameRate: ScreenshotFrameRate = '1';
 
 // 默认强调色
 export const defaultAccentColor: AccentColor = 'emerald';

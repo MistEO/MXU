@@ -458,6 +458,7 @@ function App() {
             userAgent: 'MXU',
             githubUrl: result.interface.github,
             basePath: downloadBasePath,
+            githubPat: appState.mirrorChyanSettings.githubPat || undefined,
           })
             .then((updateResult) => {
               if (updateResult) {

@@ -963,9 +963,24 @@ export function DashboardView({ onClose }: DashboardViewProps) {
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="px-1 text-xs text-text-secondary w-10 text-center select-none">
-              {Math.round(zoom * 100)}%
-            </span>
+            <input
+              type="text"
+              className="px-1 text-xs text-text-secondary w-10 text-center bg-transparent border-none outline-none focus:ring-1 focus:ring-accent rounded"
+              value={Math.round(zoom * 100)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) {
+                  const clamped = Math.min(150, Math.max(60, val));
+                  setZoom(clamped / 100);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+            />
+            <span className="text-xs text-text-secondary select-none">%</span>
             <button
               type="button"
               onClick={() => handleZoom(0.1)}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Instance, SelectedTask } from '@/types/interface';
+import type { Instance, SelectedTask, OptionValue } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -687,14 +687,30 @@ export const useAppStore = create<AppState>()(
         });
       }
 
+      // 获取当前 interface 中有效的 option 名称集合
+      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+
+      // 清理 optionValues 中已删除的 option
+      const cleanOptionValues = (
+        optionValues: Record<string, OptionValue>,
+      ): Record<string, OptionValue> => {
+        const cleaned: Record<string, OptionValue> = {};
+        for (const [key, value] of Object.entries(optionValues)) {
+          if (validOptionNames.has(key)) {
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
+      };
+
       const instances: Instance[] = config.instances.map((inst) => {
-        // 恢复已保存的任务（不再自动添加新增任务到列表）
+        // 恢复已保存的任务，并清理已删除的 option
         const savedTasks: SelectedTask[] = inst.tasks.map((t) => ({
           id: t.id,
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
-          optionValues: t.optionValues,
+          optionValues: cleanOptionValues(t.optionValues),
           expanded: false,
         }));
 
@@ -1077,6 +1093,23 @@ export const useAppStore = create<AppState>()(
       const closedInstance = state.recentlyClosed.find((i) => i.id === id);
       if (!closedInstance) return null;
 
+      // 获取当前 interface 中有效的 option 名称集合
+      const pi = state.projectInterface;
+      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+
+      // 清理 optionValues 中已删除的 option
+      const cleanOptionValues = (
+        optionValues: Record<string, OptionValue>,
+      ): Record<string, OptionValue> => {
+        const cleaned: Record<string, OptionValue> = {};
+        for (const [key, value] of Object.entries(optionValues)) {
+          if (validOptionNames.has(key)) {
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
+      };
+
       const newId = generateId();
       const newInstance: Instance = {
         id: newId,
@@ -1091,7 +1124,7 @@ export const useAppStore = create<AppState>()(
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
-          optionValues: t.optionValues,
+          optionValues: cleanOptionValues(t.optionValues),
           expanded: false,
         })),
         isRunning: false,

@@ -835,12 +835,32 @@ export function DashboardView({ onClose }: DashboardViewProps) {
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   // 实例网格缩放
   const [zoom, setZoom] = useState(1);
+  // 缩放输入框的本地状态（允许用户自由输入）
+  const [zoomInput, setZoomInput] = useState(String(Math.round(zoom * 100)));
+
+  // 当 zoom 被按钮改变时，同步更新输入框
+  useEffect(() => {
+    setZoomInput(String(Math.round(zoom * 100)));
+  }, [zoom]);
 
   const handleZoom = (delta: number) => {
     setZoom((prev) => {
       const next = Math.min(1.5, Math.max(0.6, prev + delta));
       return Math.round(next * 100) / 100;
     });
+  };
+
+  // 处理缩放输入框确认（blur 或 Enter）
+  const handleZoomInputConfirm = () => {
+    const val = parseInt(zoomInput, 10);
+    if (!isNaN(val)) {
+      const clamped = Math.min(150, Math.max(60, val));
+      setZoom(clamped / 100);
+      setZoomInput(String(clamped));
+    } else {
+      // 无效输入，恢复为当前 zoom 值
+      setZoomInput(String(Math.round(zoom * 100)));
+    }
   };
 
   const handleClose = onClose ?? toggleDashboardView;
@@ -964,16 +984,14 @@ export function DashboardView({ onClose }: DashboardViewProps) {
               <ZoomOut className="w-4 h-4" />
             </button>
             <input
-              type="text"
-              className="px-1 text-xs text-text-secondary w-10 text-center bg-transparent border-none outline-none focus:ring-1 focus:ring-accent rounded"
-              value={Math.round(zoom * 100)}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val)) {
-                  const clamped = Math.min(150, Math.max(60, val));
-                  setZoom(clamped / 100);
-                }
-              }}
+              type="number"
+              min={60}
+              max={150}
+              inputMode="numeric"
+              className="px-1 text-xs text-text-secondary w-10 text-center bg-transparent border-none outline-none focus:ring-1 focus:ring-accent rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              value={zoomInput}
+              onChange={(e) => setZoomInput(e.target.value)}
+              onBlur={handleZoomInputConfirm}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   (e.target as HTMLInputElement).blur();

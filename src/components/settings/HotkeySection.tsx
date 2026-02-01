@@ -93,7 +93,10 @@ export function HotkeySection() {
         {hotkeys.startTasks === hotkeys.stopTasks && (
           <div className="flex items-center gap-2 text-xs text-warning">
             <AlertCircle className="w-3 h-3" />
-            <span>{t('settings.hotkeysConflict')}</span>
+            <span>
+              {t('settings.hotkeysConflict')}
+              {hotkeys.globalEnabled && ` (${t('settings.hotkeysGlobalOnlyStart')})`}
+            </span>
           </div>
         )}
 

@@ -789,11 +789,14 @@ function App() {
             new CustomEvent('mxu-start-tasks', { detail: { source: 'global-hotkey', combo: startKey } }),
           );
         });
-        await register(toTauriKey(stopKey), () => {
-          document.dispatchEvent(
-            new CustomEvent('mxu-stop-tasks', { detail: { source: 'global-hotkey', combo: stopKey } }),
-          );
-        });
+        // 避免重复注册相同的键
+        if (stopKey !== startKey) {
+          await register(toTauriKey(stopKey), () => {
+            document.dispatchEvent(
+              new CustomEvent('mxu-stop-tasks', { detail: { source: 'global-hotkey', combo: stopKey } }),
+            );
+          });
+        }
         log.info('全局快捷键已注册:', startKey, stopKey);
       } catch (err) {
         log.error('注册全局快捷键失败:', err);

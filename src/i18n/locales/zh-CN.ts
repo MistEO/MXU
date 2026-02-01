@@ -81,6 +81,7 @@ export default {
     hotkeysConflict: '开始和结束快捷键不应相同，请选择不同的按键',
     hotkeysGlobal: '全局快捷键',
     hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
+    hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表、导入覆盖等操作会先弹出确认对话框',
     maxLogsPerInstance: '每个实例保留的日志上限',

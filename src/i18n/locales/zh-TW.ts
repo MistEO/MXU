@@ -81,6 +81,7 @@ export default {
     hotkeysConflict: '開始與結束快捷鍵不應相同，請選擇不同的按鍵',
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
+    hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',

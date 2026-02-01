@@ -82,6 +82,7 @@ export default {
       '開始と停止のショートカットは同じキーにしないでください。別のキーを選択してください。',
     hotkeysGlobal: 'グローバルショートカット',
     hotkeysGlobalHint: 'ウィンドウ非アクティブ時もショートカットを有効にする',
+    hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',

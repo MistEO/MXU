@@ -186,7 +186,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
             // 停止 Agent（如果有）
             if (projectInterface?.agent) {
-              maaService.stopAgent(runningInstanceId).catch(() => { });
+              maaService.stopAgent(runningInstanceId).catch((err) => {
+                log.error('停止 Agent 失败:', err);
+              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Succeeded');
@@ -225,7 +227,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
             // 停止 Agent（如果有）
             if (projectInterface?.agent) {
-              maaService.stopAgent(runningInstanceId).catch(() => { });
+              maaService.stopAgent(runningInstanceId).catch((err) => {
+                log.error('停止 Agent 失败:', err);
+              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Failed');
@@ -292,7 +296,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
     try {
       await ensureMaaInitialized();
-      await maaService.createInstance(instanceId).catch(() => { });
+      await maaService.createInstance(instanceId).catch((err) => {
+        log.warn('创建实例失败（可能已存在）:', err);
+      });
 
       let config: ControllerConfig | null = null;
 
@@ -526,7 +532,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           log.info(`实例 ${targetInstance.name}: 自动连接设备...`);
 
           await ensureMaaInitialized();
-          await maaService.createInstance(targetId).catch(() => { });
+          await maaService.createInstance(targetId).catch((err) => {
+            log.warn('创建实例失败（可能已存在）:', err);
+          });
 
           let config: ControllerConfig | null = null;
           const controllerType = controller.type;
@@ -1118,7 +1126,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }),
       });
 
-      if (currentInstance.isRunning || instance?.id !== currentInstance.id) {
+      if (currentInstance.isRunning) {
         addLog(currentInstance.id, {
           type: 'error',
           message: t('logs.messages.hotkeyStartFailed'),

@@ -38,6 +38,7 @@ import {
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
@@ -737,6 +738,9 @@ function App() {
       }
 
       const { hotkeys } = useAppStore.getState();
+      // 全局快捷键开启时跳过本地监听，避免重复触发
+      if (hotkeys?.globalEnabled) return;
+
       const startKey = hotkeys?.startTasks || 'F10';
       const stopKey = hotkeys?.stopTasks || 'F11';
 
@@ -766,6 +770,41 @@ function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [devMode]);
+
+  // 全局快捷键（窗口失焦时也生效）
+  const hotkeys = useAppStore((state) => state.hotkeys);
+  useEffect(() => {
+    if (!hotkeys?.globalEnabled) return;
+
+    const startKey = hotkeys.startTasks || 'F10';
+    const stopKey = hotkeys.stopTasks || 'F11';
+
+    // Ctrl -> CommandOrControl
+    const toTauriKey = (k: string) => k.replace(/^Ctrl\+/i, 'CommandOrControl+');
+
+    const registerKeys = async () => {
+      try {
+        await register(toTauriKey(startKey), () => {
+          document.dispatchEvent(
+            new CustomEvent('mxu-start-tasks', { detail: { source: 'global-hotkey', combo: startKey } }),
+          );
+        });
+        await register(toTauriKey(stopKey), () => {
+          document.dispatchEvent(
+            new CustomEvent('mxu-stop-tasks', { detail: { source: 'global-hotkey', combo: stopKey } }),
+          );
+        });
+        log.info('全局快捷键已注册:', startKey, stopKey);
+      } catch (err) {
+        log.error('注册全局快捷键失败:', err);
+      }
+    };
+
+    registerKeys();
+    return () => {
+      unregisterAll().catch(() => {});
+    };
+  }, [hotkeys?.globalEnabled, hotkeys?.startTasks, hotkeys?.stopTasks]);
 
   // 设置页面
   if (currentPage === 'settings') {

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { Key, Play, StopCircle, AlertCircle } from 'lucide-react';
+import { Key, Play, StopCircle, AlertCircle, Globe } from 'lucide-react';
+import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 
 export function HotkeySection() {
@@ -95,6 +96,31 @@ export function HotkeySection() {
             <span>{t('settings.hotkeysConflict')}</span>
           </div>
         )}
+
+        {/* 全局快捷键开关 */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">{t('settings.hotkeysGlobal')}</span>
+              <p className="text-xs text-text-muted mt-0.5">{t('settings.hotkeysGlobalHint')}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setHotkeys({ ...hotkeys, globalEnabled: !hotkeys.globalEnabled })}
+            className={clsx(
+              'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
+              hotkeys.globalEnabled ? 'bg-accent' : 'bg-bg-active',
+            )}
+          >
+            <span
+              className={clsx(
+                'absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
+                hotkeys.globalEnabled ? 'translate-x-5' : 'translate-x-0',
+              )}
+            />
+          </button>
+        </div>
       </div>
     </section>
   );

@@ -786,7 +786,7 @@ export const useAppStore = create<AppState>()(
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
         onboardingCompleted: config.settings.onboardingCompleted ?? false,
-        hotkeys: config.settings.hotkeys ?? { startTasks: 'F10', stopTasks: 'F11' },
+        hotkeys: config.settings.hotkeys ?? { startTasks: 'F10', stopTasks: 'F11', globalEnabled: false },
         recentlyClosed: config.recentlyClosed || [],
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,

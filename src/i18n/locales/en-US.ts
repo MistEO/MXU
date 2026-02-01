@@ -79,6 +79,8 @@ export default {
     hotkeysHint:
       'Effective only on the main screen, used to start/stop tasks of the current instance. Modifier combinations are supported (e.g. Ctrl+F10, Ctrl+Shift+F11); plain F5/F12 remain reserved by the system/browser.',
     hotkeysConflict: 'Start and stop hotkeys should not be the same. Please choose different keys.',
+    hotkeysGlobal: 'Global hotkeys',
+    hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
     maxLogsPerInstance: 'Max logs per instance',

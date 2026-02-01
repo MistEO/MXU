@@ -79,6 +79,8 @@ export default {
     hotkeysHint:
       '仅在主界面中生效，用于开始 / 结束当前实例的任务。支持组合键（如 Ctrl+F10、Ctrl+Shift+F11），纯 F5/F12 仍保留为系统/浏览器快捷键。',
     hotkeysConflict: '开始和结束快捷键不应相同，请选择不同的按键',
+    hotkeysGlobal: '全局快捷键',
+    hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表、导入覆盖等操作会先弹出确认对话框',
     maxLogsPerInstance: '每个实例保留的日志上限',

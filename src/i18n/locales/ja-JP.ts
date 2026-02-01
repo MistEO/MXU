@@ -80,6 +80,8 @@ export default {
       'メイン画面でのみ有効です。現在のインスタンスのタスク開始 / 停止に使用します。Ctrl+F10 や Ctrl+Shift+F11 などの修飾キー付きの組み合わせもサポートします。F5 / F12 単体は引き続きシステム / ブラウザ用に予約されています。',
     hotkeysConflict:
       '開始と停止のショートカットは同じキーにしないでください。別のキーを選択してください。',
+    hotkeysGlobal: 'グローバルショートカット',
+    hotkeysGlobalHint: 'ウィンドウ非アクティブ時もショートカットを有効にする',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',

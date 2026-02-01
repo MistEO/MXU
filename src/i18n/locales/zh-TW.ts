@@ -79,6 +79,8 @@ export default {
     hotkeysHint:
       '僅在主畫面中生效，用於開始 / 結束當前執行個體的任務。支援組合鍵（例如 Ctrl+F10、Ctrl+Shift+F11），純 F5/F12 仍保留給系統 / 瀏覽器快捷鍵。',
     hotkeysConflict: '開始與結束快捷鍵不應相同，請選擇不同的按鍵',
+    hotkeysGlobal: '全域快捷鍵',
+    hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',

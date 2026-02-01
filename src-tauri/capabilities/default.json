@@ -95,6 +95,9 @@
       ]
     },
     "process:allow-restart",
-    "process:allow-exit"
+    "process:allow-exit",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all"
   ]
 }

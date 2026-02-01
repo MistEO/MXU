@@ -374,6 +374,9 @@ export function TabBar() {
                 </div>
               ) : (
                 <>
+                  {instance.isRunning && (
+                    <span className="w-2 h-2 rounded-full bg-accent task-running-indicator flex-shrink-0" />
+                  )}
                   <span className="flex-1 truncate text-sm" title={t('titleBar.renameInstance')}>
                     {instance.name}
                   </span>

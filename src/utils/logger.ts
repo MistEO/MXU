@@ -135,7 +135,7 @@ export function createLogger(moduleName: string, level?: LogLevel) {
 
       // 写入文件日志
       if (logsDir) {
-        const fullTimestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+        const fullTimestamp = formatLocalDateTime(now);
         const level = methodName.toUpperCase().padEnd(5);
         const module = loggerName ? `[${String(loggerName)}]` : '';
         const message = args

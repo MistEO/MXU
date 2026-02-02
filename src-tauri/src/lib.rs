@@ -163,15 +163,7 @@ pub fn run() {
             // 窗口关闭时清理所有 agent 子进程
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<Arc<MaaState>>() {
-                    if let Ok(mut instances) = state.instances.lock() {
-                        for (id, instance) in instances.iter_mut() {
-                            // 终止 agent 子进程
-                            if let Some(mut child) = instance.agent_child.take() {
-                                log::info!("Killing agent child process for instance: {}", id);
-                                let _ = child.kill();
-                            }
-                        }
-                    }
+                    state.cleanup_all_agent_children();
                 }
             }
         })

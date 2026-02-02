@@ -46,14 +46,25 @@ if (isTauri()) {
 }
 
 /**
+ * 格式化本地日期时间
+ * @param date 日期对象
+ * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss
+ */
+function formatLocalDateTime(date: Date, format: 'date' | 'datetime' = 'datetime'): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  if (format === 'date') return datePart;
+  return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
  * 直接写入日志到文件
  */
 async function writeLogToFile(line: string): Promise<void> {
   if (!logsDir) return;
 
-  // 日志文件名：mxu-web-YYYY-MM-DD.log
-  const today = new Date().toISOString().slice(0, 10);
-  const logFile = `${logsDir}/mxu-web-${today}.log`;
+  // 日志文件名：mxu-web-YYYY-MM-DD.log（使用本地日期）
+  const logFile = `${logsDir}/mxu-web-${formatLocalDateTime(new Date(), 'date')}.log`;
 
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
@@ -85,7 +96,7 @@ log.methodFactory = function (methodName, logLevel, loggerName) {
 
     // 写入文件日志
     if (logsDir) {
-      const fullTimestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+      const fullTimestamp = formatLocalDateTime(now);
       const level = methodName.toUpperCase().padEnd(5);
       const module = loggerName ? `[${String(loggerName)}]` : '';
       const message = args

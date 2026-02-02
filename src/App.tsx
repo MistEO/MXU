@@ -372,8 +372,9 @@ function App() {
             setWindowPositionStore(undefined);
           }
         } catch (err) {
-          log.warn('检查窗口位置失败，使用保存的位置:', err);
-          await setWindowPosition(x, y);
+          log.warn('检查窗口位置失败，居中显示:', err);
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().center();
         }
       }
 

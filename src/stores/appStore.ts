@@ -703,16 +703,21 @@ export const useAppStore = create<AppState>()(
         return cleaned;
       };
 
+      // 获取有效的任务名称集合
+      const validTaskNames = new Set(pi?.task.map((t) => t.name) || []);
+
       const instances: Instance[] = config.instances.map((inst) => {
-        // 恢复已保存的任务，并清理已删除的 option
-        const savedTasks: SelectedTask[] = inst.tasks.map((t) => ({
-          id: t.id,
-          taskName: t.taskName,
-          customName: t.customName,
-          enabled: t.enabled,
-          optionValues: cleanOptionValues(t.optionValues),
-          expanded: false,
-        }));
+        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 中不存在的），并清理已删除的 option
+        const savedTasks: SelectedTask[] = inst.tasks
+          .filter((t) => validTaskNames.has(t.taskName))
+          .map((t) => ({
+            id: t.id,
+            taskName: t.taskName,
+            customName: t.customName,
+            enabled: t.enabled,
+            optionValues: cleanOptionValues(t.optionValues),
+            expanded: false,
+          }));
 
         return {
           id: inst.id,

@@ -353,11 +353,11 @@ function App() {
       }
       if (config.settings.windowPosition) {
         const { x, y } = config.settings.windowPosition;
-        await setWindowPosition(x, y);
-        // 检查窗口是否在可见区域
+        // 先检查位置是否在可见显示器范围内
         try {
           const { getCurrentWindow, availableMonitors } = await import('@tauri-apps/api/window');
           const monitors = await availableMonitors();
+          // 允许窗口左上角稍微超出屏幕边缘（标题栏仍可见）
           const isOnScreen = monitors.some((m) => {
             const mx = m.position.x;
             const my = m.position.y;
@@ -365,11 +365,15 @@ function App() {
             const mh = m.size.height;
             return x >= mx - 100 && x < mx + mw && y >= my - 50 && y < my + mh;
           });
-          if (!isOnScreen) {
+          if (isOnScreen) {
+            await setWindowPosition(x, y);
+          } else {
             await getCurrentWindow().center();
             setWindowPositionStore(undefined);
           }
-        } catch {
+        } catch (err) {
+          log.warn('检查窗口位置失败，使用保存的位置:', err);
+          await setWindowPosition(x, y);
         }
       }
 

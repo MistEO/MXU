@@ -155,3 +155,98 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// 导出日志文件为 zip 压缩包
+/// 返回生成的 zip 文件路径
+#[tauri::command]
+pub fn export_logs() -> Result<String, String> {
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    let exe_dir = get_exe_directory()?;
+    let debug_dir = exe_dir.join("debug");
+
+    if !debug_dir.exists() {
+        return Err("日志目录不存在".to_string());
+    }
+
+    // 生成带时间戳的文件名
+    let now = chrono::Local::now();
+    let filename = format!("mxu-logs-{}.zip", now.format("%Y%m%d-%H%M%S"));
+    let zip_path = debug_dir.join(&filename);
+
+    let file = File::create(&zip_path)
+        .map_err(|e| format!("创建压缩文件失败: {}", e))?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // 遍历 debug 目录下的所有 .log 文件
+    let entries = std::fs::read_dir(&debug_dir)
+        .map_err(|e| format!("读取日志目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(ext) = path.extension() {
+                if ext == "log" {
+                    if let Some(name) = path.file_name() {
+                        let name_str = name.to_string_lossy();
+                        let mut file_content = Vec::new();
+                        if let Ok(mut f) = File::open(&path) {
+                            let _ = f.read_to_end(&mut file_content);
+                            let _ = zip.start_file(&*name_str, options);
+                            let _ = zip.write_all(&file_content);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 处理 on_error 文件夹（只包含前50张图片）
+    let on_error_dir = debug_dir.join("on_error");
+    if on_error_dir.exists() && on_error_dir.is_dir() {
+        let mut images: Vec<_> = std::fs::read_dir(&on_error_dir)
+            .ok()
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| {
+                e.path().is_file() && e.path().extension()
+                    .map(|ext| {
+                        let ext_lower = ext.to_string_lossy().to_lowercase();
+                        ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg"
+                    })
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        // 按修改时间排序（最新的在前）
+        images.sort_by(|a, b| {
+            let time_a = a.metadata().and_then(|m| m.modified()).ok();
+            let time_b = b.metadata().and_then(|m| m.modified()).ok();
+            time_b.cmp(&time_a)
+        });
+
+        // 只取前50张
+        for entry in images.into_iter().take(50) {
+            let path = entry.path();
+            if let Some(name) = path.file_name() {
+                let archive_name = format!("on_error/{}", name.to_string_lossy());
+                let mut file_content = Vec::new();
+                if let Ok(mut f) = File::open(&path) {
+                    let _ = f.read_to_end(&mut file_content);
+                    let _ = zip.start_file(archive_name.as_str(), options);
+                    let _ = zip.write_all(&file_content);
+                }
+            }
+        }
+    }
+
+    zip.finish().map_err(|e| format!("完成压缩失败: {}", e))?;
+
+    Ok(zip_path.to_string_lossy().to_string())
+}

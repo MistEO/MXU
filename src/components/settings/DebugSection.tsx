@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, Maximize2, FolderOpen, ScrollText, Trash2, Network } from 'lucide-react';
+import { Bug, RefreshCw, Maximize2, FolderOpen, ScrollText, Trash2, Network, Archive } from 'lucide-react';
 import clsx from 'clsx';
 
 import { useAppStore } from '@/stores/appStore';
@@ -36,6 +36,7 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
+  const [exportingLogs, setExportingLogs] = useState(false);
   const [, setDebugLog] = useState<string[]>([]);
 
   const addDebugLog = useCallback((msg: string) => {
@@ -194,6 +195,31 @@ export function DebugSection() {
     }
   };
 
+  // 调试：导出日志
+  const handleExportLogs = async () => {
+    if (!isTauri()) {
+      addDebugLog('仅 Tauri 环境支持导出日志');
+      return;
+    }
+
+    setExportingLogs(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const zipPath = await invoke<string>('export_logs');
+      loggers.ui.info('日志已导出:', zipPath);
+
+      // 打开所在目录
+      const { openPath } = await import('@tauri-apps/plugin-opener');
+      const { dirname } = await import('@tauri-apps/api/path');
+      const dir = await dirname(zipPath);
+      await openPath(dir);
+    } catch (err) {
+      loggers.ui.error('导出日志失败:', err);
+    } finally {
+      setExportingLogs(false);
+    }
+  };
+
   return (
     <section id="section-debug" className="space-y-4 scroll-mt-4">
       <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
@@ -290,6 +316,15 @@ export function DebugSection() {
           >
             <ScrollText className="w-4 h-4" />
             {t('debug.openLogDir')}
+          </button>
+          <button
+            onClick={handleExportLogs}
+            disabled={exportingLogs}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50"
+            title={t('debug.exportLogsHint')}
+          >
+            <Archive className="w-4 h-4" />
+            {exportingLogs ? t('debug.exportingLogs') : t('debug.exportLogs')}
           </button>
           <button
             onClick={handleClearCache}

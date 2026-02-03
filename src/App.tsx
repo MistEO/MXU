@@ -51,6 +51,7 @@ import {
   setWindowPosition,
   getWindowSize,
   getWindowPosition,
+  focusWindow,
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { VersionWarningModal, LoadingScreen } from './components/app';
@@ -437,6 +438,8 @@ function App() {
       // 检查是否刚更新完成（重启后）
       const updateCompleteInfo = consumeUpdateCompleteInfo();
       if (updateCompleteInfo) {
+        // 更新重启后将窗口带到前台
+        focusWindow();
         const currentVersionNow = result.interface.version || '';
 
         // 如果需要验证版本（exe/dmg 安装场景）

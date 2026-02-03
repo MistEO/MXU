@@ -118,3 +118,23 @@ export async function getWindowSize(): Promise<{ width: number; height: number }
   }
   return null;
 }
+
+/**
+ * 将窗口带到前台并获取焦点
+ * 用于更新重启后确保窗口在前台显示
+ */
+export async function focusWindow(): Promise<void> {
+  if (isTauri()) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const currentWindow = getCurrentWindow();
+      // 先取消最小化（如果有）
+      await currentWindow.unminimize();
+      // 设置焦点，将窗口带到前台
+      await currentWindow.setFocus();
+      log.info('窗口已获取焦点');
+    } catch (err) {
+      log.warn('设置窗口焦点失败:', err);
+    }
+  }
+}

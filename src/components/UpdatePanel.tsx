@@ -56,7 +56,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     });
 
     try {
-      const savePath = await getUpdateSavePath(dataPath, updateInfo.filename);
+      const savePath = await getUpdateSavePath(updateInfo.filename);
       setDownloadSavePath(savePath);
 
       const result = await downloadUpdate({

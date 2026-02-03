@@ -217,7 +217,7 @@ function App() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(downloadDataPath, updateResult.filename);
+        const savePath = await getUpdateSavePath(updateResult.filename);
         setDownloadSavePath(savePath);
 
         const appState = useAppStore.getState();

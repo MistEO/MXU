@@ -49,7 +49,7 @@ export function LogsPanel() {
     }
 
     try {
-      const logPath = await getDebugDir(dataPath);
+      const logPath = await getDebugDir();
       await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);

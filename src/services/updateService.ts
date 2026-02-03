@@ -7,7 +7,8 @@ import { loggers } from '@/utils/logger';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { openUrl, openPath } from '@tauri-apps/plugin-opener';
 import { exists } from '@tauri-apps/plugin-fs';
-import { join, dirname } from '@tauri-apps/api/path';
+import { dirname } from '@tauri-apps/api/path';
+import { getCacheDir, joinPath } from '@/utils/paths';
 import { invoke } from '@tauri-apps/api/core';
 import * as semver from 'semver';
 import { downloadWithProxy } from './proxyService';
@@ -886,12 +887,15 @@ export async function checkAndPrepareDownload(
 /**
  * 获取更新包保存路径
  * @param dataPath 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台: exe 目录）
+ * @param filename 文件名（可选）。如果不提供，使用默认名称。
+ *                 注意：实际保存路径可能由 Rust 下载时从 302 重定向或 Content-Disposition 检测后覆盖
  */
-export async function getUpdateSavePath(dataPath: string, filename?: string): Promise<string> {
-  const os = getOS();
-  const ext = os === 'windows' ? '.zip' : '.tar.gz';
-  const name = filename || `update${ext}`;
-  return await join(dataPath, 'cache', name);
+export async function getUpdateSavePath(filename?: string): Promise<string> {
+  // 如果提供了文件名，直接使用
+  // 如果没有，使用通用的默认名称（Rust 下载时会检测实际文件名并覆盖）
+  const name = filename || 'update_package';
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, name);
 }
 
 // ============================================================================
@@ -955,7 +959,7 @@ export async function installUpdate(options: InstallUpdateOptions): Promise<bool
   }
 
   // 生成临时解压目录
-  const extractDir = await join(await dirname(zipPath), 'update_extract');
+  const extractDir = joinPath(await dirname(zipPath), 'update_extract');
 
   try {
     // 1. 解压更新包

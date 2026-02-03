@@ -61,28 +61,25 @@ export function joinPath(base: string, ...parts: string[]): string {
 
 /**
  * 获取日志目录路径 (debug)
- * @param dataPath 可选，数据目录路径，如不提供则自动获取
  */
-export async function getDebugDir(dataPath?: string): Promise<string> {
-  const base = dataPath ?? (await getDataPath());
+export async function getDebugDir(): Promise<string> {
+  const base = await getDataPath();
   return joinPath(base, DIR_DEBUG);
 }
 
 /**
  * 获取配置目录路径 (config)
- * @param dataPath 可选，数据目录路径，如不提供则自动获取
  */
-export async function getConfigDir(dataPath?: string): Promise<string> {
-  const base = dataPath ?? (await getDataPath());
+export async function getConfigDir(): Promise<string> {
+  const base = await getDataPath();
   return joinPath(base, DIR_CONFIG);
 }
 
 /**
  * 获取缓存目录路径 (cache)
- * @param dataPath 可选，数据目录路径，如不提供则自动获取
  */
-export async function getCacheDir(dataPath?: string): Promise<string> {
-  const base = dataPath ?? (await getDataPath());
+export async function getCacheDir(): Promise<string> {
+  const base = await getDataPath();
   return joinPath(base, DIR_CACHE);
 }
 

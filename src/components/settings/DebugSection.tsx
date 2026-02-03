@@ -157,7 +157,7 @@ export function DebugSection() {
     }
 
     try {
-      const configPath = await getConfigDir(dataPath);
+      const configPath = await getConfigDir();
       loggers.ui.info('打开配置目录:', configPath);
       await openDirectory(configPath);
     } catch (err) {
@@ -173,7 +173,7 @@ export function DebugSection() {
     }
 
     try {
-      const logPath = await getDebugDir(dataPath);
+      const logPath = await getDebugDir();
       loggers.ui.info('打开日志目录:', logPath);
       await openDirectory(logPath);
     } catch (err) {

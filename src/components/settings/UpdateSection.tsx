@@ -128,7 +128,7 @@ export function UpdateSection() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(dataPath, info.filename);
+        const savePath = await getUpdateSavePath(info.filename);
         setDownloadSavePath(savePath);
 
         const useProxy =

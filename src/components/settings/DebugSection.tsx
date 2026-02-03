@@ -207,6 +207,7 @@ export function DebugSection() {
       const { invoke } = await import('@tauri-apps/api/core');
       const zipPath = await invoke<string>('export_logs');
       loggers.ui.info('日志已导出:', zipPath);
+      addDebugLog(`${t('debug.logsExported')}: ${zipPath}`);
 
       // 打开所在目录
       const { openPath } = await import('@tauri-apps/plugin-opener');
@@ -215,6 +216,7 @@ export function DebugSection() {
       await openPath(dir);
     } catch (err) {
       loggers.ui.error('导出日志失败:', err);
+      addDebugLog(`导出日志失败: ${err}`);
     } finally {
       setExportingLogs(false);
     }

@@ -367,8 +367,8 @@ export function InstallConfirmModal() {
             </button>
           )}
 
-          {/* 关闭/取消按钮 */}
-          {!isJustUpdatedMode && !isInstalling && !isInstallComplete && (
+          {/* 关闭/取消按钮（安装失败时由下方单独处理，避免重复） */}
+          {!isJustUpdatedMode && !isInstalling && !isInstallComplete && !isInstallFailed && (
             <button
               onClick={handleClose}
               className="px-4 py-2 text-sm text-text-secondary hover:bg-bg-hover rounded-lg transition-colors"

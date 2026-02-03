@@ -32,6 +32,26 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 const MAX_CONSECUTIVE_FAILURES = 20;
 const API_TIMEOUT = 30000;
 
+// 内存压力检测，OOM 保护
+const MEMORY_CHECK_INTERVAL = 10;
+const MEMORY_WARNING_THRESHOLD = 0.8;
+const MEMORY_CRITICAL_THRESHOLD = 0.9;
+
+function checkMemoryUsage(): { used: number; limit: number; ratio: number } | null {
+  const perf = performance as Performance & {
+    memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number };
+  };
+  if (!perf.memory) return null;
+  const { usedJSHeapSize: used, jsHeapSizeLimit: limit } = perf.memory;
+  return { used, limit, ratio: used / limit };
+}
+
+function getFrameSkipCount(memoryRatio: number): number {
+  if (memoryRatio >= MEMORY_CRITICAL_THRESHOLD) return 3;
+  if (memoryRatio >= MEMORY_WARNING_THRESHOLD) return 2;
+  return 0;
+}
+
 export function ScreenshotPanel() {
   const { t } = useTranslation();
   const {
@@ -150,6 +170,8 @@ export function ScreenshotPanel() {
     // 初始化下一帧时间
     let nextFrameTime = Date.now();
     let consecutiveFailures = 0;
+    let frameCount = 0;
+    let memoryWarningLogged = false;
 
     while (streamingRef.current) {
       // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
@@ -163,6 +185,29 @@ export function ScreenshotPanel() {
       if (connStatus !== 'Connected') {
         setError('连接已断开');
         break;
+      }
+      /**不知道这一行何意味，但是感觉可以加 */
+      frameCount = (frameCount + 1) % 1000000;
+      let skipThisFrame = false;
+      if (frameCount % MEMORY_CHECK_INTERVAL === 0) {
+        const memInfo = checkMemoryUsage();
+        if (memInfo) {  
+          const skipCount = getFrameSkipCount(memInfo.ratio);
+          if (skipCount > 0) {
+            skipThisFrame = frameCount % (skipCount + 1) !== 0;
+            if (!memoryWarningLogged && memInfo.ratio >= MEMORY_WARNING_THRESHOLD) {
+              log.warn(`内存占用 ${(memInfo.ratio * 100).toFixed(0)}%，降低截图帧率`);
+              memoryWarningLogged = true;
+            }
+          } else if (memoryWarningLogged && memInfo.ratio < MEMORY_WARNING_THRESHOLD) {
+            memoryWarningLogged = false;
+          }
+        }
+      }
+
+      if (skipThisFrame) {
+        await new Promise((resolve) => setTimeout(resolve, frameIntervalRef.current || 100));
+        continue;
       }
 
       // 等待下一帧时间

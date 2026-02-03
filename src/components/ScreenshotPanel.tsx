@@ -181,6 +181,7 @@ export function ScreenshotPanel() {
     let consecutiveFailures = 0;
     let frameCount = 0;
     let memoryWarningLogged = false;
+    let currentSkipCount = 0; // 当前跳帧数，0 表示不跳帧
 
     while (streamingRef.current) {
       // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
@@ -197,22 +198,21 @@ export function ScreenshotPanel() {
       }
       /**不知道这一行何意味，但是感觉可以加 */
       frameCount = (frameCount + 1) % 1000000;
-      let skipThisFrame = false;
+      // 每隔 N 帧检测一次内存，更新跳帧策略
       if (frameCount % MEMORY_CHECK_INTERVAL === 0) {
         const memInfo = checkMemoryUsage();
-        if (memInfo) {  
-          const skipCount = getFrameSkipCount(memInfo.ratio);
-          if (skipCount > 0) {
-            skipThisFrame = frameCount % (skipCount + 1) !== 0;
-            if (!memoryWarningLogged && memInfo.ratio >= MEMORY_WARNING_THRESHOLD) {
-              log.warn(`内存占用 ${(memInfo.ratio * 100).toFixed(0)}%，降低截图帧率`);
-              memoryWarningLogged = true;
-            }
-          } else if (memoryWarningLogged && memInfo.ratio < MEMORY_WARNING_THRESHOLD) {
+        if (memInfo) {
+          currentSkipCount = getFrameSkipCount(memInfo.ratio);
+          if (currentSkipCount > 0 && !memoryWarningLogged) {
+            log.warn(`内存占用 ${(memInfo.ratio * 100).toFixed(0)}%，降低截图帧率`);
+            memoryWarningLogged = true;
+          } else if (currentSkipCount === 0 && memoryWarningLogged) {
             memoryWarningLogged = false;
           }
         }
       }
+      // 根据当前跳帧策略决定是否跳过本帧
+      const skipThisFrame = currentSkipCount > 0 && frameCount % (currentSkipCount + 1) !== 0;
 
       // 等待下一帧时间
       const now = Date.now();
@@ -221,12 +221,7 @@ export function ScreenshotPanel() {
         await new Promise((resolve) => setTimeout(resolve, sleepTime));
       }
 
-      // 跳帧时只等待不截图
-      if (skipThisFrame) {
-        continue;
-      }
-
-      // 计算下一帧时间
+      // 计算下一帧时间（跳帧也要更新，保持节奏）
       const frameInterval = frameIntervalRef.current;
       if (frameInterval > 0) {
         nextFrameTime += frameInterval;
@@ -235,6 +230,10 @@ export function ScreenshotPanel() {
         }
       } else {
         nextFrameTime = Date.now();
+      }
+
+      if (skipThisFrame) {
+        continue;
       }
 
       lastFrameTimeRef.current = Date.now();

@@ -224,8 +224,7 @@ pub async fn download_file(
     }
 
     // 重命名临时文件
-    std::fs::rename(&temp_path, &actual_save_path)
-        .map_err(|e| format!("重命名文件失败: {}", e))?;
+    std::fs::rename(&temp_path, &actual_save_path).map_err(|e| format!("重命名文件失败: {}", e))?;
 
     info!(
         "download_file completed: {} bytes -> {} (session {})",
@@ -343,11 +342,7 @@ fn parse_content_disposition(header: &str) -> Option<String> {
         let rest = &header[start + 10..];
         // 格式: UTF-8''encoded_filename 或 utf-8''encoded_filename
         if let Some(quote_pos) = rest.find("''") {
-            let encoded = rest[quote_pos + 2..]
-                .split(';')
-                .next()
-                .unwrap_or("")
-                .trim();
+            let encoded = rest[quote_pos + 2..].split(';').next().unwrap_or("").trim();
             if let Ok(decoded) = urlencoding::decode(encoded) {
                 let filename = decoded.trim_matches('"').to_string();
                 if !filename.is_empty() {

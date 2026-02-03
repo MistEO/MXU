@@ -731,7 +731,9 @@ export type DownloadUpdateResult =
  *
  * @returns 下载结果，包含实际保存路径
  */
-export async function downloadUpdate(options: DownloadUpdateOptions): Promise<DownloadUpdateResult> {
+export async function downloadUpdate(
+  options: DownloadUpdateOptions,
+): Promise<DownloadUpdateResult> {
   // 已经在下载中，不允许重复下载
   if (isDownloading) {
     log.info('已有下载任务进行中，跳过本次下载请求');

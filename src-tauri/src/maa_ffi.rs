@@ -736,7 +736,7 @@ pub fn init_maa_library(lib_dir: &Path) -> Result<(), MaaLibraryError> {
     let user_path = to_cstring(&user_path_str);
     let default_json = to_cstring("{}");
     debug!("MaaToolkitConfigInitOption user_path: {}", user_path_str);
-    
+
     // 确保数据目录存在
     let _ = std::fs::create_dir_all(&data_dir);
     let result =

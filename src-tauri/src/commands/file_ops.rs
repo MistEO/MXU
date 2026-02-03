@@ -187,11 +187,9 @@ pub fn export_logs() -> Result<String, String> {
     let filename = format!("mxu-logs-{}.zip", now.format("%Y%m%d-%H%M%S"));
     let zip_path = debug_dir.join(&filename);
 
-    let file = File::create(&zip_path)
-        .map_err(|e| format!("创建压缩文件失败: {}", e))?;
+    let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;
     let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     // 辅助函数：将文件添加到 zip
     fn add_file_to_zip(
@@ -241,8 +239,7 @@ pub fn export_logs() -> Result<String, String> {
     }
 
     // 遍历 debug 目录下的所有 .log 文件
-    let entries = std::fs::read_dir(&debug_dir)
-        .map_err(|e| format!("读取日志目录失败: {}", e))?;
+    let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -266,10 +263,7 @@ pub fn export_logs() -> Result<String, String> {
     let on_error_dir = debug_dir.join("on_error");
     if on_error_dir.exists() && on_error_dir.is_dir() {
         if let Ok(rd) = std::fs::read_dir(&on_error_dir) {
-            let mut images: Vec<_> = rd
-                .flatten()
-                .filter(|e| is_image_file(&e.path()))
-                .collect();
+            let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
 
             // 按修改时间排序（最新的在前）
             images.sort_by(|a, b| {

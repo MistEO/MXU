@@ -297,9 +297,7 @@ export async function cachedFetch(
  * 清理过期的缓存条目
  * @param maxAge 最大缓存时间（毫秒），默认 7 天
  */
-export async function cleanExpiredCache(
-  maxAge: number = 7 * 24 * 60 * 60 * 1000,
-): Promise<void> {
+export async function cleanExpiredCache(maxAge: number = 7 * 24 * 60 * 60 * 1000): Promise<void> {
   if (!isTauri()) return;
 
   try {

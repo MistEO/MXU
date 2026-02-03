@@ -60,7 +60,10 @@ pub fn get_logs_dir() -> PathBuf {
         .unwrap_or_else(|_| {
             // 回退到 exe 目录
             let exe_path = std::env::current_exe().unwrap_or_default();
-            exe_path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf()
+            exe_path
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf()
         })
         .join("debug")
 }

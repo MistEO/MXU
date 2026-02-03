@@ -202,9 +202,7 @@ function App() {
 
   // 自动下载函数
   const startAutoDownload = useCallback(
-    async (
-      updateResult: NonNullable<Awaited<ReturnType<typeof checkAndPrepareDownload>>>,
-    ) => {
+    async (updateResult: NonNullable<Awaited<ReturnType<typeof checkAndPrepareDownload>>>) => {
       if (!updateResult.downloadUrl || downloadStartedRef.current) return;
 
       downloadStartedRef.current = true;
@@ -450,7 +448,9 @@ function App() {
 
           // 比较版本：如果当前版本已经是目标版本，视为安装完成
           const normalizeVersion = (v: string) => v.replace(/^v/i, '').toLowerCase();
-          if (normalizeVersion(currentVersionNow) === normalizeVersion(updateCompleteInfo.newVersion)) {
+          if (
+            normalizeVersion(currentVersionNow) === normalizeVersion(updateCompleteInfo.newVersion)
+          ) {
             log.info('版本已更新到目标版本，显示更新完成弹窗');
             setJustUpdatedInfo({
               previousVersion: updateCompleteInfo.previousVersion,

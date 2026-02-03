@@ -31,9 +31,7 @@ export function ExportLogsModal({ show, status, zipPath, error, onClose }: Expor
         <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
           <div className="flex items-center gap-2">
             <Archive className="w-5 h-5 text-accent" />
-            <span className="text-sm font-medium text-text-primary">
-              {t('debug.exportLogs')}
-            </span>
+            <span className="text-sm font-medium text-text-primary">{t('debug.exportLogs')}</span>
           </div>
         </div>
 
@@ -52,9 +50,7 @@ export function ExportLogsModal({ show, status, zipPath, error, onClose }: Expor
                 <CheckCircle className="w-5 h-5 shrink-0" />
                 <span className="text-sm">{t('debug.logsExported')}</span>
               </div>
-              {zipPath && (
-                <p className="text-xs text-text-muted break-all">{zipPath}</p>
-              )}
+              {zipPath && <p className="text-xs text-text-muted break-all">{zipPath}</p>}
             </div>
           )}
 
@@ -64,9 +60,7 @@ export function ExportLogsModal({ show, status, zipPath, error, onClose }: Expor
                 <XCircle className="w-5 h-5 shrink-0" />
                 <span className="text-sm">{t('debug.exportLogsFailed')}</span>
               </div>
-              {error && (
-                <p className="text-xs text-text-muted break-all">{error}</p>
-              )}
+              {error && <p className="text-xs text-text-muted break-all">{error}</p>}
             </div>
           )}
         </div>

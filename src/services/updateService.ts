@@ -132,6 +132,33 @@ function getOS(): string {
   return '';
 }
 
+/**
+ * 从 URL 中提取文件名
+ * 支持格式：
+ * - 普通 URL: https://example.com/path/to/file.exe
+ * - 带查询参数的 URL: https://example.com/path/to/file.dmg?token=xxx
+ */
+function extractFilenameFromUrl(url: string): string | undefined {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return undefined;
+
+    const lastSegment = segments[segments.length - 1];
+    // 解码 URL 编码的文件名
+    const filename = decodeURIComponent(lastSegment);
+
+    // 确保文件名有扩展名
+    if (filename && filename.includes('.')) {
+      return filename;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // 获取 OS 的常见别名（用于匹配文件名）
 function getOSAliases(): string[] {
   const os = getOS();
@@ -314,6 +341,9 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
 
   log.info(`更新检查完成: 最新版本=${version_name}, 有更新=${hasUpdate}`);
 
+  // 从下载 URL 中提取文件名
+  const filename = downloadUrl ? extractFilenameFromUrl(downloadUrl) : undefined;
+
   return {
     hasUpdate,
     versionName: version_name,
@@ -322,6 +352,7 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
     updateType: update_type,
     channel: respChannel,
     fileSize: filesize,
+    filename,
     downloadSource: downloadUrl ? 'mirrorchyan' : undefined,
   };
 }
@@ -674,20 +705,32 @@ interface DownloadProgressEventPayload extends DownloadProgress {
 }
 
 /**
+ * 下载更新结果
+ */
+export interface DownloadUpdateResult {
+  success: boolean;
+  /** 实际保存的文件路径（可能与请求路径不同，如果检测到正确的文件名） */
+  actualSavePath?: string;
+  /** 检测到的文件名（如果有） */
+  detectedFilename?: string;
+}
+
+/**
  * 下载更新包（使用 Rust 后端流式下载）
  *
  * 相比 JavaScript 下载，Rust 后端实现具有以下优势：
  * - 流式写入磁盘，不占用大量内存
  * - 更高的下载速度（直接写入文件，无需 JS 中转）
  * - 更稳定的大文件下载支持
+ * - 自动从 302 重定向后的 URL 或 Content-Disposition 提取正确的文件名
  *
- * @returns 是否下载成功
+ * @returns 下载结果，包含实际保存路径
  */
-export async function downloadUpdate(options: DownloadUpdateOptions): Promise<boolean> {
+export async function downloadUpdate(options: DownloadUpdateOptions): Promise<DownloadUpdateResult> {
   // 已经在下载中，不允许重复下载
   if (isDownloading) {
     log.info('已有下载任务进行中，跳过本次下载请求');
-    return false;
+    return { success: false };
   }
 
   const { url, savePath, totalSize, onProgress, proxySettings } = options;
@@ -734,12 +777,21 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
       });
     }
 
-    // 等待下载完成，返回的是 session_id
-    const sessionId = await downloadPromise;
-    currentSessionId = sessionId;
+    // 等待下载完成，返回下载结果
+    const result = await downloadPromise;
+    currentSessionId = result.session_id;
 
-    log.info(`下载完成 (session ${sessionId})`);
-    return true;
+    log.info(`下载完成 (session ${result.session_id})`);
+    log.info(`实际保存路径: ${result.actual_save_path}`);
+    if (result.detected_filename) {
+      log.info(`检测到文件名: ${result.detected_filename}`);
+    }
+
+    return {
+      success: true,
+      actualSavePath: result.actual_save_path,
+      detectedFilename: result.detected_filename ?? undefined,
+    };
   } catch (error) {
     // 如果是用户主动取消，不记录为错误
     if (downloadCancelled) {
@@ -747,7 +799,7 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
     } else {
       log.error('下载失败:', error);
     }
-    return false;
+    return { success: false };
   } finally {
     // 清理事件监听器
     if (unlisten) {

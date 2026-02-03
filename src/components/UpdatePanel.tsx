@@ -59,7 +59,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
       const savePath = await getUpdateSavePath(dataPath, updateInfo.filename);
       setDownloadSavePath(savePath);
 
-      const success = await downloadUpdate({
+      const result = await downloadUpdate({
         url: updateInfo.downloadUrl,
         savePath,
         totalSize: updateInfo.fileSize,
@@ -68,14 +68,17 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
         },
       });
 
-      if (success) {
+      if (result.success && result.actualSavePath) {
+        // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+        const actualPath = result.actualSavePath;
+        setDownloadSavePath(actualPath);
         setDownloadStatus('completed');
         // 保存待安装更新信息，以便下次启动时自动安装
         savePendingUpdateInfo({
           versionName: updateInfo.versionName,
           releaseNote: updateInfo.releaseNote,
           channel: updateInfo.channel,
-          downloadSavePath: savePath,
+          downloadSavePath: actualPath,
           fileSize: updateInfo.fileSize,
           updateType: updateInfo.updateType,
           downloadSource: updateInfo.downloadSource,

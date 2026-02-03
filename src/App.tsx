@@ -226,7 +226,7 @@ function App() {
           updateResult.downloadSource === 'github' &&
           shouldUseProxy(appState.proxySettings, appState.mirrorChyanSettings.cdk || '');
 
-        const success = await downloadUpdate({
+        const result = await downloadUpdate({
           url: updateResult.downloadUrl,
           savePath,
           totalSize: updateResult.fileSize,
@@ -236,7 +236,10 @@ function App() {
           },
         });
 
-        if (success) {
+        if (result.success && result.actualSavePath) {
+          // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+          const actualPath = result.actualSavePath;
+          setDownloadSavePath(actualPath);
           setDownloadStatus('completed');
           log.info('更新下载完成');
 
@@ -245,7 +248,7 @@ function App() {
             versionName: updateResult.versionName,
             releaseNote: updateResult.releaseNote,
             channel: updateResult.channel,
-            downloadSavePath: savePath,
+            downloadSavePath: actualPath,
             fileSize: updateResult.fileSize,
             updateType: updateResult.updateType,
             downloadSource: updateResult.downloadSource,

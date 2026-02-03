@@ -133,13 +133,22 @@ export function formatProxyUrlForDisplay(url: string): string {
 }
 
 /**
+ * 下载结果类型（与 Rust 端 DownloadResult 对应）
+ */
+export interface DownloadResult {
+  session_id: number;
+  actual_save_path: string;
+  detected_filename: string | null;
+}
+
+/**
  * 统一的带代理下载接口
  * 自动处理代理参数并记录日志
  *
  * @param url 下载 URL
  * @param savePath 保存路径
  * @param options 可选参数
- * @returns Session ID
+ * @returns DownloadResult，包含 session_id 和实际保存路径
  */
 export async function downloadWithProxy(
   url: string,
@@ -148,7 +157,7 @@ export async function downloadWithProxy(
     totalSize?: number;
     proxyUrl?: string | null;
   },
-): Promise<number> {
+): Promise<DownloadResult> {
   const hasProxy = options?.proxyUrl && options.proxyUrl.trim() !== '';
 
   if (hasProxy) {
@@ -161,7 +170,7 @@ export async function downloadWithProxy(
     log.info(`[下载] 直连（无代理）: ${url}`);
   }
 
-  return invoke<number>('download_file', {
+  return invoke<DownloadResult>('download_file', {
     url,
     savePath,
     totalSize: options?.totalSize || null,

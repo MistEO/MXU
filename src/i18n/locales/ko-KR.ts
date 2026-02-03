@@ -341,6 +341,7 @@ export default {
     exportLogsHint: '모든 로그 파일을 zip 아카이브로 압축',
     exportingLogs: '로그 내보내는 중...',
     logsExported: '로그를 내보냈습니다',
+    exportLogsFailed: '로그 내보내기 실패',
     clearCache: '캐시 지우기',
     cacheCleared: '캐시가 지워졌습니다',
     cacheStats: '캐시 항목: {{count}}개',

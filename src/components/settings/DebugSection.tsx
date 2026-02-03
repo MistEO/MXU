@@ -9,6 +9,7 @@ import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/windowUtils';
+import { ExportLogsModal } from './ExportLogsModal';
 
 export function DebugSection() {
   const { t } = useTranslation();
@@ -36,7 +37,12 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
-  const [exportingLogs, setExportingLogs] = useState(false);
+  const [exportModal, setExportModal] = useState<{
+    show: boolean;
+    status: 'exporting' | 'success' | 'error';
+    zipPath?: string;
+    error?: string;
+  }>({ show: false, status: 'exporting' });
   const [, setDebugLog] = useState<string[]>([]);
 
   const addDebugLog = useCallback((msg: string) => {
@@ -202,12 +208,13 @@ export function DebugSection() {
       return;
     }
 
-    setExportingLogs(true);
+    setExportModal({ show: true, status: 'exporting' });
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const zipPath = await invoke<string>('export_logs');
       loggers.ui.info('日志已导出:', zipPath);
-      addDebugLog(`${t('debug.logsExported')}: ${zipPath}`);
+
+      setExportModal({ show: true, status: 'success', zipPath });
 
       // 打开所在目录
       const { openPath } = await import('@tauri-apps/plugin-opener');
@@ -216,9 +223,11 @@ export function DebugSection() {
       await openPath(dir);
     } catch (err) {
       loggers.ui.error('导出日志失败:', err);
-      addDebugLog(`导出日志失败: ${err}`);
-    } finally {
-      setExportingLogs(false);
+      setExportModal({
+        show: true,
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -321,12 +330,12 @@ export function DebugSection() {
           </button>
           <button
             onClick={handleExportLogs}
-            disabled={exportingLogs}
+            disabled={exportModal.show && exportModal.status === 'exporting'}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50"
             title={t('debug.exportLogsHint')}
           >
             <Archive className="w-4 h-4" />
-            {exportingLogs ? t('debug.exportingLogs') : t('debug.exportLogs')}
+            {t('debug.exportLogs')}
           </button>
           <button
             onClick={handleClearCache}
@@ -420,6 +429,15 @@ export function DebugSection() {
           </button>
         </div>
       </div>
+
+      {/* 导出日志 Modal */}
+      <ExportLogsModal
+        show={exportModal.show}
+        status={exportModal.status}
+        zipPath={exportModal.zipPath}
+        error={exportModal.error}
+        onClose={() => setExportModal({ show: false, status: 'exporting' })}
+      />
     </section>
   );
 }

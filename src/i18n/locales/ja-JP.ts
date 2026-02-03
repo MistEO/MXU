@@ -347,6 +347,7 @@ export default {
     exportLogsHint: 'すべてのログファイルを zip アーカイブにパック',
     exportingLogs: 'ログをエクスポート中...',
     logsExported: 'ログをエクスポートしました',
+    exportLogsFailed: 'ログのエクスポートに失敗しました',
     clearCache: 'キャッシュをクリア',
     cacheCleared: 'キャッシュをクリアしました',
     cacheStats: 'キャッシュ項目: {{count}} 件',

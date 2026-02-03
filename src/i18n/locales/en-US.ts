@@ -349,6 +349,7 @@ export default {
     exportLogsHint: 'Pack all log files into a zip archive',
     exportingLogs: 'Exporting logs...',
     logsExported: 'Logs exported',
+    exportLogsFailed: 'Failed to export logs',
     clearCache: 'Clear Cache',
     cacheCleared: 'Cache cleared',
     cacheStats: 'Cache entries: {{count}}',

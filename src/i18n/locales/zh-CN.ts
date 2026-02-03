@@ -345,6 +345,7 @@ export default {
     exportLogsHint: '打包所有日志文件为 zip 压缩包',
     exportingLogs: '正在导出日志...',
     logsExported: '日志已导出',
+    exportLogsFailed: '导出日志失败',
     clearCache: '清空缓存',
     cacheCleared: '缓存已清空',
     cacheStats: '缓存条目: {{count}} 条',

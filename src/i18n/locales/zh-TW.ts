@@ -342,6 +342,7 @@ export default {
     exportLogsHint: '打包所有日誌檔案為 zip 壓縮包',
     exportingLogs: '正在匯出日誌...',
     logsExported: '日誌已匯出',
+    exportLogsFailed: '匯出日誌失敗',
     clearCache: '清空快取',
     cacheCleared: '快取已清空',
     cacheStats: '快取項目: {{count}} 條',

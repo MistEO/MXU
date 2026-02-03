@@ -128,14 +128,14 @@ export function UpdateSection() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(dataPath, info.filename);
+        const savePath = await getUpdateSavePath(info.filename);
         setDownloadSavePath(savePath);
 
         const useProxy =
           info.downloadSource === 'github' &&
           shouldUseProxy(proxySettings, mirrorChyanSettings.cdk);
 
-        const success = await downloadUpdate({
+        const result = await downloadUpdate({
           url: info.downloadUrl,
           savePath,
           totalSize: info.fileSize,
@@ -145,7 +145,9 @@ export function UpdateSection() {
           },
         });
 
-        if (success) {
+        if (result.success) {
+          // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+          setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');
         } else {
           setDownloadStatus('failed');

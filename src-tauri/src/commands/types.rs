@@ -276,6 +276,17 @@ pub struct DownloadProgressEvent {
     pub progress: f64,
 }
 
+/// 下载结果
+#[derive(Clone, Serialize)]
+pub struct DownloadResult {
+    /// 下载会话 ID
+    pub session_id: u64,
+    /// 实际保存的文件路径（可能与请求的路径不同，如果从 URL 或 header 检测到正确的文件名）
+    pub actual_save_path: String,
+    /// 从 URL 或 Content-Disposition 提取的文件名（如果有）
+    pub detected_filename: Option<String>,
+}
+
 /// 系统信息结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfo {

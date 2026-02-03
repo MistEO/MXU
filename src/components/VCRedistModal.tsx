@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { join } from '@tauri-apps/api/path';
+import { getCacheDir, joinPath } from '@/utils/paths';
 import { loggers } from '@/utils/logger';
 
 const log = loggers.app;
@@ -81,8 +81,8 @@ export function VCRedistModal({ show, onClose }: VCRedistModalProps) {
       const { url: vcredistUrl, filename: vcredistFilename } = getVCRedistInfo(architecture);
       log.info(`系统架构: ${architecture}, 下载: ${vcredistFilename}`);
 
-      const exeDir = await invoke<string>('get_exe_dir');
-      const downloadPath = await join(exeDir, 'cache', vcredistFilename);
+      const cacheDir = await getCacheDir();
+      const downloadPath = joinPath(cacheDir, vcredistFilename);
 
       log.info(`开始下载 VC++ 运行库: ${vcredistUrl} -> ${downloadPath}`);
 

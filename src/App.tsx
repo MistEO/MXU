@@ -217,7 +217,7 @@ function App() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(downloadDataPath, updateResult.filename);
+        const savePath = await getUpdateSavePath(updateResult.filename);
         setDownloadSavePath(savePath);
 
         const appState = useAppStore.getState();
@@ -226,7 +226,7 @@ function App() {
           updateResult.downloadSource === 'github' &&
           shouldUseProxy(appState.proxySettings, appState.mirrorChyanSettings.cdk || '');
 
-        const success = await downloadUpdate({
+        const result = await downloadUpdate({
           url: updateResult.downloadUrl,
           savePath,
           totalSize: updateResult.fileSize,
@@ -236,7 +236,9 @@ function App() {
           },
         });
 
-        if (success) {
+        if (result.success) {
+          // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+          setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');
           log.info('更新下载完成');
 
@@ -245,7 +247,7 @@ function App() {
             versionName: updateResult.versionName,
             releaseNote: updateResult.releaseNote,
             channel: updateResult.channel,
-            downloadSavePath: savePath,
+            downloadSavePath: result.actualSavePath,
             fileSize: updateResult.fileSize,
             updateType: updateResult.updateType,
             downloadSource: updateResult.downloadSource,

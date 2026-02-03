@@ -7,7 +7,8 @@ import { loggers } from '@/utils/logger';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { openUrl, openPath } from '@tauri-apps/plugin-opener';
 import { exists } from '@tauri-apps/plugin-fs';
-import { join, dirname } from '@tauri-apps/api/path';
+import { dirname } from '@tauri-apps/api/path';
+import { getCacheDir, joinPath } from '@/utils/paths';
 import { invoke } from '@tauri-apps/api/core';
 import * as semver from 'semver';
 import { downloadWithProxy } from './proxyService';
@@ -130,6 +131,33 @@ function getOS(): string {
   if (platform.includes('mac')) return 'darwin';
   if (platform.includes('linux')) return 'linux';
   return '';
+}
+
+/**
+ * 从 URL 中提取文件名
+ * 支持格式：
+ * - 普通 URL: https://example.com/path/to/file.exe
+ * - 带查询参数的 URL: https://example.com/path/to/file.dmg?token=xxx
+ */
+function extractFilenameFromUrl(url: string): string | undefined {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return undefined;
+
+    const lastSegment = segments[segments.length - 1];
+    // 解码 URL 编码的文件名
+    const filename = decodeURIComponent(lastSegment);
+
+    // 确保文件名有扩展名
+    if (filename && filename.includes('.')) {
+      return filename;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // 获取 OS 的常见别名（用于匹配文件名）
@@ -314,6 +342,9 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
 
   log.info(`更新检查完成: 最新版本=${version_name}, 有更新=${hasUpdate}`);
 
+  // 从下载 URL 中提取文件名
+  const filename = downloadUrl ? extractFilenameFromUrl(downloadUrl) : undefined;
+
   return {
     hasUpdate,
     versionName: version_name,
@@ -322,6 +353,7 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
     updateType: update_type,
     channel: respChannel,
     fileSize: filesize,
+    filename,
     downloadSource: downloadUrl ? 'mirrorchyan' : undefined,
   };
 }
@@ -674,20 +706,36 @@ interface DownloadProgressEventPayload extends DownloadProgress {
 }
 
 /**
+ * 下载更新结果（discriminated union）
+ * - success: true 时保证有 actualSavePath
+ * - success: false 时没有路径信息
+ */
+export type DownloadUpdateResult =
+  | {
+      success: true;
+      /** 实际保存的文件路径（可能与请求路径不同，如果检测到正确的文件名） */
+      actualSavePath: string;
+      /** 检测到的文件名（如果有） */
+      detectedFilename?: string;
+    }
+  | { success: false };
+
+/**
  * 下载更新包（使用 Rust 后端流式下载）
  *
  * 相比 JavaScript 下载，Rust 后端实现具有以下优势：
  * - 流式写入磁盘，不占用大量内存
  * - 更高的下载速度（直接写入文件，无需 JS 中转）
  * - 更稳定的大文件下载支持
+ * - 自动从 302 重定向后的 URL 或 Content-Disposition 提取正确的文件名
  *
- * @returns 是否下载成功
+ * @returns 下载结果，包含实际保存路径
  */
-export async function downloadUpdate(options: DownloadUpdateOptions): Promise<boolean> {
+export async function downloadUpdate(options: DownloadUpdateOptions): Promise<DownloadUpdateResult> {
   // 已经在下载中，不允许重复下载
   if (isDownloading) {
     log.info('已有下载任务进行中，跳过本次下载请求');
-    return false;
+    return { success: false };
   }
 
   const { url, savePath, totalSize, onProgress, proxySettings } = options;
@@ -734,12 +782,21 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
       });
     }
 
-    // 等待下载完成，返回的是 session_id
-    const sessionId = await downloadPromise;
-    currentSessionId = sessionId;
+    // 等待下载完成，返回下载结果
+    const result = await downloadPromise;
+    currentSessionId = result.session_id;
 
-    log.info(`下载完成 (session ${sessionId})`);
-    return true;
+    log.info(`下载完成 (session ${result.session_id})`);
+    log.info(`实际保存路径: ${result.actual_save_path}`);
+    if (result.detected_filename) {
+      log.info(`检测到文件名: ${result.detected_filename}`);
+    }
+
+    return {
+      success: true,
+      actualSavePath: result.actual_save_path,
+      detectedFilename: result.detected_filename ?? undefined,
+    };
   } catch (error) {
     // 如果是用户主动取消，不记录为错误
     if (downloadCancelled) {
@@ -747,7 +804,7 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
     } else {
       log.error('下载失败:', error);
     }
-    return false;
+    return { success: false };
   } finally {
     // 清理事件监听器
     if (unlisten) {
@@ -830,12 +887,15 @@ export async function checkAndPrepareDownload(
 /**
  * 获取更新包保存路径
  * @param dataPath 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台: exe 目录）
+ * @param filename 文件名（可选）。如果不提供，使用默认名称。
+ *                 注意：实际保存路径可能由 Rust 下载时从 302 重定向或 Content-Disposition 检测后覆盖
  */
-export async function getUpdateSavePath(dataPath: string, filename?: string): Promise<string> {
-  const os = getOS();
-  const ext = os === 'windows' ? '.zip' : '.tar.gz';
-  const name = filename || `update${ext}`;
-  return await join(dataPath, 'cache', name);
+export async function getUpdateSavePath(filename?: string): Promise<string> {
+  // 如果提供了文件名，直接使用
+  // 如果没有，使用通用的默认名称（Rust 下载时会检测实际文件名并覆盖）
+  const name = filename || 'update_package';
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, name);
 }
 
 // ============================================================================
@@ -899,7 +959,7 @@ export async function installUpdate(options: InstallUpdateOptions): Promise<bool
   }
 
   // 生成临时解压目录
-  const extractDir = await join(await dirname(zipPath), 'update_extract');
+  const extractDir = joinPath(await dirname(zipPath), 'update_extract');
 
   try {
     // 1. 解压更新包

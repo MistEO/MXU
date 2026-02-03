@@ -12,13 +12,9 @@ import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cachedFetch } from './cacheService';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /** 内容类型枚举 */
 export type ContentType = 'url' | 'file' | 'text';
@@ -27,7 +23,7 @@ export type ContentType = 'url' | 'file' | 'text';
  * 判断内容是否为 URL
  */
 export function isUrl(content: string): boolean {
-  return content.startsWith('http://') || content.startsWith('https://');
+  return content.startsWith('https://') || content.startsWith('http://');
 }
 
 /**

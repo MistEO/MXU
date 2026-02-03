@@ -5,11 +5,7 @@ import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { loggers } from '@/utils/logger';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
+import { isTauri, getDebugDir, openDirectory } from '@/utils/paths';
 
 export function LogsPanel() {
   const { t } = useTranslation();
@@ -53,10 +49,8 @@ export function LogsPanel() {
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const logPath = await join(dataPath, 'debug');
-      await openPath(logPath);
+      const logPath = await getDebugDir(dataPath);
+      await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
     }

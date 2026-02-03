@@ -8,7 +8,7 @@ import { defaultWindowSize } from '@/types/config';
 import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
-import { isTauri } from '@/utils/windowUtils';
+import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
 import { ExportLogsModal } from './ExportLogsModal';
 
 export function DebugSection() {
@@ -157,11 +157,9 @@ export function DebugSection() {
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const configPath = await join(dataPath, 'config');
+      const configPath = await getConfigDir(dataPath);
       loggers.ui.info('打开配置目录:', configPath);
-      await openPath(configPath);
+      await openDirectory(configPath);
     } catch (err) {
       loggers.ui.error('打开配置目录失败:', err);
     }
@@ -175,11 +173,9 @@ export function DebugSection() {
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const logPath = await join(dataPath, 'debug');
+      const logPath = await getDebugDir(dataPath);
       loggers.ui.info('打开日志目录:', logPath);
-      await openPath(logPath);
+      await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
     }

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ProjectInterface, TaskItem, OptionDefinition } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
 
@@ -19,10 +20,6 @@ export interface LoadResult {
   basePath: string;
   dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
 }
-
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /**
  * 获取 exe 所在目录的绝对路径（Tauri 环境）

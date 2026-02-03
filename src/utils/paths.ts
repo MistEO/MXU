@@ -3,8 +3,13 @@
  * 统一管理应用数据目录的获取
  */
 
+// 目录常量
+const DIR_DEBUG = 'debug';
+const DIR_CONFIG = 'config';
+const DIR_CACHE = 'cache';
+
 // 检测是否在 Tauri 环境中
-const isTauri = () => {
+export const isTauri = () => {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 };
 
@@ -50,4 +55,42 @@ export function joinPath(base: string, ...parts: string[]): string {
   const normalizedBase = normalizePath(base);
   const normalizedParts = parts.map((p) => p.replace(/^\/+|\/+$/g, ''));
   return [normalizedBase, ...normalizedParts].filter(Boolean).join('/');
+}
+
+// ============ 常用目录快捷获取 ============
+
+/**
+ * 获取日志目录路径 (debug)
+ * @param dataPath 可选，数据目录路径，如不提供则自动获取
+ */
+export async function getDebugDir(dataPath?: string): Promise<string> {
+  const base = dataPath ?? (await getDataPath());
+  return joinPath(base, DIR_DEBUG);
+}
+
+/**
+ * 获取配置目录路径 (config)
+ * @param dataPath 可选，数据目录路径，如不提供则自动获取
+ */
+export async function getConfigDir(dataPath?: string): Promise<string> {
+  const base = dataPath ?? (await getDataPath());
+  return joinPath(base, DIR_CONFIG);
+}
+
+/**
+ * 获取缓存目录路径 (cache)
+ * @param dataPath 可选，数据目录路径，如不提供则自动获取
+ */
+export async function getCacheDir(dataPath?: string): Promise<string> {
+  const base = dataPath ?? (await getDataPath());
+  return joinPath(base, DIR_CACHE);
+}
+
+/**
+ * 打开指定目录（仅 Tauri 环境有效）
+ */
+export async function openDirectory(dirPath: string): Promise<void> {
+  if (!isTauri()) return;
+  const { openPath } = await import('@tauri-apps/plugin-opener');
+  await openPath(dirPath);
 }

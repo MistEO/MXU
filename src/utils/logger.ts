@@ -4,7 +4,7 @@
  */
 
 import log from 'loglevel';
-import { getDataPath, joinPath } from './paths';
+import { getDebugDir, isTauri as checkTauri } from './paths';
 
 // 日志级别类型
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -13,9 +13,6 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 const isDev = import.meta.env.DEV;
 const defaultLevel: LogLevel = isDev ? 'trace' : 'debug';
 
-// 检测是否在 Tauri 环境中
-const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
-
 // 文件日志配置
 let logsDir: string | null = null;
 
@@ -23,11 +20,10 @@ let logsDir: string | null = null;
  * 初始化文件日志（自动获取数据目录）
  */
 async function initFileLogger(): Promise<void> {
-  if (!isTauri() || logsDir) return;
+  if (!checkTauri() || logsDir) return;
 
   try {
-    const dataDir = await getDataPath();
-    logsDir = joinPath(dataDir, 'debug');
+    logsDir = await getDebugDir();
 
     const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
     if (!(await exists(logsDir))) {
@@ -41,7 +37,7 @@ async function initFileLogger(): Promise<void> {
 }
 
 // 模块加载时立即初始化文件日志
-if (isTauri()) {
+if (checkTauri()) {
   initFileLogger();
 }
 

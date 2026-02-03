@@ -10,18 +10,12 @@
  */
 
 import { loggers } from '@/utils/logger';
-import { getDataPath, joinPath } from '@/utils/paths';
+import { getCacheDir as getBaseCacheDir, getDataPath, joinPath, isTauri } from '@/utils/paths';
 
 const log = loggers.app;
 
-// 缓存目录
-const CACHE_DIR = 'cache';
+// 缓存文件名
 const CACHE_INDEX_FILE = 'etag-index.json';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /** 缓存索引条目 */
 interface CacheEntry {
@@ -65,19 +59,16 @@ function urlToFilename(url: string): string {
   return `${hashStr}_${readablePart}`.slice(0, 100);
 }
 
-/** 获取缓存目录路径 */
-function getCacheDir(dataPath: string): string {
-  return joinPath(dataPath || '.', CACHE_DIR);
-}
-
 /** 获取缓存索引文件路径 */
-function getCacheIndexPath(dataPath: string): string {
-  return joinPath(dataPath || '.', CACHE_DIR, CACHE_INDEX_FILE);
+async function getCacheIndexPath(dataPath?: string): Promise<string> {
+  const cacheDir = await getBaseCacheDir(dataPath);
+  return joinPath(cacheDir, CACHE_INDEX_FILE);
 }
 
 /** 获取缓存数据文件路径 */
-function getCacheDataPath(dataPath: string, filename: string): string {
-  return joinPath(dataPath || '.', CACHE_DIR, filename);
+async function getCacheDataPath(dataPath: string | undefined, filename: string): Promise<string> {
+  const cacheDir = await getBaseCacheDir(dataPath);
+  return joinPath(cacheDir, filename);
 }
 
 /**
@@ -98,7 +89,7 @@ async function loadCacheIndex(basePath: string): Promise<CacheIndex> {
 
   try {
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-    const indexPath = getCacheIndexPath(basePath);
+    const indexPath = await getCacheIndexPath(basePath);
 
     if (await exists(indexPath)) {
       const content = await readTextFile(indexPath);
@@ -119,13 +110,13 @@ async function loadCacheIndex(basePath: string): Promise<CacheIndex> {
 /**
  * 保存缓存索引
  */
-async function saveCacheIndex(basePath: string): Promise<void> {
+async function saveCacheIndex(basePath?: string): Promise<void> {
   if (!isTauri() || !cacheIndex) return;
 
   try {
     const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
-    const indexPath = getCacheIndexPath(basePath);
+    const cacheDir = await getBaseCacheDir(basePath);
+    const indexPath = await getCacheIndexPath(basePath);
 
     if (!(await exists(cacheDir))) {
       await mkdir(cacheDir, { recursive: true });
@@ -140,15 +131,15 @@ async function saveCacheIndex(basePath: string): Promise<void> {
 /**
  * 读取缓存数据
  */
-async function readCacheData(basePath: string, filename: string): Promise<string | null> {
+async function readCacheData(basePath: string | undefined, filename: string): Promise<string | null> {
   if (!isTauri()) return null;
 
   try {
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-    const dataPath = getCacheDataPath(basePath, filename);
+    const filePath = await getCacheDataPath(basePath, filename);
 
-    if (await exists(dataPath)) {
-      return await readTextFile(dataPath);
+    if (await exists(filePath)) {
+      return await readTextFile(filePath);
     }
   } catch (err) {
     log.warn('读取缓存数据失败:', err);
@@ -159,19 +150,19 @@ async function readCacheData(basePath: string, filename: string): Promise<string
 /**
  * 写入缓存数据
  */
-async function writeCacheData(basePath: string, filename: string, data: string): Promise<void> {
+async function writeCacheData(basePath: string | undefined, filename: string, data: string): Promise<void> {
   if (!isTauri()) return;
 
   try {
     const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
+    const cacheDir = await getBaseCacheDir(basePath);
 
     if (!(await exists(cacheDir))) {
       await mkdir(cacheDir, { recursive: true });
     }
 
-    const dataPath = getCacheDataPath(basePath, filename);
-    await writeTextFile(dataPath, data);
+    const filePath = await getCacheDataPath(basePath, filename);
+    await writeTextFile(filePath, data);
   } catch (err) {
     log.warn('写入缓存数据失败:', err);
   }
@@ -338,7 +329,7 @@ export async function cleanExpiredCache(
     // 删除过期的缓存文件和索引条目
     for (const url of expiredUrls) {
       const entry = index.entries[url];
-      const filePath = getCacheDataPath(dataPath, entry.filename);
+      const filePath = await getCacheDataPath(dataPath, entry.filename);
 
       if (await exists(filePath)) {
         await remove(filePath);
@@ -361,9 +352,8 @@ export async function clearAllCache(_basePath: string = '.'): Promise<void> {
   if (!isTauri()) return;
 
   try {
-    const dataPath = await getDataPath();
     const { remove, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(dataPath);
+    const cacheDir = await getBaseCacheDir();
 
     if (await exists(cacheDir)) {
       await remove(cacheDir, { recursive: true });

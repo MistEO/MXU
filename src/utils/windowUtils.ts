@@ -1,4 +1,8 @@
 import { loggers } from './logger';
+import { isTauri } from './paths';
+
+// 重新导出 isTauri，保持向后兼容
+export { isTauri };
 
 const log = loggers.app;
 
@@ -8,11 +12,6 @@ export const MIN_WINDOW_HEIGHT = 500;
 
 // 左侧面板最小宽度（确保工具栏按钮文字不换行）
 export const MIN_LEFT_PANEL_WIDTH = 530;
-
-// 检测是否在 Tauri 环境中
-export const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /**
  * 验证窗口尺寸是否有效

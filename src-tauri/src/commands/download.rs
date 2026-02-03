@@ -273,7 +273,9 @@ fn extract_filename_from_response(response: &reqwest::Response) -> Option<String
     if let Some(cd) = response.headers().get("content-disposition") {
         if let Ok(cd_str) = cd.to_str() {
             if let Some(filename) = parse_content_disposition(cd_str) {
-                return Some(filename);
+                if let Some(safe) = sanitize_filename(&filename) {
+                    return Some(safe);
+                }
             }
         }
     }
@@ -288,9 +290,11 @@ fn extract_filename_from_response(response: &reqwest::Response) -> Option<String
             // URL 解码
             if let Ok(decoded) = urlencoding::decode(last_segment) {
                 let filename = decoded.to_string();
-                // 确保有扩展名
+                // 确保有扩展名，并清理文件名
                 if filename.contains('.') {
-                    return Some(filename);
+                    if let Some(safe) = sanitize_filename(&filename) {
+                        return Some(safe);
+                    }
                 }
             }
         }
@@ -299,15 +303,43 @@ fn extract_filename_from_response(response: &reqwest::Response) -> Option<String
     None
 }
 
-/// 解析 Content-Disposition header 提取文件名
+/// 清理文件名，防止目录遍历攻击
+///
+/// - 移除路径分隔符（/ 和 \）
+/// - 移除 .. 片段
+/// - 只保留文件名部分
+fn sanitize_filename(filename: &str) -> Option<String> {
+    // 获取最后一个路径分隔符后的部分（处理 path/to/file.exe 或 path\to\file.exe）
+    let name = filename
+        .rsplit(|c| c == '/' || c == '\\')
+        .next()
+        .unwrap_or(filename);
+
+    // 过滤掉 .. 和空文件名
+    if name.is_empty() || name == "." || name == ".." || name.starts_with("..") {
+        return None;
+    }
+
+    // 确保有扩展名
+    if !name.contains('.') {
+        return None;
+    }
+
+    Some(name.to_string())
+}
+
+/// 解析 Content-Disposition header 提取文件名（大小写不敏感）
 ///
 /// 支持格式：
 /// - attachment; filename="example.exe"
 /// - attachment; filename=example.exe
 /// - attachment; filename*=UTF-8''%E4%B8%AD%E6%96%87.exe
+/// - Attachment; Filename="example.exe" (大小写变体)
 fn parse_content_disposition(header: &str) -> Option<String> {
-    // 首先尝试 filename*=（RFC 5987 编码）
-    if let Some(start) = header.find("filename*=") {
+    let header_lower = header.to_lowercase();
+
+    // 首先尝试 filename*=（RFC 5987 编码，优先级更高）
+    if let Some(start) = header_lower.find("filename*=") {
         let rest = &header[start + 10..];
         // 格式: UTF-8''encoded_filename 或 utf-8''encoded_filename
         if let Some(quote_pos) = rest.find("''") {
@@ -325,9 +357,18 @@ fn parse_content_disposition(header: &str) -> Option<String> {
         }
     }
 
-    // 然后尝试普通的 filename=
-    if let Some(start) = header.find("filename=") {
-        let rest = &header[start + 9..];
+    // 然后尝试普通的 filename=（但要确保不是 filename*=）
+    // 查找 "filename=" 但排除 "filename*="
+    let mut search_start = 0;
+    while let Some(pos) = header_lower[search_start..].find("filename=") {
+        let absolute_pos = search_start + pos;
+        // 检查是否是 filename*=（前一个字符是 *）
+        if absolute_pos > 0 && header.as_bytes().get(absolute_pos - 1) == Some(&b'*') {
+            search_start = absolute_pos + 9;
+            continue;
+        }
+
+        let rest = &header[absolute_pos + 9..];
         let filename = rest
             .split(';')
             .next()
@@ -338,6 +379,7 @@ fn parse_content_disposition(header: &str) -> Option<String> {
         if !filename.is_empty() {
             return Some(filename);
         }
+        break;
     }
 
     None

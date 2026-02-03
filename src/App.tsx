@@ -236,10 +236,9 @@ function App() {
           },
         });
 
-        if (result.success && result.actualSavePath) {
+        if (result.success) {
           // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
-          const actualPath = result.actualSavePath;
-          setDownloadSavePath(actualPath);
+          setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');
           log.info('更新下载完成');
 
@@ -248,7 +247,7 @@ function App() {
             versionName: updateResult.versionName,
             releaseNote: updateResult.releaseNote,
             channel: updateResult.channel,
-            downloadSavePath: actualPath,
+            downloadSavePath: result.actualSavePath,
             fileSize: updateResult.fileSize,
             updateType: updateResult.updateType,
             downloadSource: updateResult.downloadSource,

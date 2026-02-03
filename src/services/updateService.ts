@@ -705,15 +705,19 @@ interface DownloadProgressEventPayload extends DownloadProgress {
 }
 
 /**
- * 下载更新结果
+ * 下载更新结果（discriminated union）
+ * - success: true 时保证有 actualSavePath
+ * - success: false 时没有路径信息
  */
-export interface DownloadUpdateResult {
-  success: boolean;
-  /** 实际保存的文件路径（可能与请求路径不同，如果检测到正确的文件名） */
-  actualSavePath?: string;
-  /** 检测到的文件名（如果有） */
-  detectedFilename?: string;
-}
+export type DownloadUpdateResult =
+  | {
+      success: true;
+      /** 实际保存的文件路径（可能与请求路径不同，如果检测到正确的文件名） */
+      actualSavePath: string;
+      /** 检测到的文件名（如果有） */
+      detectedFilename?: string;
+    }
+  | { success: false };
 
 /**
  * 下载更新包（使用 Rust 后端流式下载）

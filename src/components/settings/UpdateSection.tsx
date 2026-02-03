@@ -145,7 +145,7 @@ export function UpdateSection() {
           },
         });
 
-        if (result.success && result.actualSavePath) {
+        if (result.success) {
           // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
           setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');

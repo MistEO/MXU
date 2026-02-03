@@ -68,17 +68,16 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
         },
       });
 
-      if (result.success && result.actualSavePath) {
+      if (result.success) {
         // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
-        const actualPath = result.actualSavePath;
-        setDownloadSavePath(actualPath);
+        setDownloadSavePath(result.actualSavePath);
         setDownloadStatus('completed');
         // 保存待安装更新信息，以便下次启动时自动安装
         savePendingUpdateInfo({
           versionName: updateInfo.versionName,
           releaseNote: updateInfo.releaseNote,
           channel: updateInfo.channel,
-          downloadSavePath: actualPath,
+          downloadSavePath: result.actualSavePath,
           fileSize: updateInfo.fileSize,
           updateType: updateInfo.updateType,
           downloadSource: updateInfo.downloadSource,

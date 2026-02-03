@@ -2,21 +2,16 @@ import type { MxuConfig } from '@/types/config';
 import { defaultConfig } from '@/types/config';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
+import { joinPath } from '@/utils/paths';
 
 const log = loggers.config;
 
 // 配置文件子目录
 const CONFIG_DIR = 'config';
 
-/**
- * 生成配置文件名
- * @param projectName 项目名称（来自 interface.json 的 name 字段）
- */
+/** 生成配置文件名 */
 function getConfigFileName(projectName?: string): string {
-  if (projectName) {
-    return `mxu-${projectName}.json`;
-  }
-  return 'mxu.json';
+  return projectName ? `mxu-${projectName}.json` : 'mxu.json';
 }
 
 // 检测是否在 Tauri 环境中
@@ -24,25 +19,14 @@ const isTauri = () => {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 };
 
-/**
- * 获取配置目录路径（exe同目录/config）
- */
-function getConfigDir(basePath: string): string {
-  if (basePath === '' || basePath === '.') {
-    return `./${CONFIG_DIR}`;
-  }
-  // 确保路径分隔符一致
-  const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/$/, '');
-  return `${normalizedBase}/${CONFIG_DIR}`;
+/** 获取配置目录路径 */
+function getConfigDir(dataPath: string): string {
+  return joinPath(dataPath || '.', CONFIG_DIR);
 }
 
-/**
- * 获取配置文件完整路径
- */
-function getConfigPath(basePath: string, projectName?: string): string {
-  const configDir = getConfigDir(basePath);
-  const fileName = getConfigFileName(projectName);
-  return `${configDir}/${fileName}`;
+/** 获取配置文件完整路径 */
+function getConfigPath(dataPath: string, projectName?: string): string {
+  return joinPath(dataPath || '.', CONFIG_DIR, getConfigFileName(projectName));
 }
 
 /**

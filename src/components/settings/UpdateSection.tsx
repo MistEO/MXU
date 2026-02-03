@@ -37,7 +37,7 @@ export function UpdateSection() {
   const {
     projectInterface,
     interfaceTranslations,
-    basePath,
+    dataPath,
     language,
     mirrorChyanSettings,
     setMirrorChyanCdk,
@@ -128,7 +128,7 @@ export function UpdateSection() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(basePath, info.filename);
+        const savePath = await getUpdateSavePath(dataPath, info.filename);
         setDownloadSavePath(savePath);
 
         const useProxy =

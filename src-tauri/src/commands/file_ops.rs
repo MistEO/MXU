@@ -5,7 +5,7 @@
 use log::debug;
 use std::path::PathBuf;
 
-use super::utils::{get_exe_directory, normalize_path};
+use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
 
 fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
     let exe_dir = get_exe_directory()?;
@@ -53,6 +53,15 @@ pub fn local_file_exists(filename: String) -> Result<bool, String> {
 pub fn get_exe_dir() -> Result<String, String> {
     let exe_dir = get_exe_directory()?;
     Ok(exe_dir.to_string_lossy().to_string())
+}
+
+/// 获取应用数据目录路径
+/// - macOS: ~/Library/Application Support/MXU/
+/// - Windows/Linux: exe 所在目录
+#[tauri::command]
+pub fn get_data_dir() -> Result<String, String> {
+    let data_dir = get_app_data_dir()?;
+    Ok(data_dir.to_string_lossy().to_string())
 }
 
 /// 获取当前工作目录

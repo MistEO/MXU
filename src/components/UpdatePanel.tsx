@@ -33,7 +33,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
 
   const {
     updateInfo,
-    basePath,
+    dataPath,
     downloadStatus,
     downloadProgress,
     setDownloadStatus,
@@ -56,7 +56,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     });
 
     try {
-      const savePath = await getUpdateSavePath(basePath, updateInfo.filename);
+      const savePath = await getUpdateSavePath(dataPath, updateInfo.filename);
       setDownloadSavePath(savePath);
 
       const success = await downloadUpdate({

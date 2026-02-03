@@ -158,6 +158,7 @@ export const useAppStore = create<AppState>()(
     projectInterface: null,
     interfaceTranslations: {},
     basePath: '.',
+    dataPath: '.',
     setProjectInterface: (pi) => set({ projectInterface: pi }),
     setInterfaceTranslations: (lang, translations) =>
       set((state) => ({
@@ -167,6 +168,7 @@ export const useAppStore = create<AppState>()(
         },
       })),
     setBasePath: (path) => set({ basePath: path }),
+    setDataPath: (path) => set({ dataPath: path }),
 
     // 多开实例
     instances: [],
@@ -1468,7 +1470,7 @@ function debouncedSaveConfig() {
     const state = useAppStore.getState();
     const config = generateConfig();
     const projectName = state.projectInterface?.name;
-    saveConfig(state.basePath, config, projectName);
+    saveConfig(state.dataPath, config, projectName);
   }, 500);
 }
 

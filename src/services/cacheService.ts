@@ -10,6 +10,7 @@
  */
 
 import { loggers } from '@/utils/logger';
+import { getDataPath, joinPath } from '@/utils/paths';
 
 const log = loggers.app;
 
@@ -64,29 +65,19 @@ function urlToFilename(url: string): string {
   return `${hashStr}_${readablePart}`.slice(0, 100);
 }
 
-/**
- * 获取缓存目录路径
- */
-function getCacheDir(basePath: string): string {
-  if (basePath === '' || basePath === '.') {
-    return `./${CACHE_DIR}`;
-  }
-  const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/$/, '');
-  return `${normalizedBase}/${CACHE_DIR}`;
+/** 获取缓存目录路径 */
+function getCacheDir(dataPath: string): string {
+  return joinPath(dataPath || '.', CACHE_DIR);
 }
 
-/**
- * 获取缓存索引文件路径
- */
-function getCacheIndexPath(basePath: string): string {
-  return `${getCacheDir(basePath)}/${CACHE_INDEX_FILE}`;
+/** 获取缓存索引文件路径 */
+function getCacheIndexPath(dataPath: string): string {
+  return joinPath(dataPath || '.', CACHE_DIR, CACHE_INDEX_FILE);
 }
 
-/**
- * 获取缓存数据文件路径
- */
-function getCacheDataPath(basePath: string, filename: string): string {
-  return `${getCacheDir(basePath)}/${filename}`;
+/** 获取缓存数据文件路径 */
+function getCacheDataPath(dataPath: string, filename: string): string {
+  return joinPath(dataPath || '.', CACHE_DIR, filename);
 }
 
 /**
@@ -206,17 +197,20 @@ export interface CachedFetchResult {
  * 带 ETag 缓存的 fetch 请求
  *
  * @param url 请求的 URL
- * @param options 选项
+ * @param options 选项（basePath 参数已废弃，会自动使用数据目录）
  * @returns 响应数据和缓存状态
  */
 export async function cachedFetch(
   url: string,
   options: CachedFetchOptions = {},
 ): Promise<CachedFetchResult> {
-  const { basePath = '.', headers = {} } = options;
+  const { headers = {} } = options;
+  
+  // 自动获取数据目录（macOS: ~/Library/Application Support/MXU/，其他平台: exe 目录）
+  const dataPath = await getDataPath();
 
   // 加载缓存索引
-  const index = await loadCacheIndex(basePath);
+  const index = await loadCacheIndex(dataPath);
   const cacheEntry = index.entries[url];
 
   // 准备请求头
@@ -240,7 +234,7 @@ export async function cachedFetch(
 
     // 304 Not Modified - 使用缓存
     if (response.status === 304 && cacheEntry) {
-      const cachedData = await readCacheData(basePath, cacheEntry.filename);
+      const cachedData = await readCacheData(dataPath, cacheEntry.filename);
       if (cachedData !== null) {
         log.debug(`使用缓存数据: ${url}`);
         return {
@@ -256,7 +250,7 @@ export async function cachedFetch(
     // 非 OK 状态，尝试返回缓存数据
     if (!response.ok) {
       if (cacheEntry) {
-        const cachedData = await readCacheData(basePath, cacheEntry.filename);
+        const cachedData = await readCacheData(dataPath, cacheEntry.filename);
         if (cachedData !== null) {
           log.warn(`请求失败 (${response.status})，使用缓存数据: ${url}`);
           return {
@@ -285,8 +279,8 @@ export async function cachedFetch(
       };
 
       // 保存缓存数据和索引
-      await writeCacheData(basePath, filename, data);
-      await saveCacheIndex(basePath);
+      await writeCacheData(dataPath, filename, data);
+      await saveCacheIndex(dataPath);
 
       log.debug(`已缓存数据: ${url}, ETag: ${newEtag}`);
     }
@@ -299,7 +293,7 @@ export async function cachedFetch(
   } catch (err) {
     // 请求失败，尝试返回缓存数据
     if (cacheEntry) {
-      const cachedData = await readCacheData(basePath, cacheEntry.filename);
+      const cachedData = await readCacheData(dataPath, cacheEntry.filename);
       if (cachedData !== null) {
         log.warn(`请求异常，使用缓存数据: ${url}`, err);
         return {
@@ -315,17 +309,18 @@ export async function cachedFetch(
 
 /**
  * 清理过期的缓存条目
- * @param basePath 资源基础路径
+ * @param _basePath 已废弃，会自动使用数据目录
  * @param maxAge 最大缓存时间（毫秒），默认 7 天
  */
 export async function cleanExpiredCache(
-  basePath: string = '.',
+  _basePath: string = '.',
   maxAge: number = 7 * 24 * 60 * 60 * 1000,
 ): Promise<void> {
   if (!isTauri()) return;
 
   try {
-    const index = await loadCacheIndex(basePath);
+    const dataPath = await getDataPath();
+    const index = await loadCacheIndex(dataPath);
     const now = Date.now();
     const expiredUrls: string[] = [];
 
@@ -343,15 +338,15 @@ export async function cleanExpiredCache(
     // 删除过期的缓存文件和索引条目
     for (const url of expiredUrls) {
       const entry = index.entries[url];
-      const dataPath = getCacheDataPath(basePath, entry.filename);
+      const filePath = getCacheDataPath(dataPath, entry.filename);
 
-      if (await exists(dataPath)) {
-        await remove(dataPath);
+      if (await exists(filePath)) {
+        await remove(filePath);
       }
       delete index.entries[url];
     }
 
-    await saveCacheIndex(basePath);
+    await saveCacheIndex(dataPath);
     log.info(`已清理 ${expiredUrls.length} 个过期缓存条目`);
   } catch (err) {
     log.warn('清理过期缓存失败:', err);
@@ -360,13 +355,15 @@ export async function cleanExpiredCache(
 
 /**
  * 清空所有缓存
+ * @param _basePath 已废弃，会自动使用数据目录
  */
-export async function clearAllCache(basePath: string = '.'): Promise<void> {
+export async function clearAllCache(_basePath: string = '.'): Promise<void> {
   if (!isTauri()) return;
 
   try {
+    const dataPath = await getDataPath();
     const { remove, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
+    const cacheDir = getCacheDir(dataPath);
 
     if (await exists(cacheDir)) {
       await remove(cacheDir, { recursive: true });
@@ -383,13 +380,15 @@ export async function clearAllCache(basePath: string = '.'): Promise<void> {
 
 /**
  * 获取缓存统计信息
+ * @param _basePath 已废弃，会自动使用数据目录
  */
-export async function getCacheStats(basePath: string = '.'): Promise<{
+export async function getCacheStats(_basePath: string = '.'): Promise<{
   entryCount: number;
   oldestTimestamp: number | null;
   newestTimestamp: number | null;
 }> {
-  const index = await loadCacheIndex(basePath);
+  const dataPath = await getDataPath();
+  const index = await loadCacheIndex(dataPath);
   const entries = Object.values(index.entries);
 
   if (entries.length === 0) {

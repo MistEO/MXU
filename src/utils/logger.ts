@@ -4,6 +4,7 @@
  */
 
 import log from 'loglevel';
+import { getDataPath, joinPath } from './paths';
 
 // 日志级别类型
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -19,15 +20,14 @@ const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
 let logsDir: string | null = null;
 
 /**
- * 初始化文件日志（自动获取 exe 目录）
+ * 初始化文件日志（自动获取数据目录）
  */
 async function initFileLogger(): Promise<void> {
   if (!isTauri() || logsDir) return;
 
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const exeDir = await invoke<string>('get_exe_dir');
-    logsDir = `${exeDir.replace(/\\/g, '/').replace(/\/$/, '')}/debug`;
+    const dataDir = await getDataPath();
+    logsDir = joinPath(dataDir, 'debug');
 
     const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
     if (!(await exists(logsDir))) {

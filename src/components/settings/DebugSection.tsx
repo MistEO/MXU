@@ -14,7 +14,7 @@ export function DebugSection() {
   const { t } = useTranslation();
   const {
     projectInterface,
-    basePath,
+    dataPath,
     devMode,
     setDevMode,
     saveDraw,
@@ -102,12 +102,12 @@ export function DebugSection() {
 
   // 加载缓存统计
   useEffect(() => {
-    if (isTauri() && basePath) {
-      getCacheStats(basePath).then((stats) => {
+    if (isTauri() && dataPath) {
+      getCacheStats(dataPath).then((stats) => {
         setCacheEntryCount(stats.entryCount);
       });
     }
-  }, [basePath]);
+  }, [dataPath]);
 
   // 调试：重置窗口布局（尺寸和位置）
   const handleResetWindowLayout = async () => {
@@ -180,13 +180,13 @@ export function DebugSection() {
 
   // 调试：清空缓存
   const handleClearCache = async () => {
-    if (!isTauri() || !basePath) {
+    if (!isTauri() || !dataPath) {
       addDebugLog('仅 Tauri 环境支持清空缓存');
       return;
     }
 
     try {
-      await clearAllCache(basePath);
+      await clearAllCache(dataPath);
       setCacheEntryCount(0);
       addDebugLog('缓存已清空');
     } catch (err) {

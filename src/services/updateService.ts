@@ -829,12 +829,13 @@ export async function checkAndPrepareDownload(
 
 /**
  * 获取更新包保存路径
+ * @param dataPath 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台: exe 目录）
  */
-export async function getUpdateSavePath(basePath: string, filename?: string): Promise<string> {
+export async function getUpdateSavePath(dataPath: string, filename?: string): Promise<string> {
   const os = getOS();
   const ext = os === 'windows' ? '.zip' : '.tar.gz';
   const name = filename || `update${ext}`;
-  return await join(basePath, 'cache', name);
+  return await join(dataPath, 'cache', name);
 }
 
 // ============================================================================

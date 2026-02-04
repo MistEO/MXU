@@ -7,7 +7,7 @@
 
 use std::io::Read;
 
-use super::detection::is_webview2_installed;
+use super::detection::{is_webview2_disabled, is_webview2_installed};
 use super::dialog::CustomDialog;
 
 /// Evergreen Bootstrapper 下载地址（fwlink 永久链接）。
@@ -15,6 +15,27 @@ const DOWNLOAD_URL: &str = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
 
 /// 手动下载说明页（含 Bootstrapper 与 Standalone x86/x64/ARM64）。
 const MANUAL_DOWNLOAD_URL: &str = "https://aka.ms/webview2installer";
+
+fn show_webview2_disabled_dialog(reason: &str) {
+    let message = format!(
+        "检测到 WebView2 已被禁用：\r\n{}\r\n\r\n\
+         【什么是 WebView2？】\r\n\
+         WebView2 是微软提供的网页渲染组件，本程序依赖它来\r\n\
+         显示界面。如果 WebView2 被禁用，程序将无法正常运行。\r\n\r\n\
+         【如何解决？】\r\n\
+         方法一：如果使用了 Edge Blocker 等工具\r\n\
+         - 打开 Edge Blocker，点击\"Unblock\"解除禁用\r\n\
+         - 或删除注册表中的 IFEO 拦截项\r\n\r\n\
+         方法二：修改组策略（需要管理员权限）\r\n\
+         1. 按 Win + R，输入 gpedit.msc\r\n\
+         2. 导航到：计算机配置 > 管理模板 > Microsoft Edge WebView2\r\n\
+         3. 将相关策略设置为\"未配置\"或\"已启用\"\r\n\r\n\
+         方法三：加入我们的 QQ 群，获取帮助和支持\r\n\
+         - 群号可在我们的官网或文档底部找到\r\n\r\n",
+        reason
+    );
+    CustomDialog::show_error("WebView2 组件已被禁用", &message);
+}
 
 fn show_install_failed_dialog(error: &str) {
     let message = format!(
@@ -120,10 +141,18 @@ pub fn download_and_install() -> Result<(), String> {
 }
 
 pub fn ensure_webview2() -> bool {
+    // 首先检查 WebView2 是否被禁用
+    if let Some(reason) = is_webview2_disabled() {
+        show_webview2_disabled_dialog(&reason);
+        return false;
+    }
+
+    // 检查是否已安装
     if is_webview2_installed() {
         return true;
     }
 
+    // 尝试下载安装
     match download_and_install() {
         Ok(()) => true,
         Err(e) => {

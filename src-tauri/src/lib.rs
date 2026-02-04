@@ -21,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -54,8 +55,8 @@ pub fn run() {
             }
 
             // 启动时异步清理 cache/old 目录（更新残留的旧文件），不阻塞应用启动
-            if let Ok(exe_dir) = commands::get_exe_dir() {
-                let old_dir = std::path::Path::new(&exe_dir).join("cache").join("old");
+            if let Ok(data_dir) = commands::get_data_dir() {
+                let old_dir = std::path::Path::new(&data_dir).join("cache").join("old");
                 if old_dir.exists() {
                     std::thread::spawn(move || {
                         let (deleted, failed) = commands::cleanup_dir_contents(&old_dir);
@@ -129,8 +130,11 @@ pub fn run() {
             commands::file_ops::read_local_file_base64,
             commands::file_ops::local_file_exists,
             commands::file_ops::get_exe_dir,
+            commands::file_ops::get_data_dir,
             commands::file_ops::get_cwd,
             commands::file_ops::check_exe_path,
+            commands::file_ops::set_executable,
+            commands::file_ops::export_logs,
             // 状态查询命令
             commands::state::maa_get_instance_state,
             commands::state::maa_get_all_states,
@@ -158,6 +162,14 @@ pub fn run() {
             commands::system::get_arch,
             commands::system::get_system_info,
         ])
+        .on_window_event(|window, event| {
+            // 窗口关闭时清理所有 agent 子进程
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(state) = window.try_state::<Arc<MaaState>>() {
+                    state.cleanup_all_agent_children();
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

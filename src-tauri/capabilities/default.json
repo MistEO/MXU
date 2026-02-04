@@ -8,11 +8,17 @@
     "core:window:allow-set-title",
     "core:window:allow-set-icon",
     "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-center",
+    "core:window:allow-available-monitors",
     "core:window:allow-inner-size",
     "core:window:allow-scale-factor",
     "core:window:allow-minimize",
+    "core:window:allow-unminimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
+    "core:window:allow-set-focus",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-start-resize-dragging",
@@ -95,6 +101,9 @@
       ]
     },
     "process:allow-restart",
-    "process:allow-exit"
+    "process:allow-exit",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all"
   ]
 }

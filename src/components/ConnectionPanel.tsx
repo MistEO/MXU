@@ -22,6 +22,7 @@ import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
+import { computeResourcePaths } from '@/utils/resourcePath';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
 import {
@@ -545,11 +546,8 @@ export function ConnectionPanel() {
 
     try {
       await maaService.createInstance(instanceId).catch(() => {});
-      // 拼接绝对路径，移除相对路径前缀 "./" 或 "."
-      const resourcePaths = resource.path.map((p) => {
-        const cleanPath = p.replace(/^\.\//, '').replace(/^\.\\/, '');
-        return `${basePath}/${cleanPath}`;
-      });
+      // 计算完整的资源路径（包括 controller.attach_resource_path）
+      const resourcePaths = computeResourcePaths(resource, currentController, basePath);
 
       const resIds = await maaService.loadResource(instanceId, resourcePaths);
 

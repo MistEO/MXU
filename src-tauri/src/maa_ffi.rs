@@ -21,6 +21,8 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::commands::utils::get_app_data_dir;
+
 // 类型定义 (对应 MaaDef.h)
 pub type MaaBool = u8;
 pub type MaaSize = u64;
@@ -240,6 +242,12 @@ type FnMaaAgentClientBindResource =
 type FnMaaAgentClientConnect = unsafe extern "C" fn(*mut MaaAgentClient) -> MaaBool;
 type FnMaaAgentClientDisconnect = unsafe extern "C" fn(*mut MaaAgentClient) -> MaaBool;
 type FnMaaAgentClientSetTimeout = unsafe extern "C" fn(*mut MaaAgentClient, i64) -> MaaBool;
+type FnMaaAgentClientRegisterResourceSink =
+    unsafe extern "C" fn(*mut MaaAgentClient, *mut MaaResource) -> MaaBool;
+type FnMaaAgentClientRegisterControllerSink =
+    unsafe extern "C" fn(*mut MaaAgentClient, *mut MaaController) -> MaaBool;
+type FnMaaAgentClientRegisterTaskerSink =
+    unsafe extern "C" fn(*mut MaaAgentClient, *mut MaaTasker) -> MaaBool;
 
 /// MaaFramework 库包装器
 pub struct MaaLibrary {
@@ -337,6 +345,9 @@ pub struct MaaLibrary {
     pub maa_agent_client_connect: FnMaaAgentClientConnect,
     pub maa_agent_client_disconnect: FnMaaAgentClientDisconnect,
     pub maa_agent_client_set_timeout: FnMaaAgentClientSetTimeout,
+    pub maa_agent_client_register_resource_sink: FnMaaAgentClientRegisterResourceSink,
+    pub maa_agent_client_register_controller_sink: FnMaaAgentClientRegisterControllerSink,
+    pub maa_agent_client_register_tasker_sink: FnMaaAgentClientRegisterTaskerSink,
 }
 
 // 注意：函数指针是 Send 和 Sync 的
@@ -603,6 +614,18 @@ impl MaaLibrary {
                     agent_client_lib,
                     "MaaAgentClientSetTimeout"
                 ),
+                maa_agent_client_register_resource_sink: load_fn!(
+                    agent_client_lib,
+                    "MaaAgentClientRegisterResourceSink"
+                ),
+                maa_agent_client_register_controller_sink: load_fn!(
+                    agent_client_lib,
+                    "MaaAgentClientRegisterControllerSink"
+                ),
+                maa_agent_client_register_tasker_sink: load_fn!(
+                    agent_client_lib,
+                    "MaaAgentClientRegisterTaskerSink"
+                ),
 
                 _framework_lib: framework_lib,
                 _toolkit_lib: toolkit_lib,
@@ -705,15 +728,17 @@ pub fn init_maa_library(lib_dir: &Path) -> Result<(), MaaLibraryError> {
         }
     })?;
 
-    // 初始化 Toolkit 配置，user_path 指向 exe 目录，避免 MaaFramework 日志落在 maafw 目录
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("."));
-    let user_path_str = exe_dir.to_string_lossy();
+    // 初始化 Toolkit 配置，user_path 指向应用数据目录
+    // macOS: ~/Library/Application Support/MXU/
+    // Windows/Linux: exe 所在目录
+    let data_dir = get_app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let user_path_str = data_dir.to_string_lossy();
     let user_path = to_cstring(&user_path_str);
     let default_json = to_cstring("{}");
     debug!("MaaToolkitConfigInitOption user_path: {}", user_path_str);
+
+    // 确保数据目录存在
+    let _ = std::fs::create_dir_all(&data_dir);
     let result =
         unsafe { (lib.maa_toolkit_config_init_option)(user_path.as_ptr(), default_json.as_ptr()) };
     debug!("MaaToolkitConfigInitOption result: {}", result);

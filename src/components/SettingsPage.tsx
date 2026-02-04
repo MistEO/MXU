@@ -1,14 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ArrowLeft,
-  Paintbrush,
-  Key,
-  SlidersHorizontal,
-  Download,
-  Bug,
-  Info,
-} from 'lucide-react';
+import { ArrowLeft, Paintbrush, Key, SlidersHorizontal, Download, Bug, Info } from 'lucide-react';
 import clsx from 'clsx';
 
 import { useAppStore } from '@/stores/appStore';

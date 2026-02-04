@@ -13,7 +13,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
-import { loggers, generateTaskPipelineOverride } from '@/utils';
+import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
@@ -186,7 +186,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
             // 停止 Agent（如果有）
             if (projectInterface?.agent) {
-              maaService.stopAgent(runningInstanceId).catch(() => {});
+              maaService.stopAgent(runningInstanceId).catch((err) => {
+                log.error('停止 Agent 失败:', err);
+              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Succeeded');
@@ -225,7 +227,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
             // 停止 Agent（如果有）
             if (projectInterface?.agent) {
-              maaService.stopAgent(runningInstanceId).catch(() => {});
+              maaService.stopAgent(runningInstanceId).catch((err) => {
+                log.error('停止 Agent 失败:', err);
+              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Failed');
@@ -292,7 +296,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
     try {
       await ensureMaaInitialized();
-      await maaService.createInstance(instanceId).catch(() => {});
+      await maaService.createInstance(instanceId).catch((err) => {
+        log.warn('创建实例失败（可能已存在）:', err);
+      });
 
       let config: ControllerConfig | null = null;
 
@@ -422,10 +428,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     log.info('加载资源...');
 
     try {
-      const resourcePaths = currentResource.path.map((p) => {
-        const cleanPath = p.replace(/^\.\//, '').replace(/^\.\\/, '');
-        return `${basePath}/${cleanPath}`;
-      });
+      // 计算完整的资源路径（包括 controller.attach_resource_path）
+      const resourcePaths = computeResourcePaths(currentResource, currentController, basePath);
 
       const resIds = await maaService.loadResource(instanceId, resourcePaths);
       pendingResIdsRef.current = new Set(resIds);
@@ -528,7 +532,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           log.info(`实例 ${targetInstance.name}: 自动连接设备...`);
 
           await ensureMaaInitialized();
-          await maaService.createInstance(targetId).catch(() => {});
+          await maaService.createInstance(targetId).catch((err) => {
+            log.warn('创建实例失败（可能已存在）:', err);
+          });
 
           let config: ControllerConfig | null = null;
           const controllerType = controller.type;
@@ -628,10 +634,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         if (!instanceResourceLoaded[targetId] && resource) {
           log.info(`实例 ${targetInstance.name}: 加载资源...`);
 
-          const resourcePaths = resource.path.map((p) => {
-            const cleanPath = p.replace(/^\.\//, '').replace(/^\.\\/, '');
-            return `${basePath}/${cleanPath}`;
-          });
+          // 计算完整的资源路径（包括 controller.attach_resource_path）
+          const resourcePaths = computeResourcePaths(resource, controller, basePath);
 
           const resIds = await maaService.loadResource(targetId, resourcePaths);
 
@@ -1107,12 +1111,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
   useEffect(() => {
     const handleStartTasks = async (evt: Event) => {
-      if (!instance) return;
+      const currentInstance = useAppStore.getState().getActiveInstance();
+      if (!currentInstance) return;
+
       const detail = (evt as CustomEvent | undefined)?.detail as
         | { source?: string; combo?: string }
         | undefined;
       const combo = detail?.combo || '';
-      addLog(instance.id, {
+      addLog(currentInstance.id, {
         type: 'info',
         message: t('logs.messages.hotkeyDetected', {
           combo,
@@ -1120,12 +1126,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }),
       });
 
-      // 始终复用现有的开始/停止逻辑，由 handleStartStop 内部判断是否可运行
-      const before = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      if (currentInstance.isRunning) {
+        addLog(currentInstance.id, {
+          type: 'error',
+          message: t('logs.messages.hotkeyStartFailed'),
+        });
+        return;
+      }
+
+      const before = currentInstance.isRunning;
       await handleStartStop();
-      const after = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
+      const after = useAppStore
+        .getState()
+        .instances.find((i) => i.id === currentInstance.id)?.isRunning;
       const success = !before && !!after;
-      addLog(instance.id, {
+      addLog(currentInstance.id, {
         type: success ? 'success' : 'error',
         message: success
           ? t('logs.messages.hotkeyStartSuccess')
@@ -1134,13 +1149,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     };
 
     const handleStopTasks = async (evt: Event) => {
-      // 仅在当前实例正在运行时响应停止事件
-      if (!instance?.isRunning) return;
+      const runningInstance = useAppStore.getState().instances.find((i) => i.isRunning);
+      if (!runningInstance) return;
+
       const detail = (evt as CustomEvent | undefined)?.detail as
         | { source?: string; combo?: string }
         | undefined;
       const combo = detail?.combo || '';
-      addLog(instance.id, {
+      addLog(runningInstance.id, {
         type: 'info',
         message: t('logs.messages.hotkeyDetected', {
           combo,
@@ -1148,16 +1164,31 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }),
       });
 
-      const before = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
-      await handleStartStop();
-      const after = useAppStore.getState().instances.find((i) => i.id === instance.id)?.isRunning;
-      const success = !!before && !after;
-      addLog(instance.id, {
-        type: success ? 'success' : 'error',
-        message: success
-          ? t('logs.messages.hotkeyStopSuccess')
-          : t('logs.messages.hotkeyStopFailed'),
-      });
+      try {
+        log.info('停止任务:', runningInstance.id);
+        await maaService.stopTask(runningInstance.id);
+        if (projectInterface?.agent) {
+          await maaService.stopAgent(runningInstance.id);
+        }
+        updateInstance(runningInstance.id, { isRunning: false });
+        setInstanceTaskStatus(runningInstance.id, null);
+        setInstanceCurrentTaskId(runningInstance.id, null);
+        clearTaskRunStatus(runningInstance.id);
+        clearPendingTasks(runningInstance.id);
+        clearScheduleExecution(runningInstance.id);
+        runningInstanceIdRef.current = null;
+
+        addLog(runningInstance.id, {
+          type: 'success',
+          message: t('logs.messages.hotkeyStopSuccess'),
+        });
+      } catch (err) {
+        log.error('停止任务失败:', err);
+        addLog(runningInstance.id, {
+          type: 'error',
+          message: t('logs.messages.hotkeyStopFailed'),
+        });
+      }
     };
 
     document.addEventListener('mxu-start-tasks', handleStartTasks);
@@ -1168,7 +1199,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       document.removeEventListener('mxu-stop-tasks', handleStopTasks);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance?.isRunning]);
+  }, [instance?.id, instance?.isRunning]);
 
   const isDisabled =
     tasks.length === 0 || !tasks.some((t) => t.enabled) || (!canRun && !instance?.isRunning);

@@ -5,9 +5,10 @@ import type { UpdateChannel, ProxySettings } from '@/types/config';
 import type { UpdateInfo, DownloadProgress } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { openUrl, openPath } from '@tauri-apps/plugin-opener';
 import { exists } from '@tauri-apps/plugin-fs';
-import { join, dirname } from '@tauri-apps/api/path';
+import { dirname } from '@tauri-apps/api/path';
+import { getCacheDir, joinPath } from '@/utils/paths';
 import { invoke } from '@tauri-apps/api/core';
 import * as semver from 'semver';
 import { downloadWithProxy } from './proxyService';
@@ -130,6 +131,33 @@ function getOS(): string {
   if (platform.includes('mac')) return 'darwin';
   if (platform.includes('linux')) return 'linux';
   return '';
+}
+
+/**
+ * 从 URL 中提取文件名
+ * 支持格式：
+ * - 普通 URL: https://example.com/path/to/file.exe
+ * - 带查询参数的 URL: https://example.com/path/to/file.dmg?token=xxx
+ */
+function extractFilenameFromUrl(url: string): string | undefined {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return undefined;
+
+    const lastSegment = segments[segments.length - 1];
+    // 解码 URL 编码的文件名
+    const filename = decodeURIComponent(lastSegment);
+
+    // 确保文件名有扩展名
+    if (filename && filename.includes('.')) {
+      return filename;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // 获取 OS 的常见别名（用于匹配文件名）
@@ -259,17 +287,24 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
     }
   }
 
-  // 所有站点都失败
+  // 所有站点都失败或返回错误
   if (!data || data.code !== 0) {
     if (data && data.code !== 0) {
       log.warn(`更新检查返回错误: code=${data.code}, msg=${data.msg}`);
-      // code 非 0 但仍可能有版本信息，同时返回错误码
+      // code 非 0 但仍可能有版本信息，根据版本比较判断是否有更新
       if (data.data?.version_name) {
+        const hasUpdate = compareVersions(data.data.version_name, currentVersion) > 0;
+        log.info(
+          `更新检查完成（带错误码）: 最新版本=${data.data.version_name}, 有更新=${hasUpdate}`,
+        );
         return {
-          hasUpdate: false,
+          hasUpdate,
           versionName: data.data.version_name,
           releaseNote: data.data.release_note || '',
           channel: data.data.channel,
+          fileSize: data.data.filesize,
+          updateType: data.data.update_type,
+          // 注意：code != 0 时没有下载链接
           errorCode: data.code,
           errorMessage: data.msg,
         };
@@ -307,6 +342,9 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
 
   log.info(`更新检查完成: 最新版本=${version_name}, 有更新=${hasUpdate}`);
 
+  // 从下载 URL 中提取文件名
+  const filename = downloadUrl ? extractFilenameFromUrl(downloadUrl) : undefined;
+
   return {
     hasUpdate,
     versionName: version_name,
@@ -315,6 +353,7 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
     updateType: update_type,
     channel: respChannel,
     fileSize: filesize,
+    filename,
     downloadSource: downloadUrl ? 'mirrorchyan' : undefined,
   };
 }
@@ -451,6 +490,103 @@ async function getGitHubReleaseByVersion(
 }
 
 /**
+ * 获取直接下载链接的文件扩展名列表
+ * Windows 只尝试 .zip，Linux/macOS 尝试多种格式
+ */
+function getDownloadExtensions(): string[] {
+  const os = getOS();
+  if (os === 'windows') {
+    return ['.zip', '.exe'];
+  } else if (os === 'linux') {
+    return ['.zip', '.tar.gz'];
+  } else if (os === 'darwin') {
+    return ['.zip', '.tar.gz', '.dmg'];
+  } else {
+    return ['.zip'];
+  }
+}
+
+/**
+ * 获取 OS 名称用于直接下载链接（与 release 文件名匹配的格式）
+ */
+function getOSForDownload(): string {
+  const os = getOS();
+  if (os === 'windows') return 'win';
+  if (os === 'darwin') return 'macos';
+  return os; // linux
+}
+
+/**
+ * 获取架构名称用于直接下载链接（与 release 文件名匹配的格式）
+ */
+function getArchForDownload(): string {
+  const arch = getArch();
+  if (arch === 'amd64') return 'x86_64';
+  if (arch === 'arm64') return 'aarch64';
+  return arch;
+}
+
+/**
+ * 构建直接下载链接
+ * 格式: https://github.com/{owner}/{repo}/releases/download/v{version}/{项目名}-{os}-{arch}-v{version}.{ext}
+ */
+function buildDirectDownloadUrl(
+  owner: string,
+  repo: string,
+  projectName: string,
+  version: string,
+  extension: string,
+): string {
+  const os = getOSForDownload();
+  const arch = getArchForDownload();
+  // 确保版本号有 v 前缀
+  const versionTag = version.startsWith('v') ? version : `v${version}`;
+  const filename = `${projectName}-${os}-${arch}-${versionTag}${extension}`;
+  return `https://github.com/${owner}/${repo}/releases/download/${versionTag}/${filename}`;
+}
+
+/**
+ * 尝试直接下载链接（HEAD 请求检查是否存在）
+ * 依次尝试多种文件扩展名，返回第一个存在的链接
+ */
+async function tryDirectDownloadUrls(
+  owner: string,
+  repo: string,
+  projectName: string,
+  version: string,
+): Promise<{ url: string; filename: string } | null> {
+  const extensions = getDownloadExtensions();
+
+  for (const ext of extensions) {
+    const url = buildDirectDownloadUrl(owner, repo, projectName, version, ext);
+    const os = getOSForDownload();
+    const arch = getArchForDownload();
+    const versionTag = version.startsWith('v') ? version : `v${version}`;
+    const filename = `${projectName}-${os}-${arch}-${versionTag}${ext}`;
+
+    try {
+      log.info(`尝试直接下载链接: ${url}`);
+      const response = await tauriFetch(url, {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': buildUserAgent(),
+        },
+      });
+
+      if (response.ok) {
+        log.info(`直接下载链接可用: ${filename}`);
+        return { url, filename };
+      }
+      log.info(`直接下载链接不存在 (${response.status}): ${filename}`);
+    } catch (error) {
+      log.warn(`检查直接下载链接失败: ${filename}`, error);
+    }
+  }
+
+  return null;
+}
+
+/**
  * 根据 OS 和架构匹配合适的 GitHub Asset
  * 优先匹配 OS + 架构，多个匹配时优先选择名字带 mxu 的，否则选体积最大的
  */
@@ -501,17 +637,19 @@ export interface GetGitHubDownloadUrlOptions {
   githubUrl: string;
   targetVersion: string; // Mirror酱返回的目标版本号
   githubPat?: string; // GitHub Personal Access Token (支持 classic 和 fine-grained)
+  projectName?: string; // 项目名称，用于拼接直接下载链接（来自 interface.name）
 }
 
 /**
  * 获取 GitHub 下载链接
  * 根据 Mirror酱返回的版本号在 GitHub releases 中查找对应的 release
+ * 如果 API 请求失败，会尝试直接拼接下载链接
  * @returns 下载链接和文件大小，或 null（失败时）
  */
 export async function getGitHubDownloadUrl(
   options: GetGitHubDownloadUrlOptions,
 ): Promise<{ url: string; size: number; filename: string } | null> {
-  const { githubUrl, targetVersion, githubPat } = options;
+  const { githubUrl, targetVersion, githubPat, projectName } = options;
 
   const parsed = parseGitHubUrl(githubUrl);
   if (!parsed) {
@@ -523,24 +661,40 @@ export async function getGitHubDownloadUrl(
 
   // 根据 Mirror酱返回的版本号查找对应的 release（传递 PAT）
   const release = await getGitHubReleaseByVersion(owner, repo, targetVersion, githubPat);
-  if (!release) {
-    log.warn('未找到 GitHub Release');
-    return null;
-  }
 
-  const asset = matchGitHubAsset(release.assets);
-  if (!asset) {
+  if (release) {
+    // API 请求成功，使用 assets 匹配
+    const asset = matchGitHubAsset(release.assets);
+    if (asset) {
+      log.info(`匹配到 GitHub 下载文件: ${asset.name}`);
+      return {
+        url: asset.browser_download_url,
+        size: asset.size,
+        filename: asset.name,
+      };
+    }
     log.warn('未找到匹配当前系统的下载文件');
-    return null;
+  } else {
+    log.warn('GitHub API 请求失败，尝试直接拼接下载链接');
   }
 
-  log.info(`匹配到 GitHub 下载文件: ${asset.name}`);
+  // API 失败或未匹配到 asset，尝试直接拼接下载链接
+  if (projectName) {
+    const directResult = await tryDirectDownloadUrls(owner, repo, projectName, targetVersion);
+    if (directResult) {
+      log.info(`使用直接下载链接: ${directResult.filename}`);
+      return {
+        url: directResult.url,
+        size: 0, // 直接链接无法获取文件大小
+        filename: directResult.filename,
+      };
+    }
+    log.warn('直接下载链接也不可用');
+  } else {
+    log.warn('未提供项目名称，无法尝试直接下载链接');
+  }
 
-  return {
-    url: asset.browser_download_url,
-    size: asset.size,
-    filename: asset.name,
-  };
+  return null;
 }
 
 interface DownloadUpdateOptions {
@@ -560,20 +714,38 @@ interface DownloadProgressEventPayload extends DownloadProgress {
 }
 
 /**
+ * 下载更新结果（discriminated union）
+ * - success: true 时保证有 actualSavePath
+ * - success: false 时没有路径信息
+ */
+export type DownloadUpdateResult =
+  | {
+      success: true;
+      /** 实际保存的文件路径（可能与请求路径不同，如果检测到正确的文件名） */
+      actualSavePath: string;
+      /** 检测到的文件名（如果有） */
+      detectedFilename?: string;
+    }
+  | { success: false };
+
+/**
  * 下载更新包（使用 Rust 后端流式下载）
  *
  * 相比 JavaScript 下载，Rust 后端实现具有以下优势：
  * - 流式写入磁盘，不占用大量内存
  * - 更高的下载速度（直接写入文件，无需 JS 中转）
  * - 更稳定的大文件下载支持
+ * - 自动从 302 重定向后的 URL 或 Content-Disposition 提取正确的文件名
  *
- * @returns 是否下载成功
+ * @returns 下载结果，包含实际保存路径
  */
-export async function downloadUpdate(options: DownloadUpdateOptions): Promise<boolean> {
+export async function downloadUpdate(
+  options: DownloadUpdateOptions,
+): Promise<DownloadUpdateResult> {
   // 已经在下载中，不允许重复下载
   if (isDownloading) {
     log.info('已有下载任务进行中，跳过本次下载请求');
-    return false;
+    return { success: false };
   }
 
   const { url, savePath, totalSize, onProgress, proxySettings } = options;
@@ -620,12 +792,21 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
       });
     }
 
-    // 等待下载完成，返回的是 session_id
-    const sessionId = await downloadPromise;
-    currentSessionId = sessionId;
+    // 等待下载完成，返回下载结果
+    const result = await downloadPromise;
+    currentSessionId = result.session_id;
 
-    log.info(`下载完成 (session ${sessionId})`);
-    return true;
+    log.info(`下载完成 (session ${result.session_id})`);
+    log.info(`实际保存路径: ${result.actual_save_path}`);
+    if (result.detected_filename) {
+      log.info(`检测到文件名: ${result.detected_filename}`);
+    }
+
+    return {
+      success: true,
+      actualSavePath: result.actual_save_path,
+      detectedFilename: result.detected_filename ?? undefined,
+    };
   } catch (error) {
     // 如果是用户主动取消，不记录为错误
     if (downloadCancelled) {
@@ -633,7 +814,7 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
     } else {
       log.error('下载失败:', error);
     }
-    return false;
+    return { success: false };
   } finally {
     // 清理事件监听器
     if (unlisten) {
@@ -649,8 +830,8 @@ export async function downloadUpdate(options: DownloadUpdateOptions): Promise<bo
 
 export interface CheckAndDownloadOptions extends CheckUpdateOptions {
   githubUrl?: string;
-  basePath: string;
   githubPat?: string; // GitHub Personal Access Token
+  projectName?: string; // 项目名称，用于 GitHub API 失败时拼接直接下载链接
 }
 
 /**
@@ -666,7 +847,7 @@ export async function checkAndPrepareDownload(
     return null;
   }
 
-  const { githubUrl, basePath, cdk, channel, githubPat, ...checkOptions } = options;
+  const { githubUrl, cdk, channel, githubPat, projectName, ...checkOptions } = options;
 
   // 始终使用 Mirror酱 检查更新
   const updateInfo = await checkUpdate({ ...checkOptions, cdk, channel });
@@ -681,13 +862,20 @@ export async function checkAndPrepareDownload(
     return updateInfo;
   }
 
-  // 没有 CDK 或没有下载链接，尝试使用 GitHub
+  // 如果有错误码（如 CDK 问题），不尝试 GitHub，直接返回更新信息（包含错误）
+  if (updateInfo.errorCode) {
+    log.info('Mirror酱 返回错误码，不尝试 GitHub');
+    return updateInfo;
+  }
+
+  // 没有 CDK 且没有错误码，尝试使用 GitHub
   if (githubUrl) {
-    log.info(`无 CDK 或无下载链接，尝试从 GitHub 获取版本 ${updateInfo.versionName}`);
+    log.info(`无 CDK，尝试从 GitHub 获取版本 ${updateInfo.versionName}`);
     const githubDownload = await getGitHubDownloadUrl({
       githubUrl,
       targetVersion: updateInfo.versionName,
       githubPat,
+      projectName, // 用于 API 失败时拼接直接下载链接
     });
 
     if (githubDownload) {
@@ -709,12 +897,16 @@ export async function checkAndPrepareDownload(
 
 /**
  * 获取更新包保存路径
+ * @param dataPath 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台: exe 目录）
+ * @param filename 文件名（可选）。如果不提供，使用默认名称。
+ *                 注意：实际保存路径可能由 Rust 下载时从 302 重定向或 Content-Disposition 检测后覆盖
  */
-export async function getUpdateSavePath(basePath: string, filename?: string): Promise<string> {
-  const os = getOS();
-  const ext = os === 'windows' ? '.zip' : '.tar.gz';
-  const name = filename || `update${ext}`;
-  return await join(basePath, 'cache', name);
+export async function getUpdateSavePath(filename?: string): Promise<string> {
+  // 如果提供了文件名，直接使用
+  // 如果没有，使用通用的默认名称（Rust 下载时会检测实际文件名并覆盖）
+  const name = filename || 'update_package';
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, name);
 }
 
 // ============================================================================
@@ -736,21 +928,49 @@ export interface InstallUpdateOptions {
 }
 
 /**
+ * 判断文件是否为可执行安装程序（exe/dmg），这类文件应直接打开而非解压
+ */
+export function isExecutableInstaller(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return lower.endsWith('.exe') || lower.endsWith('.dmg');
+}
+
+/**
  * 安装更新包
- * 1. 解压更新包
- * 2. 检查是否为增量包（存在 changes.json）
- * 3. 增量包：删除 deleted 文件，复制覆盖
- * 4. 全量包：删除同名文件夹，复制覆盖
- * 5. 清理临时文件
- * 6. 如果失败，尝试兜底：创建 v版本号 文件夹
+ * 1. 如果是 exe/dmg 文件，直接打开（调用系统默认程序）
+ * 2. 否则解压更新包（支持 zip/tar.gz/tgz）
+ * 3. 检查是否为增量包（存在 changes.json）
+ * 4. 增量包：删除 deleted 文件，复制覆盖
+ * 5. 全量包：删除同名文件夹，复制覆盖
+ * 6. 清理临时文件
+ * 7. 如果失败，尝试兜底：创建 v版本号 文件夹
  */
 export async function installUpdate(options: InstallUpdateOptions): Promise<boolean> {
   const { zipPath, targetDir, newVersion, onProgress } = options;
 
   log.info(`开始安装更新: ${zipPath} -> ${targetDir}`);
 
+  // 对于 exe/dmg 文件，直接打开而不是解压
+  if (isExecutableInstaller(zipPath)) {
+    log.info(`检测到可执行安装程序，直接打开: ${zipPath}`);
+    onProgress?.('opening', zipPath);
+
+    try {
+      // 在 Unix 系统上设置执行权限（Windows 上此调用无操作）
+      await invoke('set_executable', { filePath: zipPath });
+
+      await openPath(zipPath);
+      log.info('已打开安装程序');
+      onProgress?.('done');
+      return true;
+    } catch (error) {
+      log.error('打开安装程序失败:', error);
+      throw error;
+    }
+  }
+
   // 生成临时解压目录
-  const extractDir = await join(await dirname(zipPath), 'update_extract');
+  const extractDir = joinPath(await dirname(zipPath), 'update_extract');
 
   try {
     // 1. 解压更新包
@@ -875,6 +1095,12 @@ export interface UpdateCompleteInfo {
   releaseNote: string;
   channel?: string;
   timestamp: number;
+  /**
+   * 是否需要验证版本（用于 exe/dmg 安装程序场景）
+   * - true: 需要验证当前版本是否已更新到 newVersion，未更新则忽略
+   * - false/undefined: 直接显示更新完成弹窗
+   */
+  requireVersionCheck?: boolean;
 }
 
 /**

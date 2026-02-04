@@ -12,6 +12,7 @@ import type {
 } from '@/types/interface';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
+import { createDefaultOptionValue } from '@/stores/helpers';
 
 /**
  * 递归处理选项的 pipeline_override，收集到数组中
@@ -23,8 +24,8 @@ const collectOptionOverrides = (
   allOptions: Record<string, OptionDefinition>,
 ) => {
   const optionDef = allOptions[optionKey];
-  const optionValue = optionValues[optionKey];
-  if (!optionDef || !optionValue) return;
+  if (!optionDef) return;
+  const optionValue = optionValues[optionKey] || createDefaultOptionValue(optionDef);
 
   if ((optionValue.type === 'select' || optionValue.type === 'switch') && 'cases' in optionDef) {
     // 找到当前选中的 case
@@ -56,9 +57,10 @@ const collectOptionOverrides = (
     const inputDefs = optionDef.inputs || [];
     let overrideStr = JSON.stringify(optionDef.pipeline_override);
 
-    for (const [inputName, inputVal] of Object.entries(optionValue.values)) {
-      const inputDef = inputDefs.find((i) => i.name === inputName);
-      const pipelineType = inputDef?.pipeline_type || 'string';
+    for (const inputDef of inputDefs) {
+      const inputName = inputDef.name;
+      const inputVal = optionValue.values[inputName] ?? inputDef.default ?? '';
+      const pipelineType = inputDef.pipeline_type || 'string';
       const placeholder = `{${inputName}}`;
       const placeholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
 

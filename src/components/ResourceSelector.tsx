@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, Check, ChevronDown, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
@@ -7,6 +7,7 @@ import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
 import type { ResourceItem } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
+import { computeResourcePaths } from '@/utils/resourcePath';
 
 interface ResourceSelectorProps {
   instanceId: string;
@@ -33,6 +34,11 @@ export function ResourceSelector({
 
   // 未选择控制器时，使用第一个控制器作为默认值判断兼容性
   const effectiveControllerName = selectedControllerName || projectInterface?.controller[0]?.name;
+
+  // 获取当前选中的控制器对象（用于 attach_resource_path）
+  const currentController = useMemo(() => {
+    return projectInterface?.controller.find((c) => c.name === effectiveControllerName);
+  }, [projectInterface, effectiveControllerName]);
 
   // 检查资源是否与当前控制器兼容
   const getResourceCompatibility = useCallback(
@@ -154,8 +160,8 @@ export function ResourceSelector({
       // 确保实例已创建
       await maaService.createInstance(instanceId).catch(() => {});
 
-      // 构建完整资源路径
-      const resourcePaths = resource.path.map((p) => `${basePath}/${p}`);
+      // 计算完整的资源路径（包括 controller.attach_resource_path）
+      const resourcePaths = computeResourcePaths(resource, currentController, basePath);
 
       const resIds = await maaService.loadResource(instanceId, resourcePaths);
 

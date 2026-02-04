@@ -10,17 +10,12 @@
  */
 
 import { loggers } from '@/utils/logger';
+import { getCacheDir, joinPath, isTauri } from '@/utils/paths';
 
 const log = loggers.app;
 
-// 缓存目录
-const CACHE_DIR = 'cache';
+// 缓存文件名
 const CACHE_INDEX_FILE = 'etag-index.json';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /** 缓存索引条目 */
 interface CacheEntry {
@@ -64,35 +59,22 @@ function urlToFilename(url: string): string {
   return `${hashStr}_${readablePart}`.slice(0, 100);
 }
 
-/**
- * 获取缓存目录路径
- */
-function getCacheDir(basePath: string): string {
-  if (basePath === '' || basePath === '.') {
-    return `./${CACHE_DIR}`;
-  }
-  const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/$/, '');
-  return `${normalizedBase}/${CACHE_DIR}`;
+/** 获取缓存索引文件路径 */
+async function getCacheIndexPath(): Promise<string> {
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, CACHE_INDEX_FILE);
 }
 
-/**
- * 获取缓存索引文件路径
- */
-function getCacheIndexPath(basePath: string): string {
-  return `${getCacheDir(basePath)}/${CACHE_INDEX_FILE}`;
-}
-
-/**
- * 获取缓存数据文件路径
- */
-function getCacheDataPath(basePath: string, filename: string): string {
-  return `${getCacheDir(basePath)}/${filename}`;
+/** 获取缓存数据文件路径 */
+async function getCacheDataPath(filename: string): Promise<string> {
+  const cacheDir = await getCacheDir();
+  return joinPath(cacheDir, filename);
 }
 
 /**
  * 加载缓存索引
  */
-async function loadCacheIndex(basePath: string): Promise<CacheIndex> {
+async function loadCacheIndex(): Promise<CacheIndex> {
   if (cacheIndexLoaded && cacheIndex) {
     return cacheIndex;
   }
@@ -107,7 +89,7 @@ async function loadCacheIndex(basePath: string): Promise<CacheIndex> {
 
   try {
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-    const indexPath = getCacheIndexPath(basePath);
+    const indexPath = await getCacheIndexPath();
 
     if (await exists(indexPath)) {
       const content = await readTextFile(indexPath);
@@ -128,13 +110,13 @@ async function loadCacheIndex(basePath: string): Promise<CacheIndex> {
 /**
  * 保存缓存索引
  */
-async function saveCacheIndex(basePath: string): Promise<void> {
+async function saveCacheIndex(): Promise<void> {
   if (!isTauri() || !cacheIndex) return;
 
   try {
     const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
-    const indexPath = getCacheIndexPath(basePath);
+    const cacheDir = await getCacheDir();
+    const indexPath = await getCacheIndexPath();
 
     if (!(await exists(cacheDir))) {
       await mkdir(cacheDir, { recursive: true });
@@ -149,15 +131,15 @@ async function saveCacheIndex(basePath: string): Promise<void> {
 /**
  * 读取缓存数据
  */
-async function readCacheData(basePath: string, filename: string): Promise<string | null> {
+async function readCacheData(filename: string): Promise<string | null> {
   if (!isTauri()) return null;
 
   try {
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-    const dataPath = getCacheDataPath(basePath, filename);
+    const filePath = await getCacheDataPath(filename);
 
-    if (await exists(dataPath)) {
-      return await readTextFile(dataPath);
+    if (await exists(filePath)) {
+      return await readTextFile(filePath);
     }
   } catch (err) {
     log.warn('读取缓存数据失败:', err);
@@ -168,27 +150,25 @@ async function readCacheData(basePath: string, filename: string): Promise<string
 /**
  * 写入缓存数据
  */
-async function writeCacheData(basePath: string, filename: string, data: string): Promise<void> {
+async function writeCacheData(filename: string, data: string): Promise<void> {
   if (!isTauri()) return;
 
   try {
     const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
+    const cacheDir = await getCacheDir();
 
     if (!(await exists(cacheDir))) {
       await mkdir(cacheDir, { recursive: true });
     }
 
-    const dataPath = getCacheDataPath(basePath, filename);
-    await writeTextFile(dataPath, data);
+    const filePath = await getCacheDataPath(filename);
+    await writeTextFile(filePath, data);
   } catch (err) {
     log.warn('写入缓存数据失败:', err);
   }
 }
 
 export interface CachedFetchOptions {
-  /** 资源基础路径（用于存储缓存文件） */
-  basePath?: string;
   /** 请求头 */
   headers?: Record<string, string>;
 }
@@ -213,10 +193,10 @@ export async function cachedFetch(
   url: string,
   options: CachedFetchOptions = {},
 ): Promise<CachedFetchResult> {
-  const { basePath = '.', headers = {} } = options;
+  const { headers = {} } = options;
 
   // 加载缓存索引
-  const index = await loadCacheIndex(basePath);
+  const index = await loadCacheIndex();
   const cacheEntry = index.entries[url];
 
   // 准备请求头
@@ -240,7 +220,7 @@ export async function cachedFetch(
 
     // 304 Not Modified - 使用缓存
     if (response.status === 304 && cacheEntry) {
-      const cachedData = await readCacheData(basePath, cacheEntry.filename);
+      const cachedData = await readCacheData(cacheEntry.filename);
       if (cachedData !== null) {
         log.debug(`使用缓存数据: ${url}`);
         return {
@@ -256,7 +236,7 @@ export async function cachedFetch(
     // 非 OK 状态，尝试返回缓存数据
     if (!response.ok) {
       if (cacheEntry) {
-        const cachedData = await readCacheData(basePath, cacheEntry.filename);
+        const cachedData = await readCacheData(cacheEntry.filename);
         if (cachedData !== null) {
           log.warn(`请求失败 (${response.status})，使用缓存数据: ${url}`);
           return {
@@ -285,8 +265,8 @@ export async function cachedFetch(
       };
 
       // 保存缓存数据和索引
-      await writeCacheData(basePath, filename, data);
-      await saveCacheIndex(basePath);
+      await writeCacheData(filename, data);
+      await saveCacheIndex();
 
       log.debug(`已缓存数据: ${url}, ETag: ${newEtag}`);
     }
@@ -299,7 +279,7 @@ export async function cachedFetch(
   } catch (err) {
     // 请求失败，尝试返回缓存数据
     if (cacheEntry) {
-      const cachedData = await readCacheData(basePath, cacheEntry.filename);
+      const cachedData = await readCacheData(cacheEntry.filename);
       if (cachedData !== null) {
         log.warn(`请求异常，使用缓存数据: ${url}`, err);
         return {
@@ -315,17 +295,13 @@ export async function cachedFetch(
 
 /**
  * 清理过期的缓存条目
- * @param basePath 资源基础路径
  * @param maxAge 最大缓存时间（毫秒），默认 7 天
  */
-export async function cleanExpiredCache(
-  basePath: string = '.',
-  maxAge: number = 7 * 24 * 60 * 60 * 1000,
-): Promise<void> {
+export async function cleanExpiredCache(maxAge: number = 7 * 24 * 60 * 60 * 1000): Promise<void> {
   if (!isTauri()) return;
 
   try {
-    const index = await loadCacheIndex(basePath);
+    const index = await loadCacheIndex();
     const now = Date.now();
     const expiredUrls: string[] = [];
 
@@ -343,15 +319,15 @@ export async function cleanExpiredCache(
     // 删除过期的缓存文件和索引条目
     for (const url of expiredUrls) {
       const entry = index.entries[url];
-      const dataPath = getCacheDataPath(basePath, entry.filename);
+      const filePath = await getCacheDataPath(entry.filename);
 
-      if (await exists(dataPath)) {
-        await remove(dataPath);
+      if (await exists(filePath)) {
+        await remove(filePath);
       }
       delete index.entries[url];
     }
 
-    await saveCacheIndex(basePath);
+    await saveCacheIndex();
     log.info(`已清理 ${expiredUrls.length} 个过期缓存条目`);
   } catch (err) {
     log.warn('清理过期缓存失败:', err);
@@ -361,12 +337,12 @@ export async function cleanExpiredCache(
 /**
  * 清空所有缓存
  */
-export async function clearAllCache(basePath: string = '.'): Promise<void> {
+export async function clearAllCache(): Promise<void> {
   if (!isTauri()) return;
 
   try {
     const { remove, exists } = await import('@tauri-apps/plugin-fs');
-    const cacheDir = getCacheDir(basePath);
+    const cacheDir = await getCacheDir();
 
     if (await exists(cacheDir)) {
       await remove(cacheDir, { recursive: true });
@@ -384,12 +360,12 @@ export async function clearAllCache(basePath: string = '.'): Promise<void> {
 /**
  * 获取缓存统计信息
  */
-export async function getCacheStats(basePath: string = '.'): Promise<{
+export async function getCacheStats(): Promise<{
   entryCount: number;
   oldestTimestamp: number | null;
   newestTimestamp: number | null;
 }> {
-  const index = await loadCacheIndex(basePath);
+  const index = await loadCacheIndex();
   const entries = Object.values(index.entries);
 
   if (entries.length === 0) {

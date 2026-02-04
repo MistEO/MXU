@@ -33,7 +33,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
 
   const {
     updateInfo,
-    basePath,
+    dataPath,
     downloadStatus,
     downloadProgress,
     setDownloadStatus,
@@ -56,10 +56,10 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     });
 
     try {
-      const savePath = await getUpdateSavePath(basePath, updateInfo.filename);
+      const savePath = await getUpdateSavePath(updateInfo.filename);
       setDownloadSavePath(savePath);
 
-      const success = await downloadUpdate({
+      const result = await downloadUpdate({
         url: updateInfo.downloadUrl,
         savePath,
         totalSize: updateInfo.fileSize,
@@ -68,14 +68,16 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
         },
       });
 
-      if (success) {
+      if (result.success) {
+        // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+        setDownloadSavePath(result.actualSavePath);
         setDownloadStatus('completed');
         // 保存待安装更新信息，以便下次启动时自动安装
         savePendingUpdateInfo({
           versionName: updateInfo.versionName,
           releaseNote: updateInfo.releaseNote,
           channel: updateInfo.channel,
-          downloadSavePath: savePath,
+          downloadSavePath: result.actualSavePath,
           fileSize: updateInfo.fileSize,
           updateType: updateInfo.updateType,
           downloadSource: updateInfo.downloadSource,
@@ -88,7 +90,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
       loggers.ui.error('下载失败:', error);
       setDownloadStatus('failed');
     }
-  }, [updateInfo, basePath, setDownloadStatus, setDownloadProgress, setDownloadSavePath]);
+  }, [updateInfo, dataPath, setDownloadStatus, setDownloadProgress, setDownloadSavePath]);
 
   // 自动下载已由 App.tsx 在检查更新后立即触发，此处不再重复处理
 

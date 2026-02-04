@@ -82,11 +82,15 @@ async function resolveFocusContent(
   // 4. 检测内容类型
   const contentType = detectContentType(resolved);
 
-  // 5. 如果是直接文本，检查是否包含 Markdown 格式
+  // 5. 如果是直接文本，检查是否包含富文本特征
   if (contentType === 'text') {
-    // 检测是否包含 Markdown 特征（链接、加粗、代码、图片等）
-    const hasMarkdown = /[*_`#\[\]!]/.test(resolved) || resolved.includes('\n');
-    if (hasMarkdown) {
+    // 检测是否包含 Markdown 语法、HTML 标签或 URL
+    const hasRichContent =
+      /[*_`#\[\]!]/.test(resolved) || // Markdown 语法
+      resolved.includes('\n') || // 多行内容
+      /<[a-z][\s\S]*?>/i.test(resolved) || // HTML 标签
+      /https?:\/\/\S+/.test(resolved); // URL
+    if (hasRichContent) {
       const html = await markdownToHtmlWithLocalImages(resolved, basePath);
       return { message: resolved, html };
     }
@@ -475,11 +479,30 @@ export function useMaaAgentLogger() {
             if (cancelled) return;
 
             const { instance_id, line } = event.payload;
-            // 使用 agent 类型显示输出
-            addLog(instance_id, {
-              type: 'agent',
-              message: line,
-            });
+
+            // 复用 resolveFocusContent 解析内容，支持国际化、URL、文件、Markdown、{image} 等
+            resolveFocusContent(
+              line,
+              {} as MaaCallbackDetails & Record<string, unknown>,
+              instance_id,
+            )
+              .then((resolved) => {
+                if (cancelled) return;
+                addLog(instance_id, {
+                  type: 'agent',
+                  message: resolved.message,
+                  html: resolved.html,
+                });
+              })
+              .catch((err) => {
+                log.warn('Failed to resolve agent content:', err);
+                if (cancelled) return;
+                // 降级：直接显示原始内容
+                addLog(instance_id, {
+                  type: 'agent',
+                  message: line,
+                });
+              });
           },
         );
 

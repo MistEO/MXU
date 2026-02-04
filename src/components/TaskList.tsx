@@ -25,6 +25,7 @@ import type { OptionValue, SelectedTask } from '@/types/interface';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
 import { TaskTransferPreview } from './TaskTransferPreview';
+import { isTauri } from '@/utils/paths';
 
 export function TaskList() {
   const { t } = useTranslation();
@@ -53,7 +54,6 @@ export function TaskList() {
   const [importPreviewJson, setImportPreviewJson] = useState<string>('');
   const [importSelected, setImportSelected] = useState<Record<string, boolean>>({});
   const [importMode, setImportMode] = useState<'overwrite' | 'merge'>('overwrite');
-  const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
 
   const exportPayload = useMemo(() => {
     if (!instance) return null;

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Instance, SelectedTask } from '@/types/interface';
+import type { Instance, SelectedTask, OptionValue } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -158,6 +158,7 @@ export const useAppStore = create<AppState>()(
     projectInterface: null,
     interfaceTranslations: {},
     basePath: '.',
+    dataPath: '.',
     setProjectInterface: (pi) => set({ projectInterface: pi }),
     setInterfaceTranslations: (lang, translations) =>
       set((state) => ({
@@ -167,6 +168,7 @@ export const useAppStore = create<AppState>()(
         },
       })),
     setBasePath: (path) => set({ basePath: path }),
+    setDataPath: (path) => set({ dataPath: path }),
 
     // 多开实例
     instances: [],
@@ -687,16 +689,57 @@ export const useAppStore = create<AppState>()(
         });
       }
 
+      // 获取当前 interface 中有效的 option 名称集合
+      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+
+      // 清理 optionValues 中已删除的 option
+      const cleanOptionValues = (
+        optionValues: Record<string, OptionValue>,
+      ): Record<string, OptionValue> => {
+        const cleaned: Record<string, OptionValue> = {};
+        for (const [key, value] of Object.entries(optionValues)) {
+          if (validOptionNames.has(key)) {
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
+      };
+
+      // 获取有效的任务名称集合
+      const validTaskNames = new Set(pi?.task.map((t) => t.name) || []);
+
       const instances: Instance[] = config.instances.map((inst) => {
-        // 恢复已保存的任务（不再自动添加新增任务到列表）
-        const savedTasks: SelectedTask[] = inst.tasks.map((t) => ({
-          id: t.id,
-          taskName: t.taskName,
-          customName: t.customName,
-          enabled: t.enabled,
-          optionValues: t.optionValues,
-          expanded: false,
-        }));
+        // 记录被过滤掉的无效任务
+        const invalidTasks = inst.tasks.filter((t) => !validTaskNames.has(t.taskName));
+        if (invalidTasks.length > 0) {
+          loggers.config.warn(
+            `实例 "${inst.name}" 中有 ${invalidTasks.length} 个无效任务被移除:`,
+            invalidTasks.map((t) => t.taskName),
+          );
+        }
+
+        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 中不存在的），并清理已删除的 option
+        const savedTasks: SelectedTask[] = inst.tasks
+          .filter((t) => validTaskNames.has(t.taskName))
+          .map((t) => {
+            const taskDef = pi?.task.find((td) => td.name === t.taskName);
+            const cleanedValues = cleanOptionValues(t.optionValues);
+            // 为缺失的 option 添加默认值（根据 default_case）
+            const defaultValues =
+              taskDef?.option && pi?.option
+                ? initializeAllOptionValues(taskDef.option, pi.option)
+                : {};
+            // 用户保存的值优先，缺失的使用默认值
+            const mergedValues = { ...defaultValues, ...cleanedValues };
+            return {
+              id: t.id,
+              taskName: t.taskName,
+              customName: t.customName,
+              enabled: t.enabled,
+              optionValues: mergedValues,
+              expanded: false,
+            };
+          });
 
         return {
           id: inst.id,
@@ -757,6 +800,7 @@ export const useAppStore = create<AppState>()(
         selectedResource,
         nextInstanceNumber: maxNumber + 1,
         windowSize: config.settings.windowSize || defaultWindowSize,
+        windowPosition: config.settings.windowPosition,
         mirrorChyanSettings: config.settings.mirrorChyan || defaultMirrorChyanSettings,
         proxySettings: config.settings.proxy,
         showOptionPreview: config.settings.showOptionPreview ?? true,
@@ -770,7 +814,11 @@ export const useAppStore = create<AppState>()(
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
         onboardingCompleted: config.settings.onboardingCompleted ?? false,
-        hotkeys: config.settings.hotkeys ?? { startTasks: 'F10', stopTasks: 'F11' },
+        hotkeys: config.settings.hotkeys ?? {
+          startTasks: 'F10',
+          stopTasks: 'F11',
+          globalEnabled: false,
+        },
         recentlyClosed: config.recentlyClosed || [],
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
@@ -988,6 +1036,10 @@ export const useAppStore = create<AppState>()(
     windowSize: defaultWindowSize,
     setWindowSize: (size) => set({ windowSize: size }),
 
+    // 窗口位置
+    windowPosition: undefined,
+    setWindowPosition: (position) => set({ windowPosition: position }),
+
     // MirrorChyan 更新设置
     mirrorChyanSettings: defaultMirrorChyanSettings,
     setMirrorChyanCdk: (cdk) =>
@@ -1077,6 +1129,23 @@ export const useAppStore = create<AppState>()(
       const closedInstance = state.recentlyClosed.find((i) => i.id === id);
       if (!closedInstance) return null;
 
+      // 获取当前 interface 中有效的 option 名称集合
+      const pi = state.projectInterface;
+      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+
+      // 清理 optionValues 中已删除的 option
+      const cleanOptionValues = (
+        optionValues: Record<string, OptionValue>,
+      ): Record<string, OptionValue> => {
+        const cleaned: Record<string, OptionValue> = {};
+        for (const [key, value] of Object.entries(optionValues)) {
+          if (validOptionNames.has(key)) {
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
+      };
+
       const newId = generateId();
       const newInstance: Instance = {
         id: newId,
@@ -1091,7 +1160,7 @@ export const useAppStore = create<AppState>()(
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
-          optionValues: t.optionValues,
+          optionValues: cleanOptionValues(t.optionValues),
           expanded: false,
         })),
         isRunning: false,
@@ -1364,6 +1433,7 @@ function generateConfig(): MxuConfig {
       confirmBeforeDelete: state.confirmBeforeDelete,
       maxLogsPerInstance: state.maxLogsPerInstance,
       windowSize: state.windowSize,
+      windowPosition: state.windowPosition,
       mirrorChyan: state.mirrorChyanSettings,
       proxy: state.proxySettings,
       showOptionPreview: state.showOptionPreview,
@@ -1400,7 +1470,7 @@ function debouncedSaveConfig() {
     const state = useAppStore.getState();
     const config = generateConfig();
     const projectName = state.projectInterface?.name;
-    saveConfig(state.basePath, config, projectName);
+    saveConfig(state.dataPath, config, projectName);
   }, 500);
 }
 
@@ -1415,6 +1485,7 @@ useAppStore.subscribe(
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
     windowSize: state.windowSize,
+    windowPosition: state.windowPosition,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     showOptionPreview: state.showOptionPreview,

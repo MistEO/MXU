@@ -374,6 +374,9 @@ export function TabBar() {
                 </div>
               ) : (
                 <>
+                  {instance.isRunning && (
+                    <span className="w-2 h-2 rounded-full bg-accent task-running-indicator flex-shrink-0" />
+                  )}
                   <span className="flex-1 truncate text-sm" title={t('titleBar.renameInstance')}>
                     {instance.name}
                   </span>
@@ -415,8 +418,8 @@ export function TabBar() {
 
       {/* 工具按钮 */}
       <div className="flex items-center gap-1 px-2">
-        {/* 更新通知图标 - 有更新或正在下载时显示 */}
-        {(updateInfo?.hasUpdate || downloadStatus === 'downloading') && (
+        {/* 更新通知图标 - 有更新、正在下载或有错误时显示 */}
+        {(updateInfo?.hasUpdate || updateInfo?.errorCode || downloadStatus === 'downloading') && (
           <button
             ref={bellButtonRef}
             onClick={() => setShowUpdatePanel(!showUpdatePanel)}
@@ -424,13 +427,30 @@ export function TabBar() {
               'relative p-2 rounded-md transition-colors',
               showUpdatePanel ? 'bg-accent/10' : 'hover:bg-bg-hover',
             )}
-            title={t('mirrorChyan.newVersion')}
+            title={
+              updateInfo?.hasUpdate
+                ? t('mirrorChyan.newVersion')
+                : updateInfo?.errorCode
+                  ? t('mirrorChyan.checkFailed')
+                  : t('mirrorChyan.newVersion')
+            }
           >
             <Bell
-              className={clsx('w-4 h-4 text-accent', !showUpdatePanel && 'animate-bell-shake')}
+              className={clsx(
+                'w-4 h-4',
+                // 有错误码时用 warning 色，否则用 accent 色
+                updateInfo?.errorCode ? 'text-warning' : 'text-accent',
+                !showUpdatePanel && 'animate-bell-shake',
+              )}
             />
             {!showUpdatePanel && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full animate-pulse" />
+              <span
+                className={clsx(
+                  'absolute top-1 right-1 w-2 h-2 rounded-full animate-pulse',
+                  // 有更新用 error 色（紧急），仅有错误用 warning 色（提示）
+                  updateInfo?.hasUpdate ? 'bg-error' : 'bg-warning',
+                )}
+              />
             )}
           </button>
         )}

@@ -9,9 +9,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use crate::maa_ffi::{
-    MaaAgentClient, MaaController, MaaResource, MaaTasker, MAA_LIBRARY,
-};
+use crate::maa_ffi::{MaaAgentClient, MaaController, MaaResource, MaaTasker, MAA_LIBRARY};
 
 // ============================================================================
 // 数据类型定义
@@ -209,6 +207,26 @@ impl Default for MaaState {
     }
 }
 
+impl MaaState {
+    /// 清理所有实例的 agent 子进程
+    pub fn cleanup_all_agent_children(&self) {
+        if let Ok(mut instances) = self.instances.lock() {
+            for (id, instance) in instances.iter_mut() {
+                if let Some(mut child) = instance.agent_child.take() {
+                    log::info!("Killing agent child process for instance: {}", id);
+                    if let Err(e) = child.kill() {
+                        log::warn!(
+                            "Failed to kill agent child process for instance {}: {:?}",
+                            id,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Agent 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -256,6 +274,17 @@ pub struct DownloadProgressEvent {
     pub total_size: u64,
     pub speed: u64,
     pub progress: f64,
+}
+
+/// 下载结果
+#[derive(Clone, Serialize)]
+pub struct DownloadResult {
+    /// 下载会话 ID
+    pub session_id: u64,
+    /// 实际保存的文件路径（可能与请求的路径不同，如果从 URL 或 header 检测到正确的文件名）
+    pub actual_save_path: String,
+    /// 从 URL 或 Content-Disposition 提取的文件名（如果有）
+    pub detected_filename: Option<String>,
 }
 
 /// 系统信息结构

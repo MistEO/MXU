@@ -170,7 +170,7 @@ impl CustomDialog {
     }
 
     pub(crate) fn show_error(title: &str, message: &str) {
-        if let Some(dialog) = Self::create(DialogType::Error, title, message, 480, 260) {
+        if let Some(dialog) = Self::create(DialogType::Error, title, message, 560, 450) {
             dialog.wait();
         }
     }

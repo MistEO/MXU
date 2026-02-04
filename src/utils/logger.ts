@@ -4,6 +4,7 @@
  */
 
 import log from 'loglevel';
+import { getDebugDir, isTauri as checkTauri } from './paths';
 
 // 日志级别类型
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -12,22 +13,17 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 const isDev = import.meta.env.DEV;
 const defaultLevel: LogLevel = isDev ? 'trace' : 'debug';
 
-// 检测是否在 Tauri 环境中
-const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window;
-
 // 文件日志配置
 let logsDir: string | null = null;
 
 /**
- * 初始化文件日志（自动获取 exe 目录）
+ * 初始化文件日志（自动获取数据目录）
  */
 async function initFileLogger(): Promise<void> {
-  if (!isTauri() || logsDir) return;
+  if (!checkTauri() || logsDir) return;
 
   try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const exeDir = await invoke<string>('get_exe_dir');
-    logsDir = `${exeDir.replace(/\\/g, '/').replace(/\/$/, '')}/debug`;
+    logsDir = await getDebugDir();
 
     const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
     if (!(await exists(logsDir))) {
@@ -41,8 +37,20 @@ async function initFileLogger(): Promise<void> {
 }
 
 // 模块加载时立即初始化文件日志
-if (isTauri()) {
+if (checkTauri()) {
   initFileLogger();
+}
+
+/**
+ * 格式化本地日期时间
+ * @param date 日期对象
+ * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss
+ */
+function formatLocalDateTime(date: Date, format: 'date' | 'datetime' = 'datetime'): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  if (format === 'date') return datePart;
+  return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 /**
@@ -51,9 +59,8 @@ if (isTauri()) {
 async function writeLogToFile(line: string): Promise<void> {
   if (!logsDir) return;
 
-  // 日志文件名：mxu-web-YYYY-MM-DD.log
-  const today = new Date().toISOString().slice(0, 10);
-  const logFile = `${logsDir}/mxu-web-${today}.log`;
+  // 日志文件名：mxu-web-YYYY-MM-DD.log（使用本地日期）
+  const logFile = `${logsDir}/mxu-web-${formatLocalDateTime(new Date(), 'date')}.log`;
 
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
@@ -85,7 +92,7 @@ log.methodFactory = function (methodName, logLevel, loggerName) {
 
     // 写入文件日志
     if (logsDir) {
-      const fullTimestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+      const fullTimestamp = formatLocalDateTime(now);
       const level = methodName.toUpperCase().padEnd(5);
       const module = loggerName ? `[${String(loggerName)}]` : '';
       const message = args
@@ -124,7 +131,7 @@ export function createLogger(moduleName: string, level?: LogLevel) {
 
       // 写入文件日志
       if (logsDir) {
-        const fullTimestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+        const fullTimestamp = formatLocalDateTime(now);
         const level = methodName.toUpperCase().padEnd(5);
         const module = loggerName ? `[${String(loggerName)}]` : '';
         const message = args

@@ -79,6 +79,9 @@ export default {
     hotkeysHint:
       '메인 화면에서만 동작하며, 현재 인스턴스의 작업 시작 / 중지에 사용됩니다. Ctrl+F10, Ctrl+Shift+F11 과 같은 조합키도 지원합니다. F5 / F12 단독 키는 계속해서 시스템 / 브라우저용으로 예약됩니다.',
     hotkeysConflict: '시작과 중지 단축키는 서로 다른 키여야 합니다. 다른 키를 선택해 주세요.',
+    hotkeysGlobal: '전역 단축키',
+    hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
+    hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint:
       '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',
@@ -334,6 +337,11 @@ export default {
     resetWindowSize: '창 크기 초기화',
     openConfigDir: '설정 폴더 열기',
     openLogDir: '로그 폴더 열기',
+    exportLogs: '로그 내보내기',
+    exportLogsHint: '모든 로그 파일을 zip 아카이브로 압축',
+    exportingLogs: '로그 내보내는 중...',
+    logsExported: '로그를 내보냈습니다',
+    exportLogsFailed: '로그 내보내기 실패',
     clearCache: '캐시 지우기',
     cacheCleared: '캐시가 지워졌습니다',
     cacheStats: '캐시 항목: {{count}}개',
@@ -459,6 +467,8 @@ export default {
     restartRequired: '업데이트가 설치되었습니다. 변경 사항을 적용하려면 재시작하세요',
     restartNow: '지금 재시작',
     restarting: '재시작 중...',
+    installerOpened: '설치 프로그램이 열렸습니다',
+    installerOpenedHint: '설치 프로그램을 완료한 후 이 앱을 다시 시작하세요',
     // 업데이트 완료 후
     updateCompleteTitle: '업데이트 완료',
     updateCompleteMessage: '최신 버전으로 성공적으로 업데이트되었습니다',

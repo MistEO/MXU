@@ -438,6 +438,71 @@ pub async fn maa_start_tasks(
 
         info!("[agent] Agent connected successfully!");
 
+        // 注册 Agent sink，将 MaaFramework 实例的事件转发到 AgentServer
+        debug!("[agent] Registering agent sinks...");
+        {
+            debug!("[agent] Acquiring MAA_LIBRARY lock for sink registration...");
+            let guard = MAA_LIBRARY
+                .lock()
+                .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+            let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+
+            // 获取 controller 指针
+            let controller = {
+                let instances = state
+                    .instances
+                    .lock()
+                    .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+                let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+                instance.controller.ok_or("Controller not found")?
+            };
+
+            // 注册 Resource sink
+            debug!(
+                "[agent] Registering resource sink, agent_client: {:?}, resource: {:?}",
+                agent_client.as_ptr(),
+                resource.as_ptr()
+            );
+            let res_result = unsafe {
+                (lib.maa_agent_client_register_resource_sink)(
+                    agent_client.as_ptr(),
+                    resource.as_ptr(),
+                )
+            };
+            debug!("[agent] Resource sink registered, result: {}", res_result);
+
+            // 注册 Controller sink
+            debug!(
+                "[agent] Registering controller sink, agent_client: {:?}, controller: {:?}",
+                agent_client.as_ptr(),
+                controller
+            );
+            let ctrl_result = unsafe {
+                (lib.maa_agent_client_register_controller_sink)(agent_client.as_ptr(), controller)
+            };
+            debug!(
+                "[agent] Controller sink registered, result: {}",
+                ctrl_result
+            );
+
+            // 注册 Tasker sink（同时注册 Tasker 和 Context sink）
+            debug!(
+                "[agent] Registering tasker sink, agent_client: {:?}, tasker: {:?}",
+                agent_client.as_ptr(),
+                tasker.as_ptr()
+            );
+            let tasker_result = unsafe {
+                (lib.maa_agent_client_register_tasker_sink)(agent_client.as_ptr(), tasker.as_ptr())
+            };
+            debug!("[agent] Tasker sink registered, result: {}", tasker_result);
+
+            info!(
+                "[agent] All sinks registered: resource={}, controller={}, tasker={}",
+                res_result, ctrl_result, tasker_result
+            );
+        }
+        debug!("[agent] Sink registration complete");
+
         // 保存 agent 状态
         debug!("[agent] Saving agent state to instance...");
         {

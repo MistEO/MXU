@@ -2,6 +2,7 @@ import type { ProjectInterface, Instance, OptionValue, SavedDeviceInfo } from '@
 import type {
   MxuConfig,
   WindowSize,
+  WindowPosition,
   UpdateChannel,
   MirrorChyanSettings,
   ProxySettings,
@@ -107,10 +108,12 @@ export interface AppState {
   // Interface 数据
   projectInterface: ProjectInterface | null;
   interfaceTranslations: Record<string, Record<string, string>>;
-  basePath: string;
+  basePath: string; // exe 所在目录（资源路径）
+  dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
   setProjectInterface: (pi: ProjectInterface) => void;
   setInterfaceTranslations: (lang: string, translations: Record<string, string>) => void;
   setBasePath: (path: string) => void;
+  setDataPath: (path: string) => void;
 
   // 多开实例
   instances: Instance[];
@@ -127,7 +130,10 @@ export interface AppState {
   getActiveInstance: () => Instance | null;
 
   // 任务操作
-  addTaskToInstance: (instanceId: string, task: { name: string; option?: string[]; description?: string }) => void;
+  addTaskToInstance: (
+    instanceId: string,
+    task: { name: string; option?: string[]; description?: string },
+  ) => void;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
@@ -258,6 +264,10 @@ export interface AppState {
   // 窗口大小
   windowSize: WindowSize;
   setWindowSize: (size: WindowSize) => void;
+
+  // 窗口位置
+  windowPosition: WindowPosition | undefined;
+  setWindowPosition: (position: WindowPosition | undefined) => void;
 
   // MirrorChyan 更新设置
   mirrorChyanSettings: MirrorChyanSettings;

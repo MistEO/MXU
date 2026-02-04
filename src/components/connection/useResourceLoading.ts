@@ -3,19 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
-import type { ResourceItem } from '@/types/interface';
+import type { ResourceItem, ControllerItem } from '@/types/interface';
 import { waitForResResult } from './callbackCache';
+import { computeResourcePaths } from '@/utils/resourcePath';
 
 interface UseResourceLoadingProps {
   instanceId: string;
   basePath: string;
   translations: Record<string, string>;
+  currentController?: ControllerItem;
 }
 
 export function useResourceLoading({
   instanceId,
   basePath,
   translations,
+  currentController,
 }: UseResourceLoadingProps) {
   const { t } = useTranslation();
   const { setInstanceResourceLoaded, registerResIdName } = useAppStore();
@@ -38,10 +41,8 @@ export function useResourceLoading({
       try {
         await maaService.createInstance(instanceId).catch(() => {});
 
-        const resourcePaths = resource.path.map((p) => {
-          const cleanPath = p.replace(/^\.\//, '').replace(/^\.\\/, '');
-          return `${basePath}/${cleanPath}`;
-        });
+        // 计算完整的资源路径（包括 controller.attach_resource_path）
+        const resourcePaths = computeResourcePaths(resource, currentController, basePath);
 
         const resIds = await maaService.loadResource(instanceId, resourcePaths);
 
@@ -84,7 +85,15 @@ export function useResourceLoading({
         return false;
       }
     },
-    [instanceId, basePath, translations, setInstanceResourceLoaded, registerResIdName, t],
+    [
+      instanceId,
+      basePath,
+      translations,
+      currentController,
+      setInstanceResourceLoaded,
+      registerResIdName,
+      t,
+    ],
   );
 
   // 切换资源：销毁旧资源后加载新资源

@@ -53,6 +53,12 @@ export interface WindowSize {
   height: number;
 }
 
+// 窗口位置配置
+export interface WindowPosition {
+  x: number;
+  y: number;
+}
+
 // 最近关闭的实例记录
 export interface RecentlyClosedInstance {
   id: string; // 原实例 ID
@@ -91,6 +97,8 @@ export interface HotkeySettings {
   startTasks: string;
   /** 结束任务快捷键（例如：F11） */
   stopTasks: string;
+  /** 全局快捷键（窗口失焦时也生效） */
+  globalEnabled?: boolean;
 }
 
 // 应用设置
@@ -103,6 +111,7 @@ export interface AppSettings {
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
   maxLogsPerInstance?: number;
   windowSize?: WindowSize;
+  windowPosition?: WindowPosition; // 窗口位置
   mirrorChyan?: MirrorChyanSettings;
   proxy?: ProxySettings; // 代理设置
   showOptionPreview?: boolean; // 是否在任务列表显示选项预览

@@ -174,13 +174,14 @@ jobs:
           cp -r src-tauri/target/release/mxu install/ || true
           cp LICENSE README.md install/ || true
           ls -la install/
+          tar -czvf MXU-linux-${{ matrix.arch }}.tar.gz -C install .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: MXU-linux-${{ matrix.arch }}
-          path: "install"
+          path: "MXU-linux-${{ matrix.arch }}.tar.gz"
 
   macos:
     needs: meta
@@ -236,13 +237,14 @@ jobs:
           cp -r src-tauri/target/${{ matrix.arch == 'x86_64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin' }}/release/mxu install/ || true
           cp LICENSE README.md install/ || true
           ls -la install/
+          tar -czvf MXU-macos-${{ matrix.arch }}.tar.gz -C install .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: MXU-macos-${{ matrix.arch }}
-          path: "install"
+          path: "MXU-macos-${{ matrix.arch }}.tar.gz"
 
   changelog:
     name: Generate changelog
@@ -285,7 +287,13 @@ jobs:
           for dir in */; do
             name="${dir%/}"
             cd "$name"
-            zip -r "../${name}.zip" .
+            # Linux and macOS artifacts are already tgz files, just move them
+            if ls *.tar.gz 1> /dev/null 2>&1; then
+              mv *.tar.gz ../
+            else
+              # Windows artifacts need to be zipped
+              zip -r "../${name}.zip" .
+            fi
             cd ..
           done
           ls -la
@@ -298,6 +306,8 @@ jobs:
           draft: false
           prerelease: false
           body: ${{ needs.changelog.outputs.release_body }}
-          files: artifacts/*.zip
+          files: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

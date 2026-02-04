@@ -1,25 +1,40 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ProjectInterface } from '@/types/interface';
+import type { ProjectInterface, TaskItem, OptionDefinition } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
+
+/**
+ * 可导入的 PI 文件结构（只包含 task 和 option 字段）
+ */
+interface ImportableInterface {
+  task?: TaskItem[];
+  option?: Record<string, OptionDefinition>;
+}
 
 export interface LoadResult {
   interface: ProjectInterface;
   translations: Record<string, Record<string, string>>;
   basePath: string;
+  dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
 }
-
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /**
  * 获取 exe 所在目录的绝对路径（Tauri 环境）
  */
 async function getExeDir(): Promise<string> {
   return await invoke<string>('get_exe_dir');
+}
+
+/**
+ * 获取应用数据目录的绝对路径（Tauri 环境）
+ * - macOS: ~/Library/Application Support/MXU/
+ * - Windows/Linux: exe 所在目录
+ */
+async function getDataDir(): Promise<string> {
+  return await invoke<string>('get_data_dir');
 }
 
 // ============================================================================
@@ -146,6 +161,90 @@ async function loadTranslationsFromHttp(
 }
 
 // ============================================================================
+// Import 文件加载与合并
+// ============================================================================
+
+/**
+ * 从本地文件加载可导入的 PI 文件（Tauri 环境）
+ * @param importPath 导入文件的路径（相对于 exe 目录）
+ */
+async function loadImportFromLocal(importPath: string): Promise<ImportableInterface> {
+  try {
+    const content = await readLocalFile(importPath);
+    return parseJsonc<ImportableInterface>(content, importPath);
+  } catch (err) {
+    log.warn(`加载导入文件失败 [${importPath}]:`, err);
+    return {};
+  }
+}
+
+/**
+ * 从 HTTP 路径加载可导入的 PI 文件
+ * @param importPath 导入文件的 HTTP 路径
+ */
+async function loadImportFromHttp(importPath: string): Promise<ImportableInterface> {
+  try {
+    const response = await fetch(importPath);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const content = await response.text();
+    return parseJsonc<ImportableInterface>(content, importPath);
+  } catch (err) {
+    log.warn(`加载导入文件失败 [${importPath}]:`, err);
+    return {};
+  }
+}
+
+/**
+ * 合并导入的 task 和 option 到主 interface
+ * @param pi 主 ProjectInterface
+ * @param imported 导入的内容
+ */
+function mergeImported(pi: ProjectInterface, imported: ImportableInterface): void {
+  // 合并 task 数组（追加到末尾）
+  if (imported.task && imported.task.length > 0) {
+    pi.task = [...pi.task, ...imported.task];
+    log.info(`合并了 ${imported.task.length} 个导入的 task`);
+  }
+
+  // 合并 option 对象（后导入的覆盖先导入的）
+  if (imported.option && Object.keys(imported.option).length > 0) {
+    pi.option = { ...pi.option, ...imported.option };
+    log.info(`合并了 ${Object.keys(imported.option).length} 个导入的 option`);
+  }
+}
+
+/**
+ * 处理 import 字段，加载并合并所有导入的文件
+ * @param pi 主 ProjectInterface
+ * @param basePath interface.json 所在目录
+ * @param useLocal 是否使用本地文件加载（Tauri 环境）
+ */
+async function processImports(
+  pi: ProjectInterface,
+  basePath: string,
+  useLocal: boolean,
+): Promise<void> {
+  if (!pi.import || pi.import.length === 0) {
+    return;
+  }
+
+  log.info(`处理 ${pi.import.length} 个导入文件...`);
+
+  for (const importPath of pi.import) {
+    const fullPath = joinPath(basePath, importPath);
+    log.info(`加载导入文件: ${fullPath}`);
+
+    const imported = useLocal
+      ? await loadImportFromLocal(fullPath)
+      : await loadImportFromHttp(fullPath);
+
+    mergeImported(pi, imported);
+  }
+}
+
+// ============================================================================
 // 统一入口
 // ============================================================================
 
@@ -182,20 +281,31 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     const basePath = relativeBasePath ? `${exeDir}/${relativeBasePath}` : exeDir;
     log.info('basePath (绝对路径):', basePath);
 
+    // 获取数据目录（macOS 使用 Application Support，其他平台同 basePath）
+    const dataPath = await getDataDir();
+    log.info('dataPath (数据目录):', dataPath);
+
     const pi = await loadInterfaceFromLocal(interfacePath);
+
+    // 处理 import 字段
+    await processImports(pi, relativeBasePath, true);
+
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
-    return { interface: pi, translations, basePath };
+    return { interface: pi, translations, basePath, dataPath };
   }
 
   // 浏览器环境：通过 HTTP 加载
   const httpPath = `/${interfacePath}`;
   if (await httpFileExists(httpPath)) {
     const pi = await loadInterfaceFromHttp(httpPath);
-    const translations = await loadTranslationsFromHttp(
-      pi,
-      relativeBasePath ? `/${relativeBasePath}` : '',
-    );
-    return { interface: pi, translations, basePath: relativeBasePath };
+
+    // 处理 import 字段
+    const httpBasePath = relativeBasePath ? `/${relativeBasePath}` : '';
+    await processImports(pi, httpBasePath, false);
+
+    const translations = await loadTranslationsFromHttp(pi, httpBasePath);
+    // 浏览器环境下 dataPath 与 basePath 相同
+    return { interface: pi, translations, basePath: relativeBasePath, dataPath: relativeBasePath };
   }
 
   throw new Error('未找到 interface.json 文件，请确保程序同目录下存在 interface.json');

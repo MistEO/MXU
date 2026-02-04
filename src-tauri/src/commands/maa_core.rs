@@ -566,6 +566,14 @@ pub fn maa_connect_controller(
             }
         }
 
+        // 清理旧的 tasker
+        if let Some(old_tasker) = instance.tasker.take() {
+            debug!("Destroying old tasker (bound to old controller)...");
+            unsafe {
+                (lib.maa_tasker_destroy)(old_tasker);
+            }
+        }
+
         instance.controller = Some(controller);
     }
 

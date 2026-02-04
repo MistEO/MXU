@@ -32,4 +32,5 @@ pub use update::cleanup_dir_contents;
 pub use utils::get_maafw_dir;
 
 // 重新导出 Tauri 命令（供 lib.rs 直接调用的函数）
+pub use file_ops::get_data_dir;
 pub use file_ops::get_exe_dir;

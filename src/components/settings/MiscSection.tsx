@@ -5,12 +5,8 @@ import { useAppStore } from '@/stores/appStore';
 
 export function MiscSection() {
   const { t } = useTranslation();
-  const {
-    confirmBeforeDelete,
-    setConfirmBeforeDelete,
-    maxLogsPerInstance,
-    setMaxLogsPerInstance,
-  } = useAppStore();
+  const { confirmBeforeDelete, setConfirmBeforeDelete, maxLogsPerInstance, setMaxLogsPerInstance } =
+    useAppStore();
 
   return (
     <section id="section-misc" className="space-y-4 scroll-mt-4">

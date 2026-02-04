@@ -195,7 +195,14 @@ export function useDeviceConnection({
         setIsConnecting(false);
       }
     },
-    [instanceId, isConnected, setInstanceSavedDevice, setInstanceConnectionStatus, connectControllerInternal, t],
+    [
+      instanceId,
+      isConnected,
+      setInstanceSavedDevice,
+      setInstanceConnectionStatus,
+      connectControllerInternal,
+      t,
+    ],
   );
 
   // 选择 Win32 窗口并自动连接
@@ -285,7 +292,14 @@ export function useDeviceConnection({
       setInstanceConnectionStatus(instanceId, 'Disconnected');
       setIsConnecting(false);
     }
-  }, [instanceId, playcoverAddress, setInstanceSavedDevice, setInstanceConnectionStatus, connectControllerInternal, t]);
+  }, [
+    instanceId,
+    playcoverAddress,
+    setInstanceSavedDevice,
+    setInstanceConnectionStatus,
+    connectControllerInternal,
+    t,
+  ]);
 
   // 获取选中设备的显示文本
   const getSelectedDeviceText = useCallback(() => {

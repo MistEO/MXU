@@ -21,6 +21,17 @@ import { loggers } from '@/utils/logger';
 
 const log = loggers.ui;
 
+// 超时
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+};
+
+const MAX_CONSECUTIVE_FAILURES = 20;
+const API_TIMEOUT = 30000;
+
 export function ScreenshotPanel() {
   const { t } = useTranslation();
   const {
@@ -70,20 +81,17 @@ export function ScreenshotPanel() {
     if (!instanceId) return null;
 
     try {
-      // 发起截图请求
-      const screencapId = await maaService.postScreencap(instanceId);
+      const screencapId = await withTimeout(maaService.postScreencap(instanceId), API_TIMEOUT);
       if (screencapId < 0) {
         throw new Error('Failed to post screencap');
       }
 
-      // 等待截图完成
       const success = await maaService.waitForScreencap(screencapId, 10000);
       if (!success) {
         throw new Error('Screencap failed');
       }
 
-      // 获取缓存的图像
-      const imageData = await maaService.getCachedImage(instanceId);
+      const imageData = await withTimeout(maaService.getCachedImage(instanceId), API_TIMEOUT);
       return imageData || null;
     } catch (err) {
       log.warn('截图失败:', err);
@@ -96,7 +104,7 @@ export function ScreenshotPanel() {
     if (!instanceId) return null;
 
     try {
-      const imageData = await maaService.getCachedImage(instanceId);
+      const imageData = await withTimeout(maaService.getCachedImage(instanceId), API_TIMEOUT);
       return imageData || null;
     } catch (err) {
       log.warn('获取缓存截图失败:', err);
@@ -141,6 +149,7 @@ export function ScreenshotPanel() {
 
     // 初始化下一帧时间
     let nextFrameTime = Date.now();
+    let consecutiveFailures = 0;
 
     while (streamingRef.current) {
       // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
@@ -149,31 +158,35 @@ export function ScreenshotPanel() {
         break;
       }
 
-      // 计算需要等待的时间（sleep until 下一帧时间点）
+      // 检查连接状态
+      const connStatus = useAppStore.getState().instanceConnectionStatus[loopInstanceId];
+      if (connStatus !== 'Connected') {
+        setError('连接已断开');
+        break;
+      }
+
+      // 等待下一帧时间
       const now = Date.now();
       const sleepTime = nextFrameTime - now;
       if (sleepTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, sleepTime));
       }
 
-      // 计算下一帧时间（基于当前目标时间累加，避免截图耗时影响帧率）
+      // 计算下一帧时间
       const frameInterval = frameIntervalRef.current;
       if (frameInterval > 0) {
         nextFrameTime += frameInterval;
-        // 如果已经落后太多，重置到当前时间
         if (nextFrameTime < Date.now()) {
           nextFrameTime = Date.now() + frameInterval;
         }
       } else {
-        // unlimited 模式，立即执行下一帧
         nextFrameTime = Date.now();
       }
 
       lastFrameTimeRef.current = Date.now();
 
       try {
-        // 检查任务是否正在运行
-        const isRunning = await maaService.isRunning(loopInstanceId);
+        const isRunning = await withTimeout(maaService.isRunning(loopInstanceId), API_TIMEOUT);
 
         let imageData: string | null = null;
 
@@ -193,12 +206,23 @@ export function ScreenshotPanel() {
         ) {
           setScreenshotUrl(imageData);
           setError(null);
+          consecutiveFailures = 0;
         }
-      } catch {
-        // 静默处理错误，继续下一帧
+      } catch (err) {
+        consecutiveFailures++;
+        log.warn(`截图失败 (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`, err);
+
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          setError('截图连续失败，已停止');
+          break;
+        }
       }
     }
-  }, [instanceId, captureFrame, getCachedFrame]);
+
+    // 循环结束
+    streamingRef.current = false;
+    setIsStreaming(false);
+  }, [instanceId, captureFrame, getCachedFrame, setIsStreaming]);
 
   // 开始/停止截图流
   const toggleStreaming = useCallback(

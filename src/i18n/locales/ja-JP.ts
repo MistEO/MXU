@@ -80,6 +80,9 @@ export default {
       'メイン画面でのみ有効です。現在のインスタンスのタスク開始 / 停止に使用します。Ctrl+F10 や Ctrl+Shift+F11 などの修飾キー付きの組み合わせもサポートします。F5 / F12 単体は引き続きシステム / ブラウザ用に予約されています。',
     hotkeysConflict:
       '開始と停止のショートカットは同じキーにしないでください。別のキーを選択してください。',
+    hotkeysGlobal: 'グローバルショートカット',
+    hotkeysGlobalHint: 'ウィンドウ非アクティブ時もショートカットを有効にする',
+    hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
@@ -340,6 +343,11 @@ export default {
     resetWindowSize: 'ウィンドウサイズをリセット',
     openConfigDir: '設定フォルダを開く',
     openLogDir: 'ログフォルダを開く',
+    exportLogs: 'ログをエクスポート',
+    exportLogsHint: 'すべてのログファイルを zip アーカイブにパック',
+    exportingLogs: 'ログをエクスポート中...',
+    logsExported: 'ログをエクスポートしました',
+    exportLogsFailed: 'ログのエクスポートに失敗しました',
     clearCache: 'キャッシュをクリア',
     cacheCleared: 'キャッシュをクリアしました',
     cacheStats: 'キャッシュ項目: {{count}} 件',
@@ -466,6 +474,9 @@ export default {
     restartRequired: 'アップデートがインストールされました。変更を適用するには再起動してください',
     restartNow: '今すぐ再起動',
     restarting: '再起動中...',
+    installerOpened: 'インストーラーが開きました',
+    installerOpenedHint:
+      'インストーラーの操作を完了してください。インストール完了後、このアプリを再起動してください',
     // アップデート完了後
     updateCompleteTitle: 'アップデート完了',
     updateCompleteMessage: '最新バージョンへのアップデートに成功しました',

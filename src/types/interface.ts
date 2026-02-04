@@ -20,6 +20,8 @@ export interface ProjectInterface {
   resource: ResourceItem[];
   task: TaskItem[];
   option?: Record<string, OptionDefinition>;
+  /** v2.2.0: 导入其他 PI 文件的路径数组，只导入 task 和 option 字段 */
+  import?: string[];
 }
 
 export interface AgentConfig {
@@ -42,6 +44,8 @@ export interface ControllerItem {
   display_long_side?: number;
   display_raw?: boolean;
   permission_required?: boolean;
+  /** v2.2.0: 额外的资源路径数组，在 resource.path 加载完成后加载 */
+  attach_resource_path?: string[];
   adb?: Record<string, unknown>;
   win32?: Win32Config;
   playcover?: PlayCoverConfig;

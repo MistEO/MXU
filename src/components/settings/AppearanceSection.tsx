@@ -177,7 +177,9 @@ export function AppearanceSection({
                         : 'border-border hover:bg-bg-hover',
                     )}
                     style={
-                      isSelected ? ({ '--tw-ring-color': accent.color } as CSSProperties) : undefined
+                      isSelected
+                        ? ({ '--tw-ring-color': accent.color } as CSSProperties)
+                        : undefined
                     }
                   >
                     <span
@@ -196,7 +198,7 @@ export function AppearanceSection({
                 className="flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium bg-bg-tertiary border-2 border-dashed border-border hover:bg-bg-hover text-text-muted transition-colors"
                 title={t('settings.addCustomAccent')}
               >
-                <span className="text-xl">+</span>
+                <span className="text-sm">+</span>
               </button>
             </div>
           </SortableContext>
@@ -209,8 +211,12 @@ export function AppearanceSection({
           <div className="flex items-center gap-3">
             <ListChecks className="w-5 h-5 text-accent" />
             <div>
-              <span className="font-medium text-text-primary">{t('settings.showOptionPreview')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.showOptionPreviewHint')}</p>
+              <span className="font-medium text-text-primary">
+                {t('settings.showOptionPreview')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.showOptionPreviewHint')}
+              </p>
             </div>
           </div>
           <button

@@ -1,4 +1,8 @@
 import { loggers } from './logger';
+import { isTauri } from './paths';
+
+// 重新导出 isTauri，保持向后兼容
+export { isTauri };
 
 const log = loggers.app;
 
@@ -8,11 +12,6 @@ export const MIN_WINDOW_HEIGHT = 500;
 
 // 左侧面板最小宽度（确保工具栏按钮文字不换行）
 export const MIN_LEFT_PANEL_WIDTH = 530;
-
-// 检测是否在 Tauri 环境中
-export const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /**
  * 验证窗口尺寸是否有效
@@ -61,6 +60,44 @@ export async function setWindowSize(width: number, height: number) {
 }
 
 /**
+ * 设置窗口位置
+ */
+export async function setWindowPosition(x: number, y: number) {
+  if (isTauri()) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const { LogicalPosition } = await import('@tauri-apps/api/dpi');
+      const currentWindow = getCurrentWindow();
+      await currentWindow.setPosition(new LogicalPosition(x, y));
+    } catch (err) {
+      log.warn('设置窗口位置失败:', err);
+    }
+  }
+}
+
+/**
+ * 获取当前窗口位置
+ */
+export async function getWindowPosition(): Promise<{ x: number; y: number } | null> {
+  if (isTauri()) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const currentWindow = getCurrentWindow();
+      const position = await currentWindow.outerPosition();
+      const scaleFactor = await currentWindow.scaleFactor();
+      // 转换为逻辑像素
+      return {
+        x: Math.round(position.x / scaleFactor),
+        y: Math.round(position.y / scaleFactor),
+      };
+    } catch (err) {
+      log.warn('获取窗口位置失败:', err);
+    }
+  }
+  return null;
+}
+
+/**
  * 获取当前窗口大小
  */
 export async function getWindowSize(): Promise<{ width: number; height: number } | null> {
@@ -80,4 +117,24 @@ export async function getWindowSize(): Promise<{ width: number; height: number }
     }
   }
   return null;
+}
+
+/**
+ * 将窗口带到前台并获取焦点
+ * 用于更新重启后确保窗口在前台显示
+ */
+export async function focusWindow(): Promise<void> {
+  if (isTauri()) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const currentWindow = getCurrentWindow();
+      // 先取消最小化（如果有）
+      await currentWindow.unminimize();
+      // 设置焦点，将窗口带到前台
+      await currentWindow.setFocus();
+      log.info('窗口已获取焦点');
+    } catch (err) {
+      log.warn('设置窗口焦点失败:', err);
+    }
+  }
 }

@@ -410,6 +410,43 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       }
 
       try {
+        // 先执行前置动作（在连接设备之前）
+        if (targetInstance.preAction?.enabled && targetInstance.preAction.program.trim()) {
+          log.info(`实例 ${targetInstance.name}: 执行前置动作:`, targetInstance.preAction.program);
+          addLog(targetId, {
+            type: 'info',
+            message: t('action.preActionStarting'),
+          });
+          try {
+            const exitCode = await maaService.runAction(
+              targetInstance.preAction.program,
+              targetInstance.preAction.args,
+              basePath,
+              targetInstance.preAction.waitForExit ?? true,
+              targetInstance.preAction.delaySeconds ?? 0,
+            );
+            if (exitCode !== 0) {
+              log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
+              addLog(targetId, {
+                type: 'warning',
+                message: t('action.preActionExitCode', { code: exitCode }),
+              });
+            } else {
+              addLog(targetId, {
+                type: 'success',
+                message: t('action.preActionCompleted'),
+              });
+            }
+          } catch (err) {
+            log.error(`实例 ${targetInstance.name}: 前置动作执行失败:`, err);
+            addLog(targetId, {
+              type: 'error',
+              message: t('action.preActionFailed', { error: String(err) }),
+            });
+            // 前置动作失败不阻止任务执行，继续
+          }
+        }
+
         // 如果未连接，尝试自动连接
         if (!isTargetConnected && hasSavedDevice && controller && savedDevice) {
           log.info(`实例 ${targetInstance.name}: 自动连接设备...`);
@@ -477,6 +514,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
 
           onPhaseChange?.('connecting');
+
+          // 收集回调（避免快速连接时错过）
+          const collectedCallbacks: Array<{ message: string; details: { ctrl_id?: number } }> = [];
+          const unsubscribePromise = maaService.onCallback((message, details) => {
+            if (
+              message === 'Controller.Action.Succeeded' ||
+              message === 'Controller.Action.Failed'
+            ) {
+              collectedCallbacks.push({ message, details });
+            }
+          });
+
           const ctrlId = await maaService.connectController(targetId, config);
 
           // 注册 ctrl_id 与设备名/类型的映射
@@ -494,17 +543,58 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
           registerCtrlIdName(ctrlId, deviceName, targetType);
 
+          // 等待初始回调收集器设置完成
+          const unsubscribe = await unsubscribePromise;
+
           // 等待连接完成
           const connectResult = await new Promise<boolean>((resolve) => {
-            const timeout = setTimeout(() => resolve(false), 30000);
-            maaService.onCallback((message, details) => {
-              if (details.ctrl_id !== ctrlId) return;
+            let resolved = false;
+
+            const cleanup = (unlisten?: () => void) => {
+              unsubscribe();
+              unlisten?.();
+            };
+
+            const timeout = setTimeout(() => {
+              if (!resolved) {
+                log.warn(`实例 ${targetInstance.name}: 连接超时`);
+                cleanup();
+                resolve(false);
+              }
+            }, 30000);
+
+            // 检查已收集的回调
+            const match = collectedCallbacks.find((cb) => cb.details.ctrl_id === ctrlId);
+            if (match) {
+              resolved = true;
               clearTimeout(timeout);
-              if (message === 'Controller.Action.Succeeded') {
+              cleanup();
+              if (match.message === 'Controller.Action.Succeeded') {
                 setInstanceConnectionStatus(targetId, 'Connected');
                 resolve(true);
               } else {
                 resolve(false);
+              }
+              return;
+            }
+
+            // 继续监听新回调
+            maaService.onCallback((message, details) => {
+              if (resolved) return;
+              if (details.ctrl_id !== ctrlId) return;
+              if (
+                message === 'Controller.Action.Succeeded' ||
+                message === 'Controller.Action.Failed'
+              ) {
+                resolved = true;
+                clearTimeout(timeout);
+                cleanup();
+                if (message === 'Controller.Action.Succeeded') {
+                  setInstanceConnectionStatus(targetId, 'Connected');
+                  resolve(true);
+                } else {
+                  resolve(false);
+                }
               }
             });
           });
@@ -559,43 +649,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }
 
         onPhaseChange?.('idle');
-
-        // 执行前置动作（如果启用且有程序路径）
-        if (targetInstance.preAction?.enabled && targetInstance.preAction.program.trim()) {
-          log.info(`实例 ${targetInstance.name}: 执行前置动作:`, targetInstance.preAction.program);
-          addLog(targetId, {
-            type: 'info',
-            message: t('action.preActionStarting'),
-          });
-          try {
-            const exitCode = await maaService.runAction(
-              targetInstance.preAction.program,
-              targetInstance.preAction.args,
-              basePath,
-              targetInstance.preAction.waitForExit ?? true,
-              targetInstance.preAction.delaySeconds ?? 0,
-            );
-            if (exitCode !== 0) {
-              log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
-              addLog(targetId, {
-                type: 'warning',
-                message: t('action.preActionExitCode', { code: exitCode }),
-              });
-            } else {
-              addLog(targetId, {
-                type: 'success',
-                message: t('action.preActionCompleted'),
-              });
-            }
-          } catch (err) {
-            log.error(`实例 ${targetInstance.name}: 前置动作执行失败:`, err);
-            addLog(targetId, {
-              type: 'error',
-              message: t('action.preActionFailed', { error: String(err) }),
-            });
-            // 前置动作失败不阻止任务执行，继续
-          }
-        }
 
         log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, enabledTasks.length);
 

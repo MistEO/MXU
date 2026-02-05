@@ -15,7 +15,7 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
   }
 
   if (optionDef.type === 'switch') {
-    const defaultCase = optionDef.default_case || optionDef.cases[1]?.name || 'No';
+    const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || 'Yes';
     const isYes = ['Yes', 'yes', 'Y', 'y'].includes(defaultCase);
     return { type: 'switch', value: isYes };
   }

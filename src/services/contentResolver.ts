@@ -12,13 +12,9 @@ import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cachedFetch } from './cacheService';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /** 内容类型枚举 */
 export type ContentType = 'url' | 'file' | 'text';
@@ -27,7 +23,7 @@ export type ContentType = 'url' | 'file' | 'text';
  * 判断内容是否为 URL
  */
 export function isUrl(content: string): boolean {
-  return content.startsWith('http://') || content.startsWith('https://');
+  return content.startsWith('https://') || content.startsWith('http://');
 }
 
 /**
@@ -113,10 +109,9 @@ async function loadFromFile(filePath: string, basePath: string): Promise<string>
 /**
  * 从 URL 加载内容（带 ETag 缓存）
  * @param url 请求的 URL
- * @param basePath 资源基础路径（用于存储缓存文件）
  */
-async function loadFromUrl(url: string, basePath: string = '.'): Promise<string> {
-  const result = await cachedFetch(url, { basePath });
+async function loadFromUrl(url: string): Promise<string> {
+  const result = await cachedFetch(url);
   if (result.fromCache) {
     log.debug(`URL 内容来自缓存: ${url}`);
   }
@@ -253,7 +248,7 @@ export async function resolveContent(
   try {
     // 检查是否为 URL
     if (isUrl(resolved)) {
-      resolved = await loadFromUrl(resolved, basePath);
+      resolved = await loadFromUrl(resolved);
     }
     // 检查是否为文件路径
     else if (isFilePath(resolved)) {
@@ -304,7 +299,7 @@ export async function resolveDescriptionContent(
     let loadedContent: string;
 
     if (type === 'url') {
-      loadedContent = await loadFromUrl(resolved, basePath);
+      loadedContent = await loadFromUrl(resolved);
     } else {
       // 文件路径：相对于 interface.json 所在目录
       loadedContent = await loadFromFile(resolved, basePath);

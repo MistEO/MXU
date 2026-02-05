@@ -14,6 +14,7 @@ import type {
   InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.maa;
 
@@ -39,11 +40,6 @@ export interface MaaCallbackDetails {
   entry?: string;
   name?: string;
 }
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /** MaaFramework 服务 */
 export const maaService = {

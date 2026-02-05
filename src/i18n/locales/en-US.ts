@@ -217,6 +217,8 @@ export default {
     loadedFromFile: 'Content loaded from local file',
     loadedFromUrl: 'Content loaded from URL',
     loadDescriptionFailed: 'Failed to load',
+    searchPlaceholder: 'Search options...',
+    noMatchingOptions: 'No matching options',
   },
 
   // Controller
@@ -373,6 +375,11 @@ export default {
     resetWindowLayout: 'Reset Window Layout',
     openConfigDir: 'Open Config Dir',
     openLogDir: 'Open Log Dir',
+    exportLogs: 'Export Logs',
+    exportLogsHint: 'Pack all log files into a zip archive',
+    exportingLogs: 'Exporting logs...',
+    logsExported: 'Logs exported',
+    exportLogsFailed: 'Failed to export logs',
     clearCache: 'Clear Cache',
     cacheCleared: 'Cache cleared',
     cacheStats: 'Cache entries: {{count}}',
@@ -499,6 +506,8 @@ export default {
     restartRequired: 'Update installed. Please restart to apply changes.',
     restartNow: 'Restart Now',
     restarting: 'Restarting...',
+    installerOpened: 'Installer Opened',
+    installerOpenedHint: 'Please complete the installer, then restart this app after installation',
     // After update complete
     updateCompleteTitle: 'Update Complete',
     updateCompleteMessage: 'Successfully updated to the latest version',

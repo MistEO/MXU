@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use tauri::Emitter;
 
-use super::types::DownloadProgressEvent;
+use super::types::{DownloadProgressEvent, DownloadResult};
 use super::update::move_to_old_folder;
 use super::utils::build_user_agent;
 
@@ -21,7 +21,9 @@ static CURRENT_DOWNLOAD_SESSION: AtomicU64 = AtomicU64::new(0);
 /// 使用 reqwest 进行流式下载，直接写入文件而不经过内存缓冲，
 /// 解决 JavaScript 下载大文件时的性能问题
 ///
-/// 返回值包含 session_id，前端用于匹配进度事件
+/// 返回 DownloadResult，包含 session_id 和实际保存路径
+/// 如果检测到重定向后的 URL 或 Content-Disposition 包含正确的文件名，
+/// 会使用该文件名保存（替换原始 save_path 的文件名部分）
 #[tauri::command]
 pub async fn download_file(
     app: tauri::AppHandle,
@@ -29,7 +31,7 @@ pub async fn download_file(
     save_path: String,
     total_size: Option<u64>,
     proxy_url: Option<String>,
-) -> Result<u64, String> {
+) -> Result<DownloadResult, String> {
     use futures_util::StreamExt;
     use std::io::Write;
 
@@ -48,9 +50,6 @@ pub async fn download_file(
     if let Some(parent) = save_path_obj.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("无法创建目录: {}", e))?;
     }
-
-    // 使用临时文件名下载
-    let temp_path = format!("{}.downloading", save_path);
 
     // 构建 HTTP 客户端和请求
     let mut client_builder = reqwest::Client::builder()
@@ -91,6 +90,29 @@ pub async fn download_file(
     if !response.status().is_success() {
         return Err(format!("HTTP 错误: {}", response.status()));
     }
+
+    // 尝试从 Content-Disposition header 或最终 URL 提取文件名
+    let detected_filename = extract_filename_from_response(&response);
+    if let Some(ref name) = detected_filename {
+        info!("[下载] 检测到文件名: {}", name);
+    }
+
+    // 确定实际保存路径
+    let actual_save_path = if let Some(ref filename) = detected_filename {
+        // 使用检测到的文件名，保持原目录
+        if let Some(parent) = save_path_obj.parent() {
+            parent.join(filename).to_string_lossy().to_string()
+        } else {
+            filename.clone()
+        }
+    } else {
+        save_path.clone()
+    };
+
+    let actual_save_path_obj = std::path::Path::new(&actual_save_path);
+
+    // 使用临时文件名下载
+    let temp_path = format!("{}.downloading", actual_save_path);
 
     // 获取文件大小
     let content_length = response.content_length();
@@ -197,18 +219,23 @@ pub async fn download_file(
     );
 
     // 将可能存在的旧文件移动到 old 文件夹
-    if save_path_obj.exists() {
-        let _ = move_to_old_folder(save_path_obj);
+    if actual_save_path_obj.exists() {
+        let _ = move_to_old_folder(actual_save_path_obj);
     }
 
     // 重命名临时文件
-    std::fs::rename(&temp_path, &save_path).map_err(|e| format!("重命名文件失败: {}", e))?;
+    std::fs::rename(&temp_path, &actual_save_path).map_err(|e| format!("重命名文件失败: {}", e))?;
 
     info!(
-        "download_file completed: {} bytes (session {})",
-        downloaded, session_id
+        "download_file completed: {} bytes -> {} (session {})",
+        downloaded, actual_save_path, session_id
     );
-    Ok(session_id)
+
+    Ok(DownloadResult {
+        session_id,
+        actual_save_path,
+        detected_filename,
+    })
 }
 
 /// 取消下载
@@ -233,4 +260,122 @@ pub fn cancel_download(save_path: String) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// 从 HTTP 响应中提取文件名
+///
+/// 优先级：
+/// 1. Content-Disposition header 中的 filename
+/// 2. 最终 URL（重定向后）的路径部分
+fn extract_filename_from_response(response: &reqwest::Response) -> Option<String> {
+    // 1. 尝试从 Content-Disposition header 提取
+    if let Some(cd) = response.headers().get("content-disposition") {
+        if let Ok(cd_str) = cd.to_str() {
+            if let Some(filename) = parse_content_disposition(cd_str) {
+                if let Some(safe) = sanitize_filename(&filename) {
+                    return Some(safe);
+                }
+            }
+        }
+    }
+
+    // 2. 尝试从最终 URL 提取（重定向后的 URL）
+    let final_url = response.url();
+    let path = final_url.path();
+
+    // 获取路径的最后一部分
+    if let Some(last_segment) = path.rsplit('/').next() {
+        if !last_segment.is_empty() {
+            // URL 解码
+            if let Ok(decoded) = urlencoding::decode(last_segment) {
+                let filename = decoded.to_string();
+                // 确保有扩展名，并清理文件名
+                if filename.contains('.') {
+                    if let Some(safe) = sanitize_filename(&filename) {
+                        return Some(safe);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// 清理文件名，防止目录遍历攻击
+///
+/// - 移除路径分隔符（/ 和 \）
+/// - 移除 .. 片段
+/// - 只保留文件名部分
+fn sanitize_filename(filename: &str) -> Option<String> {
+    // 获取最后一个路径分隔符后的部分（处理 path/to/file.exe 或 path\to\file.exe）
+    let name = filename
+        .rsplit(|c| c == '/' || c == '\\')
+        .next()
+        .unwrap_or(filename);
+
+    // 过滤掉 .. 和空文件名
+    if name.is_empty() || name == "." || name == ".." || name.starts_with("..") {
+        return None;
+    }
+
+    // 确保有扩展名
+    if !name.contains('.') {
+        return None;
+    }
+
+    Some(name.to_string())
+}
+
+/// 解析 Content-Disposition header 提取文件名（大小写不敏感）
+///
+/// 支持格式：
+/// - attachment; filename="example.exe"
+/// - attachment; filename=example.exe
+/// - attachment; filename*=UTF-8''%E4%B8%AD%E6%96%87.exe
+/// - Attachment; Filename="example.exe" (大小写变体)
+fn parse_content_disposition(header: &str) -> Option<String> {
+    let header_lower = header.to_lowercase();
+
+    // 首先尝试 filename*=（RFC 5987 编码，优先级更高）
+    if let Some(start) = header_lower.find("filename*=") {
+        let rest = &header[start + 10..];
+        // 格式: UTF-8''encoded_filename 或 utf-8''encoded_filename
+        if let Some(quote_pos) = rest.find("''") {
+            let encoded = rest[quote_pos + 2..].split(';').next().unwrap_or("").trim();
+            if let Ok(decoded) = urlencoding::decode(encoded) {
+                let filename = decoded.trim_matches('"').to_string();
+                if !filename.is_empty() {
+                    return Some(filename);
+                }
+            }
+        }
+    }
+
+    // 然后尝试普通的 filename=（但要确保不是 filename*=）
+    // 查找 "filename=" 但排除 "filename*="
+    let mut search_start = 0;
+    while let Some(pos) = header_lower[search_start..].find("filename=") {
+        let absolute_pos = search_start + pos;
+        // 检查是否是 filename*=（前一个字符是 *）
+        if absolute_pos > 0 && header.as_bytes().get(absolute_pos - 1) == Some(&b'*') {
+            search_start = absolute_pos + 9;
+            continue;
+        }
+
+        let rest = &header[absolute_pos + 9..];
+        let filename = rest
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .trim_matches('"')
+            .to_string();
+        if !filename.is_empty() {
+            return Some(filename);
+        }
+        break;
+    }
+
+    None
 }

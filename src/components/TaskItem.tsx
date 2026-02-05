@@ -25,7 +25,7 @@ import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
-import { OptionEditor } from './OptionEditor';
+import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
@@ -134,6 +134,115 @@ function DescriptionContent({
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )}
+    </div>
+  );
+}
+
+/** 选项分组项类型 */
+type OptionGroup =
+  | { type: 'single'; optionKey: string }
+  | { type: 'switchGrid'; optionKeys: string[] };
+
+/** 选项列表渲染器：自动将连续的无子选项 switch 分组为网格 */
+function OptionListRenderer({
+  instanceId,
+  taskId,
+  optionKeys,
+  optionValues,
+  disabled,
+}: {
+  instanceId: string;
+  taskId: string;
+  optionKeys: string[];
+  optionValues: Record<string, import('@/types/interface').OptionValue>;
+  disabled: boolean;
+}) {
+  const { projectInterface, resolveI18nText, language } = useAppStore();
+  const langKey = getInterfaceLangKey(language);
+
+  // 将选项分组：连续 5 个以上无子选项的 switch 合并为网格
+  const groups = useMemo(() => {
+    if (!projectInterface?.option) return optionKeys.map((k) => ({ type: 'single' as const, optionKey: k }));
+
+    const result: OptionGroup[] = [];
+    let currentSwitchGroup: string[] = [];
+
+    const flushSwitchGroup = () => {
+      if (currentSwitchGroup.length > 4) {
+        // 超过 4 个，使用网格
+        result.push({ type: 'switchGrid', optionKeys: [...currentSwitchGroup] });
+      } else {
+        // 4 个及以下，单独渲染
+        for (const key of currentSwitchGroup) {
+          result.push({ type: 'single', optionKey: key });
+        }
+      }
+      currentSwitchGroup = [];
+    };
+
+    for (const optionKey of optionKeys) {
+      const optionDef = projectInterface.option[optionKey];
+      
+      // 判断是否为无子选项的 switch
+      const isSimpleSwitch =
+        optionDef?.type === 'switch' && !switchHasNestedOptions(optionDef);
+
+      if (isSimpleSwitch) {
+        currentSwitchGroup.push(optionKey);
+      } else {
+        // 非 switch 或有子选项，先刷新当前 switch 组
+        flushSwitchGroup();
+        result.push({ type: 'single', optionKey });
+      }
+    }
+
+    // 处理末尾的 switch 组
+    flushSwitchGroup();
+
+    return result;
+  }, [optionKeys, projectInterface?.option]);
+
+  // 构建 SwitchGrid 的数据
+  const buildSwitchGridItems = (keys: string[]) => {
+    if (!projectInterface?.option) return [];
+    return keys.map((optionKey) => {
+      const optionDef = projectInterface.option![optionKey];
+      const value = optionValues[optionKey];
+      const isChecked = value?.type === 'switch' ? value.value : false;
+      return {
+        optionKey,
+        label: resolveI18nText(optionDef?.label, langKey) || optionKey,
+        description: resolveI18nText(optionDef?.description, langKey),
+        isChecked,
+      };
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group, index) => {
+        if (group.type === 'switchGrid') {
+          return (
+            <SwitchGrid
+              key={`grid-${index}`}
+              instanceId={instanceId}
+              taskId={taskId}
+              items={buildSwitchGridItems(group.optionKeys)}
+              disabled={disabled}
+            />
+          );
+        }
+        return (
+          <OptionEditor
+            key={group.optionKey}
+            instanceId={instanceId}
+            taskId={taskId}
+            optionKey={group.optionKey}
+            value={optionValues[group.optionKey]}
+            disabled={disabled}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -828,18 +937,13 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               )}
               {/* 选项列表 - 仅在有选项时显示 */}
               {hasOptions && (
-                <div className="space-y-3">
-                  {taskDef.option?.map((optionKey) => (
-                    <OptionEditor
-                      key={optionKey}
-                      instanceId={instanceId}
-                      taskId={task.id}
-                      optionKey={optionKey}
-                      value={task.optionValues[optionKey]}
-                      disabled={!canEditOptions || isIncompatible}
-                    />
-                  ))}
-                </div>
+                <OptionListRenderer
+                  instanceId={instanceId}
+                  taskId={task.id}
+                  optionKeys={taskDef.option || []}
+                  optionValues={task.optionValues}
+                  disabled={!canEditOptions || isIncompatible}
+                />
               )}
             </div>
           </div>

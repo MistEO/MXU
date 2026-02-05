@@ -51,6 +51,7 @@ import {
   setWindowPosition,
   getWindowSize,
   getWindowPosition,
+  focusWindow,
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { VersionWarningModal, LoadingScreen } from './components/app';
@@ -86,6 +87,7 @@ function App() {
     setProjectInterface,
     setInterfaceTranslations,
     setBasePath,
+    setDataPath,
     basePath,
     importConfig,
     createInstance,
@@ -200,10 +202,7 @@ function App() {
 
   // 自动下载函数
   const startAutoDownload = useCallback(
-    async (
-      updateResult: NonNullable<Awaited<ReturnType<typeof checkAndPrepareDownload>>>,
-      downloadBasePath: string,
-    ) => {
+    async (updateResult: NonNullable<Awaited<ReturnType<typeof checkAndPrepareDownload>>>) => {
       if (!updateResult.downloadUrl || downloadStartedRef.current) return;
 
       downloadStartedRef.current = true;
@@ -216,7 +215,7 @@ function App() {
       });
 
       try {
-        const savePath = await getUpdateSavePath(downloadBasePath, updateResult.filename);
+        const savePath = await getUpdateSavePath(updateResult.filename);
         setDownloadSavePath(savePath);
 
         const appState = useAppStore.getState();
@@ -225,7 +224,7 @@ function App() {
           updateResult.downloadSource === 'github' &&
           shouldUseProxy(appState.proxySettings, appState.mirrorChyanSettings.cdk || '');
 
-        const success = await downloadUpdate({
+        const result = await downloadUpdate({
           url: updateResult.downloadUrl,
           savePath,
           totalSize: updateResult.fileSize,
@@ -235,7 +234,9 @@ function App() {
           },
         });
 
-        if (success) {
+        if (result.success) {
+          // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
+          setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');
           log.info('更新下载完成');
 
@@ -244,7 +245,7 @@ function App() {
             versionName: updateResult.versionName,
             releaseNote: updateResult.releaseNote,
             channel: updateResult.channel,
-            downloadSavePath: savePath,
+            downloadSavePath: result.actualSavePath,
             fileSize: updateResult.fileSize,
             updateType: updateResult.updateType,
             downloadSource: updateResult.downloadSource,
@@ -324,15 +325,16 @@ function App() {
       const result = await autoLoadInterface();
       setProjectInterface(result.interface);
       setBasePath(result.basePath);
+      setDataPath(result.dataPath);
 
       // 设置翻译
       for (const [lang, trans] of Object.entries(result.translations)) {
         setInterfaceTranslations(lang, trans);
       }
 
-      // 加载用户配置（mxu-{项目名}.json）
+      // 加载用户配置（mxu-{项目名}.json）- 从数据目录加载
       const projectName = result.interface.name;
-      let config = await loadConfig(result.basePath, projectName);
+      let config = await loadConfig(result.dataPath, projectName);
 
       // 浏览器环境下，如果没有从 public 目录加载到配置，尝试从 localStorage 加载
       if (config.instances.length === 0) {
@@ -434,18 +436,50 @@ function App() {
       // 检查是否刚更新完成（重启后）
       const updateCompleteInfo = consumeUpdateCompleteInfo();
       if (updateCompleteInfo) {
-        log.info('检测到刚更新完成:', updateCompleteInfo.newVersion);
-        // 清除待安装更新信息（安装已完成）
-        clearPendingUpdateInfo();
-        setJustUpdatedInfo({
-          previousVersion: updateCompleteInfo.previousVersion,
-          newVersion: updateCompleteInfo.newVersion,
-          releaseNote: updateCompleteInfo.releaseNote,
-          channel: updateCompleteInfo.channel,
-        });
-        setShowInstallConfirmModal(true);
-        // 更新完成后跳过自动检查更新
-        return;
+        // 更新重启后将窗口带到前台
+        focusWindow();
+        const currentVersionNow = result.interface.version || '';
+
+        // 如果需要验证版本（exe/dmg 安装场景）
+        if (updateCompleteInfo.requireVersionCheck) {
+          log.info(
+            `检测到待验证版本更新: 目标=${updateCompleteInfo.newVersion}, 当前=${currentVersionNow}`,
+          );
+
+          // 比较版本：如果当前版本已经是目标版本，视为安装完成
+          const normalizeVersion = (v: string) => v.replace(/^v/i, '').toLowerCase();
+          if (
+            normalizeVersion(currentVersionNow) === normalizeVersion(updateCompleteInfo.newVersion)
+          ) {
+            log.info('版本已更新到目标版本，显示更新完成弹窗');
+            setJustUpdatedInfo({
+              previousVersion: updateCompleteInfo.previousVersion,
+              newVersion: updateCompleteInfo.newVersion,
+              releaseNote: updateCompleteInfo.releaseNote,
+              channel: updateCompleteInfo.channel,
+            });
+            setShowInstallConfirmModal(true);
+            // 更新完成后跳过自动检查更新
+            return;
+          } else {
+            log.info('版本未更新，继续正常流程');
+            // 版本未更新，继续正常流程（可能用户取消了安装）
+          }
+        } else {
+          // 直接显示更新完成弹窗（zip 等自动安装场景）
+          log.info('检测到刚更新完成:', updateCompleteInfo.newVersion);
+          // 清除待安装更新信息（安装已完成）
+          clearPendingUpdateInfo();
+          setJustUpdatedInfo({
+            previousVersion: updateCompleteInfo.previousVersion,
+            newVersion: updateCompleteInfo.newVersion,
+            releaseNote: updateCompleteInfo.releaseNote,
+            channel: updateCompleteInfo.channel,
+          });
+          setShowInstallConfirmModal(true);
+          // 更新完成后跳过自动检查更新
+          return;
+        }
       }
 
       // 检查是否有待安装的更新（上次下载完成但未安装）
@@ -479,7 +513,6 @@ function App() {
           log.info(`调试版本 (${result.interface.version})，跳过自动更新检查`);
         } else {
           const appState = useAppStore.getState();
-          const downloadBasePath = appState.basePath;
           checkAndPrepareDownload({
             resourceId: result.interface.mirrorchyan_rid,
             currentVersion: result.interface.version,
@@ -487,7 +520,7 @@ function App() {
             channel: appState.mirrorChyanSettings.channel,
             userAgent: 'MXU',
             githubUrl: result.interface.github,
-            basePath: downloadBasePath,
+            githubPat: appState.mirrorChyanSettings.githubPat || undefined,
             projectName: result.interface.name,
           })
             .then((updateResult) => {
@@ -499,7 +532,7 @@ function App() {
                   useAppStore.getState().setShowUpdateDialog(true);
                   // 有更新且有下载链接时自动开始下载
                   if (updateResult.downloadUrl) {
-                    startAutoDownload(updateResult, downloadBasePath);
+                    startAutoDownload(updateResult);
                   }
                 } else if (updateResult.errorCode) {
                   // API 返回错误（如 CDK 问题），也弹出气泡提示用户

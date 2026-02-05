@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ProjectInterface, TaskItem, OptionDefinition } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
 
@@ -17,17 +18,23 @@ export interface LoadResult {
   interface: ProjectInterface;
   translations: Record<string, Record<string, string>>;
   basePath: string;
+  dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
 }
-
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
 
 /**
  * 获取 exe 所在目录的绝对路径（Tauri 环境）
  */
 async function getExeDir(): Promise<string> {
   return await invoke<string>('get_exe_dir');
+}
+
+/**
+ * 获取应用数据目录的绝对路径（Tauri 环境）
+ * - macOS: ~/Library/Application Support/MXU/
+ * - Windows/Linux: exe 所在目录
+ */
+async function getDataDir(): Promise<string> {
+  return await invoke<string>('get_data_dir');
 }
 
 // ============================================================================
@@ -274,13 +281,17 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     const basePath = relativeBasePath ? `${exeDir}/${relativeBasePath}` : exeDir;
     log.info('basePath (绝对路径):', basePath);
 
+    // 获取数据目录（macOS 使用 Application Support，其他平台同 basePath）
+    const dataPath = await getDataDir();
+    log.info('dataPath (数据目录):', dataPath);
+
     const pi = await loadInterfaceFromLocal(interfacePath);
 
     // 处理 import 字段
     await processImports(pi, relativeBasePath, true);
 
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
-    return { interface: pi, translations, basePath };
+    return { interface: pi, translations, basePath, dataPath };
   }
 
   // 浏览器环境：通过 HTTP 加载
@@ -293,7 +304,8 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     await processImports(pi, httpBasePath, false);
 
     const translations = await loadTranslationsFromHttp(pi, httpBasePath);
-    return { interface: pi, translations, basePath: relativeBasePath };
+    // 浏览器环境下 dataPath 与 basePath 相同
+    return { interface: pi, translations, basePath: relativeBasePath, dataPath: relativeBasePath };
   }
 
   throw new Error('未找到 interface.json 文件，请确保程序同目录下存在 interface.json');

@@ -5,7 +5,7 @@
 use log::debug;
 use std::path::PathBuf;
 
-use super::utils::{get_exe_directory, normalize_path};
+use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
 
 fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
     let exe_dir = get_exe_directory()?;
@@ -53,6 +53,15 @@ pub fn local_file_exists(filename: String) -> Result<bool, String> {
 pub fn get_exe_dir() -> Result<String, String> {
     let exe_dir = get_exe_directory()?;
     Ok(exe_dir.to_string_lossy().to_string())
+}
+
+/// 获取应用数据目录路径
+/// - macOS: ~/Library/Application Support/MXU/
+/// - Windows/Linux: exe 所在目录
+#[tauri::command]
+pub fn get_data_dir() -> Result<String, String> {
+    let data_dir = get_app_data_dir()?;
+    Ok(data_dir.to_string_lossy().to_string())
 }
 
 /// 获取当前工作目录
@@ -154,4 +163,130 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
         let _ = file_path; // 避免未使用警告
     }
     Ok(())
+}
+
+/// 导出日志文件为 zip 压缩包
+/// 返回生成的 zip 文件路径
+#[tauri::command]
+pub fn export_logs() -> Result<String, String> {
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    // 日志在数据目录下（macOS: ~/Library/Application Support/MXU/debug）
+    let data_dir = get_app_data_dir()?;
+    let debug_dir = data_dir.join("debug");
+
+    if !debug_dir.exists() {
+        return Err("日志目录不存在".to_string());
+    }
+
+    // 生成带时间戳的文件名
+    let now = chrono::Local::now();
+    let filename = format!("mxu-logs-{}.zip", now.format("%Y%m%d-%H%M%S"));
+    let zip_path = debug_dir.join(&filename);
+
+    let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    // 辅助函数：将文件添加到 zip
+    fn add_file_to_zip(
+        zip: &mut ZipWriter<File>,
+        path: &std::path::Path,
+        archive_name: &str,
+        options: SimpleFileOptions,
+    ) -> bool {
+        let mut file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                log::warn!("无法打开文件 {:?}: {}", path, e);
+                return false;
+            }
+        };
+
+        let mut content = Vec::new();
+        if let Err(e) = file.read_to_end(&mut content) {
+            log::warn!("读取文件失败 {:?}: {}", path, e);
+            return false;
+        }
+
+        if let Err(e) = zip.start_file(archive_name, options) {
+            log::warn!("创建 zip 条目失败 {}: {}", archive_name, e);
+            return false;
+        }
+
+        if let Err(e) = zip.write_all(&content) {
+            log::warn!("写入 zip 失败 {}: {}", archive_name, e);
+            return false;
+        }
+
+        true
+    }
+
+    // 辅助函数：检查是否为图片文件
+    fn is_image_file(path: &std::path::Path) -> bool {
+        if !path.is_file() {
+            return false;
+        }
+        path.extension()
+            .map(|ext| {
+                let ext_lower = ext.to_string_lossy().to_lowercase();
+                ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg"
+            })
+            .unwrap_or(false)
+    }
+
+    // 遍历 debug 目录下的所有 .log 文件
+    let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        // 使用 early-continue 简化逻辑
+        if !path.is_file() {
+            continue;
+        }
+        if path.extension().map(|e| e != "log").unwrap_or(true) {
+            continue;
+        }
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+
+        let name_str = name.to_string_lossy();
+        add_file_to_zip(&mut zip, &path, &name_str, options);
+    }
+
+    // 处理 on_error 文件夹（只包含前50张图片）
+    let on_error_dir = debug_dir.join("on_error");
+    if on_error_dir.exists() && on_error_dir.is_dir() {
+        if let Ok(rd) = std::fs::read_dir(&on_error_dir) {
+            let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
+
+            // 按修改时间排序（最新的在前）
+            images.sort_by(|a, b| {
+                let time_a = a.metadata().and_then(|m| m.modified()).ok();
+                let time_b = b.metadata().and_then(|m| m.modified()).ok();
+                time_b.cmp(&time_a)
+            });
+
+            // 只取前50张
+            for entry in images.into_iter().take(50) {
+                let path = entry.path();
+                let Some(name) = path.file_name() else {
+                    continue;
+                };
+                let archive_name = format!("on_error/{}", name.to_string_lossy());
+                add_file_to_zip(&mut zip, &path, &archive_name, options);
+            }
+        } else {
+            log::warn!("无法读取 on_error 目录");
+        }
+    }
+
+    zip.finish().map_err(|e| format!("完成压缩失败: {}", e))?;
+
+    Ok(zip_path.to_string_lossy().to_string())
 }

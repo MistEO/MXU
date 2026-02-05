@@ -77,10 +77,15 @@ jobs:
         with:
           targets: ${{ matrix.arch == 'x86_64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+          shared-key: "windows-${{ matrix.arch }}"
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -98,6 +103,10 @@ jobs:
           echo "Updated version to $VERSION"
 
       - name: Build Tauri app
+        env:
+          CARGO_INCREMENTAL: 0
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
         run: pnpm tauri build --no-bundle --target ${{ matrix.arch == 'x86_64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}
 
       - name: Prepare artifacts
@@ -146,10 +155,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+          shared-key: "linux-${{ matrix.arch }}"
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -166,6 +180,10 @@ jobs:
           echo "Updated version to $VERSION"
 
       - name: Build Tauri app
+        env:
+          CARGO_INCREMENTAL: 0
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
         run: pnpm tauri build --no-bundle
 
       - name: Prepare artifacts
@@ -209,10 +227,15 @@ jobs:
         with:
           targets: ${{ matrix.arch == 'x86_64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin' }}
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+          shared-key: "macos-${{ matrix.arch }}"
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -229,6 +252,10 @@ jobs:
           echo "Updated version to $VERSION"
 
       - name: Build Tauri app
+        env:
+          CARGO_INCREMENTAL: 0
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
         run: pnpm tauri build --no-bundle --target ${{ matrix.arch == 'x86_64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin' }}
 
       - name: Prepare artifacts

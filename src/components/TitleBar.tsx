@@ -5,11 +5,7 @@ import { useAppStore } from '@/stores/appStore';
 import { getInterfaceLangKey } from '@/i18n';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { loggers } from '@/utils/logger';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
+import { isTauri } from '@/utils/paths';
 
 // 平台类型
 type Platform = 'windows' | 'macos' | 'linux' | 'unknown';

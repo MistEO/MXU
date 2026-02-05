@@ -5,11 +5,7 @@ import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { loggers } from '@/utils/logger';
-
-// 检测是否在 Tauri 环境中
-const isTauri = () => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
-};
+import { isTauri, getDebugDir, openDirectory } from '@/utils/paths';
 
 export function LogsPanel() {
   const { t } = useTranslation();
@@ -20,7 +16,7 @@ export function LogsPanel() {
     activeInstanceId,
     instanceLogs,
     clearLogs,
-    basePath,
+    dataPath,
   } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
@@ -48,19 +44,17 @@ export function LogsPanel() {
 
   // 打开日志目录
   const handleOpenLogDir = useCallback(async () => {
-    if (!isTauri() || !basePath) {
+    if (!isTauri() || !dataPath) {
       return;
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const logPath = await join(basePath, 'debug');
-      await openPath(logPath);
+      const logPath = await getDebugDir();
+      await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
     }
-  }, [basePath]);
+  }, [dataPath]);
 
   const getLogColor = (type: LogType) => {
     switch (type) {
@@ -91,7 +85,7 @@ export function LogsPanel() {
           id: 'open-log-dir',
           label: t('settings.openLogDir'),
           icon: FolderOpen,
-          disabled: !isTauri() || !basePath,
+          disabled: !isTauri() || !dataPath,
           onClick: handleOpenLogDir,
         },
         {
@@ -124,7 +118,7 @@ export function LogsPanel() {
       t,
       logs.length,
       sidePanelExpanded,
-      basePath,
+      dataPath,
       handleOpenLogDir,
       handleCopyAll,
       handleClear,
@@ -168,10 +162,10 @@ export function LogsPanel() {
               e.stopPropagation();
               handleOpenLogDir();
             }}
-            disabled={!isTauri() || !basePath}
+            disabled={!isTauri() || !dataPath}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              !isTauri() || !basePath
+              !isTauri() || !dataPath
                 ? 'text-text-muted cursor-not-allowed'
                 : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}

@@ -158,6 +158,7 @@ export const useAppStore = create<AppState>()(
     projectInterface: null,
     interfaceTranslations: {},
     basePath: '.',
+    dataPath: '.',
     setProjectInterface: (pi) => set({ projectInterface: pi }),
     setInterfaceTranslations: (lang, translations) =>
       set((state) => ({
@@ -167,6 +168,7 @@ export const useAppStore = create<AppState>()(
         },
       })),
     setBasePath: (path) => set({ basePath: path }),
+    setDataPath: (path) => set({ dataPath: path }),
 
     // 多开实例
     instances: [],
@@ -723,14 +725,25 @@ export const useAppStore = create<AppState>()(
         // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 中不存在的），并清理已删除的 option
         const savedTasks: SelectedTask[] = inst.tasks
           .filter((t) => validTaskNames.has(t.taskName))
-          .map((t) => ({
-            id: t.id,
-            taskName: t.taskName,
-            customName: t.customName,
-            enabled: t.enabled,
-            optionValues: cleanOptionValues(t.optionValues),
-            expanded: false,
-          }));
+          .map((t) => {
+            const taskDef = pi?.task.find((td) => td.name === t.taskName);
+            const cleanedValues = cleanOptionValues(t.optionValues);
+            // 为缺失的 option 添加默认值（根据 default_case）
+            const defaultValues =
+              taskDef?.option && pi?.option
+                ? initializeAllOptionValues(taskDef.option, pi.option)
+                : {};
+            // 用户保存的值优先，缺失的使用默认值
+            const mergedValues = { ...defaultValues, ...cleanedValues };
+            return {
+              id: t.id,
+              taskName: t.taskName,
+              customName: t.customName,
+              enabled: t.enabled,
+              optionValues: mergedValues,
+              expanded: false,
+            };
+          });
 
         return {
           id: inst.id,
@@ -1478,7 +1491,7 @@ function debouncedSaveConfig() {
     const state = useAppStore.getState();
     const config = generateConfig();
     const projectName = state.projectInterface?.name;
-    saveConfig(state.basePath, config, projectName);
+    saveConfig(state.dataPath, config, projectName);
   }, 500);
 }
 

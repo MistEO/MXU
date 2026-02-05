@@ -214,6 +214,8 @@ export default {
     loadedFromFile: 'ローカルファイルから読み込み',
     loadedFromUrl: 'ネットワークから読み込み',
     loadDescriptionFailed: '読み込みに失敗しました',
+    searchPlaceholder: 'オプションを検索...',
+    noMatchingOptions: '一致するオプションがありません',
   },
 
   // コントローラー
@@ -371,6 +373,11 @@ export default {
     resetWindowSize: 'ウィンドウサイズをリセット',
     openConfigDir: '設定フォルダを開く',
     openLogDir: 'ログフォルダを開く',
+    exportLogs: 'ログをエクスポート',
+    exportLogsHint: 'すべてのログファイルを zip アーカイブにパック',
+    exportingLogs: 'ログをエクスポート中...',
+    logsExported: 'ログをエクスポートしました',
+    exportLogsFailed: 'ログのエクスポートに失敗しました',
     clearCache: 'キャッシュをクリア',
     cacheCleared: 'キャッシュをクリアしました',
     cacheStats: 'キャッシュ項目: {{count}} 件',
@@ -497,6 +504,9 @@ export default {
     restartRequired: 'アップデートがインストールされました。変更を適用するには再起動してください',
     restartNow: '今すぐ再起動',
     restarting: '再起動中...',
+    installerOpened: 'インストーラーが開きました',
+    installerOpenedHint:
+      'インストーラーの操作を完了してください。インストール完了後、このアプリを再起動してください',
     // アップデート完了後
     updateCompleteTitle: 'アップデート完了',
     updateCompleteMessage: '最新バージョンへのアップデートに成功しました',

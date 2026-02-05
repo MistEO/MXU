@@ -4,6 +4,27 @@
 
 use std::path::PathBuf;
 
+/// 获取应用数据目录
+/// - macOS: ~/Library/Application Support/MXU/
+/// - Windows/Linux: exe 所在目录（保持便携式部署）
+pub fn get_app_data_dir() -> Result<PathBuf, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").map_err(|_| "无法获取 HOME 环境变量".to_string())?;
+        let path = PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("MXU");
+        Ok(path)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Windows/Linux 保持便携式，使用 exe 所在目录
+        get_exe_directory()
+    }
+}
+
 /// 规范化路径：移除冗余的 `.`、处理 `..`、统一分隔符
 /// 使用 Path::components() 解析，不需要路径实际存在
 pub fn normalize_path(path: &str) -> PathBuf {
@@ -33,11 +54,18 @@ pub fn normalize_path(path: &str) -> PathBuf {
     components.into_iter().collect()
 }
 
-/// 获取 exe 所在目录下的 debug 子目录
+/// 获取日志目录（应用数据目录下的 debug 子目录）
 pub fn get_logs_dir() -> PathBuf {
-    let exe_path = std::env::current_exe().unwrap_or_default();
-    let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
-    exe_dir.join("debug")
+    get_app_data_dir()
+        .unwrap_or_else(|_| {
+            // 回退到 exe 目录
+            let exe_path = std::env::current_exe().unwrap_or_default();
+            exe_path
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf()
+        })
+        .join("debug")
 }
 
 /// 获取 exe 所在目录路径（内部使用）
@@ -51,13 +79,7 @@ pub fn get_exe_directory() -> Result<PathBuf, String> {
 
 /// 获取可执行文件所在目录下的 maafw 子目录
 pub fn get_maafw_dir() -> Result<PathBuf, String> {
-    let exe_path =
-        std::env::current_exe().map_err(|e| format!("Failed to get executable path: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "Failed to get executable directory".to_string())?;
-
-    Ok(exe_dir.join("maafw"))
+    Ok(get_exe_directory()?.join("maafw"))
 }
 
 /// 构建 User-Agent 字符串

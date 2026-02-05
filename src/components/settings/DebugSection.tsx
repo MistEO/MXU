@@ -1,20 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, Maximize2, FolderOpen, ScrollText, Trash2, Network } from 'lucide-react';
+import {
+  Bug,
+  RefreshCw,
+  Maximize2,
+  FolderOpen,
+  ScrollText,
+  Trash2,
+  Network,
+  Archive,
+} from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
 import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
-import { isTauri } from '@/utils/windowUtils';
+import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
+import { ExportLogsModal } from './ExportLogsModal';
 
 export function DebugSection() {
   const { t } = useTranslation();
   const {
     projectInterface,
-    basePath,
+    dataPath,
     devMode,
     setDevMode,
     saveDraw,
@@ -36,6 +46,12 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
+  const [exportModal, setExportModal] = useState<{
+    show: boolean;
+    status: 'exporting' | 'success' | 'error';
+    zipPath?: string;
+    error?: string;
+  }>({ show: false, status: 'exporting' });
   const [, setDebugLog] = useState<string[]>([]);
 
   const addDebugLog = useCallback((msg: string) => {
@@ -102,12 +118,12 @@ export function DebugSection() {
 
   // 加载缓存统计
   useEffect(() => {
-    if (isTauri() && basePath) {
-      getCacheStats(basePath).then((stats) => {
+    if (isTauri()) {
+      getCacheStats().then((stats) => {
         setCacheEntryCount(stats.entryCount);
       });
     }
-  }, [basePath]);
+  }, []);
 
   // 调试：重置窗口布局（尺寸和位置）
   const handleResetWindowLayout = async () => {
@@ -144,17 +160,15 @@ export function DebugSection() {
 
   // 调试：打开配置目录
   const handleOpenConfigDir = async () => {
-    if (!isTauri() || !basePath) {
-      loggers.ui.warn('仅 Tauri 环境支持打开目录, basePath:', basePath);
+    if (!isTauri() || !dataPath) {
+      loggers.ui.warn('仅 Tauri 环境支持打开目录, dataPath:', dataPath);
       return;
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const configPath = await join(basePath, 'config');
+      const configPath = await getConfigDir();
       loggers.ui.info('打开配置目录:', configPath);
-      await openPath(configPath);
+      await openDirectory(configPath);
     } catch (err) {
       loggers.ui.error('打开配置目录失败:', err);
     }
@@ -162,17 +176,15 @@ export function DebugSection() {
 
   // 调试：打开日志目录
   const handleOpenLogDir = async () => {
-    if (!isTauri() || !basePath) {
-      loggers.ui.warn('仅 Tauri 环境支持打开目录, basePath:', basePath);
+    if (!isTauri() || !dataPath) {
+      loggers.ui.warn('仅 Tauri 环境支持打开目录, dataPath:', dataPath);
       return;
     }
 
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { join } = await import('@tauri-apps/api/path');
-      const logPath = await join(basePath, 'debug');
+      const logPath = await getDebugDir();
       loggers.ui.info('打开日志目录:', logPath);
-      await openPath(logPath);
+      await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
     }
@@ -180,17 +192,47 @@ export function DebugSection() {
 
   // 调试：清空缓存
   const handleClearCache = async () => {
-    if (!isTauri() || !basePath) {
+    if (!isTauri() || !dataPath) {
       addDebugLog('仅 Tauri 环境支持清空缓存');
       return;
     }
 
     try {
-      await clearAllCache(basePath);
+      await clearAllCache();
       setCacheEntryCount(0);
       addDebugLog('缓存已清空');
     } catch (err) {
       addDebugLog(`清空缓存失败: ${err}`);
+    }
+  };
+
+  // 调试：导出日志
+  const handleExportLogs = async () => {
+    if (!isTauri()) {
+      addDebugLog('仅 Tauri 环境支持导出日志');
+      return;
+    }
+
+    setExportModal({ show: true, status: 'exporting' });
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const zipPath = await invoke<string>('export_logs');
+      loggers.ui.info('日志已导出:', zipPath);
+
+      setExportModal({ show: true, status: 'success', zipPath });
+
+      // 打开所在目录
+      const { openPath } = await import('@tauri-apps/plugin-opener');
+      const { dirname } = await import('@tauri-apps/api/path');
+      const dir = await dirname(zipPath);
+      await openPath(dir);
+    } catch (err) {
+      loggers.ui.error('导出日志失败:', err);
+      setExportModal({
+        show: true,
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   };
 
@@ -292,6 +334,15 @@ export function DebugSection() {
             {t('debug.openLogDir')}
           </button>
           <button
+            onClick={handleExportLogs}
+            disabled={exportModal.show && exportModal.status === 'exporting'}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50"
+            title={t('debug.exportLogsHint')}
+          >
+            <Archive className="w-4 h-4" />
+            {t('debug.exportLogs')}
+          </button>
+          <button
             onClick={handleClearCache}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
             title={
@@ -344,6 +395,15 @@ export function DebugSection() {
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
         </div>
       </div>
+
+      {/* 导出日志 Modal */}
+      <ExportLogsModal
+        show={exportModal.show}
+        status={exportModal.status}
+        zipPath={exportModal.zipPath}
+        error={exportModal.error}
+        onClose={() => setExportModal({ show: false, status: 'exporting' })}
+      />
     </section>
   );
 }

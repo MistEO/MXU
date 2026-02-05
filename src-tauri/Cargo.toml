@@ -34,7 +34,7 @@ libloading = "0.8"
 once_cell = "1.19"
 regex = "1.10"
 base64 = "0.22"
-zip = "2.2"
+zip = "7.2.0"
 flate2 = "1.0"
 tar = "0.4"
 tokio = { version = "1", features = ["rt"] }
@@ -43,6 +43,7 @@ futures-util = "0.3"
 libc = "0.2.180"
 semver = "1.0"
 os_info = "3"
+urlencoding = "2.1"
 
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析

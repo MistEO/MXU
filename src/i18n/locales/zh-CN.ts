@@ -213,6 +213,8 @@ export default {
     loadedFromFile: '内容来自本地文件',
     loadedFromUrl: '内容来自网络',
     loadDescriptionFailed: '加载失败',
+    searchPlaceholder: '搜索选项...',
+    noMatchingOptions: '无匹配选项',
   },
 
   // 控制器
@@ -369,6 +371,11 @@ export default {
     resetWindowLayout: '重置窗口布局',
     openConfigDir: '打开配置目录',
     openLogDir: '打开日志目录',
+    exportLogs: '导出日志',
+    exportLogsHint: '打包所有日志文件为 zip 压缩包',
+    exportingLogs: '正在导出日志...',
+    logsExported: '日志已导出',
+    exportLogsFailed: '导出日志失败',
     clearCache: '清空缓存',
     cacheCleared: '缓存已清空',
     cacheStats: '缓存条目: {{count}} 条',
@@ -492,6 +499,8 @@ export default {
     restartRequired: '更新已安装，请重启应用以生效',
     restartNow: '立即重启',
     restarting: '正在重启...',
+    installerOpened: '安装程序已打开',
+    installerOpenedHint: '请完成安装程序的操作，安装完成后重新启动本应用即可',
     // 更新完成后
     updateCompleteTitle: '更新完成',
     updateCompleteMessage: '已成功更新到最新版本',

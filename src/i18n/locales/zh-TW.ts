@@ -210,6 +210,8 @@ export default {
     loadedFromFile: '內容来自本機檔案',
     loadedFromUrl: '內容来自網路',
     loadDescriptionFailed: '載入失敗',
+    searchPlaceholder: '搜尋選項...',
+    noMatchingOptions: '無匹配選項',
   },
 
   // 控制器
@@ -366,6 +368,11 @@ export default {
     resetWindowSize: '重設視窗尺寸',
     openConfigDir: '開啟設定目錄',
     openLogDir: '開啟日誌目錄',
+    exportLogs: '匯出日誌',
+    exportLogsHint: '打包所有日誌檔案為 zip 壓縮包',
+    exportingLogs: '正在匯出日誌...',
+    logsExported: '日誌已匯出',
+    exportLogsFailed: '匯出日誌失敗',
     clearCache: '清空快取',
     cacheCleared: '快取已清空',
     cacheStats: '快取項目: {{count}} 條',
@@ -489,6 +496,8 @@ export default {
     restartRequired: '更新已安裝，請重啟應用程式以生效',
     restartNow: '立即重啟',
     restarting: '正在重啟...',
+    installerOpened: '安裝程式已開啟',
+    installerOpenedHint: '請完成安裝程式的操作，安裝完成後重新啟動本應用程式即可',
     // 更新完成後
     updateCompleteTitle: '更新完成',
     updateCompleteMessage: '已成功更新到最新版本',

@@ -194,7 +194,7 @@ export default {
     waitForExit: '等待进程退出',
     waitForExitHint: '开启后会等待程序执行完毕再继续，关闭则启动后立即继续',
     delaySeconds: '延迟等待',
-    delaySecondsHint: '启动程序后等待指定秒数再继续（0 表示不等待）',
+    delaySecondsHint: '启动程序后等待指定秒数再继续，可用于等待游戏启动完成',
     seconds: '秒',
     // 日志消息
     preActionStarting: '正在执行前置动作...',

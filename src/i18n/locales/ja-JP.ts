@@ -195,7 +195,7 @@ export default {
     waitForExit: '終了を待機',
     waitForExitHint: '有効にするとプログラムの完了を待機します。無効にすると即座に続行します。',
     delaySeconds: '遅延時間',
-    delaySecondsHint: 'プログラム起動後、指定秒数待機します（0は待機なし）',
+    delaySecondsHint: 'プログラム起動後、指定秒数待機します。ゲームの起動完了を待つのに便利です',
     seconds: '秒',
     // ログメッセージ
     preActionStarting: '前処理アクションを実行中...',

@@ -19,7 +19,7 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
-  delaySeconds: 0,
+  delaySeconds: 30,
 };
 
 export function ActionItem({ instanceId, type, action, disabled }: ActionItemProps) {

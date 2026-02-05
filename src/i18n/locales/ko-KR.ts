@@ -194,7 +194,7 @@ export default {
     waitForExit: '종료 대기',
     waitForExitHint: '활성화하면 프로그램이 완료될 때까지 대기합니다. 비활성화하면 즉시 계속됩니다.',
     delaySeconds: '지연 시간',
-    delaySecondsHint: '프로그램 시작 후 지정된 초 만큼 대기 (0은 대기 없음)',
+    delaySecondsHint: '프로그램 시작 후 지정된 초 만큼 대기, 게임 시작 완료를 기다리는 데 유용',
     seconds: '초',
     // 로그 메시지
     preActionStarting: '전처리 동작 실행 중...',

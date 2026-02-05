@@ -191,7 +191,7 @@ export default {
     waitForExit: '等待程序結束',
     waitForExitHint: '開啟後會等待程式執行完畢再繼續，關閉則啟動後立即繼續',
     delaySeconds: '延遲等待',
-    delaySecondsHint: '啟動程式後等待指定秒數再繼續（0 表示不等待）',
+    delaySecondsHint: '啟動程式後等待指定秒數再繼續，可用於等待遊戲啟動完成',
     seconds: '秒',
     // 日誌訊息
     preActionStarting: '正在執行前置動作...',

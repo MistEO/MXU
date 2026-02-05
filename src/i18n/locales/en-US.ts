@@ -198,7 +198,7 @@ export default {
     waitForExit: 'Wait for Exit',
     waitForExitHint: 'When enabled, waits for the program to finish before continuing. When disabled, continues immediately after starting.',
     delaySeconds: 'Delay',
-    delaySecondsHint: 'Wait for specified seconds after starting the program (0 means no delay)',
+    delaySecondsHint: 'Wait for specified seconds after starting the program, useful for waiting for game to launch',
     seconds: 'seconds',
     // Log messages
     preActionStarting: 'Running pre-action...',

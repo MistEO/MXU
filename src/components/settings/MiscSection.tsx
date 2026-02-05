@@ -1,12 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { SlidersHorizontal, AlertCircle, ScrollText } from 'lucide-react';
+import { SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { SwitchButton } from '@/components/FormControls';
 
 export function MiscSection() {
   const { t } = useTranslation();
-  const { confirmBeforeDelete, setConfirmBeforeDelete, maxLogsPerInstance, setMaxLogsPerInstance } =
-    useAppStore();
+  const { confirmBeforeDelete, setConfirmBeforeDelete } = useAppStore();
 
   return (
     <section id="section-misc" className="space-y-4 scroll-mt-4">
@@ -35,34 +34,6 @@ export function MiscSection() {
         </div>
       </div>
 
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ScrollText className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">
-                {t('settings.maxLogsPerInstance')}
-              </span>
-              <p className="text-xs text-text-muted mt-0.5">
-                {t('settings.maxLogsPerInstanceHint')}
-              </p>
-            </div>
-          </div>
-          <input
-            type="number"
-            min={100}
-            max={10000}
-            step={100}
-            value={maxLogsPerInstance}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (Number.isNaN(v)) return;
-              setMaxLogsPerInstance(v);
-            }}
-            className="no-spinner w-28 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50"
-          />
-        </div>
-      </div>
     </section>
   );
 }

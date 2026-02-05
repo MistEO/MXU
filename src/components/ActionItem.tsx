@@ -4,7 +4,7 @@ import { ChevronRight, X, Play, Flag } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
-import { FileField, TextField, SwitchField, NumberField } from './FormControls';
+import { FileField, TextField, SwitchField } from './FormControls';
 
 interface ActionItemProps {
   instanceId: string;
@@ -19,7 +19,6 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
-  delaySeconds: 30,
 };
 
 export function ActionItem({ instanceId, type, action, disabled }: ActionItemProps) {
@@ -177,20 +176,6 @@ export function ActionItem({ instanceId, type, action, disabled }: ActionItemPro
               onChange={(v) => updateAction({ waitForExit: v })}
               disabled={disabled}
             />
-
-            {/* 不等待时显示延迟输入框 */}
-            {!currentAction.waitForExit && (
-              <NumberField
-                label={t('action.delaySeconds')}
-                hint={t('action.delaySecondsHint')}
-                value={currentAction.delaySeconds}
-                onChange={(v) => updateAction({ delaySeconds: v })}
-                min={0}
-                step={5}
-                suffix={t('action.seconds')}
-                disabled={disabled}
-              />
-            )}
           </div>
         </div>
       </div>

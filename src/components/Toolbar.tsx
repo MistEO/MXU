@@ -200,7 +200,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 runningInstance.postAction.args,
                 basePath,
                 runningInstance.postAction.waitForExit ?? true,
-                runningInstance.postAction.delaySeconds ?? 0,
               ).then((exitCode) => {
                 if (exitCode !== 0) {
                   log.warn('后置动作退出码非零:', exitCode);
@@ -277,7 +276,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 runningInstance.postAction.args,
                 basePath,
                 runningInstance.postAction.waitForExit ?? true,
-                runningInstance.postAction.delaySeconds ?? 0,
               ).then((exitCode) => {
                 if (exitCode !== 0) {
                   log.warn('后置动作退出码非零:', exitCode);
@@ -423,7 +421,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               targetInstance.preAction.args,
               basePath,
               targetInstance.preAction.waitForExit ?? true,
-              targetInstance.preAction.delaySeconds ?? 0,
             );
             if (exitCode !== 0) {
               log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
@@ -436,6 +433,61 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 type: 'success',
                 message: t('action.preActionCompleted'),
               });
+            }
+
+            // 如果没勾选等待进程退出，则循环查找设备直到找到
+            if (!(targetInstance.preAction.waitForExit ?? true) && savedDevice && controller) {
+              log.info(`实例 ${targetInstance.name}: 等待设备就绪...`);
+              addLog(targetId, {
+                type: 'info',
+                message: t('action.waitingForDevice'),
+              });
+
+              const controllerType = controller.type;
+              let deviceFound = false;
+              let attempts = 0;
+              const maxAttempts = 300; // 最多等待 5 分钟
+
+              while (!deviceFound && attempts < maxAttempts) {
+                try {
+                  if (controllerType === 'Adb' && savedDevice.adbDeviceName) {
+                    const devices = await maaService.findAdbDevices();
+                    deviceFound = devices.some((d) => d.name === savedDevice.adbDeviceName);
+                  } else if (
+                    (controllerType === 'Win32' || controllerType === 'Gamepad') &&
+                    savedDevice.windowName
+                  ) {
+                    const classRegex = controller.win32?.class_regex || controller.gamepad?.class_regex;
+                    const windowRegex = controller.win32?.window_regex || controller.gamepad?.window_regex;
+                    const windows = await maaService.findWin32Windows(classRegex, windowRegex);
+                    deviceFound = windows.some((w) => w.window_name === savedDevice.windowName);
+                  } else {
+                    // 无法确定设备类型，跳过等待
+                    deviceFound = true;
+                  }
+                } catch (searchErr) {
+                  log.warn(`实例 ${targetInstance.name}: 设备搜索出错:`, searchErr);
+                }
+
+                if (!deviceFound) {
+                  attempts++;
+                  await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待 1 秒
+                }
+              }
+
+              if (deviceFound) {
+                log.info(`实例 ${targetInstance.name}: 设备已就绪`);
+                addLog(targetId, {
+                  type: 'success',
+                  message: t('action.deviceReady'),
+                });
+              } else {
+                log.warn(`实例 ${targetInstance.name}: 等待设备超时`);
+                addLog(targetId, {
+                  type: 'warning',
+                  message: t('action.deviceWaitTimeout'),
+                });
+              }
             }
           } catch (err) {
             log.error(`实例 ${targetInstance.name}: 前置动作执行失败:`, err);

@@ -209,20 +209,18 @@ pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
 /// args: 附加参数（空格分隔）
 /// cwd: 工作目录（可选，默认为程序所在目录）
 /// wait_for_exit: 是否等待进程退出
-/// delay_seconds: 不等待时的延迟秒数
 #[tauri::command]
 pub async fn run_action(
     program: String,
     args: String,
     cwd: Option<String>,
     wait_for_exit: bool,
-    delay_seconds: f64,
 ) -> Result<i32, String> {
     use std::process::Command;
 
     info!(
-        "run_action: program={}, args={}, wait={}, delay={}s",
-        program, args, wait_for_exit, delay_seconds
+        "run_action: program={}, args={}, wait={}",
+        program, args, wait_for_exit
     );
 
     // 解析参数字符串为参数数组（简单按空格分割，不处理引号）
@@ -266,14 +264,6 @@ pub async fn run_action(
             .map_err(|e| format!("Failed to spawn action: {} - {}", program, e))?;
 
         info!("run_action spawned (not waiting)");
-
-        // 如果设置了延迟，等待指定秒数
-        if delay_seconds > 0.0 {
-            let delay_ms = (delay_seconds * 1000.0) as u64;
-            info!("run_action delaying for {}ms", delay_ms);
-            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-        }
-
         Ok(0) // 不等待时返回 0
     }
 }

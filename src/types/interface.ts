@@ -182,7 +182,6 @@ export interface ActionConfig {
   program: string; // 程序路径
   args: string; // 附加参数
   waitForExit: boolean; // 是否等待进程退出（默认 true）
-  delaySeconds: number; // 不等待时的延迟秒数（默认 0）
 }
 
 // 多开实例状态

@@ -41,6 +41,7 @@ function PolicyCard({
   onToggleExpand: () => void;
 }) {
   const { t } = useTranslation();
+  const { confirmBeforeDelete } = useAppStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
@@ -134,7 +135,13 @@ function PolicyCard({
 
         {/* 删除按钮 */}
         <button
-          onClick={() => setShowDeleteConfirm(true)}
+          onClick={() => {
+            if (confirmBeforeDelete) {
+              setShowDeleteConfirm(true);
+            } else {
+              onDelete();
+            }
+          }}
           className="p-1 rounded hover:bg-error/10 text-text-muted hover:text-error"
           title={t('common.delete')}
         >

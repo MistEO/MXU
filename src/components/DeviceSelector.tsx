@@ -578,7 +578,11 @@ export function DeviceSelector({
                 ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-bg-hover hover:border-accent',
             )}
-            title={t('controller.refresh')}
+            title={
+              controllerType === 'Win32' || controllerType === 'Gamepad'
+                ? t('controller.refreshWindows')
+                : t('controller.refreshDevices')
+            }
           >
             {isSearching ? (
               <Loader2 className="w-4 h-4 animate-spin text-text-secondary" />

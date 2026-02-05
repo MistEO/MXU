@@ -196,11 +196,15 @@ export default {
     argsPlaceholder: 'Enter additional arguments (optional)',
     browse: 'Browse',
     waitForExit: 'Blocking Execution',
-    waitForExitHint: 'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+    waitForExitHintPre: 'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+    waitForExitHintPost: 'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, returns immediately after launching the process',
     // Log messages
     waitingForDevice: 'Waiting for device to be ready...',
+    waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',
+    windowReady: 'Window is ready',
     deviceWaitTimeout: 'Device wait timeout',
+    windowWaitTimeout: 'Window wait timeout',
     preActionStarting: 'Running pre-action...',
     preActionCompleted: 'Pre-action completed',
     preActionFailed: 'Pre-action failed: {{error}}',
@@ -234,6 +238,7 @@ export default {
     disconnected: 'Disconnected',
     connectionFailed: 'Connection failed',
     refreshDevices: 'Refresh Devices',
+    refreshWindows: 'Refresh Windows',
     refresh: 'Refresh Devices',
     connect: 'Connect',
     disconnect: 'Disconnect',
@@ -244,6 +249,7 @@ export default {
     playcoverHint: 'Enter PlayCover app listen address',
     lastSelected: 'Last selected · Click to search',
     savedDeviceNotFound: 'Previous device not found, please check connection or select another',
+    savedWindowNotFound: 'Previous window not found, please check connection or select another',
   },
 
   // Resource

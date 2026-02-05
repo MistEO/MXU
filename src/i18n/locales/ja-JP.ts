@@ -193,11 +193,15 @@ export default {
     argsPlaceholder: '追加引数を入力（オプション）',
     browse: '参照',
     waitForExit: 'ブロッキング実行',
-    waitForExitHint: '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
+    waitForExitHintPre: '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
+    waitForExitHintPost: '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに戻ります',
     // ログメッセージ
     waitingForDevice: 'デバイスの準備を待機中...',
+    waitingForWindow: 'ウィンドウの準備を待機中...',
     deviceReady: 'デバイスが準備完了',
+    windowReady: 'ウィンドウが準備完了',
     deviceWaitTimeout: 'デバイス待機タイムアウト',
+    windowWaitTimeout: 'ウィンドウ待機タイムアウト',
     preActionStarting: '前処理アクションを実行中...',
     preActionCompleted: '前処理アクション完了',
     preActionFailed: '前処理アクション失敗: {{error}}',
@@ -231,6 +235,7 @@ export default {
     disconnected: '未接続',
     connectionFailed: '接続に失敗しました',
     refreshDevices: 'デバイスを更新',
+    refreshWindows: 'ウィンドウを更新',
     refresh: 'デバイスを更新',
     connect: '接続',
     disconnect: '切断',
@@ -242,6 +247,8 @@ export default {
     lastSelected: '前回の選択 · クリックして検索',
     savedDeviceNotFound:
       '前回のデバイスが見つかりません。接続を確認するか、別のデバイスを選択してください',
+    savedWindowNotFound:
+      '前回のウィンドウが見つかりません。接続を確認するか、別のウィンドウを選択してください',
   },
 
   // リソース

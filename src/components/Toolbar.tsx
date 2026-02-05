@@ -437,13 +437,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
             // 如果没勾选等待进程退出，则循环查找设备直到找到
             if (!(targetInstance.preAction.waitForExit ?? true) && savedDevice && controller) {
-              log.info(`实例 ${targetInstance.name}: 等待设备就绪...`);
+              const controllerType = controller.type;
+              const isWindowType = controllerType === 'Win32' || controllerType === 'Gamepad';
+              log.info(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}就绪...`);
               addLog(targetId, {
                 type: 'info',
-                message: t('action.waitingForDevice'),
+                message: isWindowType ? t('action.waitingForWindow') : t('action.waitingForDevice'),
               });
-
-              const controllerType = controller.type;
               let deviceFound = false;
               let attempts = 0;
               const maxAttempts = 300; // 最多等待 5 分钟
@@ -462,11 +462,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                     const windows = await maaService.findWin32Windows(classRegex, windowRegex);
                     deviceFound = windows.some((w) => w.window_name === savedDevice.windowName);
                   } else {
-                    // 无法确定设备类型，跳过等待
+                    // 无法确定控制器类型，跳过等待
                     deviceFound = true;
                   }
                 } catch (searchErr) {
-                  log.warn(`实例 ${targetInstance.name}: 设备搜索出错:`, searchErr);
+                  log.warn(`实例 ${targetInstance.name}: ${isWindowType ? '窗口' : '设备'}搜索出错:`, searchErr);
                 }
 
                 if (!deviceFound) {
@@ -476,16 +476,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
 
               if (deviceFound) {
-                log.info(`实例 ${targetInstance.name}: 设备已就绪`);
+                log.info(`实例 ${targetInstance.name}: ${isWindowType ? '窗口' : '设备'}已就绪`);
                 addLog(targetId, {
                   type: 'success',
-                  message: t('action.deviceReady'),
+                  message: isWindowType ? t('action.windowReady') : t('action.deviceReady'),
                 });
               } else {
-                log.warn(`实例 ${targetInstance.name}: 等待设备超时`);
+                log.warn(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}超时`);
                 addLog(targetId, {
                   type: 'warning',
-                  message: t('action.deviceWaitTimeout'),
+                  message: isWindowType ? t('action.windowWaitTimeout') : t('action.deviceWaitTimeout'),
                 });
               }
             }

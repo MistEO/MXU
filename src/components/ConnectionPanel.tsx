@@ -527,7 +527,11 @@ export function ConnectionPanel() {
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
       } else {
-        throw new Error(t('controller.selectDevice'));
+        throw new Error(
+          controllerType === 'Win32' || controllerType === 'Gamepad'
+            ? t('controller.selectWindow')
+            : t('controller.selectDevice'),
+        );
       }
 
       await connectControllerInternal(config, deviceName, targetType);
@@ -836,7 +840,7 @@ export function ConnectionPanel() {
             return;
           }
           // 没找到匹配的，显示错误提示
-          setDeviceError(t('controller.savedDeviceNotFound'));
+          setDeviceError(t('controller.savedWindowNotFound'));
         }
 
         // 显示搜索结果供用户选择
@@ -1268,7 +1272,11 @@ export function ConnectionPanel() {
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-bg-hover hover:border-accent',
                   )}
-                  title={t('controller.refresh')}
+                  title={
+                    controllerType === 'Win32' || controllerType === 'Gamepad'
+                      ? t('controller.refreshWindows')
+                      : t('controller.refreshDevices')
+                  }
                 >
                   {isSearching ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />

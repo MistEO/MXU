@@ -171,7 +171,7 @@ export function ActionItem({ instanceId, type, action, disabled }: ActionItemPro
             {/* 等待进程退出开关 */}
             <SwitchField
               label={t('action.waitForExit')}
-              hint={t('action.waitForExitHint')}
+              hint={t(type === 'pre' ? 'action.waitForExitHintPre' : 'action.waitForExitHintPost')}
               value={currentAction.waitForExit}
               onChange={(v) => updateAction({ waitForExit: v })}
               disabled={disabled}

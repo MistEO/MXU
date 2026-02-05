@@ -969,12 +969,16 @@ export const useAppStore = create<AppState>()(
     // 前置/后置动作设置
     setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) =>
       set((state) => ({
-        instances: state.instances.map((i) => (i.id === instanceId ? { ...i, preAction: action } : i)),
+        instances: state.instances.map((i) =>
+          i.id === instanceId ? { ...i, preAction: action } : i,
+        ),
       })),
 
     setInstancePostAction: (instanceId: string, action: ActionConfig | undefined) =>
       set((state) => ({
-        instances: state.instances.map((i) => (i.id === instanceId ? { ...i, postAction: action } : i)),
+        instances: state.instances.map((i) =>
+          i.id === instanceId ? { ...i, postAction: action } : i,
+        ),
       })),
 
     // 设备列表缓存

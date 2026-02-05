@@ -27,10 +27,13 @@ export function ActionItem({ instanceId, type, action, disabled }: ActionItemPro
   const [expanded, setExpanded] = useState(false);
 
   // 当前动作配置（使用默认值填充缺失字段）
-  const currentAction = useMemo<ActionConfig>(() => ({
-    ...defaultAction,
-    ...action,
-  }), [action]);
+  const currentAction = useMemo<ActionConfig>(
+    () => ({
+      ...defaultAction,
+      ...action,
+    }),
+    [action],
+  );
 
   const setAction = type === 'pre' ? setInstancePreAction : setInstancePostAction;
 

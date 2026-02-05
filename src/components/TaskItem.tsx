@@ -162,7 +162,8 @@ function OptionListRenderer({
 
   // 将选项分组：连续 5 个以上无子选项的 switch 合并为网格
   const groups = useMemo(() => {
-    if (!projectInterface?.option) return optionKeys.map((k) => ({ type: 'single' as const, optionKey: k }));
+    if (!projectInterface?.option)
+      return optionKeys.map((k) => ({ type: 'single' as const, optionKey: k }));
 
     const result: OptionGroup[] = [];
     let currentSwitchGroup: string[] = [];
@@ -182,10 +183,9 @@ function OptionListRenderer({
 
     for (const optionKey of optionKeys) {
       const optionDef = projectInterface.option[optionKey];
-      
+
       // 判断是否为无子选项的 switch
-      const isSimpleSwitch =
-        optionDef?.type === 'switch' && !switchHasNestedOptions(optionDef);
+      const isSimpleSwitch = optionDef?.type === 'switch' && !switchHasNestedOptions(optionDef);
 
       if (isSimpleSwitch) {
         currentSwitchGroup.push(optionKey);

@@ -188,38 +188,43 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             }
 
             // 执行后置动作（如果启用且有程序路径）
-            const runningInstance = useAppStore.getState().instances.find(i => i.id === runningInstanceId);
+            const runningInstance = useAppStore
+              .getState()
+              .instances.find((i) => i.id === runningInstanceId);
             if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
               log.info('执行后置动作:', runningInstance.postAction.program);
               addLog(runningInstanceId, {
                 type: 'info',
                 message: t('action.postActionStarting'),
               });
-              maaService.runAction(
-                runningInstance.postAction.program,
-                runningInstance.postAction.args,
-                basePath,
-                runningInstance.postAction.waitForExit ?? true,
-              ).then((exitCode) => {
-                if (exitCode !== 0) {
-                  log.warn('后置动作退出码非零:', exitCode);
+              maaService
+                .runAction(
+                  runningInstance.postAction.program,
+                  runningInstance.postAction.args,
+                  basePath,
+                  runningInstance.postAction.waitForExit ?? true,
+                )
+                .then((exitCode) => {
+                  if (exitCode !== 0) {
+                    log.warn('后置动作退出码非零:', exitCode);
+                    addLog(runningInstanceId, {
+                      type: 'warning',
+                      message: t('action.postActionExitCode', { code: exitCode }),
+                    });
+                  } else {
+                    addLog(runningInstanceId, {
+                      type: 'success',
+                      message: t('action.postActionCompleted'),
+                    });
+                  }
+                })
+                .catch((err) => {
+                  log.error('后置动作执行失败:', err);
                   addLog(runningInstanceId, {
-                    type: 'warning',
-                    message: t('action.postActionExitCode', { code: exitCode }),
+                    type: 'error',
+                    message: t('action.postActionFailed', { error: String(err) }),
                   });
-                } else {
-                  addLog(runningInstanceId, {
-                    type: 'success',
-                    message: t('action.postActionCompleted'),
-                  });
-                }
-              }).catch((err) => {
-                log.error('后置动作执行失败:', err);
-                addLog(runningInstanceId, {
-                  type: 'error',
-                  message: t('action.postActionFailed', { error: String(err) }),
                 });
-              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Succeeded');
@@ -264,38 +269,43 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             }
 
             // 执行后置动作（即使有任务失败也执行，如果启用且有程序路径）
-            const runningInstance = useAppStore.getState().instances.find(i => i.id === runningInstanceId);
+            const runningInstance = useAppStore
+              .getState()
+              .instances.find((i) => i.id === runningInstanceId);
             if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
               log.info('执行后置动作:', runningInstance.postAction.program);
               addLog(runningInstanceId, {
                 type: 'info',
                 message: t('action.postActionStarting'),
               });
-              maaService.runAction(
-                runningInstance.postAction.program,
-                runningInstance.postAction.args,
-                basePath,
-                runningInstance.postAction.waitForExit ?? true,
-              ).then((exitCode) => {
-                if (exitCode !== 0) {
-                  log.warn('后置动作退出码非零:', exitCode);
+              maaService
+                .runAction(
+                  runningInstance.postAction.program,
+                  runningInstance.postAction.args,
+                  basePath,
+                  runningInstance.postAction.waitForExit ?? true,
+                )
+                .then((exitCode) => {
+                  if (exitCode !== 0) {
+                    log.warn('后置动作退出码非零:', exitCode);
+                    addLog(runningInstanceId, {
+                      type: 'warning',
+                      message: t('action.postActionExitCode', { code: exitCode }),
+                    });
+                  } else {
+                    addLog(runningInstanceId, {
+                      type: 'success',
+                      message: t('action.postActionCompleted'),
+                    });
+                  }
+                })
+                .catch((err) => {
+                  log.error('后置动作执行失败:', err);
                   addLog(runningInstanceId, {
-                    type: 'warning',
-                    message: t('action.postActionExitCode', { code: exitCode }),
+                    type: 'error',
+                    message: t('action.postActionFailed', { error: String(err) }),
                   });
-                } else {
-                  addLog(runningInstanceId, {
-                    type: 'success',
-                    message: t('action.postActionCompleted'),
-                  });
-                }
-              }).catch((err) => {
-                log.error('后置动作执行失败:', err);
-                addLog(runningInstanceId, {
-                  type: 'error',
-                  message: t('action.postActionFailed', { error: String(err) }),
                 });
-              });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Failed');
@@ -392,7 +402,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       // 检查是否有保存的设备配置
       const hasSavedDevice = Boolean(
         savedDevice &&
-          (savedDevice.adbDeviceName || savedDevice.windowName || savedDevice.playcoverAddress),
+        (savedDevice.adbDeviceName || savedDevice.windowName || savedDevice.playcoverAddress),
       );
 
       const isTargetConnected = instanceConnectionStatus[targetId] === 'Connected';
@@ -457,8 +467,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                     (controllerType === 'Win32' || controllerType === 'Gamepad') &&
                     savedDevice.windowName
                   ) {
-                    const classRegex = controller.win32?.class_regex || controller.gamepad?.class_regex;
-                    const windowRegex = controller.win32?.window_regex || controller.gamepad?.window_regex;
+                    const classRegex =
+                      controller.win32?.class_regex || controller.gamepad?.class_regex;
+                    const windowRegex =
+                      controller.win32?.window_regex || controller.gamepad?.window_regex;
                     const windows = await maaService.findWin32Windows(classRegex, windowRegex);
                     deviceFound = windows.some((w) => w.window_name === savedDevice.windowName);
                   } else {
@@ -466,7 +478,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                     deviceFound = true;
                   }
                 } catch (searchErr) {
-                  log.warn(`实例 ${targetInstance.name}: ${isWindowType ? '窗口' : '设备'}搜索出错:`, searchErr);
+                  log.warn(
+                    `实例 ${targetInstance.name}: ${isWindowType ? '窗口' : '设备'}搜索出错:`,
+                    searchErr,
+                  );
                 }
 
                 if (!deviceFound) {
@@ -485,7 +500,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 log.warn(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}超时`);
                 addLog(targetId, {
                   type: 'warning',
-                  message: isWindowType ? t('action.windowWaitTimeout') : t('action.deviceWaitTimeout'),
+                  message: isWindowType
+                    ? t('action.windowWaitTimeout')
+                    : t('action.deviceWaitTimeout'),
                 });
               }
             }

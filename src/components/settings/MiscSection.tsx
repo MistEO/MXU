@@ -27,13 +27,9 @@ export function MiscSection() {
               </p>
             </div>
           </div>
-          <SwitchButton
-            value={confirmBeforeDelete}
-            onChange={(v) => setConfirmBeforeDelete(v)}
-          />
+          <SwitchButton value={confirmBeforeDelete} onChange={(v) => setConfirmBeforeDelete(v)} />
         </div>
       </div>
-
     </section>
   );
 }

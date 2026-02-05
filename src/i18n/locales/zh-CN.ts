@@ -192,8 +192,10 @@ export default {
     argsPlaceholder: '输入附加参数（可选）',
     browse: '浏览',
     waitForExit: '阻塞执行',
-    waitForExitHintPre: '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
-    waitForExitHintPost: '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即返回',
+    waitForExitHintPre:
+      '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
+    waitForExitHintPost:
+      '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即返回',
     // 日志消息
     waitingForDevice: '正在等待设备就绪...',
     waitingForWindow: '正在等待窗口就绪...',

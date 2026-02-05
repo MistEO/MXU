@@ -189,8 +189,10 @@ export default {
     argsPlaceholder: '輸入附加參數（可選）',
     browse: '瀏覽',
     waitForExit: '阻塞執行',
-    waitForExitHintPre: '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
-    waitForExitHintPost: '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即返回',
+    waitForExitHintPre:
+      '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
+    waitForExitHintPost:
+      '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即返回',
     // 日誌訊息
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',

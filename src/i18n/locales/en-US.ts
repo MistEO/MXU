@@ -196,8 +196,10 @@ export default {
     argsPlaceholder: 'Enter additional arguments (optional)',
     browse: 'Browse',
     waitForExit: 'Blocking Execution',
-    waitForExitHintPre: 'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
-    waitForExitHintPost: 'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, returns immediately after launching the process',
+    waitForExitHintPre:
+      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+    waitForExitHintPost:
+      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, returns immediately after launching the process',
     // Log messages
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',

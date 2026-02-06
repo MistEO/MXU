@@ -42,7 +42,7 @@ export default {
     title: '설정',
     appearance: '외관',
     hotkeys: '단축키',
-    misc: '기타',
+    general: '일반',
     language: '언어',
     languageSystem: '시스템',
     theme: '테마',
@@ -89,6 +89,8 @@ export default {
       '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
+    resetWindowLayout: '창 레이아웃 초기화',
+    resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
   },
 
   // 작업 목록

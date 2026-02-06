@@ -42,7 +42,7 @@ export default {
     title: '設定',
     appearance: '外観',
     hotkeys: 'ショートカットキー',
-    misc: 'その他',
+    general: '一般',
     language: '言語',
     languageSystem: 'システム',
     theme: 'テーマ',
@@ -89,6 +89,8 @@ export default {
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
     maxLogsPerInstanceHint: '上限を超えると古いログから自動的に破棄します（推奨 500～2000）',
+    resetWindowLayout: 'ウィンドウレイアウトをリセット',
+    resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
   },
 
   // タスクリスト

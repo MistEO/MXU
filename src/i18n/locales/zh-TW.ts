@@ -42,7 +42,7 @@ export default {
     title: '設定',
     appearance: '外觀',
     hotkeys: '快捷鍵',
-    misc: '雜項',
+    general: '一般',
     language: '語言',
     languageSystem: '系統',
     theme: '主題',
@@ -88,6 +88,8 @@ export default {
     confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
+    resetWindowLayout: '重設視窗佈局',
+    resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
   },
 
   // 任務列表

@@ -43,7 +43,7 @@ export default {
     title: 'Settings',
     appearance: 'Appearance',
     hotkeys: 'Hotkeys',
-    misc: 'Misc',
+    general: 'General',
     language: 'Language',
     languageSystem: 'System',
     theme: 'Theme',

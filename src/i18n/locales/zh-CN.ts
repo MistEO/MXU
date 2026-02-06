@@ -43,7 +43,7 @@ export default {
     title: '设置',
     appearance: '外观',
     hotkeys: '快捷键',
-    misc: '杂项',
+    general: '通用',
     language: '语言',
     languageSystem: '系统',
     theme: '主题',

@@ -1,6 +1,6 @@
 import { type CSSProperties, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Palette, ListChecks } from 'lucide-react';
+import { Globe, Palette } from 'lucide-react';
 import clsx from 'clsx';
 import {
   DndContext,
@@ -14,9 +14,7 @@ import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 
 import { useAppStore } from '@/stores/appStore';
 import { getAccentInfoList, type AccentColor, type CustomAccent } from '@/themes';
-import { FrameRateSelector } from '../FrameRateSelector';
 import { SortableAccentTile } from './SortableAccentTile';
-import { SwitchButton } from '@/components/FormControls';
 
 interface AppearanceSectionProps {
   onOpenCreateAccentModal: () => void;
@@ -39,8 +37,6 @@ export function AppearanceSection({
     reorderCustomAccents,
     language,
     setLanguage,
-    showOptionPreview,
-    setShowOptionPreview,
   } = useAppStore();
 
   // 获取强调色列表（包含自定义强调色）
@@ -206,26 +202,6 @@ export function AppearanceSection({
         </DndContext>
       </div>
 
-      {/* 选项预览 */}
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ListChecks className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">
-                {t('settings.showOptionPreview')}
-              </span>
-              <p className="text-xs text-text-muted mt-0.5">
-                {t('settings.showOptionPreviewHint')}
-              </p>
-            </div>
-          </div>
-          <SwitchButton value={showOptionPreview} onChange={(v) => setShowOptionPreview(v)} />
-        </div>
-      </div>
-
-      {/* 实时截图帧率 */}
-      <FrameRateSelector />
     </section>
   );
 }

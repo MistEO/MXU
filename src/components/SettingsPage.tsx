@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Paintbrush, Key, SlidersHorizontal, Download, Bug, Info } from 'lucide-react';
+import { ArrowLeft, Paintbrush, Key, Settings2, Download, Bug, Info } from 'lucide-react';
 import clsx from 'clsx';
 
 import { useAppStore } from '@/stores/appStore';
@@ -9,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import {
   AppearanceSection,
   HotkeySection,
-  MiscSection,
+  GeneralSection,
   UpdateSection,
   DebugSection,
   AboutSection,
@@ -122,8 +122,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   // 目录索引配置
   const tocItems = useMemo(() => {
     const items = [{ id: 'appearance', icon: Paintbrush, labelKey: 'settings.appearance' }];
+    items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
     items.push({ id: 'hotkeys', icon: Key, labelKey: 'settings.hotkeys' });
-    items.push({ id: 'misc', icon: SlidersHorizontal, labelKey: 'settings.misc' });
     if (projectInterface?.mirrorchyan_rid) {
       items.push({ id: 'update', icon: Download, labelKey: 'mirrorChyan.title' });
     }
@@ -230,11 +230,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               onDeleteAccent={handleDeleteAccent}
             />
 
+            {/* 通用设置 */}
+            <GeneralSection />
+
             {/* 快捷键设置 */}
             <HotkeySection />
-
-            {/* 杂项设置 */}
-            <MiscSection />
 
             {/* MirrorChyan 更新设置 */}
             <UpdateSection />

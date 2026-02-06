@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Bug,
   RefreshCw,
-  Maximize2,
   FolderOpen,
   ScrollText,
   Trash2,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
-import { defaultWindowSize } from '@/types/config';
 import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
@@ -31,8 +29,6 @@ export function DebugSection() {
     setSaveDraw,
     tcpCompatMode,
     setTcpCompatMode,
-    setRightPanelWidth,
-    setRightPanelCollapsed,
   } = useAppStore();
 
   const [mxuVersion, setMxuVersion] = useState<string | null>(null);
@@ -124,39 +120,6 @@ export function DebugSection() {
       });
     }
   }, []);
-
-  // 调试：重置窗口布局（尺寸和位置）
-  const handleResetWindowLayout = async () => {
-    if (!isTauri()) {
-      addDebugLog('仅 Tauri 环境支持重置窗口布局');
-      return;
-    }
-
-    try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const { LogicalSize } = await import('@tauri-apps/api/dpi');
-      const currentWindow = getCurrentWindow();
-
-      // 重置窗口尺寸
-      await currentWindow.setSize(
-        new LogicalSize(defaultWindowSize.width, defaultWindowSize.height),
-      );
-
-      // 居中窗口（同时清除保存的位置）
-      await currentWindow.center();
-      useAppStore.getState().setWindowPosition(undefined);
-
-      // 同时也重置右侧面板尺寸和状态
-      setRightPanelWidth(320);
-      setRightPanelCollapsed(false);
-
-      addDebugLog(
-        `窗口布局已重置：尺寸 ${defaultWindowSize.width}x${defaultWindowSize.height}，位置居中`,
-      );
-    } catch (err) {
-      addDebugLog(`重置窗口布局失败: ${err}`);
-    }
-  };
 
   // 调试：打开配置目录
   const handleOpenConfigDir = async () => {
@@ -312,13 +275,6 @@ export function DebugSection() {
 
         {/* 操作按钮 */}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleResetWindowLayout}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
-          >
-            <Maximize2 className="w-4 h-4" />
-            {t('debug.resetWindowLayout')}
-          </button>
           <button
             onClick={handleOpenConfigDir}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"

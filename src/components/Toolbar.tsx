@@ -986,17 +986,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
-  const waitForTaskStop = async (
-    instanceId: string,
-    timeoutMs = 8000,
-    repostIntervalMs = 800,
-  ) => {
+  // 停止轮询 / 重发相关常量
+  const STOP_TIMEOUT_MS = 8000; // 等待任务停止的最长时间
+  const STOP_REPOST_INTERVAL_MS = 800; // 超时未停时重发 stop 的间隔
+  const STOP_POLL_INTERVAL_MS = 100; // 轮询 isRunning 的间隔
+
+  const waitForTaskStop = async (instanceId: string) => {
     const start = Date.now();
     let lastPost = start;
-    while (Date.now() - start < timeoutMs) {
+    while (Date.now() - start < STOP_TIMEOUT_MS) {
       const running = await maaService.isRunning(instanceId);
       if (!running) return true;
-      if (Date.now() - lastPost >= repostIntervalMs) {
+      if (Date.now() - lastPost >= STOP_REPOST_INTERVAL_MS) {
         try {
           await maaService.stopTask(instanceId);
           lastPost = Date.now();
@@ -1004,9 +1005,40 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           log.warn('重复停止任务失败:', err);
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, STOP_POLL_INTERVAL_MS));
     }
     return false;
+  };
+
+  /**
+   * 停止任务的统一流程：发送 stop → 轮询确认 → 断开 agent → 清理 UI 状态
+   * handleStartStop 和 handleStopTasks 共用此逻辑以保持行为一致。
+   */
+  const performStop = async (targetInstanceId: string) => {
+    if (isStopping) return;
+    setIsStopping(true);
+    try {
+      log.info('停止任务...', targetInstanceId);
+      await maaService.stopTask(targetInstanceId);
+      const stopped = await waitForTaskStop(targetInstanceId);
+      if (!stopped) {
+        log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
+        return;
+      }
+      if (projectInterface?.agent) {
+        // 任务已停止后再断开 agent，避免释放顺序问题
+        await maaService.stopAgent(targetInstanceId);
+      }
+      updateInstance(targetInstanceId, { isRunning: false });
+      setInstanceTaskStatus(targetInstanceId, null);
+      setInstanceCurrentTaskId(targetInstanceId, null);
+      clearTaskRunStatus(targetInstanceId);
+      clearPendingTasks(targetInstanceId);
+      clearScheduleExecution(targetInstanceId);
+      runningInstanceIdRef.current = null;
+    } finally {
+      setIsStopping(false);
+    }
   };
 
   const handleStartStop = async () => {
@@ -1015,31 +1047,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     if (instance.isRunning) {
       // 停止任务
       try {
-        if (isStopping) return;
-        log.info('停止任务...');
-        setIsStopping(true);
-        await maaService.stopTask(instance.id);
-        const stopped = await waitForTaskStop(instance.id);
-        if (!stopped) {
-          log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
-        } else {
-          if (projectInterface?.agent) {
-            // 任务已停止后再断开 agent，避免释放顺序问题
-            await maaService.stopAgent(instance.id);
-          }
-          updateInstance(instance.id, { isRunning: false });
-          setInstanceTaskStatus(instance.id, null);
-          setInstanceCurrentTaskId(instance.id, null);
-          // 清空任务运行状态和定时执行状态
-          clearTaskRunStatus(instance.id);
-          clearPendingTasks(instance.id);
-          clearScheduleExecution(instance.id);
-          runningInstanceIdRef.current = null;
-        }
+        await performStop(instance.id);
       } catch (err) {
         log.error('停止任务失败:', err);
-      } finally {
-        setIsStopping(false);
       }
     } else {
       // 启动任务
@@ -1135,24 +1145,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       });
 
       try {
-        log.info('停止任务:', runningInstance.id);
-        setIsStopping(true);
-        await maaService.stopTask(runningInstance.id);
-        const stopped = await waitForTaskStop(runningInstance.id);
-        if (!stopped) {
-          log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
-        } else {
-          if (projectInterface?.agent) {
-            await maaService.stopAgent(runningInstance.id);
-          }
-          updateInstance(runningInstance.id, { isRunning: false });
-          setInstanceTaskStatus(runningInstance.id, null);
-          setInstanceCurrentTaskId(runningInstance.id, null);
-          clearTaskRunStatus(runningInstance.id);
-          clearPendingTasks(runningInstance.id);
-          clearScheduleExecution(runningInstance.id);
-          runningInstanceIdRef.current = null;
-        }
+        await performStop(runningInstance.id);
 
         addLog(runningInstance.id, {
           type: 'success',
@@ -1164,8 +1157,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           type: 'error',
           message: t('logs.messages.hotkeyStopFailed'),
         });
-      } finally {
-        setIsStopping(false);
       }
     };
 

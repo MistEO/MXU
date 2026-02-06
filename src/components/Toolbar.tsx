@@ -986,27 +986,56 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
+  const waitForTaskStop = async (
+    instanceId: string,
+    timeoutMs = 8000,
+    repostIntervalMs = 800,
+  ) => {
+    const start = Date.now();
+    let lastPost = start;
+    while (Date.now() - start < timeoutMs) {
+      const running = await maaService.isRunning(instanceId);
+      if (!running) return true;
+      if (Date.now() - lastPost >= repostIntervalMs) {
+        try {
+          await maaService.stopTask(instanceId);
+          lastPost = Date.now();
+        } catch (err) {
+          log.warn('重复停止任务失败:', err);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  };
+
   const handleStartStop = async () => {
     if (!instance) return;
 
     if (instance.isRunning) {
       // 停止任务
       try {
+        if (isStopping) return;
         log.info('停止任务...');
         setIsStopping(true);
         await maaService.stopTask(instance.id);
-        // 如果配置了 agent，也停止 agent
-        if (projectInterface?.agent) {
-          await maaService.stopAgent(instance.id);
+        const stopped = await waitForTaskStop(instance.id);
+        if (!stopped) {
+          log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
+        } else {
+          if (projectInterface?.agent) {
+            // 任务已停止后再断开 agent，避免释放顺序问题
+            await maaService.stopAgent(instance.id);
+          }
+          updateInstance(instance.id, { isRunning: false });
+          setInstanceTaskStatus(instance.id, null);
+          setInstanceCurrentTaskId(instance.id, null);
+          // 清空任务运行状态和定时执行状态
+          clearTaskRunStatus(instance.id);
+          clearPendingTasks(instance.id);
+          clearScheduleExecution(instance.id);
+          runningInstanceIdRef.current = null;
         }
-        updateInstance(instance.id, { isRunning: false });
-        setInstanceTaskStatus(instance.id, null);
-        setInstanceCurrentTaskId(instance.id, null);
-        // 清空任务运行状态和定时执行状态
-        clearTaskRunStatus(instance.id);
-        clearPendingTasks(instance.id);
-        clearScheduleExecution(instance.id);
-        runningInstanceIdRef.current = null;
       } catch (err) {
         log.error('停止任务失败:', err);
       } finally {
@@ -1091,6 +1120,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     const handleStopTasks = async (evt: Event) => {
       const runningInstance = useAppStore.getState().instances.find((i) => i.isRunning);
       if (!runningInstance) return;
+      if (isStopping) return;
 
       const detail = (evt as CustomEvent | undefined)?.detail as
         | { source?: string; combo?: string }
@@ -1106,17 +1136,23 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
       try {
         log.info('停止任务:', runningInstance.id);
+        setIsStopping(true);
         await maaService.stopTask(runningInstance.id);
-        if (projectInterface?.agent) {
-          await maaService.stopAgent(runningInstance.id);
+        const stopped = await waitForTaskStop(runningInstance.id);
+        if (!stopped) {
+          log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
+        } else {
+          if (projectInterface?.agent) {
+            await maaService.stopAgent(runningInstance.id);
+          }
+          updateInstance(runningInstance.id, { isRunning: false });
+          setInstanceTaskStatus(runningInstance.id, null);
+          setInstanceCurrentTaskId(runningInstance.id, null);
+          clearTaskRunStatus(runningInstance.id);
+          clearPendingTasks(runningInstance.id);
+          clearScheduleExecution(runningInstance.id);
+          runningInstanceIdRef.current = null;
         }
-        updateInstance(runningInstance.id, { isRunning: false });
-        setInstanceTaskStatus(runningInstance.id, null);
-        setInstanceCurrentTaskId(runningInstance.id, null);
-        clearTaskRunStatus(runningInstance.id);
-        clearPendingTasks(runningInstance.id);
-        clearScheduleExecution(runningInstance.id);
-        runningInstanceIdRef.current = null;
 
         addLog(runningInstance.id, {
           type: 'success',
@@ -1128,6 +1164,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           type: 'error',
           message: t('logs.messages.hotkeyStopFailed'),
         });
+      } finally {
+        setIsStopping(false);
       }
     };
 

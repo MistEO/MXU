@@ -26,8 +26,8 @@ pub fn maa_get_instance_state(
     let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
     let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
-    let instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get_mut(&instance_id).ok_or("Instance not found")?;
 
     // 通过 Maa API 查询真实状态
     let connected = instance.controller.map_or(false, |ctrl| unsafe {
@@ -45,6 +45,10 @@ pub fn maa_get_instance_state(
     let is_running = instance.tasker.map_or(false, |tasker| unsafe {
         (lib.maa_tasker_running)(tasker) != 0
     });
+    if !is_running && instance.stop_in_progress {
+        instance.stop_in_progress = false;
+        instance.stop_started_at = None;
+    }
 
     Ok(InstanceState {
         connected,
@@ -63,7 +67,7 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
     let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
     let lib = guard.as_ref();
 
-    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let cached_adb = state.cached_adb_devices.lock().map_err(|e| e.to_string())?;
     let cached_win32 = state
         .cached_win32_windows
@@ -74,7 +78,7 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
 
     // 如果 MaaFramework 未初始化，返回空状态
     if let Some(lib) = lib {
-        for (id, instance) in instances.iter() {
+        for (id, instance) in instances.iter_mut() {
             // 通过 Maa API 查询真实状态
             let connected = instance.controller.map_or(false, |ctrl| unsafe {
                 (lib.maa_controller_connected)(ctrl) != 0
@@ -91,6 +95,10 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
             let is_running = instance.tasker.map_or(false, |tasker| unsafe {
                 (lib.maa_tasker_running)(tasker) != 0
             });
+        if !is_running && instance.stop_in_progress {
+            instance.stop_in_progress = false;
+            instance.stop_started_at = None;
+        }
 
             instance_states.insert(
                 id.clone(),

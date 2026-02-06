@@ -219,9 +219,7 @@ export interface AppState {
   // 设备信息保存
   setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
 
-  // 前置/后置动作设置
   setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) => void;
-  setInstancePostAction: (instanceId: string, action: ActionConfig | undefined) => void;
 
   // 设备列表缓存
   cachedAdbDevices: AdbDevice[];

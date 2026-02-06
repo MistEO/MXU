@@ -183,10 +183,8 @@ export default {
     invalidInput: '輸入格式不正確',
   },
 
-  // 前置/後置動作
   action: {
     preAction: '前置動作',
-    postAction: '後置動作',
     program: '程式路徑',
     programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
     args: '附加參數',
@@ -195,9 +193,6 @@ export default {
     waitForExit: '阻塞執行',
     waitForExitHintPre:
       '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
-    waitForExitHintPost:
-      '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即返回',
-    // 日誌訊息
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',
     deviceReady: '裝置已就緒',
@@ -208,10 +203,6 @@ export default {
     preActionCompleted: '前置動作執行完成',
     preActionFailed: '前置動作執行失敗: {{error}}',
     preActionExitCode: '前置動作結束碼: {{code}}',
-    postActionStarting: '正在執行後置動作...',
-    postActionCompleted: '後置動作執行完成',
-    postActionFailed: '後置動作執行失敗: {{error}}',
-    postActionExitCode: '後置動作結束碼: {{code}}',
   },
 
   // 選項編輯器

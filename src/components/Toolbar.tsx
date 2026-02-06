@@ -187,46 +187,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               });
             }
 
-            // 执行后置动作（如果启用且有程序路径）
-            const runningInstance = useAppStore
-              .getState()
-              .instances.find((i) => i.id === runningInstanceId);
-            if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
-              log.info('执行后置动作:', runningInstance.postAction.program);
-              addLog(runningInstanceId, {
-                type: 'info',
-                message: t('action.postActionStarting'),
-              });
-              maaService
-                .runAction(
-                  runningInstance.postAction.program,
-                  runningInstance.postAction.args,
-                  basePath,
-                  runningInstance.postAction.waitForExit ?? true,
-                )
-                .then((exitCode) => {
-                  if (exitCode !== 0) {
-                    log.warn('后置动作退出码非零:', exitCode);
-                    addLog(runningInstanceId, {
-                      type: 'warning',
-                      message: t('action.postActionExitCode', { code: exitCode }),
-                    });
-                  } else {
-                    addLog(runningInstanceId, {
-                      type: 'success',
-                      message: t('action.postActionCompleted'),
-                    });
-                  }
-                })
-                .catch((err) => {
-                  log.error('后置动作执行失败:', err);
-                  addLog(runningInstanceId, {
-                    type: 'error',
-                    message: t('action.postActionFailed', { error: String(err) }),
-                  });
-                });
-            }
-
             setInstanceTaskStatus(runningInstanceId, 'Succeeded');
             updateInstance(runningInstanceId, { isRunning: false });
             setInstanceCurrentTaskId(runningInstanceId, null);
@@ -266,46 +226,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
-            }
-
-            // 执行后置动作（即使有任务失败也执行，如果启用且有程序路径）
-            const runningInstance = useAppStore
-              .getState()
-              .instances.find((i) => i.id === runningInstanceId);
-            if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
-              log.info('执行后置动作:', runningInstance.postAction.program);
-              addLog(runningInstanceId, {
-                type: 'info',
-                message: t('action.postActionStarting'),
-              });
-              maaService
-                .runAction(
-                  runningInstance.postAction.program,
-                  runningInstance.postAction.args,
-                  basePath,
-                  runningInstance.postAction.waitForExit ?? true,
-                )
-                .then((exitCode) => {
-                  if (exitCode !== 0) {
-                    log.warn('后置动作退出码非零:', exitCode);
-                    addLog(runningInstanceId, {
-                      type: 'warning',
-                      message: t('action.postActionExitCode', { code: exitCode }),
-                    });
-                  } else {
-                    addLog(runningInstanceId, {
-                      type: 'success',
-                      message: t('action.postActionCompleted'),
-                    });
-                  }
-                })
-                .catch((err) => {
-                  log.error('后置动作执行失败:', err);
-                  addLog(runningInstanceId, {
-                    type: 'error',
-                    message: t('action.postActionFailed', { error: String(err) }),
-                  });
-                });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Failed');

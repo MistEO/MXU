@@ -204,7 +204,7 @@ pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
     }
 }
 
-/// 执行前置/后置动作（运行程序并等待其退出）
+/// Run pre-action (launch program and optionally wait for exit)
 /// program: 程序路径
 /// args: 附加参数（空格分隔）
 /// cwd: 工作目录（可选，默认为程序所在目录）

@@ -187,10 +187,8 @@ export default {
     invalidInput: '入力形式が正しくありません',
   },
 
-  // 前処理/後処理アクション
   action: {
     preAction: '前処理アクション',
-    postAction: '後処理アクション',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
     args: '追加引数',
@@ -199,9 +197,6 @@ export default {
     waitForExit: 'ブロッキング実行',
     waitForExitHintPre:
       '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
-    waitForExitHintPost:
-      '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに戻ります',
-    // ログメッセージ
     waitingForDevice: 'デバイスの準備を待機中...',
     waitingForWindow: 'ウィンドウの準備を待機中...',
     deviceReady: 'デバイスが準備完了',
@@ -212,10 +207,6 @@ export default {
     preActionCompleted: '前処理アクション完了',
     preActionFailed: '前処理アクション失敗: {{error}}',
     preActionExitCode: '前処理アクション終了コード: {{code}}',
-    postActionStarting: '後処理アクションを実行中...',
-    postActionCompleted: '後処理アクション完了',
-    postActionFailed: '後処理アクション失敗: {{error}}',
-    postActionExitCode: '後処理アクション終了コード: {{code}}',
   },
 
   // オプションエディタ

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Plus, Sparkles, Loader2, AlertCircle, Play, Flag } from 'lucide-react';
+import { Search, Plus, Sparkles, Loader2, AlertCircle, Play } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -141,9 +141,7 @@ export function AddTaskPanel() {
     // 新增任务标记
     newTaskNames,
     removeNewTaskName,
-    // 前后置动作
     setInstancePreAction,
-    setInstancePostAction,
   } = useAppStore();
 
   const instance = getActiveInstance();
@@ -318,10 +316,8 @@ export function AddTaskPanel() {
               </div>
             )}
 
-            {/* 特殊任务：前后置动作 - 仅在有未添加的特殊任务时显示 */}
-            {instance && (!instance.preAction || !instance.postAction) && (
+            {instance && !instance.preAction && (
               <>
-                {/* 分割线 */}
                 <div className="flex items-center gap-3 pt-1">
                   <div className="flex-1 h-px bg-border/50" />
                   <span className="text-[10px] text-text-muted/60 uppercase tracking-wider">
@@ -330,38 +326,19 @@ export function AddTaskPanel() {
                   <div className="flex-1 h-px bg-border/50" />
                 </div>
 
-                {/* 特殊任务按钮 */}
                 <div className="flex gap-2">
-                  {/* 前置动作 */}
-                  {!instance.preAction && (
-                    <button
-                      onClick={() => setInstancePreAction(instance.id, defaultAction)}
-                      disabled={instance.isRunning}
-                      className={clsx(
-                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                        'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
-                        instance.isRunning && 'opacity-50 cursor-not-allowed',
-                      )}
-                    >
-                      <Play className="w-3.5 h-3.5 text-success/80" />
-                      <span>{t('action.preAction')}</span>
-                    </button>
-                  )}
-                  {/* 后置动作 */}
-                  {!instance.postAction && (
-                    <button
-                      onClick={() => setInstancePostAction(instance.id, defaultAction)}
-                      disabled={instance.isRunning}
-                      className={clsx(
-                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                        'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
-                        instance.isRunning && 'opacity-50 cursor-not-allowed',
-                      )}
-                    >
-                      <Flag className="w-3.5 h-3.5 text-warning/80" />
-                      <span>{t('action.postAction')}</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setInstancePreAction(instance.id, defaultAction)}
+                    disabled={instance.isRunning}
+                    className={clsx(
+                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                      'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                      instance.isRunning && 'opacity-50 cursor-not-allowed',
+                    )}
+                  >
+                    <Play className="w-3.5 h-3.5 text-success/80" />
+                    <span>{t('action.preAction')}</span>
+                  </button>
                 </div>
               </>
             )}

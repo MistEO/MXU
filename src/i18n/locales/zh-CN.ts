@@ -184,10 +184,8 @@ export default {
     invalidInput: '输入格式不正确',
   },
 
-  // 前置/后置动作
   action: {
     preAction: '前置动作',
-    postAction: '后置动作',
     program: '程序路径',
     programPlaceholder: '输入程序路径或点击右侧浏览...',
     args: '附加参数',
@@ -196,9 +194,6 @@ export default {
     waitForExit: '阻塞执行',
     waitForExitHintPre:
       '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
-    waitForExitHintPost:
-      '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即返回',
-    // 日志消息
     waitingForDevice: '正在等待设备就绪...',
     waitingForWindow: '正在等待窗口就绪...',
     deviceReady: '设备已就绪',
@@ -209,10 +204,6 @@ export default {
     preActionCompleted: '前置动作执行完成',
     preActionFailed: '前置动作执行失败: {{error}}',
     preActionExitCode: '前置动作退出码: {{code}}',
-    postActionStarting: '正在执行后置动作...',
-    postActionCompleted: '后置动作执行完成',
-    postActionFailed: '后置动作执行失败: {{error}}',
-    postActionExitCode: '后置动作退出码: {{code}}',
   },
 
   // 选项编辑器

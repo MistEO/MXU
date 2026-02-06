@@ -188,10 +188,8 @@ export default {
     invalidInput: 'Invalid input format',
   },
 
-  // Pre/Post Actions
   action: {
     preAction: 'Pre-Action',
-    postAction: 'Post-Action',
     program: 'Program Path',
     programPlaceholder: 'Enter program path or browse...',
     args: 'Arguments',
@@ -200,9 +198,6 @@ export default {
     waitForExit: 'Blocking Execution',
     waitForExitHintPre:
       'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
-    waitForExitHintPost:
-      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, returns immediately after launching the process',
-    // Log messages
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',
@@ -213,10 +208,6 @@ export default {
     preActionCompleted: 'Pre-action completed',
     preActionFailed: 'Pre-action failed: {{error}}',
     preActionExitCode: 'Pre-action exit code: {{code}}',
-    postActionStarting: 'Running post-action...',
-    postActionCompleted: 'Post-action completed',
-    postActionFailed: 'Post-action failed: {{error}}',
-    postActionExitCode: 'Post-action exit code: {{code}}',
   },
 
   // Option Editor

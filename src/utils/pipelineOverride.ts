@@ -1,7 +1,10 @@
 /**
  * Pipeline Override 生成工具
  * 用于生成任务的 pipeline_override JSON
- * MaaFramework 支持数组格式的 pipeline_override，会按顺序依次合并
+ *
+ * 所有选项的 pipeline_override 先在客户端深合并为单个对象，再传给 MaaFramework。
+ * 这保证嵌套字段（如 custom_action_param 内部的 map）能正确累加，
+ * 而非被后续 override 整体覆盖。
  */
 
 import type {
@@ -13,6 +16,38 @@ import type {
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
 import { createDefaultOptionValue } from '@/stores/helpers';
+
+/**
+ * 递归深合并两个对象（source 覆盖 target 的同名 key）。
+ * - 对象 + 对象 → 递归合并
+ * - 其它类型 → source 替换 target
+ */
+function deepMergeObjects(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    const tVal = result[key];
+    const sVal = source[key];
+    if (
+      tVal &&
+      sVal &&
+      typeof tVal === 'object' &&
+      typeof sVal === 'object' &&
+      !Array.isArray(tVal) &&
+      !Array.isArray(sVal)
+    ) {
+      result[key] = deepMergeObjects(
+        tVal as Record<string, unknown>,
+        sVal as Record<string, unknown>,
+      );
+    } else {
+      result[key] = sVal;
+    }
+  }
+  return result;
+}
 
 /**
  * 递归处理选项的 pipeline_override，收集到数组中
@@ -117,5 +152,12 @@ export const generateTaskPipelineOverride = (
     }
   }
 
-  return JSON.stringify(overrides);
+  // 深合并所有 override 为单个对象，避免 MaaFramework 按数组顺序覆盖
+  // 导致 custom_action_param 等嵌套字段丢失先前值。
+  const merged = overrides.reduce<Record<string, unknown>>(
+    (acc, cur) => deepMergeObjects(acc, cur),
+    {},
+  );
+  // MaaFramework 支持单对象或数组，此处直接传单对象
+  return JSON.stringify(merged);
 };

@@ -1,11 +1,16 @@
 import { useTranslation } from 'react-i18next';
-import { SlidersHorizontal, AlertCircle } from 'lucide-react';
+import { SlidersHorizontal, AlertCircle, AppWindowMac } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { SwitchButton } from '@/components/FormControls';
 
 export function MiscSection() {
   const { t } = useTranslation();
-  const { confirmBeforeDelete, setConfirmBeforeDelete } = useAppStore();
+  const {
+    confirmBeforeDelete,
+    setConfirmBeforeDelete,
+    minimizeToTray,
+    setMinimizeToTray,
+  } = useAppStore();
 
   return (
     <section id="section-misc" className="space-y-4 scroll-mt-4">
@@ -13,6 +18,23 @@ export function MiscSection() {
         <SlidersHorizontal className="w-4 h-4" />
         {t('settings.misc')}
       </h2>
+
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AppWindowMac className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.minimizeToTray')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.minimizeToTrayHint')}
+              </p>
+            </div>
+          </div>
+          <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
+        </div>
+      </div>
 
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">
         <div className="flex items-center justify-between">

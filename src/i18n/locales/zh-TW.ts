@@ -82,6 +82,8 @@ export default {
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
     hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
+    minimizeToTray: '關閉時最小化到托盤',
+    minimizeToTrayHint: '點選關閉按鈕時隱藏到系統托盤而非退出程式',
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',

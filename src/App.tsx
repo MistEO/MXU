@@ -903,6 +903,45 @@ function App() {
     };
   }, [hotkeys?.globalEnabled, hotkeys?.startTasks, hotkeys?.stopTasks]);
 
+  // 监听托盘菜单事件（开始/停止任务）
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    let unlistenStart: (() => void) | null = null;
+    let unlistenStop: (() => void) | null = null;
+
+    const setupTrayListeners = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+
+        unlistenStart = await listen('tray-start-tasks', () => {
+          log.info('收到托盘开始任务事件');
+          document.dispatchEvent(
+            new CustomEvent('mxu-start-tasks', { detail: { source: 'tray' } }),
+          );
+        });
+
+        unlistenStop = await listen('tray-stop-tasks', () => {
+          log.info('收到托盘停止任务事件');
+          document.dispatchEvent(
+            new CustomEvent('mxu-stop-tasks', { detail: { source: 'tray' } }),
+          );
+        });
+
+        log.info('托盘事件监听已注册');
+      } catch (err) {
+        log.warn('注册托盘事件监听失败:', err);
+      }
+    };
+
+    setupTrayListeners();
+
+    return () => {
+      if (unlistenStart) unlistenStart();
+      if (unlistenStop) unlistenStop();
+    };
+  }, []);
+
   // 设置页面
   if (currentPage === 'settings') {
     return (

@@ -12,6 +12,7 @@
 //! - `update`: 更新安装相关命令
 //! - `download`: 下载相关命令
 //! - `system`: 系统相关命令
+//! - `tray`: 托盘相关命令
 
 pub mod types;
 pub mod utils;
@@ -22,6 +23,7 @@ pub mod maa_agent;
 pub mod maa_core;
 pub mod state;
 pub mod system;
+pub mod tray;
 pub mod update;
 
 // 重新导出类型（供 lib.rs 使用）

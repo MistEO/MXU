@@ -131,6 +131,7 @@ export interface AppSettings {
   onboardingCompleted?: boolean; // 新用户引导是否已完成
   hotkeys?: HotkeySettings; // 快捷键设置
   tcpCompatMode?: boolean; // 通信兼容模式，强制使用 TCP 而非 IPC
+  minimizeToTray?: boolean; // 关闭时最小化到托盘（默认 false）
 }
 
 // MXU 配置文件完整结构

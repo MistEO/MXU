@@ -828,6 +828,7 @@ export const useAppStore = create<AppState>()(
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
+        minimizeToTray: config.settings.minimizeToTray ?? false,
         onboardingCompleted: config.settings.onboardingCompleted ?? false,
         hotkeys: config.settings.hotkeys ?? {
           startTasks: 'F10',
@@ -845,6 +846,16 @@ export const useAppStore = create<AppState>()(
       const mode = resolveThemeMode(theme);
       applyTheme(mode, accentColor);
       setI18nLanguage(config.settings.language);
+
+      // 同步托盘设置到后端
+      const minimizeToTray = config.settings.minimizeToTray ?? false;
+      if (minimizeToTray) {
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+          invoke('set_minimize_to_tray', { enabled: minimizeToTray }).catch((err) => {
+            loggers.app.error('同步托盘设置失败:', err);
+          });
+        });
+      }
     },
 
     // MaaFramework 状态
@@ -1104,6 +1115,19 @@ export const useAppStore = create<AppState>()(
     // 通信兼容模式
     tcpCompatMode: false,
     setTcpCompatMode: (enabled) => set({ tcpCompatMode: enabled }),
+
+    // 托盘设置
+    minimizeToTray: false,
+    setMinimizeToTray: async (enabled) => {
+      set({ minimizeToTray: enabled });
+      // 同步到后端
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('set_minimize_to_tray', { enabled });
+      } catch (err) {
+        loggers.app.error('设置托盘选项失败:', err);
+      }
+    },
 
     // 新用户引导
     onboardingCompleted: false,
@@ -1480,6 +1504,7 @@ function generateConfig(): MxuConfig {
       welcomeShownHash: state.welcomeShownHash,
       devMode: state.devMode,
       tcpCompatMode: state.tcpCompatMode,
+      minimizeToTray: state.minimizeToTray,
       onboardingCompleted: state.onboardingCompleted,
       hotkeys: state.hotkeys,
     },
@@ -1534,6 +1559,7 @@ useAppStore.subscribe(
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
+    minimizeToTray: state.minimizeToTray,
     onboardingCompleted: state.onboardingCompleted,
     hotkeys: state.hotkeys,
     recentlyClosed: state.recentlyClosed,

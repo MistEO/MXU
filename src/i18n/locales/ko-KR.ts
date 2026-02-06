@@ -82,6 +82,8 @@ export default {
     hotkeysGlobal: '전역 단축키',
     hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
+    minimizeToTray: '닫을 때 트레이로 최소화',
+    minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint:
       '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',

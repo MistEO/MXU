@@ -83,6 +83,8 @@ export default {
     hotkeysGlobal: 'Global hotkeys',
     hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     hotkeysGlobalOnlyStart: 'only start works in global mode',
+    minimizeToTray: 'Minimize to tray on close',
+    minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
     maxLogsPerInstance: 'Max logs per instance',

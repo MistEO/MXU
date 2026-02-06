@@ -312,6 +312,10 @@ export interface AppState {
   tcpCompatMode: boolean;
   setTcpCompatMode: (enabled: boolean) => void;
 
+  // 托盘设置
+  minimizeToTray: boolean;
+  setMinimizeToTray: (enabled: boolean) => void;
+
   // 新用户引导
   onboardingCompleted: boolean;
   setOnboardingCompleted: (completed: boolean) => void;

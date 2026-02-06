@@ -1,5 +1,6 @@
 pub mod commands;
 mod maa_ffi;
+mod tray;
 
 use commands::MaaState;
 use maa_ffi::MaaLibraryError;
@@ -98,6 +99,11 @@ pub fn run() {
                 }
             }
 
+            // 初始化系统托盘
+            if let Err(e) = tray::init_tray(app.handle()) {
+                log::error!("Failed to initialize system tray: {}", e);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -162,13 +168,25 @@ pub fn run() {
             commands::system::check_vcredist_missing,
             commands::system::get_arch,
             commands::system::get_system_info,
+            // 托盘相关命令
+            commands::tray::set_minimize_to_tray,
+            commands::tray::get_minimize_to_tray,
         ])
         .on_window_event(|window, event| {
-            // 窗口关闭时清理所有 agent 子进程
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(state) = window.try_state::<Arc<MaaState>>() {
-                    state.cleanup_all_agent_children();
+            match event {
+                // 窗口关闭请求：检查是否最小化到托盘
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if tray::handle_close_requested(window.app_handle()) {
+                        api.prevent_close();
+                    }
                 }
+                // 窗口销毁时清理所有 agent 子进程
+                tauri::WindowEvent::Destroyed => {
+                    if let Some(state) = window.try_state::<Arc<MaaState>>() {
+                        state.cleanup_all_agent_children();
+                    }
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

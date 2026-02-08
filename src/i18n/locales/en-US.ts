@@ -8,6 +8,7 @@ export default {
     delete: 'Delete',
     edit: 'Edit',
     add: 'Add',
+    open: 'Open',
     close: 'Close',
     reset: 'Reset',
     loading: 'Loading...',

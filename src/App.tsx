@@ -923,9 +923,7 @@ function App() {
 
         unlistenStop = await listen('tray-stop-tasks', () => {
           log.info('收到托盘停止任务事件');
-          document.dispatchEvent(
-            new CustomEvent('mxu-stop-tasks', { detail: { source: 'tray' } }),
-          );
+          document.dispatchEvent(new CustomEvent('mxu-stop-tasks', { detail: { source: 'tray' } }));
         });
 
         log.info('托盘事件监听已注册');

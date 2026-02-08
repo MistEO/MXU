@@ -8,6 +8,7 @@ export default {
     delete: '刪除',
     edit: '編輯',
     add: '新增',
+    open: '開啟',
     close: '關閉',
     loading: '載入中...',
     error: '錯誤',

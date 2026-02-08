@@ -201,7 +201,6 @@ export function AppearanceSection({
           </SortableContext>
         </DndContext>
       </div>
-
     </section>
   );
 }

@@ -8,6 +8,7 @@ export default {
     delete: '삭제',
     edit: '편집',
     add: '추가',
+    open: '열기',
     close: '닫기',
     loading: '로딩 중...',
     error: '오류',

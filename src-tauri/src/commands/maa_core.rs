@@ -4,6 +4,7 @@
 
 use log::{debug, error, info, warn};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use tauri::State;
 
@@ -890,9 +891,34 @@ pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result
         let instance = instances
             .get_mut(&instance_id)
             .ok_or("Instance not found")?;
+        let tasker = instance.tasker.ok_or("Tasker not created")?;
+        let is_running = unsafe { (lib.maa_tasker_running)(tasker) } != 0;
+
+        if instance.stop_in_progress {
+            if !is_running {
+                instance.stop_in_progress = false;
+                instance.stop_started_at = None;
+                return Ok(());
+            }
+            let elapsed = instance
+                .stop_started_at
+                .map(|t| t.elapsed())
+                .unwrap_or(Duration::from_secs(0));
+            if elapsed < Duration::from_millis(500) {
+                debug!("maa_stop_task ignored: stop already in progress ({:?})", elapsed);
+                return Ok(());
+            }
+            debug!(
+                "maa_stop_task re-posting stop after {:?} (still running)",
+                elapsed
+            );
+        }
+
+        instance.stop_in_progress = true;
+        instance.stop_started_at = Some(Instant::now());
         // 清空缓存的 task_ids
         instance.task_ids.clear();
-        instance.tasker.ok_or("Tasker not created")?
+        tasker
     };
 
     debug!("Calling MaaTaskerPostStop...");

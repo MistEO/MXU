@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
@@ -135,6 +136,10 @@ pub struct InstanceRuntime {
     pub agent_child: Option<Child>,
     /// 当前运行的任务 ID 列表（用于刷新后恢复状态）
     pub task_ids: Vec<i64>,
+    /// 是否正在停止任务（用于防重复 stop）
+    pub stop_in_progress: bool,
+    /// stop 请求的起始时间（用于节流/重试）
+    pub stop_started_at: Option<Instant>,
 }
 
 // 为原始指针实现 Send 和 Sync
@@ -151,6 +156,8 @@ impl Default for InstanceRuntime {
             agent_client: None,
             agent_child: None,
             task_ids: Vec::new(),
+            stop_in_progress: false,
+            stop_started_at: None,
         }
     }
 }

@@ -49,7 +49,15 @@
 
 - **单一事实来源**：业务状态应托管于 `src/stores/`，组件通过 Selector 消费状态，避免 Props 深度传递。
 
-## 4. 相关资源
+## 4. 开发手册
+
+以下手册提供特定开发场景的详细指引，**按需读取**对应文档即可：
+
+| 场景 | 文档 | 何时阅读 |
+|------|------|----------|
+| 新增 MXU 特殊任务 | [docs/add-special-task.md](docs/add-special-task.md) | 需要添加基于 Custom Action 的内置功能任务（如延迟、通知等）时 |
+
+## 5. 相关资源
 
 - [MaaFramework Core](https://github.com/MaaXYZ/MaaFramework)
 - [ProjectInterface V2 协议文档](https://github.com/MaaXYZ/MaaFramework/blob/main/docs/zh_cn/3.3-ProjectInterfaceV2协议.md)

@@ -115,6 +115,12 @@ export default {
       waitYes: '프로그램 종료 후 계속',
       waitNo: '실행 후 즉시 계속',
     },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: '요청 설정',
+      urlLabel: '요청 URL',
+      urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
+    },
   },
 
   // 작업 목록

@@ -197,6 +197,85 @@ pub fn get_mxu_launch_action() -> MaaCustomActionCallback {
 }
 
 // ============================================================================
+// MXU_WEBHOOK Custom Action
+// ============================================================================
+
+/// MXU_WEBHOOK 动作名称常量
+const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
+
+/// MXU_WEBHOOK custom action 回调函数
+/// 从 custom_action_param 中读取 url，执行 HTTP GET 请求
+extern "C" fn mxu_webhook_action(
+    _context: *mut MaaContext,
+    _task_id: MaaId,
+    _current_task_name: *const c_char,
+    _custom_action_name: *const c_char,
+    custom_action_param: *const c_char,
+    _reco_id: MaaId,
+    _box_rect: *const MaaRect,
+    _trans_arg: *mut c_void,
+) -> MaaBool {
+    let result = std::panic::catch_unwind(|| {
+        let param_str = if custom_action_param.is_null() {
+            warn!("[MXU_WEBHOOK] custom_action_param is null");
+            "{}".to_string()
+        } else {
+            unsafe { from_cstr(custom_action_param) }
+        };
+
+        info!("[MXU_WEBHOOK] Received param: {}", param_str);
+
+        let json: serde_json::Value = match serde_json::from_str(&param_str) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("[MXU_WEBHOOK] Failed to parse param JSON: {}", e);
+                return 0u8;
+            }
+        };
+
+        let url = match json.get("url").and_then(|v| v.as_str()) {
+            Some(u) if !u.trim().is_empty() => u.to_string(),
+            _ => {
+                warn!("[MXU_WEBHOOK] Missing or empty 'url' parameter");
+                return 0u8;
+            }
+        };
+
+        info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
+
+        match reqwest::blocking::get(&url) {
+            Ok(resp) => {
+                let status = resp.status();
+                info!("[MXU_WEBHOOK] Response status: {}", status);
+                if status.is_success() {
+                    1u8
+                } else {
+                    warn!("[MXU_WEBHOOK] Non-success status code: {}", status);
+                    1u8 // 仍然返回成功，只要请求发出去了
+                }
+            }
+            Err(e) => {
+                log::error!("[MXU_WEBHOOK] Request failed: {}", e);
+                0u8
+            }
+        }
+    });
+
+    match result {
+        Ok(ret) => ret,
+        Err(e) => {
+            log::error!("[MXU_WEBHOOK] Panic caught: {:?}", e);
+            0
+        }
+    }
+}
+
+/// 获取 MXU_WEBHOOK custom action 回调函数指针
+pub fn get_mxu_webhook_action() -> MaaCustomActionCallback {
+    Some(mxu_webhook_action)
+}
+
+// ============================================================================
 // 注册入口
 // ============================================================================
 
@@ -240,6 +319,23 @@ pub fn register_all_mxu_actions(
         info!("[MXU] Custom action MXU_LAUNCH_ACTION registered successfully");
     } else {
         warn!("[MXU] Failed to register custom action MXU_LAUNCH_ACTION");
+    }
+
+    // 注册 MXU_WEBHOOK
+    let action_name = to_cstring(MXU_WEBHOOK_ACTION);
+    let result = unsafe {
+        (lib.maa_resource_register_custom_action)(
+            resource,
+            action_name.as_ptr(),
+            get_mxu_webhook_action(),
+            std::ptr::null_mut(),
+        )
+    };
+
+    if result != 0 {
+        info!("[MXU] Custom action MXU_WEBHOOK_ACTION registered successfully");
+    } else {
+        warn!("[MXU] Failed to register custom action MXU_WEBHOOK_ACTION");
     }
 
     Ok(())

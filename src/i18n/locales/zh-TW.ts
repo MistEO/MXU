@@ -114,6 +114,12 @@ export default {
       waitYes: '等待程式退出後繼續',
       waitNo: '啟動後立即繼續',
     },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: '請求設定',
+      urlLabel: '請求地址',
+      urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+    },
   },
 
   // 任務列表

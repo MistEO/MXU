@@ -116,6 +116,12 @@ export default {
       waitYes: 'Wait for program to exit before continuing',
       waitNo: 'Continue immediately after launch',
     },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: 'Request Settings',
+      urlLabel: 'Request URL',
+      urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+    },
   },
 
   // Task list

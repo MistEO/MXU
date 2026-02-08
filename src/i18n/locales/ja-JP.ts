@@ -115,6 +115,12 @@ export default {
       waitYes: 'プログラム終了後に続行',
       waitNo: '起動後すぐに続行',
     },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: 'リクエスト設定',
+      urlLabel: 'リクエストURL',
+      urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
+    },
   },
 
   // タスクリスト

@@ -251,6 +251,11 @@ export const MXU_LAUNCH_TASK_NAME = '__MXU_LAUNCH__';
 export const MXU_LAUNCH_ENTRY = 'MXU_LAUNCH';
 export const MXU_LAUNCH_ACTION = 'MXU_LAUNCH_ACTION';
 
+// MXU_WEBHOOK 特殊任务常量
+export const MXU_WEBHOOK_TASK_NAME = '__MXU_WEBHOOK__';
+export const MXU_WEBHOOK_ENTRY = 'MXU_WEBHOOK';
+export const MXU_WEBHOOK_ACTION = 'MXU_WEBHOOK_ACTION';
+
 // MXU_SLEEP 任务定义
 const MXU_SLEEP_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_SLEEP_TASK_NAME,
@@ -368,6 +373,44 @@ const MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL: SwitchOption = {
   default_case: 'No',
 };
 
+// MXU_WEBHOOK 任务定义
+const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
+  name: MXU_WEBHOOK_TASK_NAME,
+  label: 'specialTask.webhook.label',
+  entry: MXU_WEBHOOK_ENTRY,
+  option: [
+    '__MXU_WEBHOOK_OPTION__',
+  ],
+  pipeline_override: {
+    [MXU_WEBHOOK_ENTRY]: {
+      action: 'Custom',
+      custom_action: MXU_WEBHOOK_ACTION,
+    },
+  },
+};
+
+// MXU_WEBHOOK 输入选项定义（URL）
+const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
+  type: 'input',
+  label: 'specialTask.webhook.optionLabel',
+  inputs: [
+    {
+      name: 'url',
+      label: 'specialTask.webhook.urlLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.urlPlaceholder',
+    },
+  ],
+  pipeline_override: {
+    [MXU_WEBHOOK_ENTRY]: {
+      custom_action_param: {
+        url: '{url}',
+      },
+    },
+  },
+};
+
 /**
  * MXU 特殊任务注册表
  * 所有 MXU 内置特殊任务都在这里注册
@@ -394,6 +437,16 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Play',
     iconColorClass: 'text-success/80',
+  },
+  [MXU_WEBHOOK_TASK_NAME]: {
+    taskName: MXU_WEBHOOK_TASK_NAME,
+    entry: MXU_WEBHOOK_ENTRY,
+    taskDef: MXU_WEBHOOK_TASK_DEF_INTERNAL,
+    optionDefs: {
+      __MXU_WEBHOOK_OPTION__: MXU_WEBHOOK_OPTION_DEF_INTERNAL,
+    },
+    iconName: 'Bell',
+    iconColorClass: 'text-info/80',
   },
 };
 

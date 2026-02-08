@@ -115,6 +115,12 @@ export default {
       waitYes: '等待程序退出后继续',
       waitNo: '启动后立即继续',
     },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: '请求设置',
+      urlLabel: '请求地址',
+      urlPlaceholder: '输入完整的 URL（如 https://example.com/webhook?key=xxx）',
+    },
   },
 
   // 任务列表

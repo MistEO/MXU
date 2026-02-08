@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
+import { getMxuSpecialTask } from '@/types/interface';
 import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
@@ -644,7 +645,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
         const taskConfigs: TaskConfig[] = [];
         for (const selectedTask of enabledTasks) {
-          const taskDef = projectInterface?.task.find((t) => t.name === selectedTask.taskName);
+          // 先检查是否是 MXU 特殊任务
+          const specialTask = getMxuSpecialTask(selectedTask.taskName);
+          const taskDef =
+            specialTask?.taskDef ||
+            projectInterface?.task.find((t) => t.name === selectedTask.taskName);
           if (!taskDef) continue;
           taskConfigs.push({
             entry: taskDef.entry,

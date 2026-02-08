@@ -29,10 +29,7 @@ import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
-import {
-  isMxuSpecialTask,
-  getMxuSpecialTask,
-} from '@/types/interface';
+import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';

@@ -11,10 +11,7 @@ import type {
   OptionDefinition,
   InputOption,
 } from '@/types/interface';
-import {
-  isMxuSpecialTask,
-  getMxuSpecialTask,
-} from '@/types/interface';
+import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/interface';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
 import { createDefaultOptionValue } from '@/stores/helpers';
@@ -155,10 +152,15 @@ const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
       const optionDef = optionDefs[optionKey];
       if (!optionDef) continue;
 
-      const optionValue = selectedTask.optionValues[optionKey] || createDefaultOptionValue(optionDef);
+      const optionValue =
+        selectedTask.optionValues[optionKey] || createDefaultOptionValue(optionDef);
 
       // 处理 input 类型选项的 pipeline_override
-      if (optionValue.type === 'input' && optionDef.type === 'input' && optionDef.pipeline_override) {
+      if (
+        optionValue.type === 'input' &&
+        optionDef.type === 'input' &&
+        optionDef.pipeline_override
+      ) {
         const inputDef = optionDef as InputOption;
         let overrideStr = JSON.stringify(inputDef.pipeline_override);
 
@@ -167,7 +169,10 @@ const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
           const inputVal = optionValue.values[inputName] ?? input.default ?? '';
           const pipelineType = input.pipeline_type || 'string';
           const placeholder = `{${inputName}}`;
-          const placeholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          const placeholderRegex = new RegExp(
+            placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            'g',
+          );
 
           if (pipelineType === 'int') {
             overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), inputVal || '0');

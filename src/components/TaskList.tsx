@@ -412,7 +412,6 @@ export function TaskList() {
               </div>
             </SortableContext>
           </DndContext>
-
         </div>
       </div>
       {menuState.isOpen && (

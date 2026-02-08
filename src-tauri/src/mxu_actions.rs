@@ -14,6 +14,9 @@ use crate::maa_ffi::{
 // MXU_SLEEP Custom Action
 // ============================================================================
 
+/// MXU_SLEEP 动作名称常量
+const MXU_SLEEP_ACTION: &str = "MXU_SLEEP_ACTION";
+
 /// MXU_SLEEP custom action 回调函数
 /// 从 custom_action_param 中读取 sleep_time（秒），执行等待操作
 extern "C" fn mxu_sleep_action(
@@ -40,10 +43,7 @@ extern "C" fn mxu_sleep_action(
 
         // 解析 JSON 获取 sleep_time
         let sleep_seconds: u64 = match serde_json::from_str::<serde_json::Value>(&param_str) {
-            Ok(json) => json
-                .get("sleep_time")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(5),
+            Ok(json) => json.get("sleep_time").and_then(|v| v.as_u64()).unwrap_or(5),
             Err(e) => {
                 warn!(
                     "[MXU_SLEEP] Failed to parse param JSON: {}, using default 5s",
@@ -89,7 +89,7 @@ pub fn register_all_mxu_actions(
     resource: *mut MaaResource,
 ) -> Result<(), String> {
     // 注册 MXU_SLEEP
-    let action_name = to_cstring("MXU_SLEEP");
+    let action_name = to_cstring(MXU_SLEEP_ACTION);
     let result = unsafe {
         (lib.maa_resource_register_custom_action)(
             resource,
@@ -100,9 +100,9 @@ pub fn register_all_mxu_actions(
     };
 
     if result != 0 {
-        info!("[MXU] Custom action MXU_SLEEP registered successfully");
+        info!("[MXU] Custom action MXU_SLEEP_ACTION registered successfully");
     } else {
-        warn!("[MXU] Failed to register custom action MXU_SLEEP");
+        warn!("[MXU] Failed to register custom action MXU_SLEEP_ACTION");
     }
 
     // 未来可以在这里添加更多 MXU 内置 actions

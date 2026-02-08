@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Instance, SelectedTask, OptionValue, ActionConfig, OptionDefinition } from '@/types/interface';
+import type {
+  Instance,
+  SelectedTask,
+  OptionValue,
+  ActionConfig,
+  OptionDefinition,
+} from '@/types/interface';
 import { getMxuSpecialTask } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
@@ -331,14 +337,20 @@ export const useAppStore = create<AppState>()(
 
     // 添加延迟任务到实例（保留向后兼容，内部调用 addMxuSpecialTask）
     addSleepTaskToInstance: (instanceId: string, sleepTime: number = 5) => {
-      return get().addMxuSpecialTask(instanceId, '__MXU_SLEEP__', { sleep_time: String(sleepTime) });
+      return get().addMxuSpecialTask(instanceId, '__MXU_SLEEP__', {
+        sleep_time: String(sleepTime),
+      });
     },
 
     // 通用 MXU 特殊任务添加函数
-    addMxuSpecialTask: (instanceId: string, taskName: string, initialValues?: Record<string, string>) => {
+    addMxuSpecialTask: (
+      instanceId: string,
+      taskName: string,
+      initialValues?: Record<string, string>,
+    ) => {
       // 从注册表获取特殊任务定义
       const specialTask = getMxuSpecialTask(taskName);
-      
+
       if (!specialTask) {
         loggers.task.warn(`未找到特殊任务定义: ${taskName}`);
         return '';
@@ -346,8 +358,11 @@ export const useAppStore = create<AppState>()(
 
       // 根据任务定义初始化选项值
       const optionValues: Record<string, OptionValue> = {};
-      
-      for (const [optionKey, optionDef] of Object.entries(specialTask.optionDefs) as [string, OptionDefinition][]) {
+
+      for (const [optionKey, optionDef] of Object.entries(specialTask.optionDefs) as [
+        string,
+        OptionDefinition,
+      ][]) {
         if (optionDef.type === 'input') {
           const values: Record<string, string> = {};
           for (const input of optionDef.inputs || []) {

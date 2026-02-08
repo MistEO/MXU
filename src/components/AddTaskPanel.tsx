@@ -1,6 +1,19 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Plus, Sparkles, Loader2, AlertCircle, Play, Clock, Zap, Bell, Timer, Pause, type LucideIcon } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Sparkles,
+  Loader2,
+  AlertCircle,
+  Play,
+  Clock,
+  Zap,
+  Bell,
+  Timer,
+  Pause,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -246,7 +259,11 @@ export function AddTaskPanel() {
         log.info(`运行中追加特殊任务 ${specialTask.entry}, pipelineOverride:`, pipelineOverride);
 
         // 调用 PostTask（使用注册表中的 entry）
-        const maaTaskId = await maaService.runTask(instance.id, specialTask.entry, pipelineOverride);
+        const maaTaskId = await maaService.runTask(
+          instance.id,
+          specialTask.entry,
+          pipelineOverride,
+        );
 
         log.info(`特殊任务已追加, maaTaskId:`, maaTaskId);
 
@@ -414,7 +431,9 @@ export function AddTaskPanel() {
                           'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
                         )}
                       >
-                        <IconComponent className={clsx('w-3.5 h-3.5', specialTask.iconColorClass)} />
+                        <IconComponent
+                          className={clsx('w-3.5 h-3.5', specialTask.iconColorClass)}
+                        />
                         <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
                       </button>
                     );

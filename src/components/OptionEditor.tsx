@@ -158,15 +158,22 @@ function InputField({
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
   // 对于 MXU 内置选项，使用 t() 翻译
-  const inputLabel = isMxuOption && t
-    ? t(input.label || input.name)
-    : resolveI18nText(input.label, langKey) || input.name;
-  const inputDescription = isMxuOption && t
-    ? (input.description ? t(input.description) : undefined)
-    : resolveI18nText(input.description, langKey);
-  const patternMsg = isMxuOption && t
-    ? (input.pattern_msg ? t(input.pattern_msg) : undefined)
-    : resolveI18nText(input.pattern_msg, langKey);
+  const inputLabel =
+    isMxuOption && t
+      ? t(input.label || input.name)
+      : resolveI18nText(input.label, langKey) || input.name;
+  const inputDescription =
+    isMxuOption && t
+      ? input.description
+        ? t(input.description)
+        : undefined
+      : resolveI18nText(input.description, langKey);
+  const patternMsg =
+    isMxuOption && t
+      ? input.pattern_msg
+        ? t(input.pattern_msg)
+        : undefined
+      : resolveI18nText(input.pattern_msg, langKey);
 
   // 验证输入
   const validationError = useMemo(() => {

@@ -156,9 +156,18 @@ export interface SelectedTask {
 }
 
 export type OptionValue =
-  | { type: 'select'; caseName: string }
-  | { type: 'switch'; value: boolean }
-  | { type: 'input'; values: Record<string, string> };
+  | {
+      type: 'select';
+      caseName: string;
+    }
+  | {
+      type: 'switch';
+      value: boolean;
+    }
+  | {
+      type: 'input';
+      values: Record<string, string>;
+    };
 
 // 保存的设备信息（运行时使用）
 export interface SavedDeviceInfo {
@@ -231,6 +240,7 @@ export interface MxuSpecialTaskDefinition {
 // MXU_SLEEP 特殊任务常量（保留向后兼容）
 export const MXU_SLEEP_TASK_NAME = '__MXU_SLEEP__';
 export const MXU_SLEEP_ENTRY = 'MXU_SLEEP';
+export const MXU_SLEEP_ACTION = 'MXU_SLEEP_ACTION';
 
 // MXU_SLEEP 任务定义
 const MXU_SLEEP_TASK_DEF_INTERNAL: TaskItem = {
@@ -238,6 +248,12 @@ const MXU_SLEEP_TASK_DEF_INTERNAL: TaskItem = {
   label: 'specialTask.sleep.label',
   entry: MXU_SLEEP_ENTRY,
   option: ['__MXU_SLEEP_OPTION__'],
+  pipeline_override: {
+    [MXU_SLEEP_ENTRY]: {
+      action: 'Custom',
+      custom_action: MXU_SLEEP_ACTION,
+    },
+  },
 };
 
 // MXU_SLEEP 选项定义
@@ -274,7 +290,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     entry: MXU_SLEEP_ENTRY,
     taskDef: MXU_SLEEP_TASK_DEF_INTERNAL,
     optionDefs: {
-      '__MXU_SLEEP_OPTION__': MXU_SLEEP_OPTION_DEF_INTERNAL,
+      __MXU_SLEEP_OPTION__: MXU_SLEEP_OPTION_DEF_INTERNAL,
     },
     iconName: 'Clock',
     iconColorClass: 'text-warning/80',
@@ -292,7 +308,9 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
 
 // 导出兼容旧代码的常量（指向注册表中的定义）
 export const MXU_SLEEP_TASK_DEF = MXU_SPECIAL_TASKS[MXU_SLEEP_TASK_NAME].taskDef;
-export const MXU_SLEEP_OPTION_DEF = MXU_SPECIAL_TASKS[MXU_SLEEP_TASK_NAME].optionDefs['__MXU_SLEEP_OPTION__'] as InputOption;
+export const MXU_SLEEP_OPTION_DEF = MXU_SPECIAL_TASKS[MXU_SLEEP_TASK_NAME].optionDefs[
+  '__MXU_SLEEP_OPTION__'
+] as InputOption;
 
 /**
  * 判断是否为 MXU 内置特殊任务
@@ -318,7 +336,10 @@ export function getMxuSpecialTask(taskName: string): MxuSpecialTaskDefinition | 
  * @param optionKey 选项键
  * @returns 选项定义，不存在则返回 undefined
  */
-export function getMxuSpecialTaskOption(taskName: string, optionKey: string): OptionDefinition | undefined {
+export function getMxuSpecialTaskOption(
+  taskName: string,
+  optionKey: string,
+): OptionDefinition | undefined {
   const specialTask = MXU_SPECIAL_TASKS[taskName];
   return specialTask?.optionDefs[optionKey];
 }

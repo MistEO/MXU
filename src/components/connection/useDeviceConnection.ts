@@ -283,6 +283,7 @@ export function useDeviceConnection({
       const config: ControllerConfig = {
         type: 'PlayCover',
         address: playcoverAddress,
+        uuid: currentController?.playcover?.uuid,
       };
 
       await connectControllerInternal(config, playcoverAddress, 'device');
@@ -295,6 +296,7 @@ export function useDeviceConnection({
   }, [
     instanceId,
     playcoverAddress,
+    currentController,
     setInstanceSavedDevice,
     setInstanceConnectionStatus,
     connectControllerInternal,

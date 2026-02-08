@@ -83,6 +83,8 @@ pub enum ControllerConfig {
     },
     PlayCover {
         address: String,
+        #[serde(default)]
+        uuid: Option<String>,
     },
 }
 

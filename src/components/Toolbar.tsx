@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
@@ -187,46 +188,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               });
             }
 
-            // 执行后置动作（如果启用且有程序路径）
-            const runningInstance = useAppStore
-              .getState()
-              .instances.find((i) => i.id === runningInstanceId);
-            if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
-              log.info('执行后置动作:', runningInstance.postAction.program);
-              addLog(runningInstanceId, {
-                type: 'info',
-                message: t('action.postActionStarting'),
-              });
-              maaService
-                .runAction(
-                  runningInstance.postAction.program,
-                  runningInstance.postAction.args,
-                  basePath,
-                  runningInstance.postAction.waitForExit ?? true,
-                )
-                .then((exitCode) => {
-                  if (exitCode !== 0) {
-                    log.warn('后置动作退出码非零:', exitCode);
-                    addLog(runningInstanceId, {
-                      type: 'warning',
-                      message: t('action.postActionExitCode', { code: exitCode }),
-                    });
-                  } else {
-                    addLog(runningInstanceId, {
-                      type: 'success',
-                      message: t('action.postActionCompleted'),
-                    });
-                  }
-                })
-                .catch((err) => {
-                  log.error('后置动作执行失败:', err);
-                  addLog(runningInstanceId, {
-                    type: 'error',
-                    message: t('action.postActionFailed', { error: String(err) }),
-                  });
-                });
-            }
-
             setInstanceTaskStatus(runningInstanceId, 'Succeeded');
             updateInstance(runningInstanceId, { isRunning: false });
             setInstanceCurrentTaskId(runningInstanceId, null);
@@ -266,46 +227,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
-            }
-
-            // 执行后置动作（即使有任务失败也执行，如果启用且有程序路径）
-            const runningInstance = useAppStore
-              .getState()
-              .instances.find((i) => i.id === runningInstanceId);
-            if (runningInstance?.postAction?.enabled && runningInstance.postAction.program.trim()) {
-              log.info('执行后置动作:', runningInstance.postAction.program);
-              addLog(runningInstanceId, {
-                type: 'info',
-                message: t('action.postActionStarting'),
-              });
-              maaService
-                .runAction(
-                  runningInstance.postAction.program,
-                  runningInstance.postAction.args,
-                  basePath,
-                  runningInstance.postAction.waitForExit ?? true,
-                )
-                .then((exitCode) => {
-                  if (exitCode !== 0) {
-                    log.warn('后置动作退出码非零:', exitCode);
-                    addLog(runningInstanceId, {
-                      type: 'warning',
-                      message: t('action.postActionExitCode', { code: exitCode }),
-                    });
-                  } else {
-                    addLog(runningInstanceId, {
-                      type: 'success',
-                      message: t('action.postActionCompleted'),
-                    });
-                  }
-                })
-                .catch((err) => {
-                  log.error('后置动作执行失败:', err);
-                  addLog(runningInstanceId, {
-                    type: 'error',
-                    message: t('action.postActionFailed', { error: String(err) }),
-                  });
-                });
             }
 
             setInstanceTaskStatus(runningInstanceId, 'Failed');
@@ -724,16 +645,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
         const taskConfigs: TaskConfig[] = [];
         for (const selectedTask of enabledTasks) {
-          const taskDef = projectInterface?.task.find((t) => t.name === selectedTask.taskName);
+          // 先检查是否是 MXU 特殊任务
+          const specialTask = getMxuSpecialTask(selectedTask.taskName);
+          const taskDef =
+            specialTask?.taskDef ||
+            projectInterface?.task.find((t) => t.name === selectedTask.taskName);
           if (!taskDef) continue;
           taskConfigs.push({
             entry: taskDef.entry,
             pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
           });
           // 预注册 entry -> taskName 映射，确保回调时能找到任务名
+          // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译
           const taskDisplayName =
             selectedTask.customName ||
-            resolveI18nText(taskDef.label, translations) ||
+            (specialTask && taskDef.label ? t(taskDef.label) : resolveI18nText(taskDef.label, translations)) ||
             selectedTask.taskName;
           registerEntryTaskName(taskDef.entry, taskDisplayName);
         }
@@ -789,12 +715,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           if (enabledTasks[index]) {
             registerMaaTaskMapping(targetId, maaTaskId, enabledTasks[index].id);
             // 注册 task_id 与任务名的映射（使用自定义名称或 label）
-            const taskDef = projectInterface?.task.find(
-              (t) => t.name === enabledTasks[index].taskName,
-            );
+            // MXU 特殊任务的 label 需要用 t() 翻译
+            const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
+            const taskDef =
+              specialTask?.taskDef ||
+              projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
             const taskDisplayName =
               enabledTasks[index].customName ||
-              resolveI18nText(taskDef?.label, translations) ||
+              (specialTask && taskDef?.label ? t(taskDef.label) : resolveI18nText(taskDef?.label, translations)) ||
               enabledTasks[index].taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }

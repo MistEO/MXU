@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, X, Play, Flag } from 'lucide-react';
+import { ChevronRight, X, Play } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
@@ -8,12 +8,10 @@ import { FileField, TextField, SwitchField } from './FormControls';
 
 interface ActionItemProps {
   instanceId: string;
-  type: 'pre' | 'post';
   action: ActionConfig | undefined;
   disabled?: boolean;
 }
 
-// 默认动作配置
 const defaultAction: ActionConfig = {
   enabled: false,
   program: '',
@@ -21,12 +19,11 @@ const defaultAction: ActionConfig = {
   waitForExit: false,
 };
 
-export function ActionItem({ instanceId, type, action, disabled }: ActionItemProps) {
+export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
   const { t } = useTranslation();
-  const { setInstancePreAction, setInstancePostAction } = useAppStore();
+  const { setInstancePreAction } = useAppStore();
   const [expanded, setExpanded] = useState(false);
 
-  // 当前动作配置（使用默认值填充缺失字段）
   const currentAction = useMemo<ActionConfig>(
     () => ({
       ...defaultAction,
@@ -35,12 +32,11 @@ export function ActionItem({ instanceId, type, action, disabled }: ActionItemPro
     [action],
   );
 
-  const setAction = type === 'pre' ? setInstancePreAction : setInstancePostAction;
+  const setAction = setInstancePreAction;
 
-  // 标题和图标
-  const title = type === 'pre' ? t('action.preAction') : t('action.postAction');
-  const Icon = type === 'pre' ? Play : Flag;
-  const iconColor = type === 'pre' ? 'text-success' : 'text-warning';
+  const title = t('action.preAction');
+  const Icon = Play;
+  const iconColor = 'text-success';
 
   // 删除动作
   const handleRemove = (e: React.MouseEvent) => {
@@ -174,7 +170,7 @@ export function ActionItem({ instanceId, type, action, disabled }: ActionItemPro
             {/* 等待进程退出开关 */}
             <SwitchField
               label={t('action.waitForExit')}
-              hint={t(type === 'pre' ? 'action.waitForExitHintPre' : 'action.waitForExitHintPost')}
+              hint={t('action.waitForExitHintPre')}
               value={currentAction.waitForExit}
               onChange={(v) => updateAction({ waitForExit: v })}
               disabled={disabled}

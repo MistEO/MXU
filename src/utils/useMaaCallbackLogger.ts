@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { maaService, type MaaCallbackDetails } from '@/services/maaService';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
-import { getInterfaceLangKey } from '@/i18n';
+import i18n, { getInterfaceLangKey } from '@/i18n';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import {
   resolveI18nText,
   detectContentType,
@@ -219,14 +220,19 @@ function getTaskDisplayName(
       const instance = state.instances.find((i) => i.id === instanceId);
       const selectedTask = instance?.selectedTasks.find((t) => t.id === selectedTaskId);
       if (selectedTask) {
+        if (selectedTask.customName) return selectedTask.customName;
+
+        // 检查是否为 MXU 特殊任务（使用 i18n.t 翻译 label）
+        const specialTask = getMxuSpecialTask(selectedTask.taskName);
+        if (specialTask?.taskDef.label) {
+          return i18n.t(specialTask.taskDef.label);
+        }
+
+        // 普通任务：使用项目接口翻译
         const taskDef = state.projectInterface?.task.find((t) => t.name === selectedTask.taskName);
         const langKey = getInterfaceLangKey(state.language);
         const translations = state.interfaceTranslations[langKey];
-        return (
-          selectedTask.customName ||
-          resolveI18nText(taskDef?.label, translations) ||
-          selectedTask.taskName
-        );
+        return resolveI18nText(taskDef?.label, translations) || selectedTask.taskName;
       }
     }
   }

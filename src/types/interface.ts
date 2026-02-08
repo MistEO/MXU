@@ -114,6 +114,10 @@ export interface InputItem {
   pipeline_type?: 'string' | 'int' | 'bool';
   verify?: string;
   pattern_msg?: string;
+  /** MXU 扩展：输入控件类型，'file' 会渲染文件选择器，'time' 会渲染时间选择器 */
+  input_type?: 'text' | 'file' | 'time';
+  /** MXU 扩展：输入框占位提示文本（i18n key） */
+  placeholder?: string;
 }
 
 export interface SelectOption {
@@ -156,9 +160,18 @@ export interface SelectedTask {
 }
 
 export type OptionValue =
-  | { type: 'select'; caseName: string }
-  | { type: 'switch'; value: boolean }
-  | { type: 'input'; values: Record<string, string> };
+  | {
+      type: 'select';
+      caseName: string;
+    }
+  | {
+      type: 'switch';
+      value: boolean;
+    }
+  | {
+      type: 'input';
+      values: Record<string, string>;
+    };
 
 // 保存的设备信息（运行时使用）
 export interface SavedDeviceInfo {
@@ -176,7 +189,7 @@ export interface SchedulePolicy {
   hours: number[]; // 开始时间 (0-23)
 }
 
-// 前置/后置动作配置（启动子进程）
+// pre-action config
 export interface ActionConfig {
   enabled: boolean; // 是否启用
   program: string; // 程序路径
@@ -199,9 +212,7 @@ export interface Instance {
   isRunning: boolean;
   // 定时执行策略列表
   schedulePolicies?: SchedulePolicy[];
-  // 前置/后置动作配置
   preAction?: ActionConfig;
-  postAction?: ActionConfig;
 }
 
 // 翻译文件类型

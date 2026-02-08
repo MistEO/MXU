@@ -94,6 +94,68 @@ export default {
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
   },
 
+  // 특수 작업
+  specialTask: {
+    sleep: {
+      label: '⏳ 카운트다운',
+      optionLabel: '카운트다운 설정',
+      inputLabel: '대기 시간(초)',
+      inputError: '양의 정수를 입력해 주세요',
+    },
+    waitUntil: {
+      label: '⏰ 시간까지 대기',
+      optionLabel: '시간 설정',
+      optionDescription: '지정된 시간까지 대기한 후 계속합니다. 24시간 이내만 지원됩니다. 대상 시간이 이미 지났으면 다음 날 해당 시간까지 대기합니다',
+      inputLabel: '대상 시간',
+    },
+    launch: {
+      label: '▶️ 사용자 지정 프로그램',
+      optionLabel: '프로그램 설정',
+      programLabel: '프로그램 경로',
+      programPlaceholder: '프로그램 경로를 입력하거나 오른쪽 찾아보기를 클릭...',
+      argsLabel: '추가 인수',
+      argsPlaceholder: '추가 인수 입력 (선택 사항)',
+      waitLabel: '종료 대기',
+      waitDescription:
+        '활성화하면 프로세스 종료 후 계속합니다. 프로그램 등 동기 완료가 필요한 작업에 적합합니다. 비활성화하면 실행 후 즉시 계속합니다',
+      waitYes: '프로그램 종료 후 계속',
+      waitNo: '실행 후 즉시 계속',
+    },
+    notify: {
+      label: '💬 시스템 알림',
+      optionLabel: '알림 설정',
+      titleLabel: '알림 제목',
+      titlePlaceholder: '알림 제목을 입력하세요',
+      bodyLabel: '알림 내용',
+      bodyPlaceholder: '알림 내용을 입력하세요',
+    },
+    webhook: {
+      label: '🔔 Webhook',
+      optionLabel: '요청 설정',
+      urlLabel: '요청 URL',
+      urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
+    },
+    killProc: {
+      label: '⛔ 프로세스 종료',
+      selfLabel: '자체 프로세스 종료',
+      selfDescription:
+        '활성화하면 이 프로그램 자체를 종료합니다. 비활성화하면 다른 프로세스 이름을 입력하여 종료할 수 있습니다',
+      selfYes: '자체 종료',
+      selfNo: '지정 프로세스 종료',
+      nameOptionLabel: '프로세스 설정',
+      nameLabel: '프로세스 이름',
+      namePlaceholder: '종료할 프로세스 이름을 입력하세요 (예: notepad.exe)',
+    },
+    power: {
+      label: '⚡ PC 작업',
+      optionLabel: '작업 유형',
+      shutdown: '종료',
+      restart: '재시작',
+      screenoff: '화면 끄기',
+      sleep: '절전 모드',
+    },
+  },
+
   // 작업 목록
   taskList: {
     title: '작업 목록',
@@ -187,35 +249,26 @@ export default {
     invalidInput: '입력 형식이 올바르지 않습니다',
   },
 
-  // 전/후 동작
   action: {
-    preAction: '전처리 동작',
-    postAction: '후처리 동작',
+    preAction: '전처리 프로그램',
     program: '프로그램 경로',
     programPlaceholder: '프로그램 경로를 입력하거나 찾아보기...',
     args: '추가 인수',
     argsPlaceholder: '추가 인수 입력 (선택사항)',
     browse: '찾아보기',
-    waitForExit: '차단 실행',
+    waitForExit: '종료 대기',
     waitForExitHintPre:
-      '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 스크립트 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 계속하고 장치 연결 상태를 폴링합니다. 게임 시작과 같은 비동기 시나리오에 적합합니다',
-    waitForExitHintPost:
-      '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 스크립트 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 반환합니다',
-    // 로그 메시지
+      '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 프로그램 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 계속하고 장치 연결 상태를 폴링합니다. 게임 시작과 같은 비동기 시나리오에 적합합니다',
     waitingForDevice: '장치 준비 대기 중...',
     waitingForWindow: '윈도우 준비 대기 중...',
     deviceReady: '장치 준비 완료',
     windowReady: '윈도우 준비 완료',
     deviceWaitTimeout: '장치 대기 시간 초과',
     windowWaitTimeout: '윈도우 대기 시간 초과',
-    preActionStarting: '전처리 동작 실행 중...',
-    preActionCompleted: '전처리 동작 완료',
-    preActionFailed: '전처리 동작 실패: {{error}}',
-    preActionExitCode: '전처리 동작 종료 코드: {{code}}',
-    postActionStarting: '후처리 동작 실행 중...',
-    postActionCompleted: '후처리 동작 완료',
-    postActionFailed: '후처리 동작 실패: {{error}}',
-    postActionExitCode: '후처리 동작 종료 코드: {{code}}',
+    preActionStarting: '전처리 프로그램 실행 중...',
+    preActionCompleted: '전처리 프로그램 완료',
+    preActionFailed: '전처리 프로그램 실패: {{error}}',
+    preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
   },
 
   // 옵션 에디터

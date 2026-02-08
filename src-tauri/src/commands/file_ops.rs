@@ -168,7 +168,10 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
 /// 导出日志文件为 zip 压缩包
 /// 返回生成的 zip 文件路径
 #[tauri::command]
-pub fn export_logs(project_name: Option<String>, project_version: Option<String>) -> Result<String, String> {
+pub fn export_logs(
+    project_name: Option<String>,
+    project_version: Option<String>,
+) -> Result<String, String> {
     use std::fs::File;
     use std::io::{Read, Write};
     use zip::write::SimpleFileOptions;

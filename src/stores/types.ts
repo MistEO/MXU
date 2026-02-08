@@ -140,6 +140,14 @@ export interface AppState {
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
   ) => void;
+  /** @deprecated 使用 addMxuSpecialTask 代替 */
+  addSleepTaskToInstance: (instanceId: string, sleepTime?: number) => string;
+  /** 添加 MXU 特殊任务到实例 */
+  addMxuSpecialTask: (
+    instanceId: string,
+    taskName: string,
+    initialValues?: Record<string, string>,
+  ) => string;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
@@ -219,9 +227,7 @@ export interface AppState {
   // 设备信息保存
   setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
 
-  // 前置/后置动作设置
   setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) => void;
-  setInstancePostAction: (instanceId: string, action: ActionConfig | undefined) => void;
 
   // 设备列表缓存
   cachedAdbDevices: AdbDevice[];

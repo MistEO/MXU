@@ -45,9 +45,7 @@ export interface SavedInstance {
   tasks: SavedTask[];
   // 定时执行策略列表
   schedulePolicies?: SchedulePolicy[];
-  // 前置/后置动作配置
   preAction?: ActionConfig;
-  postAction?: ActionConfig;
 }
 
 // 窗口大小配置
@@ -74,8 +72,7 @@ export interface RecentlyClosedInstance {
   savedDevice?: SavedDeviceInfo;
   tasks: SavedTask[]; // 保存的任务配置
   schedulePolicies?: SchedulePolicy[]; // 定时执行策略
-  preAction?: ActionConfig; // 前置动作
-  postAction?: ActionConfig; // 后置动作
+  preAction?: ActionConfig;
 }
 
 // MirrorChyan 更新频道

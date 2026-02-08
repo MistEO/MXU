@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Instance, SelectedTask, OptionValue, ActionConfig } from '@/types/interface';
+import type {
+  Instance,
+  SelectedTask,
+  OptionValue,
+  ActionConfig,
+  OptionDefinition,
+} from '@/types/interface';
+import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -260,7 +267,6 @@ export const useAppStore = create<AppState>()(
             })),
             schedulePolicies: instanceToClose.schedulePolicies,
             preAction: instanceToClose.preAction,
-            postAction: instanceToClose.postAction,
           };
           // 添加到列表头部，并限制最大条目数
           newRecentlyClosed = [closedRecord, ...state.recentlyClosed].slice(0, MAX_RECENTLY_CLOSED);
@@ -327,6 +333,71 @@ export const useAppStore = create<AppState>()(
         lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         animatingTaskIds: [...state.animatingTaskIds, newTask.id], // 加入动画列表
       }));
+    },
+
+    // 添加延迟任务到实例（保留向后兼容，内部调用 addMxuSpecialTask）
+    addSleepTaskToInstance: (instanceId: string, sleepTime: number = 5) => {
+      return get().addMxuSpecialTask(instanceId, '__MXU_SLEEP__', {
+        sleep_time: String(sleepTime),
+      });
+    },
+
+    // 通用 MXU 特殊任务添加函数
+    addMxuSpecialTask: (
+      instanceId: string,
+      taskName: string,
+      initialValues?: Record<string, string>,
+    ) => {
+      // 从注册表获取特殊任务定义
+      const specialTask = getMxuSpecialTask(taskName);
+
+      if (!specialTask) {
+        loggers.task.warn(`未找到特殊任务定义: ${taskName}`);
+        return '';
+      }
+
+      // 根据任务定义初始化选项值
+      const optionValues: Record<string, OptionValue> = {};
+
+      for (const [optionKey, optionDef] of Object.entries(specialTask.optionDefs) as [
+        string,
+        OptionDefinition,
+      ][]) {
+        if (optionDef.type === 'input') {
+          const values: Record<string, string> = {};
+          for (const input of optionDef.inputs || []) {
+            // 优先使用传入的初始值，否则使用默认值
+            values[input.name] = initialValues?.[input.name] ?? input.default ?? '';
+          }
+          optionValues[optionKey] = { type: 'input', values };
+        } else if (optionDef.type === 'switch') {
+          const defaultCase = optionDef.default_case;
+          const isOn = defaultCase === 'Yes' || defaultCase === optionDef.cases[0]?.name;
+          optionValues[optionKey] = { type: 'switch', value: isOn };
+        } else {
+          // select 类型
+          const caseName = optionDef.default_case || optionDef.cases?.[0]?.name || '';
+          optionValues[optionKey] = { type: 'select', caseName };
+        }
+      }
+
+      const newTask: SelectedTask = {
+        id: generateId(),
+        taskName,
+        enabled: true,
+        optionValues,
+        expanded: true,
+      };
+
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId ? { ...i, selectedTasks: [...i.selectedTasks, newTask] } : i,
+        ),
+        lastAddedTaskId: newTask.id,
+        animatingTaskIds: [...state.animatingTaskIds, newTask.id],
+      }));
+
+      return newTask.id;
     },
 
     removeTaskFromInstance: (instanceId, taskId) =>
@@ -600,7 +671,6 @@ export const useAppStore = create<AppState>()(
         })),
         isRunning: false,
         preAction: sourceInstance.preAction ? { ...sourceInstance.preAction } : undefined,
-        postAction: sourceInstance.postAction ? { ...sourceInstance.postAction } : undefined,
       };
 
       set({
@@ -709,8 +779,11 @@ export const useAppStore = create<AppState>()(
         return cleaned;
       };
 
-      // 获取有效的任务名称集合
-      const validTaskNames = new Set(pi?.task.map((t) => t.name) || []);
+      // 获取有效的任务名称集合（包含 interface 任务和 MXU 特殊任务）
+      const validTaskNames = new Set([
+        ...(pi?.task.map((t) => t.name) || []),
+        ...Object.keys(MXU_SPECIAL_TASKS),
+      ]);
 
       const instances: Instance[] = config.instances.map((inst) => {
         // 记录被过滤掉的无效任务
@@ -722,10 +795,22 @@ export const useAppStore = create<AppState>()(
           );
         }
 
-        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 中不存在的），并清理已删除的 option
+        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 或 MXU 特殊任务中不存在的），并清理已删除的 option
         const savedTasks: SelectedTask[] = inst.tasks
           .filter((t) => validTaskNames.has(t.taskName))
           .map((t) => {
+            // MXU 特殊任务使用独立的选项系统，直接保留其 optionValues
+            if (isMxuSpecialTask(t.taskName)) {
+              return {
+                id: t.id,
+                taskName: t.taskName,
+                customName: t.customName,
+                enabled: t.enabled,
+                optionValues: t.optionValues,
+                expanded: false,
+              };
+            }
+
             const taskDef = pi?.task.find((td) => td.name === t.taskName);
             const cleanedValues = cleanOptionValues(t.optionValues);
             // 为缺失的 option 添加默认值（根据 default_case）
@@ -757,7 +842,6 @@ export const useAppStore = create<AppState>()(
           isRunning: false,
           schedulePolicies: inst.schedulePolicies,
           preAction: inst.preAction,
-          postAction: inst.postAction,
         };
       });
 
@@ -977,18 +1061,10 @@ export const useAppStore = create<AppState>()(
         instances: state.instances.map((i) => (i.id === instanceId ? { ...i, savedDevice } : i)),
       })),
 
-    // 前置/后置动作设置
     setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) =>
       set((state) => ({
         instances: state.instances.map((i) =>
           i.id === instanceId ? { ...i, preAction: action } : i,
-        ),
-      })),
-
-    setInstancePostAction: (instanceId: string, action: ActionConfig | undefined) =>
-      set((state) => ({
-        instances: state.instances.map((i) =>
-          i.id === instanceId ? { ...i, postAction: action } : i,
         ),
       })),
 
@@ -1220,7 +1296,6 @@ export const useAppStore = create<AppState>()(
         isRunning: false,
         schedulePolicies: closedInstance.schedulePolicies,
         preAction: closedInstance.preAction,
-        postAction: closedInstance.postAction,
       };
 
       // 恢复选中的控制器和资源状态
@@ -1482,7 +1557,6 @@ function generateConfig(): MxuConfig {
       })),
       schedulePolicies: inst.schedulePolicies,
       preAction: inst.preAction,
-      postAction: inst.postAction,
     })),
     settings: {
       theme: state.theme,

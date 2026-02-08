@@ -22,7 +22,7 @@
   - `services/`：核心业务逻辑层（配置管理、自动更新、Maa 服务封装）。
   - `stores/`：基于 Zustand 的全局状态存储。
   - `i18n/`：多语言定义与本地化资源。
-  - `types/`：TypeScript 类型定义，包括 PI V2 协议相关定义。
+  - `types/`：TypeScript 类型定义，包括 PI V2 协议相关定义（`interface.ts`）和 MXU 特殊任务系统（`specialTasks.ts`）。
   - `utils/`：通用工具函数（日志、路径处理、样式助手）。
 - `src-tauri/`：Rust 后端逻辑
   - `src/commands/`：Tauri 指令集，处理文件 IO、网络下载、Maa FFI 调用等底层逻辑。
@@ -49,7 +49,15 @@
 
 - **单一事实来源**：业务状态应托管于 `src/stores/`，组件通过 Selector 消费状态，避免 Props 深度传递。
 
-## 4. 相关资源
+## 4. 开发手册
+
+以下手册提供特定开发场景的详细指引，**按需读取**对应文档即可：
+
+| 场景              | 文档                                                 | 何时阅读                                                      |
+| ----------------- | ---------------------------------------------------- | ------------------------------------------------------------- |
+| 新增 MXU 特殊任务 | [docs/add-special-task.md](docs/add-special-task.md) | 需要添加基于 Custom Action 的内置功能任务（如延迟、通知等）时 |
+
+## 5. 相关资源
 
 - [MaaFramework Core](https://github.com/MaaXYZ/MaaFramework)
 - [ProjectInterface V2 协议文档](https://github.com/MaaXYZ/MaaFramework/blob/main/docs/zh_cn/3.3-ProjectInterfaceV2协议.md)

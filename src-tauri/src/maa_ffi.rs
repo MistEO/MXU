@@ -83,6 +83,17 @@ pub enum MaaToolkitAdbDevice {}
 pub enum MaaToolkitDesktopWindowList {}
 pub enum MaaToolkitDesktopWindow {}
 pub enum MaaAgentClient {}
+pub enum MaaContext {}
+
+// MaaRect 结构体（用于 custom action 回调）
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct MaaRect {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
 
 /// MaaFramework 原始指针的 Send 包装器
 /// MaaFramework API 是线程安全的，可以安全地在线程间传递
@@ -116,6 +127,29 @@ pub type MaaEventCallback = Option<
     ),
 >;
 
+// Custom Action 回调类型
+// MaaBool (*MaaCustomActionCallback)(
+//     MaaContext* context,
+//     MaaTaskId task_id,
+//     const char* current_task_name,
+//     const char* custom_action_name,
+//     const char* custom_action_param,
+//     MaaRecoId reco_id,
+//     const MaaRect* box,
+//     void* trans_arg);
+pub type MaaCustomActionCallback = Option<
+    extern "C" fn(
+        context: *mut MaaContext,
+        task_id: MaaId,
+        current_task_name: *const c_char,
+        custom_action_name: *const c_char,
+        custom_action_param: *const c_char,
+        reco_id: MaaId,
+        box_rect: *const MaaRect,
+        trans_arg: *mut c_void,
+    ) -> MaaBool,
+>;
+
 // 函数指针类型定义
 type FnMaaVersion = unsafe extern "C" fn() -> *const c_char;
 type FnMaaGlobalSetOption =
@@ -129,6 +163,12 @@ type FnMaaResourceDestroy = unsafe extern "C" fn(*mut MaaResource);
 type FnMaaResourcePostBundle = unsafe extern "C" fn(*mut MaaResource, *const c_char) -> MaaId;
 type FnMaaResourceStatus = unsafe extern "C" fn(*mut MaaResource, MaaId) -> MaaStatus;
 type FnMaaResourceWait = unsafe extern "C" fn(*mut MaaResource, MaaId) -> MaaStatus;
+type FnMaaResourceRegisterCustomAction = unsafe extern "C" fn(
+    *mut MaaResource,
+    *const c_char,
+    MaaCustomActionCallback,
+    *mut c_void,
+) -> MaaBool;
 type FnMaaResourceLoaded = unsafe extern "C" fn(*mut MaaResource) -> MaaBool;
 type FnMaaResourceAddSink =
     unsafe extern "C" fn(*mut MaaResource, MaaEventCallback, *mut c_void) -> MaaId;
@@ -272,6 +312,7 @@ pub struct MaaLibrary {
     pub maa_resource_wait: FnMaaResourceWait,
     pub maa_resource_loaded: FnMaaResourceLoaded,
     pub maa_resource_add_sink: FnMaaResourceAddSink,
+    pub maa_resource_register_custom_action: FnMaaResourceRegisterCustomAction,
 
     // Controller
     pub maa_adb_controller_create: FnMaaAdbControllerCreate,
@@ -468,6 +509,10 @@ impl MaaLibrary {
                 maa_resource_wait: load_fn!(framework_lib, "MaaResourceWait"),
                 maa_resource_loaded: load_fn!(framework_lib, "MaaResourceLoaded"),
                 maa_resource_add_sink: load_fn!(framework_lib, "MaaResourceAddSink"),
+                maa_resource_register_custom_action: load_fn!(
+                    framework_lib,
+                    "MaaResourceRegisterCustomAction"
+                ),
 
                 // Controller
                 maa_adb_controller_create: load_fn!(framework_lib, "MaaAdbControllerCreate"),

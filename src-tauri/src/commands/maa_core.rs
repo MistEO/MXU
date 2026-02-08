@@ -653,6 +653,11 @@ pub fn maa_load_resource(
                 (lib.maa_resource_add_sink)(res, get_event_callback(), std::ptr::null_mut());
             }
 
+            // 注册 MXU 内置 custom actions
+            if let Err(e) = crate::mxu_actions::register_all_mxu_actions(lib, res) {
+                warn!("Failed to register MXU custom actions: {}", e);
+            }
+
             instance.resource = Some(res);
         }
 

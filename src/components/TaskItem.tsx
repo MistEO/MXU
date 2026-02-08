@@ -29,6 +29,7 @@ import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
+import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
@@ -285,8 +286,12 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
 
-  // 获取任务定义
-  const taskDef = projectInterface?.task.find((t) => t.name === task.taskName);
+  // 获取任务定义 - 支持 MXU 内置特殊任务
+  const isMxuTask = isMxuSpecialTask(task.taskName);
+  const mxuSpecialTask = isMxuTask ? getMxuSpecialTask(task.taskName) : null;
+  const taskDef = isMxuTask
+    ? mxuSpecialTask?.taskDef
+    : projectInterface?.task.find((t) => t.name === task.taskName);
 
   // 检查任务是否与当前控制器/资源兼容
   // 未选择时，使用第一个控制器/资源作为默认值判断兼容性
@@ -425,7 +430,10 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
   if (!taskDef) return null;
 
-  const originalLabel = resolveI18nText(taskDef.label, langKey) || taskDef.name;
+  // 对于 MXU 内置任务，使用 t() 翻译，否则使用 resolveI18nText
+  const originalLabel = isMxuTask
+    ? t(taskDef.label || taskDef.name)
+    : resolveI18nText(taskDef.label, langKey) || taskDef.name;
   const displayName = task.customName || originalLabel;
   const hasOptions = taskDef.option && taskDef.option.length > 0;
   // 判断是否有描述内容（包括正在加载的情况）
@@ -435,7 +443,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
   // 生成选项预览信息（最多显示3个）
   const optionPreviews = useMemo(() => {
-    if (!hasOptions || !projectInterface?.option) return [];
+    if (!hasOptions) return [];
+    if (!projectInterface?.option && !isMxuTask) return [];
 
     const previews: {
       key: string;
@@ -448,10 +457,17 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     for (const optionKey of taskDef.option || []) {
       if (previews.length >= maxPreviews) break;
 
-      const optionDef = projectInterface.option[optionKey];
+      // 优先从 projectInterface 查找，MXU 特殊任务从注册表查找
+      const isMxuOption = optionKey.startsWith('__MXU_');
+      const optionDef = isMxuOption
+        ? findMxuOptionByKey(optionKey)
+        : projectInterface?.option?.[optionKey];
       if (!optionDef) continue;
 
-      const optionLabel = resolveI18nText(optionDef.label, langKey) || optionKey;
+      // MXU 特殊任务的 label 是 i18n key，需要用 t() 翻译
+      const optionLabel = isMxuOption
+        ? t(optionDef.label || optionKey)
+        : resolveI18nText(optionDef.label, langKey) || optionKey;
       const optionValue = task.optionValues[optionKey];
 
       if (optionDef.type === 'switch') {
@@ -504,6 +520,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     task.optionValues,
     langKey,
     resolveI18nText,
+    isMxuTask,
+    t,
   ]);
 
   const handleNameClick = (e: React.MouseEvent) => {

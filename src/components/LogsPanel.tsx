@@ -11,13 +11,8 @@ import { ExportLogsModal } from './settings/ExportLogsModal';
 export function LogsPanel() {
   const { t } = useTranslation();
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const {
-    sidePanelExpanded,
-    toggleSidePanelExpanded,
-    activeInstanceId,
-    instanceLogs,
-    clearLogs,
-  } = useAppStore();
+  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
+    useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 

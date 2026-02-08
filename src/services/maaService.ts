@@ -639,7 +639,7 @@ export const maaService = {
   },
 
   /**
-   * 执行前置/后置动作
+   * Run pre-action
    * @param program 程序路径
    * @param args 附加参数
    * @param cwd 工作目录（可选）

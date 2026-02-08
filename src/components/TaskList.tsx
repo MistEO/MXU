@@ -330,12 +330,9 @@ export function TaskList() {
 
   const tasks = instance.selectedTasks;
 
-  // 判断是否显示前后置动作（只在已配置时显示）
   const showPreAction = !!instance.preAction;
-  const showPostAction = !!instance.postAction;
 
-  if (tasks.length === 0 && !showPreAction && !showPostAction) {
-    // 没有任务也没有前后置动作，显示空状态
+  if (tasks.length === 0 && !showPreAction) {
     return (
       <>
         <div
@@ -354,39 +351,25 @@ export function TaskList() {
   }
 
   if (tasks.length === 0) {
-    // 没有任务但有前后置动作
     return (
       <>
         <div
           className="flex-1 flex flex-col overflow-y-auto p-3 gap-2"
           onContextMenu={handleListContextMenu}
         >
-          {/* 前置动作 */}
           {showPreAction && (
             <ActionItem
               instanceId={instance.id}
-              type="pre"
               action={instance.preAction}
               disabled={isInstanceRunning}
             />
           )}
 
-          {/* 空任务提示 - 弹性填充中间区域，把后置动作推到底部 */}
           <div className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3 min-h-[120px]">
             <ListTodo className="w-12 h-12 opacity-30" />
             <p className="text-sm">{t('taskList.noTasks')}</p>
             <p className="text-xs">{t('taskList.dragToReorder')}</p>
           </div>
-
-          {/* 后置动作 */}
-          {showPostAction && (
-            <ActionItem
-              instanceId={instance.id}
-              type="post"
-              action={instance.postAction}
-              disabled={isInstanceRunning}
-            />
-          )}
         </div>
         {menuState.isOpen && (
           <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
@@ -407,7 +390,6 @@ export function TaskList() {
           {showPreAction && (
             <ActionItem
               instanceId={instance.id}
-              type="pre"
               action={instance.preAction}
               disabled={isInstanceRunning}
             />
@@ -428,16 +410,6 @@ export function TaskList() {
               </div>
             </SortableContext>
           </DndContext>
-
-          {/* 后置动作（只在已配置时显示） */}
-          {showPostAction && (
-            <ActionItem
-              instanceId={instance.id}
-              type="post"
-              action={instance.postAction}
-              disabled={isInstanceRunning}
-            />
-          )}
         </div>
       </div>
       {menuState.isOpen && (

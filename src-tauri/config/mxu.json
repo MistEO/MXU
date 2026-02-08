@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "instances": [],
+  "settings": {
+    "theme": "light",
+    "accentColor": "emerald",
+    "language": "system",
+    "confirmBeforeDelete": false,
+    "maxLogsPerInstance": 2000,
+    "windowSize": {
+      "width": 1000,
+      "height": 618
+    },
+    "windowPosition": {
+      "x": 279,
+      "y": 27
+    },
+    "mirrorChyan": {
+      "cdk": "",
+      "channel": "stable"
+    },
+    "showOptionPreview": true,
+    "sidePanelExpanded": true,
+    "rightPanelWidth": 320,
+    "rightPanelCollapsed": false,
+    "connectionPanelExpanded": true,
+    "screenshotPanelExpanded": true,
+    "screenshotFrameRate": "1",
+    "welcomeShownHash": "",
+    "devMode": false,
+    "tcpCompatMode": false,
+    "minimizeToTray": false,
+    "onboardingCompleted": false,
+    "hotkeys": {
+      "startTasks": "F10",
+      "stopTasks": "F11"
+    }
+  },
+  "recentlyClosed": [],
+  "interfaceTaskSnapshot": [],
+  "newTaskNames": [],
+  "customAccents": []
+}

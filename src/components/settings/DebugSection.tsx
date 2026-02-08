@@ -7,6 +7,7 @@ import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
 import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
+import { useExportLogs } from '@/utils/useExportLogs';
 import { SwitchButton } from '@/components/FormControls';
 import { ExportLogsModal } from './ExportLogsModal';
 
@@ -34,13 +35,8 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
-  const [exportModal, setExportModal] = useState<{
-    show: boolean;
-    status: 'exporting' | 'success' | 'error';
-    zipPath?: string;
-    error?: string;
-  }>({ show: false, status: 'exporting' });
   const [, setDebugLog] = useState<string[]>([]);
+  const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   const addDebugLog = useCallback((msg: string) => {
     setDebugLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -158,36 +154,6 @@ export function DebugSection() {
       addDebugLog('缓存已清空');
     } catch (err) {
       addDebugLog(`清空缓存失败: ${err}`);
-    }
-  };
-
-  // 调试：导出日志
-  const handleExportLogs = async () => {
-    if (!isTauri()) {
-      addDebugLog('仅 Tauri 环境支持导出日志');
-      return;
-    }
-
-    setExportModal({ show: true, status: 'exporting' });
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const zipPath = await invoke<string>('export_logs');
-      loggers.ui.info('日志已导出:', zipPath);
-
-      setExportModal({ show: true, status: 'success', zipPath });
-
-      // 打开所在目录
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      const { dirname } = await import('@tauri-apps/api/path');
-      const dir = await dirname(zipPath);
-      await openPath(dir);
-    } catch (err) {
-      loggers.ui.error('导出日志失败:', err);
-      setExportModal({
-        show: true,
-        status: 'error',
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
   };
 
@@ -347,10 +313,11 @@ export function DebugSection() {
       {/* 导出日志 Modal */}
       <ExportLogsModal
         show={exportModal.show}
-        status={exportModal.status}
+        status={exportModal.status === 'idle' ? 'exporting' : exportModal.status}
         zipPath={exportModal.zipPath}
         error={exportModal.error}
-        onClose={() => setExportModal({ show: false, status: 'exporting' })}
+        onClose={closeExportModal}
+        onOpen={openExportedFile}
       />
     </section>
   );

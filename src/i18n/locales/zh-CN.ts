@@ -8,6 +8,7 @@ export default {
     delete: '删除',
     edit: '编辑',
     add: '添加',
+    open: '打开',
     close: '关闭',
     reset: '重置',
     loading: '加载中...',

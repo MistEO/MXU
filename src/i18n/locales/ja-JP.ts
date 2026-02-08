@@ -8,6 +8,7 @@ export default {
     delete: '削除',
     edit: '編集',
     add: '追加',
+    open: '開く',
     close: '閉じる',
     loading: '読み込み中...',
     error: 'エラー',

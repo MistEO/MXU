@@ -1,11 +1,12 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, FolderOpen } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
-import { loggers } from '@/utils/logger';
-import { isTauri, getDebugDir, openDirectory } from '@/utils/paths';
+import { isTauri } from '@/utils/paths';
+import { useExportLogs } from '@/utils/useExportLogs';
+import { ExportLogsModal } from './settings/ExportLogsModal';
 
 export function LogsPanel() {
   const { t } = useTranslation();
@@ -16,9 +17,9 @@ export function LogsPanel() {
     activeInstanceId,
     instanceLogs,
     clearLogs,
-    dataPath,
   } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   // 获取当前实例的日志
   const logs = activeInstanceId ? instanceLogs[activeInstanceId] || [] : [];
@@ -41,20 +42,6 @@ export function LogsPanel() {
       .join('\n');
     navigator.clipboard.writeText(text);
   }, [logs]);
-
-  // 打开日志目录
-  const handleOpenLogDir = useCallback(async () => {
-    if (!isTauri() || !dataPath) {
-      return;
-    }
-
-    try {
-      const logPath = await getDebugDir();
-      await openDirectory(logPath);
-    } catch (err) {
-      loggers.ui.error('打开日志目录失败:', err);
-    }
-  }, [dataPath]);
 
   const getLogColor = (type: LogType) => {
     switch (type) {
@@ -82,11 +69,11 @@ export function LogsPanel() {
 
       const menuItems: MenuItem[] = [
         {
-          id: 'open-log-dir',
-          label: t('settings.openLogDir'),
-          icon: FolderOpen,
-          disabled: !isTauri() || !dataPath,
-          onClick: handleOpenLogDir,
+          id: 'export-logs',
+          label: t('debug.exportLogs'),
+          icon: Archive,
+          disabled: !isTauri(),
+          onClick: handleExportLogs,
         },
         {
           id: 'copy',
@@ -118,8 +105,7 @@ export function LogsPanel() {
       t,
       logs.length,
       sidePanelExpanded,
-      dataPath,
-      handleOpenLogDir,
+      handleExportLogs,
       handleCopyAll,
       handleClear,
       toggleSidePanelExpanded,
@@ -156,22 +142,22 @@ export function LogsPanel() {
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
         <div className="flex items-center gap-2">
-          {/* 打开日志目录 */}
+          {/* 导出日志 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleOpenLogDir();
+              handleExportLogs();
             }}
-            disabled={!isTauri() || !dataPath}
+            disabled={!isTauri() || (exportModal.show && exportModal.status === 'exporting')}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              !isTauri() || !dataPath
+              !isTauri()
                 ? 'text-text-muted cursor-not-allowed'
                 : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}
-            title={t('settings.openLogDir')}
+            title={t('debug.exportLogs')}
           >
-            <FolderOpen className="w-3.5 h-3.5" />
+            <Archive className="w-3.5 h-3.5" />
           </button>
           {/* 清空 */}
           <button
@@ -251,6 +237,16 @@ export function LogsPanel() {
       {menuState.isOpen && (
         <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
       )}
+
+      {/* 导出日志 Modal */}
+      <ExportLogsModal
+        show={exportModal.show}
+        status={exportModal.status === 'idle' ? 'exporting' : exportModal.status}
+        zipPath={exportModal.zipPath}
+        error={exportModal.error}
+        onClose={closeExportModal}
+        onOpen={openExportedFile}
+      />
     </div>
   );
 }

@@ -168,7 +168,7 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
 /// 导出日志文件为 zip 压缩包
 /// 返回生成的 zip 文件路径
 #[tauri::command]
-pub fn export_logs() -> Result<String, String> {
+pub fn export_logs(project_name: Option<String>, project_version: Option<String>) -> Result<String, String> {
     use std::fs::File;
     use std::io::{Read, Write};
     use zip::write::SimpleFileOptions;
@@ -182,9 +182,16 @@ pub fn export_logs() -> Result<String, String> {
         return Err("日志目录不存在".to_string());
     }
 
-    // 生成带时间戳的文件名
+    // 生成带时间戳的文件名：项目名-版本号-日期.zip
     let now = chrono::Local::now();
-    let filename = format!("mxu-logs-{}.zip", now.format("%Y%m%d-%H%M%S"));
+    let date_str = now.format("%Y%m%d-%H%M%S");
+    let name = project_name.unwrap_or_else(|| "mxu".to_string());
+    let version = project_version.unwrap_or_default();
+    let filename = if version.is_empty() {
+        format!("{}-logs-{}.zip", name, date_str)
+    } else {
+        format!("{}-logs-{}-{}.zip", name, version, date_str)
+    };
     let zip_path = debug_dir.join(&filename);
 
     let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;

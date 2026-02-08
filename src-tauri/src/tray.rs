@@ -87,9 +87,11 @@ pub fn init_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     // 保存托盘引用，用于后续动态更新图标
     let tray_mutex = TRAY_ICON.get_or_init(|| Mutex::new(None));
-    if let Ok(mut guard) = tray_mutex.lock() {
-        *guard = Some(tray);
-    }
+    let mut guard = tray_mutex.lock().map_err(|e| {
+        log::error!("Failed to lock tray mutex during init: {}", e);
+        format!("Failed to initialize tray: {}", e)
+    })?;
+    *guard = Some(tray);
 
     Ok(())
 }
@@ -119,6 +121,11 @@ pub fn handle_close_requested(app: &AppHandle) -> bool {
 /// 更新托盘图标
 /// icon_path: 图标文件的相对路径（相对于 exe 目录）
 pub fn update_tray_icon(icon_path: &str) -> Result<(), String> {
+    // 路径安全校验：禁止路径遍历
+    if icon_path.contains("..") {
+        return Err("Invalid icon path: path traversal not allowed".to_string());
+    }
+
     // 获取 exe 目录
     let exe_dir = std::env::current_exe()
         .map_err(|e| format!("Failed to get exe path: {}", e))?
@@ -128,9 +135,21 @@ pub fn update_tray_icon(icon_path: &str) -> Result<(), String> {
 
     let full_path = exe_dir.join(icon_path);
 
+    // 校验最终路径是否在 exe 目录内
+    let canonical_path = full_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve icon path: {}", e))?;
+    let canonical_exe_dir = exe_dir
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve exe directory: {}", e))?;
+
+    if !canonical_path.starts_with(&canonical_exe_dir) {
+        return Err("Invalid icon path: must be within application directory".to_string());
+    }
+
     // 读取图标文件
-    let icon_data = std::fs::read(&full_path)
-        .map_err(|e| format!("Failed to read icon file {:?}: {}", full_path, e))?;
+    let icon_data = std::fs::read(&canonical_path)
+        .map_err(|e| format!("Failed to read icon file {:?}: {}", canonical_path, e))?;
 
     // 创建图标
     let icon = Image::from_bytes(&icon_data)

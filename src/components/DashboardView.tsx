@@ -735,7 +735,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                     ? 'bg-accent text-white'
                     : isConnected
                       ? 'bg-bg-tertiary text-text-secondary'
-                      : 'bg-bg-active text-text-muted',
+                      : 'bg-bg-active text-text-tertiary',
             )}
           >
             {isRunning || taskStatus === 'Running' ? (

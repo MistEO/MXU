@@ -93,6 +93,16 @@ export default {
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
   },
 
+  // 特殊任務
+  specialTask: {
+    sleep: {
+      label: '延遲',
+      optionLabel: '延遲設定',
+      inputLabel: '延遲時間（秒）',
+      inputError: '請輸入正整數',
+    },
+  },
+
   // 任務列表
   taskList: {
     title: '任務列表',

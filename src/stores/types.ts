@@ -140,6 +140,10 @@ export interface AppState {
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
   ) => void;
+  /** @deprecated 使用 addMxuSpecialTask 代替 */
+  addSleepTaskToInstance: (instanceId: string, sleepTime?: number) => string;
+  /** 添加 MXU 特殊任务到实例 */
+  addMxuSpecialTask: (instanceId: string, taskName: string, initialValues?: Record<string, string>) => string;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;

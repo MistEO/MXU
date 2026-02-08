@@ -1,14 +1,24 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Plus, Sparkles, Loader2, AlertCircle, Play } from 'lucide-react';
+import { Search, Plus, Sparkles, Loader2, AlertCircle, Play, Clock, Zap, Bell, Timer, Pause, type LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import { getInterfaceLangKey } from '@/i18n';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig } from '@/types/interface';
+import type { TaskItem, ActionConfig, MxuSpecialTaskDefinition } from '@/types/interface';
+import { getAllMxuSpecialTasks } from '@/types/interface';
 import clsx from 'clsx';
+
+// 图标名称到组件的映射
+const ICON_MAP: Record<MxuSpecialTaskDefinition['iconName'], LucideIcon> = {
+  Clock,
+  Zap,
+  Bell,
+  Timer,
+  Pause,
+};
 
 const log = loggers.task;
 
@@ -131,6 +141,7 @@ export function AddTaskPanel() {
     projectInterface,
     getActiveInstance,
     addTaskToInstance,
+    addMxuSpecialTask,
     resolveI18nText,
     language,
     basePath,
@@ -143,6 +154,9 @@ export function AddTaskPanel() {
     removeNewTaskName,
     setInstancePreAction,
   } = useAppStore();
+
+  // 获取所有注册的特殊任务
+  const specialTasks = useMemo(() => getAllMxuSpecialTasks(), []);
 
   const instance = getActiveInstance();
   const langKey = getInterfaceLangKey(language);
@@ -202,6 +216,52 @@ export function AddTaskPanel() {
     }
 
     return { isIncompatible, reason };
+  };
+
+  /**
+   * 通用的 MXU 特殊任务添加处理函数
+   * @param specialTask 特殊任务定义
+   */
+  const handleAddSpecialTask = async (specialTask: MxuSpecialTaskDefinition) => {
+    if (!instance) return;
+
+    // 添加特殊任务到列表
+    const taskId = addMxuSpecialTask(instance.id, specialTask.taskName);
+
+    // 如果实例正在运行，立即调用 PostTask 追加到执行队列
+    if (instance.isRunning) {
+      try {
+        const latestState = useAppStore.getState();
+        const updatedInstance = latestState.instances.find((i) => i.id === instance.id);
+        const addedTask = updatedInstance?.selectedTasks.find((t) => t.id === taskId);
+
+        if (!addedTask) {
+          log.warn(`无法找到刚添加的特殊任务: ${specialTask.taskName}`);
+          return;
+        }
+
+        // 构建 pipeline override
+        const pipelineOverride = generateTaskPipelineOverride(addedTask, projectInterface);
+
+        log.info(`运行中追加特殊任务 ${specialTask.entry}, pipelineOverride:`, pipelineOverride);
+
+        // 调用 PostTask（使用注册表中的 entry）
+        const maaTaskId = await maaService.runTask(instance.id, specialTask.entry, pipelineOverride);
+
+        log.info(`特殊任务已追加, maaTaskId:`, maaTaskId);
+
+        // 注册映射关系
+        registerMaaTaskMapping(instance.id, maaTaskId, addedTask.id);
+
+        // 设置任务状态为 pending
+        setTaskRunStatus(instance.id, addedTask.id, 'pending');
+
+        // 追加到任务队列
+        appendPendingTaskId(instance.id, maaTaskId);
+      } catch (err) {
+        log.error(`追加特殊任务失败:`, err);
+      }
+    }
   };
 
   const handleAddTask = async (taskName: string) => {
@@ -316,7 +376,7 @@ export function AddTaskPanel() {
               </div>
             )}
 
-            {instance && !instance.preAction && (
+            {instance && (
               <>
                 <div className="flex items-center gap-3 pt-1">
                   <div className="flex-1 h-px bg-border/50" />
@@ -326,19 +386,39 @@ export function AddTaskPanel() {
                   <div className="flex-1 h-px bg-border/50" />
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setInstancePreAction(instance.id, defaultAction)}
-                    disabled={instance.isRunning}
-                    className={clsx(
-                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                      'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
-                      instance.isRunning && 'opacity-50 cursor-not-allowed',
-                    )}
-                  >
-                    <Play className="w-3.5 h-3.5 text-success/80" />
-                    <span>{t('action.preAction')}</span>
-                  </button>
+                <div className="flex gap-2 flex-wrap">
+                  {/* 前置任务按钮：仅在未添加时显示 */}
+                  {!instance.preAction && (
+                    <button
+                      onClick={() => setInstancePreAction(instance.id, defaultAction)}
+                      disabled={instance.isRunning}
+                      className={clsx(
+                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                        'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                        instance.isRunning && 'opacity-50 cursor-not-allowed',
+                      )}
+                    >
+                      <Play className="w-3.5 h-3.5 text-success/80" />
+                      <span>{t('action.preAction')}</span>
+                    </button>
+                  )}
+                  {/* 动态渲染所有注册的特殊任务按钮 */}
+                  {specialTasks.map((specialTask) => {
+                    const IconComponent = ICON_MAP[specialTask.iconName];
+                    return (
+                      <button
+                        key={specialTask.taskName}
+                        onClick={() => handleAddSpecialTask(specialTask)}
+                        className={clsx(
+                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                          'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                        )}
+                      >
+                        <IconComponent className={clsx('w-3.5 h-3.5', specialTask.iconColorClass)} />
+                        <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}

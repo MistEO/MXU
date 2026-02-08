@@ -9,6 +9,11 @@ import type {
   SelectedTask,
   OptionValue,
   OptionDefinition,
+  InputOption,
+} from '@/types/interface';
+import {
+  isMxuSpecialTask,
+  getMxuSpecialTask,
 } from '@/types/interface';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
@@ -94,6 +99,11 @@ export const generateTaskPipelineOverride = (
   selectedTask: SelectedTask,
   projectInterface: ProjectInterface | null,
 ): string => {
+  // 处理 MXU 内置特殊任务
+  if (isMxuSpecialTask(selectedTask.taskName)) {
+    return generateMxuSpecialTaskOverride(selectedTask);
+  }
+
   if (!projectInterface) return '[]';
 
   const overrides: Record<string, unknown>[] = [];
@@ -114,6 +124,71 @@ export const generateTaskPipelineOverride = (
         overrides,
         projectInterface.option,
       );
+    }
+  }
+
+  return JSON.stringify(overrides);
+};
+
+/**
+ * 生成 MXU 内置特殊任务的 pipeline override
+ * 通用化实现：从注册表获取任务定义，根据选项定义生成 override
+ */
+const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
+  const specialTask = getMxuSpecialTask(selectedTask.taskName);
+  if (!specialTask) {
+    loggers.task.warn(`未找到特殊任务定义: ${selectedTask.taskName}`);
+    return '[]';
+  }
+
+  const overrides: Record<string, unknown>[] = [];
+  const { taskDef, optionDefs } = specialTask;
+
+  // 添加任务自身的 pipeline_override（如果有）
+  if (taskDef.pipeline_override) {
+    overrides.push(taskDef.pipeline_override as Record<string, unknown>);
+  }
+
+  // 处理任务的选项
+  if (taskDef.option) {
+    for (const optionKey of taskDef.option) {
+      const optionDef = optionDefs[optionKey];
+      if (!optionDef) continue;
+
+      const optionValue = selectedTask.optionValues[optionKey] || createDefaultOptionValue(optionDef);
+
+      // 处理 input 类型选项的 pipeline_override
+      if (optionValue.type === 'input' && optionDef.type === 'input' && optionDef.pipeline_override) {
+        const inputDef = optionDef as InputOption;
+        let overrideStr = JSON.stringify(inputDef.pipeline_override);
+
+        for (const input of inputDef.inputs || []) {
+          const inputName = input.name;
+          const inputVal = optionValue.values[inputName] ?? input.default ?? '';
+          const pipelineType = input.pipeline_type || 'string';
+          const placeholder = `{${inputName}}`;
+          const placeholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+
+          if (pipelineType === 'int') {
+            overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), inputVal || '0');
+            overrideStr = overrideStr.replace(placeholderRegex, inputVal || '0');
+          } else if (pipelineType === 'bool') {
+            const boolVal = ['true', '1', 'yes', 'y'].includes((inputVal || '').toLowerCase())
+              ? 'true'
+              : 'false';
+            overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), boolVal);
+            overrideStr = overrideStr.replace(placeholderRegex, boolVal);
+          } else {
+            overrideStr = overrideStr.replace(placeholderRegex, inputVal || '');
+          }
+        }
+
+        try {
+          overrides.push(JSON.parse(overrideStr));
+        } catch (e) {
+          loggers.task.warn('解析特殊任务选项覆盖失败:', e);
+        }
+      }
     }
   }
 

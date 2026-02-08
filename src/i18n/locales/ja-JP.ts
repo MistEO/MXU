@@ -94,6 +94,16 @@ export default {
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
   },
 
+  // 特殊タスク
+  specialTask: {
+    sleep: {
+      label: '遅延',
+      optionLabel: '遅延設定',
+      inputLabel: '遅延時間（秒）',
+      inputError: '正の整数を入力してください',
+    },
+  },
+
   // タスクリスト
   taskList: {
     title: 'タスクリスト',

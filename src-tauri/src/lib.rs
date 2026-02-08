@@ -1,5 +1,6 @@
 pub mod commands;
 mod maa_ffi;
+mod mxu_actions;
 mod tray;
 
 use commands::MaaState;

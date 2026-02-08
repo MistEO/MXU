@@ -95,6 +95,16 @@ export default {
     resetWindowLayoutHint: 'Restore window size to default and center the window',
   },
 
+  // Special tasks
+  specialTask: {
+    sleep: {
+      label: 'Delay',
+      optionLabel: 'Delay Settings',
+      inputLabel: 'Delay Time (seconds)',
+      inputError: 'Please enter a positive integer',
+    },
+  },
+
   // Task list
   taskList: {
     title: 'Task List',

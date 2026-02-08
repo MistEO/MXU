@@ -94,6 +94,16 @@ export default {
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
   },
 
+  // 특수 작업
+  specialTask: {
+    sleep: {
+      label: '지연',
+      optionLabel: '지연 설정',
+      inputLabel: '지연 시간(초)',
+      inputError: '양의 정수를 입력해 주세요',
+    },
+  },
+
   // 작업 목록
   taskList: {
     title: '작업 목록',

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Instance, SelectedTask, OptionValue, ActionConfig } from '@/types/interface';
+import type { Instance, SelectedTask, OptionValue, ActionConfig, OptionDefinition } from '@/types/interface';
+import { getMxuSpecialTask } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -326,6 +327,62 @@ export const useAppStore = create<AppState>()(
         lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         animatingTaskIds: [...state.animatingTaskIds, newTask.id], // 加入动画列表
       }));
+    },
+
+    // 添加延迟任务到实例（保留向后兼容，内部调用 addMxuSpecialTask）
+    addSleepTaskToInstance: (instanceId: string, sleepTime: number = 5) => {
+      return get().addMxuSpecialTask(instanceId, '__MXU_SLEEP__', { sleep_time: String(sleepTime) });
+    },
+
+    // 通用 MXU 特殊任务添加函数
+    addMxuSpecialTask: (instanceId: string, taskName: string, initialValues?: Record<string, string>) => {
+      // 从注册表获取特殊任务定义
+      const specialTask = getMxuSpecialTask(taskName);
+      
+      if (!specialTask) {
+        loggers.task.warn(`未找到特殊任务定义: ${taskName}`);
+        return '';
+      }
+
+      // 根据任务定义初始化选项值
+      const optionValues: Record<string, OptionValue> = {};
+      
+      for (const [optionKey, optionDef] of Object.entries(specialTask.optionDefs) as [string, OptionDefinition][]) {
+        if (optionDef.type === 'input') {
+          const values: Record<string, string> = {};
+          for (const input of optionDef.inputs || []) {
+            // 优先使用传入的初始值，否则使用默认值
+            values[input.name] = initialValues?.[input.name] ?? input.default ?? '';
+          }
+          optionValues[optionKey] = { type: 'input', values };
+        } else if (optionDef.type === 'switch') {
+          const defaultCase = optionDef.default_case;
+          const isOn = defaultCase === 'Yes' || defaultCase === optionDef.cases[0]?.name;
+          optionValues[optionKey] = { type: 'switch', value: isOn };
+        } else {
+          // select 类型
+          const caseName = optionDef.default_case || optionDef.cases?.[0]?.name || '';
+          optionValues[optionKey] = { type: 'select', caseName };
+        }
+      }
+
+      const newTask: SelectedTask = {
+        id: generateId(),
+        taskName,
+        enabled: true,
+        optionValues,
+        expanded: true,
+      };
+
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId ? { ...i, selectedTasks: [...i.selectedTasks, newTask] } : i,
+        ),
+        lastAddedTaskId: newTask.id,
+        animatingTaskIds: [...state.animatingTaskIds, newTask.id],
+      }));
+
+      return newTask.id;
     },
 
     removeTaskFromInstance: (instanceId, taskId) =>

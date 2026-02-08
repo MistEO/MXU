@@ -94,6 +94,16 @@ export default {
     resetWindowLayoutHint: '将窗口大小恢复为默认值，并居中显示',
   },
 
+  // 特殊任务
+  specialTask: {
+    sleep: {
+      label: '延迟',
+      optionLabel: '延迟设置',
+      inputLabel: '延迟时间（秒）',
+      inputError: '请输入正整数',
+    },
+  },
+
   // 任务列表
   taskList: {
     title: '任务列表',

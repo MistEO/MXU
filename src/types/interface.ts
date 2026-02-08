@@ -204,3 +204,129 @@ export interface Instance {
 
 // 翻译文件类型
 export type TranslationMap = Record<string, string>;
+
+// ============================================================================
+// MXU 内置特殊任务系统
+// ============================================================================
+
+/**
+ * MXU 特殊任务定义接口
+ * 用于注册 MXU 内置的特殊任务（通过 custom_action 实现）
+ */
+export interface MxuSpecialTaskDefinition {
+  /** 任务唯一标识符，如 '__MXU_SLEEP__' */
+  taskName: string;
+  /** MaaFramework 任务入口名，如 'MXU_SLEEP' */
+  entry: string;
+  /** 虚拟 TaskItem 定义 */
+  taskDef: TaskItem;
+  /** 相关选项定义（键为选项 key） */
+  optionDefs: Record<string, OptionDefinition>;
+  /** 图标名称（对应 lucide-react 图标） */
+  iconName: 'Clock' | 'Zap' | 'Bell' | 'Timer' | 'Pause';
+  /** 图标颜色 CSS 类 */
+  iconColorClass: string;
+}
+
+// MXU_SLEEP 特殊任务常量（保留向后兼容）
+export const MXU_SLEEP_TASK_NAME = '__MXU_SLEEP__';
+export const MXU_SLEEP_ENTRY = 'MXU_SLEEP';
+
+// MXU_SLEEP 任务定义
+const MXU_SLEEP_TASK_DEF_INTERNAL: TaskItem = {
+  name: MXU_SLEEP_TASK_NAME,
+  label: 'specialTask.sleep.label',
+  entry: MXU_SLEEP_ENTRY,
+  option: ['__MXU_SLEEP_OPTION__'],
+};
+
+// MXU_SLEEP 选项定义
+const MXU_SLEEP_OPTION_DEF_INTERNAL: InputOption = {
+  type: 'input',
+  label: 'specialTask.sleep.optionLabel',
+  inputs: [
+    {
+      name: 'sleep_time',
+      label: 'specialTask.sleep.inputLabel',
+      default: '5',
+      pipeline_type: 'int',
+      verify: '^[1-9]\\d*$',
+      pattern_msg: 'specialTask.sleep.inputError',
+    },
+  ],
+  pipeline_override: {
+    [MXU_SLEEP_ENTRY]: {
+      custom_action_param: {
+        sleep_time: '{sleep_time}',
+      },
+    },
+  },
+};
+
+/**
+ * MXU 特殊任务注册表
+ * 所有 MXU 内置特殊任务都在这里注册
+ * 添加新特殊任务只需在此注册表中添加新条目
+ */
+export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
+  [MXU_SLEEP_TASK_NAME]: {
+    taskName: MXU_SLEEP_TASK_NAME,
+    entry: MXU_SLEEP_ENTRY,
+    taskDef: MXU_SLEEP_TASK_DEF_INTERNAL,
+    optionDefs: {
+      '__MXU_SLEEP_OPTION__': MXU_SLEEP_OPTION_DEF_INTERNAL,
+    },
+    iconName: 'Clock',
+    iconColorClass: 'text-warning/80',
+  },
+  // 未来添加更多特殊任务示例：
+  // '__MXU_NOTIFY__': {
+  //   taskName: '__MXU_NOTIFY__',
+  //   entry: 'MXU_NOTIFY',
+  //   taskDef: { ... },
+  //   optionDefs: { ... },
+  //   iconName: 'Bell',
+  //   iconColorClass: 'text-accent/80',
+  // },
+};
+
+// 导出兼容旧代码的常量（指向注册表中的定义）
+export const MXU_SLEEP_TASK_DEF = MXU_SPECIAL_TASKS[MXU_SLEEP_TASK_NAME].taskDef;
+export const MXU_SLEEP_OPTION_DEF = MXU_SPECIAL_TASKS[MXU_SLEEP_TASK_NAME].optionDefs['__MXU_SLEEP_OPTION__'] as InputOption;
+
+/**
+ * 判断是否为 MXU 内置特殊任务
+ * @param taskName 任务名称
+ * @returns 是否为特殊任务
+ */
+export function isMxuSpecialTask(taskName: string): boolean {
+  return taskName in MXU_SPECIAL_TASKS;
+}
+
+/**
+ * 获取 MXU 特殊任务定义
+ * @param taskName 任务名称
+ * @returns 特殊任务定义，不存在则返回 undefined
+ */
+export function getMxuSpecialTask(taskName: string): MxuSpecialTaskDefinition | undefined {
+  return MXU_SPECIAL_TASKS[taskName];
+}
+
+/**
+ * 获取 MXU 特殊任务的选项定义
+ * @param taskName 任务名称
+ * @param optionKey 选项键
+ * @returns 选项定义，不存在则返回 undefined
+ */
+export function getMxuSpecialTaskOption(taskName: string, optionKey: string): OptionDefinition | undefined {
+  const specialTask = MXU_SPECIAL_TASKS[taskName];
+  return specialTask?.optionDefs[optionKey];
+}
+
+/**
+ * 获取所有 MXU 特殊任务定义列表
+ * @returns 特殊任务定义数组
+ */
+export function getAllMxuSpecialTasks(): MxuSpecialTaskDefinition[] {
+  return Object.values(MXU_SPECIAL_TASKS);
+}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem, OptionDefinition } from '@/types/interface';
+import { getMxuSpecialTaskOption } from '@/types/interface';
 import clsx from 'clsx';
 import { Info, AlertCircle, Loader2, FileText, Link, ChevronDown, Check } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
@@ -142,6 +143,8 @@ function InputField({
   resolveI18nText,
   basePath,
   disabled,
+  isMxuOption = false,
+  t,
 }: {
   input: InputItem;
   value: string;
@@ -150,11 +153,20 @@ function InputField({
   resolveI18nText: (text: string | undefined, lang: string) => string;
   basePath: string;
   disabled?: boolean;
+  isMxuOption?: boolean;
+  t?: (key: string) => string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const inputLabel = resolveI18nText(input.label, langKey) || input.name;
-  const inputDescription = resolveI18nText(input.description, langKey);
-  const patternMsg = resolveI18nText(input.pattern_msg, langKey);
+  // 对于 MXU 内置选项，使用 t() 翻译
+  const inputLabel = isMxuOption && t
+    ? t(input.label || input.name)
+    : resolveI18nText(input.label, langKey) || input.name;
+  const inputDescription = isMxuOption && t
+    ? (input.description ? t(input.description) : undefined)
+    : resolveI18nText(input.description, langKey);
+  const patternMsg = isMxuOption && t
+    ? (input.pattern_msg ? t(input.pattern_msg) : undefined)
+    : resolveI18nText(input.pattern_msg, langKey);
 
   // 验证输入
   const validationError = useMemo(() => {
@@ -222,6 +234,7 @@ export function OptionEditor({
   depth = 0,
   disabled = false,
 }: OptionEditorProps) {
+  const { t } = useTranslation();
   const {
     projectInterface,
     setTaskOptionValue,
@@ -232,11 +245,19 @@ export function OptionEditor({
     instances,
   } = useAppStore();
 
-  const optionDef = projectInterface?.option?.[optionKey];
+  // 支持 MXU 内置选项定义（检查 optionKey 是否以 __MXU_ 开头）
+  const isMxuOption = optionKey.startsWith('__MXU_');
+  // 从任务名中提取特殊任务名（如 '__MXU_SLEEP_OPTION__' -> '__MXU_SLEEP__'）
+  const mxuTaskName = isMxuOption ? optionKey.replace(/_OPTION__$/, '__') : null;
+  const mxuOptionDef = mxuTaskName ? getMxuSpecialTaskOption(mxuTaskName, optionKey) : null;
+  const optionDef = isMxuOption ? mxuOptionDef : projectInterface?.option?.[optionKey];
   if (!optionDef) return null;
 
   const langKey = getInterfaceLangKey(language);
-  const optionLabel = resolveI18nText(optionDef.label, langKey) || optionKey;
+  // 对于 MXU 内置选项，使用 t() 翻译
+  const optionLabel = isMxuOption
+    ? t(optionDef.label || optionKey)
+    : resolveI18nText(optionDef.label, langKey) || optionKey;
   const optionDescription = resolveI18nText(optionDef.description, langKey);
   const translations = interfaceTranslations[langKey];
 
@@ -341,6 +362,8 @@ export function OptionEditor({
               resolveI18nText={resolveI18nText}
               basePath={basePath}
               disabled={disabled}
+              isMxuOption={isMxuOption}
+              t={t}
             />
           );
         })}

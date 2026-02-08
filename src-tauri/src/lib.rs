@@ -172,6 +172,8 @@ pub fn run() {
             // 托盘相关命令
             commands::tray::set_minimize_to_tray,
             commands::tray::get_minimize_to_tray,
+            commands::tray::update_tray_icon,
+            commands::tray::update_tray_tooltip,
         ])
         .on_window_event(|window, event| {
             match event {

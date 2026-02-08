@@ -14,3 +14,15 @@ pub fn set_minimize_to_tray(enabled: bool) {
 pub fn get_minimize_to_tray() -> bool {
     tray::get_minimize_to_tray()
 }
+
+/// 更新托盘图标
+#[tauri::command]
+pub fn update_tray_icon(icon_path: String) -> Result<(), String> {
+    tray::update_tray_icon(&icon_path)
+}
+
+/// 更新托盘 tooltip
+#[tauri::command]
+pub fn update_tray_tooltip(tooltip: String) -> Result<(), String> {
+    tray::update_tray_tooltip(&tooltip)
+}

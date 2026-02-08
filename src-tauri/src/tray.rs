@@ -1,13 +1,19 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex, OnceLock,
+};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Wry,
 };
 
 /// 全局设置：关闭时是否最小化到托盘
 static MINIMIZE_TO_TRAY: AtomicBool = AtomicBool::new(false);
+
+/// 全局托盘图标引用，用于动态更新图标
+static TRAY_ICON: OnceLock<Mutex<Option<TrayIcon>>> = OnceLock::new();
 
 /// 设置最小化到托盘选项
 pub fn set_minimize_to_tray(enabled: bool) {
@@ -36,7 +42,7 @@ pub fn init_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/icon.png")).unwrap());
 
     // 创建托盘图标
-    let _tray = TrayIconBuilder::<Wry>::new()
+    let tray = TrayIconBuilder::<Wry>::new()
         .icon(icon)
         .tooltip("MXU")
         .menu(&menu)
@@ -79,6 +85,12 @@ pub fn init_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
+    // 保存托盘引用，用于后续动态更新图标
+    let tray_mutex = TRAY_ICON.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = tray_mutex.lock() {
+        *guard = Some(tray);
+    }
+
     Ok(())
 }
 
@@ -101,5 +113,58 @@ pub fn handle_close_requested(app: &AppHandle) -> bool {
         true // 阻止关闭
     } else {
         false // 允许关闭
+    }
+}
+
+/// 更新托盘图标
+/// icon_path: 图标文件的相对路径（相对于 exe 目录）
+pub fn update_tray_icon(icon_path: &str) -> Result<(), String> {
+    // 获取 exe 目录
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("Failed to get exe path: {}", e))?
+        .parent()
+        .ok_or("Failed to get exe directory")?
+        .to_path_buf();
+
+    let full_path = exe_dir.join(icon_path);
+
+    // 读取图标文件
+    let icon_data = std::fs::read(&full_path)
+        .map_err(|e| format!("Failed to read icon file {:?}: {}", full_path, e))?;
+
+    // 创建图标
+    let icon = Image::from_bytes(&icon_data)
+        .map_err(|e| format!("Failed to parse icon: {}", e))?;
+
+    // 更新托盘图标
+    let tray_mutex = TRAY_ICON.get_or_init(|| Mutex::new(None));
+    let guard = tray_mutex
+        .lock()
+        .map_err(|e| format!("Failed to lock tray mutex: {}", e))?;
+
+    if let Some(tray) = guard.as_ref() {
+        tray.set_icon(Some(icon))
+            .map_err(|e| format!("Failed to set tray icon: {}", e))?;
+        log::info!("Tray icon updated: {}", icon_path);
+        Ok(())
+    } else {
+        Err("Tray icon not initialized".to_string())
+    }
+}
+
+/// 更新托盘 tooltip
+pub fn update_tray_tooltip(tooltip: &str) -> Result<(), String> {
+    let tray_mutex = TRAY_ICON.get_or_init(|| Mutex::new(None));
+    let guard = tray_mutex
+        .lock()
+        .map_err(|e| format!("Failed to lock tray mutex: {}", e))?;
+
+    if let Some(tray) = guard.as_ref() {
+        tray.set_tooltip(Some(tooltip))
+            .map_err(|e| format!("Failed to set tray tooltip: {}", e))?;
+        log::info!("Tray tooltip updated: {}", tooltip);
+        Ok(())
+    } else {
+        Err("Tray icon not initialized".to_string())
     }
 }

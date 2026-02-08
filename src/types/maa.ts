@@ -40,6 +40,7 @@ export interface Win32ControllerConfig {
 export interface PlayCoverControllerConfig {
   type: 'PlayCover';
   address: string;
+  uuid?: string;
 }
 
 /** Gamepad 控制器配置 */

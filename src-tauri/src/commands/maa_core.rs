@@ -506,9 +506,22 @@ pub fn maa_connect_controller(
                     screencap,
                 )
             }
-            ControllerConfig::PlayCover { .. } => {
-                // PlayCover 仅支持 macOS
-                return Err("PlayCover controller is only supported on macOS".to_string());
+            ControllerConfig::PlayCover { address, uuid } => {
+                info!("Creating PlayCover controller:");
+                info!("  address: {}", address);
+                info!("  uuid: {:?}", uuid);
+
+                let address_c = to_cstring(address);
+                let uuid_str = uuid.as_deref().unwrap_or("");
+                let uuid_c = to_cstring(uuid_str);
+
+                debug!("Calling MaaPlayCoverControllerCreate...");
+                let ctrl = (lib.maa_playcover_controller_create)(
+                    address_c.as_ptr(),
+                    uuid_c.as_ptr(),
+                );
+                debug!("MaaPlayCoverControllerCreate returned: {:?}", ctrl);
+                ctrl
             }
         }
     };

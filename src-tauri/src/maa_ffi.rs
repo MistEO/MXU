@@ -187,6 +187,8 @@ type FnMaaWin32ControllerCreate = unsafe extern "C" fn(
     MaaWin32InputMethod,
     MaaWin32InputMethod,
 ) -> *mut MaaController;
+type FnMaaPlayCoverControllerCreate =
+    unsafe extern "C" fn(*const c_char, *const c_char) -> *mut MaaController;
 type FnMaaGamepadControllerCreate = unsafe extern "C" fn(
     *mut c_void,
     MaaGamepadType,
@@ -317,6 +319,7 @@ pub struct MaaLibrary {
     // Controller
     pub maa_adb_controller_create: FnMaaAdbControllerCreate,
     pub maa_win32_controller_create: FnMaaWin32ControllerCreate,
+    pub maa_playcover_controller_create: FnMaaPlayCoverControllerCreate,
     pub maa_gamepad_controller_create: FnMaaGamepadControllerCreate,
     pub maa_controller_destroy: FnMaaControllerDestroy,
     pub maa_controller_post_connection: FnMaaControllerPostConnection,
@@ -517,6 +520,10 @@ impl MaaLibrary {
                 // Controller
                 maa_adb_controller_create: load_fn!(framework_lib, "MaaAdbControllerCreate"),
                 maa_win32_controller_create: load_fn!(framework_lib, "MaaWin32ControllerCreate"),
+                maa_playcover_controller_create: load_fn!(
+                    framework_lib,
+                    "MaaPlayCoverControllerCreate"
+                ),
                 maa_gamepad_controller_create: load_fn!(
                     framework_lib,
                     "MaaGamepadControllerCreate"

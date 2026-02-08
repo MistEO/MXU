@@ -152,6 +152,8 @@ type FnMaaGamepadControllerCreate = unsafe extern "C" fn(
     MaaGamepadType,
     MaaWin32ScreencapMethod,
 ) -> *mut MaaController;
+type FnMaaPlayCoverControllerCreate =
+    unsafe extern "C" fn(*const c_char, *const c_char) -> *mut MaaController;
 type FnMaaControllerDestroy = unsafe extern "C" fn(*mut MaaController);
 type FnMaaControllerPostConnection = unsafe extern "C" fn(*mut MaaController) -> MaaId;
 type FnMaaControllerStatus = unsafe extern "C" fn(*mut MaaController, MaaId) -> MaaStatus;
@@ -277,6 +279,8 @@ pub struct MaaLibrary {
     pub maa_adb_controller_create: FnMaaAdbControllerCreate,
     pub maa_win32_controller_create: FnMaaWin32ControllerCreate,
     pub maa_gamepad_controller_create: FnMaaGamepadControllerCreate,
+    /// PlayCover 控制器（仅 macOS，旧版 MaaFramework 可能无此符号）
+    pub maa_playcover_controller_create: Option<FnMaaPlayCoverControllerCreate>,
     pub maa_controller_destroy: FnMaaControllerDestroy,
     pub maa_controller_post_connection: FnMaaControllerPostConnection,
     pub maa_controller_status: FnMaaControllerStatus,
@@ -475,6 +479,10 @@ impl MaaLibrary {
                 maa_gamepad_controller_create: load_fn!(
                     framework_lib,
                     "MaaGamepadControllerCreate"
+                ),
+                maa_playcover_controller_create: load_fn_optional!(
+                    framework_lib,
+                    "MaaPlayCoverControllerCreate"
                 ),
                 maa_controller_destroy: load_fn!(framework_lib, "MaaControllerDestroy"),
                 maa_controller_post_connection: load_fn!(

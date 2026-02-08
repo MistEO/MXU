@@ -10,9 +10,9 @@ use tauri::State;
 use crate::maa_ffi::{
     from_cstr, get_event_callback, get_maa_version, get_maa_version_standalone, init_maa_library,
     to_cstring, MaaImageBuffer, MaaLibrary, MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList,
-    MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE, MAA_GAMEPAD_TYPE_DUALSHOCK4,
-    MAA_GAMEPAD_TYPE_XBOX360, MAA_INVALID_ID, MAA_LIBRARY, MAA_STATUS_PENDING, MAA_STATUS_RUNNING,
-    MAA_STATUS_SUCCEEDED, MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
+    MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE, MAA_GAMEPAD_TYPE_DUALSHOCK4, MAA_GAMEPAD_TYPE_XBOX360,
+    MAA_INVALID_ID, MAA_LIBRARY, MAA_STATUS_PENDING, MAA_STATUS_RUNNING, MAA_STATUS_SUCCEEDED,
+    MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
 };
 
 use super::types::{
@@ -505,9 +505,30 @@ pub fn maa_connect_controller(
                     screencap,
                 )
             }
-            ControllerConfig::PlayCover { .. } => {
-                // PlayCover 仅支持 macOS
-                return Err("PlayCover controller is only supported on macOS".to_string());
+            ControllerConfig::PlayCover { address, uuid } => {
+                #[cfg(target_os = "macos")]
+                {
+                    // macOS 仅使用 MaaFramework 原生 MaaPlayCoverControllerCreate（PlayTools 协议）
+                    let uuid = uuid.as_deref().unwrap_or("maa.playcover");
+                    let create_fn = lib.maa_playcover_controller_create.ok_or_else(|| {
+                        "当前 MaaFramework 不支持 PlayCover，请更新 MaaFramework 后再试".to_string()
+                    })?;
+                    info!(
+                        "Creating PlayCover controller: address: {}, uuid: {}",
+                        address, uuid
+                    );
+                    let address_c = to_cstring(address);
+                    let uuid_c = to_cstring(uuid);
+                    let ctrl = create_fn(address_c.as_ptr(), uuid_c.as_ptr());
+                    debug!("MaaPlayCoverControllerCreate returned: {:?}", ctrl);
+                    ctrl
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let _ = address;
+                    let _ = uuid;
+                    return Err("PlayCover controller is only supported on macOS".to_string());
+                }
             }
         }
     };

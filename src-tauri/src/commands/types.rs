@@ -82,6 +82,9 @@ pub enum ControllerConfig {
     },
     PlayCover {
         address: String,
+        /// 应用 Bundle Identifier，可选，默认 "maa.playcover"
+        #[serde(default)]
+        uuid: Option<String>,
     },
 }
 

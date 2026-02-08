@@ -98,13 +98,13 @@ export default {
   // Special tasks
   specialTask: {
     sleep: {
-      label: 'Delay',
+      label: '⏰ Delay',
       optionLabel: 'Delay Settings',
       inputLabel: 'Delay Time (seconds)',
       inputError: 'Please enter a positive integer',
     },
     launch: {
-      label: 'Launch Program',
+      label: '▶️ Custom Script',
       optionLabel: 'Program Settings',
       programLabel: 'Program Path',
       programPlaceholder: 'Enter program path or click browse...',
@@ -213,13 +213,13 @@ export default {
   },
 
   action: {
-    preAction: 'Pre-Action',
+    preAction: 'Pre-Script',
     program: 'Program Path',
     programPlaceholder: 'Enter program path or browse...',
     args: 'Arguments',
     argsPlaceholder: 'Enter additional arguments (optional)',
     browse: 'Browse',
-    waitForExit: 'Blocking Execution',
+    waitForExit: 'Wait for Exit',
     waitForExitHintPre:
       'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
     waitingForDevice: 'Waiting for device to be ready...',
@@ -228,10 +228,10 @@ export default {
     windowReady: 'Window is ready',
     deviceWaitTimeout: 'Device wait timeout',
     windowWaitTimeout: 'Window wait timeout',
-    preActionStarting: 'Running pre-action...',
-    preActionCompleted: 'Pre-action completed',
-    preActionFailed: 'Pre-action failed: {{error}}',
-    preActionExitCode: 'Pre-action exit code: {{code}}',
+    preActionStarting: 'Running pre-script...',
+    preActionCompleted: 'Pre-script completed',
+    preActionFailed: 'Pre-script failed: {{error}}',
+    preActionExitCode: 'Pre-script exit code: {{code}}',
   },
 
   // Option Editor

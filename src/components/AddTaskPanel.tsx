@@ -7,12 +7,6 @@ import {
   Loader2,
   AlertCircle,
   Play,
-  Clock,
-  Zap,
-  Bell,
-  Timer,
-  Pause,
-  type LucideIcon,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -23,16 +17,6 @@ import { Tooltip } from './ui/Tooltip';
 import type { TaskItem, ActionConfig, MxuSpecialTaskDefinition } from '@/types/interface';
 import { getAllMxuSpecialTasks } from '@/types/interface';
 import clsx from 'clsx';
-
-// 图标名称到组件的映射
-const ICON_MAP: Record<MxuSpecialTaskDefinition['iconName'], LucideIcon> = {
-  Clock,
-  Zap,
-  Bell,
-  Timer,
-  Pause,
-  Play,
-};
 
 const log = loggers.task;
 
@@ -434,7 +418,6 @@ export function AddTaskPanel() {
                   )}
                   {/* 动态渲染所有注册的特殊任务按钮 */}
                   {specialTasks.map((specialTask) => {
-                    const IconComponent = ICON_MAP[specialTask.iconName];
                     return (
                       <button
                         key={specialTask.taskName}
@@ -444,9 +427,6 @@ export function AddTaskPanel() {
                           'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
                         )}
                       >
-                        <IconComponent
-                          className={clsx('w-3.5 h-3.5', specialTask.iconColorClass)}
-                        />
                         <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
                       </button>
                     );

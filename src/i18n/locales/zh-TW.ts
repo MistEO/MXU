@@ -96,13 +96,13 @@ export default {
   // 特殊任務
   specialTask: {
     sleep: {
-      label: '延遲',
+      label: '⏰ 延遲',
       optionLabel: '延遲設定',
       inputLabel: '延遲時間（秒）',
       inputError: '請輸入正整數',
     },
     launch: {
-      label: '啟動程式',
+      label: '▶️ 自定義腳本',
       optionLabel: '程式設定',
       programLabel: '程式路徑',
       programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
@@ -208,13 +208,13 @@ export default {
   },
 
   action: {
-    preAction: '前置動作',
+    preAction: '前置腳本',
     program: '程式路徑',
     programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
     args: '附加參數',
     argsPlaceholder: '輸入附加參數（可選）',
     browse: '瀏覽',
-    waitForExit: '阻塞執行',
+    waitForExit: '等待退出',
     waitForExitHintPre:
       '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
     waitingForDevice: '正在等待裝置就緒...',
@@ -223,10 +223,10 @@ export default {
     windowReady: '視窗已就緒',
     deviceWaitTimeout: '等待裝置逾時',
     windowWaitTimeout: '等待視窗逾時',
-    preActionStarting: '正在執行前置動作...',
-    preActionCompleted: '前置動作執行完成',
-    preActionFailed: '前置動作執行失敗: {{error}}',
-    preActionExitCode: '前置動作結束碼: {{code}}',
+    preActionStarting: '正在執行前置腳本...',
+    preActionCompleted: '前置腳本執行完成',
+    preActionFailed: '前置腳本執行失敗: {{error}}',
+    preActionExitCode: '前置腳本結束碼: {{code}}',
   },
 
   // 選項編輯器

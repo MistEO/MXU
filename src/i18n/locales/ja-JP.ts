@@ -97,13 +97,13 @@ export default {
   // 特殊タスク
   specialTask: {
     sleep: {
-      label: '遅延',
+      label: '⏰ 遅延',
       optionLabel: '遅延設定',
       inputLabel: '遅延時間（秒）',
       inputError: '正の整数を入力してください',
     },
     launch: {
-      label: 'プログラム起動',
+      label: '▶️ カスタムスクリプト',
       optionLabel: 'プログラム設定',
       programLabel: 'プログラムパス',
       programPlaceholder: 'プログラムパスを入力するか右側の参照をクリック...',
@@ -212,13 +212,13 @@ export default {
   },
 
   action: {
-    preAction: '前処理アクション',
+    preAction: '前処理スクリプト',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
-    args: '追加引数',
+    args: '追加引수',
     argsPlaceholder: '追加引数を入力（オプション）',
     browse: '参照',
-    waitForExit: 'ブロッキング実行',
+    waitForExit: '終了を待機',
     waitForExitHintPre:
       '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
     waitingForDevice: 'デバイスの準備を待機中...',
@@ -227,10 +227,10 @@ export default {
     windowReady: 'ウィンドウが準備完了',
     deviceWaitTimeout: 'デバイス待機タイムアウト',
     windowWaitTimeout: 'ウィンドウ待機タイムアウト',
-    preActionStarting: '前処理アクションを実行中...',
-    preActionCompleted: '前処理アクション完了',
-    preActionFailed: '前処理アクション失敗: {{error}}',
-    preActionExitCode: '前処理アクション終了コード: {{code}}',
+    preActionStarting: '前処理スクリプトを実行中...',
+    preActionCompleted: '前処理スクリプト完了',
+    preActionFailed: '前処理スクリプト失敗: {{error}}',
+    preActionExitCode: '前処理スクリプト終了コード: {{code}}',
   },
 
   // オプションエディタ

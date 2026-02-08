@@ -1,7 +1,7 @@
 /**
  * Pipeline Override 生成工具
  * 用于生成任务的 pipeline_override JSON
- * MaaFramework 支持数组格式的 pipeline_override，会按顺序依次合并
+ * MaaFramework 支持数组格式的 pipeline_override，会按顺序依次覆盖（同名字段完整替换，非深合并）
  */
 
 import type {
@@ -89,7 +89,7 @@ const collectOptionOverrides = (
 
 /**
  * 为单个任务生成 pipeline override JSON
- * 返回数组格式的 JSON 字符串，MaaFramework 会按顺序依次合并
+ * 返回数组格式的 JSON 字符串，MaaFramework 会按顺序依次覆盖（同名字段完整替换）
  */
 export const generateTaskPipelineOverride = (
   selectedTask: SelectedTask,
@@ -127,8 +127,40 @@ export const generateTaskPipelineOverride = (
 };
 
 /**
+ * 深合并多个对象（递归合并嵌套对象，非对象值后者覆盖前者）
+ * 用于在前端侧合并多个 pipeline_override，避免 MaaFramework 的浅替换导致字段丢失
+ */
+const deepMergeObjects = (...sources: Record<string, unknown>[]): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        result[key] !== null &&
+        typeof result[key] === 'object' &&
+        !Array.isArray(result[key])
+      ) {
+        result[key] = deepMergeObjects(
+          result[key] as Record<string, unknown>,
+          value as Record<string, unknown>,
+        );
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+};
+
+/**
  * 生成 MXU 内置特殊任务的 pipeline override
  * 复用通用的 collectOptionOverrides 处理所有选项类型（input/select/switch 及嵌套选项）
+ *
+ * 重要：MaaFramework 对同一节点的同名字段（如 custom_action_param）执行完整替换而非深合并。
+ * 因此此处先在前端将所有 override 深合并为一个对象，再作为单元素数组发送给 MaaFramework，
+ * 确保多个选项贡献的 custom_action_param 字段不会互相覆盖。
  */
 const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
   const specialTask = getMxuSpecialTask(selectedTask.taskName);
@@ -152,5 +184,9 @@ const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
     }
   }
 
-  return JSON.stringify(overrides);
+  if (overrides.length === 0) return '[]';
+
+  // 前端深合并所有 override 为单个对象，避免 MaaFramework 浅替换丢失字段
+  const merged = deepMergeObjects(...overrides);
+  return JSON.stringify([merged]);
 };

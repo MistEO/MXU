@@ -1,8 +1,11 @@
 # 新增 MXU 特殊任务指南
 
-MXU 特殊任务是通过 MaaFramework 的 `Custom Action` 机制实现的内置功能任务（如延迟/睡眠），不依赖项目的 pipeline 资源。
+MXU 特殊任务是通过 MaaFramework 的 `Custom Action` 机制实现的内置功能任务（如延迟/睡眠、启动程序），不依赖项目的 pipeline 资源。
 
-现有示例：`MXU_SLEEP` —— 暂停执行指定秒数。
+现有示例：
+
+- `MXU_SLEEP` —— 暂停执行指定秒数（单选项 input 示例）
+- `MXU_LAUNCH` —— 启动外部程序（多选项 input + switch 示例）
 
 ## 架构概览
 
@@ -164,6 +167,9 @@ const MXU_EXAMPLE_OPTION: InputOption = {
       pipeline_type: 'int',     // 'string' | 'int' | 'bool'
       verify: '^[1-9]\\d*$',   // 可选，输入校验正则
       pattern_msg: 'specialTask.example.inputError', // 校验失败提示 i18n key
+      // MXU 扩展字段（可选）：
+      input_type: 'file',       // 'text'(默认) | 'file'(渲染文件选择器)
+      placeholder: 'specialTask.example.placeholder', // 占位提示文本 i18n key
     },
   ],
   pipeline_override: {
@@ -176,13 +182,79 @@ const MXU_EXAMPLE_OPTION: InputOption = {
 };
 ```
 
-**select 类型**（下拉选择）/ **switch 类型**（开关）：也完全支持，参考 ProjectInterface V2 协议的 option 定义。
+**MXU 扩展字段说明**（`InputItem` 上的可选字段，不影响 PI V2 协议）：
+
+| 字段 | 类型 | 说明 |
+| ------ | ------ | ------ |
+| `input_type` | `'text' \| 'file'` | 控制 UI 渲染：`'file'` 会渲染带浏览按钮的文件选择器 |
+| `placeholder` | `string` | 输入框占位提示文本的 i18n key，通过 `t()` 翻译。若未设置则 fallback 到 `default` |
+
+**switch 类型**（开关）：
+
+```typescript
+const MXU_EXAMPLE_SWITCH_OPTION: SwitchOption = {
+  type: 'switch',
+  label: 'specialTask.example.switchLabel',
+  description: 'specialTask.example.switchDescription', // 可选，显示在开关下方的说明文本
+  cases: [
+    {
+      name: 'Yes',  // 开启时的 case，name 必须是 Yes/yes/Y/y 之一
+      label: 'specialTask.example.switchYes',
+      pipeline_override: {
+        [MXU_EXAMPLE_ENTRY]: {
+          custom_action_param: { some_flag: true },
+        },
+      },
+    },
+    {
+      name: 'No',   // 关闭时的 case，name 必须是 No/no/N/n 之一
+      label: 'specialTask.example.switchNo',
+      pipeline_override: {
+        [MXU_EXAMPLE_ENTRY]: {
+          custom_action_param: { some_flag: false },
+        },
+      },
+    },
+  ],
+  default_case: 'No', // 默认状态
+};
+```
+
+**select 类型**（下拉选择）：也完全支持，参考 ProjectInterface V2 协议的 option 定义。
 
 **`pipeline_type` 占位符替换规则**：
 
 - `'string'`：`"{param}"` → `"用户输入"`
 - `'int'`：`"{param}"` → `123`（去掉引号，变为 JSON 数字）
 - `'bool'`：`"{param}"` → `true`/`false`（去掉引号，变为 JSON 布尔值）
+
+### 多选项任务与 pipeline_override 合并
+
+一个任务可以引用多个选项（在 `taskDef.option` 数组中列出），每个选项独立贡献 `pipeline_override`。
+
+> **关键限制**：MaaFramework 对同一节点的同名字段执行**完整替换**而非深合并。例如，若两个 override 都设置了 `custom_action_param`，后者会完全覆盖前者，导致先前设置的参数丢失。
+
+`generateMxuSpecialTaskOverride` 已在前端处理此问题：它会将所有 override 对象进行**深合并**后，作为单元素数组发送给 MaaFramework。因此，多个选项可以安全地各自设置 `custom_action_param` 的不同字段：
+
+```typescript
+// 任务定义引用两个选项
+option: ['__MXU_EXAMPLE_OPTION__', '__MXU_EXAMPLE_SWITCH_OPTION__'],
+
+// Input 选项的 pipeline_override 贡献：
+{ MXU_EXAMPLE: { custom_action_param: { program: "xxx", args: "yyy" } } }
+
+// Switch 选项的 pipeline_override 贡献：
+{ MXU_EXAMPLE: { custom_action_param: { wait_for_exit: true } } }
+
+// 前端深合并后发送给 MaaFramework 的实际内容（单元素数组）：
+[{ MXU_EXAMPLE: { action: "Custom", custom_action: "...", custom_action_param: { program: "xxx", args: "yyy", wait_for_exit: true } } }]
+```
+
+**注意**：
+
+- 此深合并仅在 MXU 特殊任务中生效（`generateMxuSpecialTaskOverride`），普通 PI V2 任务仍按原始数组格式发送。
+- 深合并仅对对象类型递归合并；若两个 override 在同一路径下设置了非对象值（如字符串、数组），后者会覆盖前者。
+- 普通 PI V2 任务的选项设计需自行避免对同一字段的重复设置，因为 MaaFramework 不会深合并。
 
 ### 2d. 注册到 `MXU_SPECIAL_TASKS`
 
@@ -203,7 +275,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
 };
 ```
 
-**`iconName` 可选值**：`'Clock'` | `'Zap'` | `'Bell'` | `'Timer'` | `'Pause'`（见 `MxuSpecialTaskDefinition` 类型定义，如需新增图标需同步修改类型）。
+**`iconName` 可选值**：`'Clock'` | `'Zap'` | `'Bell'` | `'Timer'` | `'Pause'` | `'Play'`（见 `MxuSpecialTaskDefinition` 类型定义，如需新增图标需同步修改类型和 `AddTaskPanel.tsx` 中的 `ICON_MAP`）。
 
 ## 步骤 3：添加 i18n 翻译
 
@@ -230,15 +302,19 @@ specialTask: {
 | 任务名称常量 | `__MXU_<NAME>__` | `__MXU_SLEEP__` |
 | 入口节点 | `MXU_<NAME>` | `MXU_SLEEP` |
 | 动作名称 | `MXU_<NAME>_ACTION` | `MXU_SLEEP_ACTION` |
-| 选项 key | `__MXU_<NAME>_OPTION__` | `__MXU_SLEEP_OPTION__` |
+| 选项 key | `__MXU_<NAME>_<用途>_OPTION__` | `__MXU_LAUNCH_WAIT_OPTION__` |
 | i18n 前缀 | `specialTask.<name>.` | `specialTask.sleep.label` |
+
+**选项 key 命名说明**：选项 key 只需以 `__MXU_` 开头且全局唯一即可，不要求与任务名严格对应。系统通过 `findMxuOptionByKey()` 遍历所有注册的特殊任务来反查选项定义，因此命名可以灵活描述用途，例如 `__MXU_LAUNCH_OPTION__`（程序设置）和 `__MXU_LAUNCH_WAIT_OPTION__`（等待设置）。
 
 ## 无需手动处理的部分
 
 以下逻辑已通用化，注册到 `MXU_SPECIAL_TASKS` 后自动生效：
 
-- **Pipeline Override 生成**：`generateMxuSpecialTaskOverride` 复用 `collectOptionOverrides`，自动处理所有选项类型
+- **Pipeline Override 生成**：`generateMxuSpecialTaskOverride` 复用 `collectOptionOverrides`，自动处理所有选项类型（input / switch / select 及嵌套选项）
 - **任务添加/删除**：`addMxuSpecialTask` 根据注册表初始化选项值
 - **UI 渲染**：`TaskItem` / `AddTaskPanel` / `OptionEditor` 检测 `__MXU_` 前缀自动适配
+- **选项定义查找**：`OptionEditor` 通过 `findMxuOptionByKey()` 遍历所有特殊任务反查选项定义，无需选项 key 与任务名严格对应
+- **i18n 翻译**：选项的 `label`、`description`、`placeholder`、`pattern_msg` 等字段均通过 `t()` 翻译
 - **配置持久化**：`appStore` 中的配置恢复逻辑通过 `isMxuSpecialTask` 正确保留选项值
 - **任务校验**：配置加载时通过 `MXU_SPECIAL_TASKS` key 集合判断任务有效性

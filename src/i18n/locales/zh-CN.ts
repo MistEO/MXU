@@ -97,13 +97,13 @@ export default {
   // 特殊任务
   specialTask: {
     sleep: {
-      label: '延迟',
+      label: '⏰ 延迟',
       optionLabel: '延迟设置',
       inputLabel: '延迟时间（秒）',
       inputError: '请输入正整数',
     },
     launch: {
-      label: '启动程序',
+      label: '▶️ 自定义脚本',
       optionLabel: '程序设置',
       programLabel: '程序路径',
       programPlaceholder: '输入程序路径或点击右侧浏览...',
@@ -209,13 +209,13 @@ export default {
   },
 
   action: {
-    preAction: '前置动作',
+    preAction: '前置脚本',
     program: '程序路径',
     programPlaceholder: '输入程序路径或点击右侧浏览...',
     args: '附加参数',
     argsPlaceholder: '输入附加参数（可选）',
     browse: '浏览',
-    waitForExit: '阻塞执行',
+    waitForExit: '等待退出',
     waitForExitHintPre:
       '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
     waitingForDevice: '正在等待设备就绪...',
@@ -224,10 +224,10 @@ export default {
     windowReady: '窗口已就绪',
     deviceWaitTimeout: '等待设备超时',
     windowWaitTimeout: '等待窗口超时',
-    preActionStarting: '正在执行前置动作...',
-    preActionCompleted: '前置动作执行完成',
-    preActionFailed: '前置动作执行失败: {{error}}',
-    preActionExitCode: '前置动作退出码: {{code}}',
+    preActionStarting: '正在执行前置脚本...',
+    preActionCompleted: '前置脚本执行完成',
+    preActionFailed: '前置脚本执行失败: {{error}}',
+    preActionExitCode: '前置脚本退出码: {{code}}',
   },
 
   // 选项编辑器

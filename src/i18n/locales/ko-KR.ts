@@ -97,13 +97,13 @@ export default {
   // 특수 작업
   specialTask: {
     sleep: {
-      label: '지연',
+      label: '⏰ 지연',
       optionLabel: '지연 설정',
       inputLabel: '지연 시간(초)',
       inputError: '양의 정수를 입력해 주세요',
     },
     launch: {
-      label: '프로그램 실행',
+      label: '▶️ 사용자 지정 스크립트',
       optionLabel: '프로그램 설정',
       programLabel: '프로그램 경로',
       programPlaceholder: '프로그램 경로를 입력하거나 오른쪽 찾아보기를 클릭...',
@@ -211,13 +211,13 @@ export default {
   },
 
   action: {
-    preAction: '전처리 동작',
+    preAction: '전처리 스크립트',
     program: '프로그램 경로',
     programPlaceholder: '프로그램 경로를 입력하거나 찾아보기...',
     args: '추가 인수',
     argsPlaceholder: '추가 인수 입력 (선택사항)',
     browse: '찾아보기',
-    waitForExit: '차단 실행',
+    waitForExit: '종료 대기',
     waitForExitHintPre:
       '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 스크립트 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 계속하고 장치 연결 상태를 폴링합니다. 게임 시작과 같은 비동기 시나리오에 적합합니다',
     waitingForDevice: '장치 준비 대기 중...',
@@ -226,10 +226,10 @@ export default {
     windowReady: '윈도우 준비 완료',
     deviceWaitTimeout: '장치 대기 시간 초과',
     windowWaitTimeout: '윈도우 대기 시간 초과',
-    preActionStarting: '전처리 동작 실행 중...',
-    preActionCompleted: '전처리 동작 완료',
-    preActionFailed: '전처리 동작 실패: {{error}}',
-    preActionExitCode: '전처리 동작 종료 코드: {{code}}',
+    preActionStarting: '전처리 스크립트 실행 중...',
+    preActionCompleted: '전처리 스크립트 완료',
+    preActionFailed: '전처리 스크립트 실패: {{error}}',
+    preActionExitCode: '전처리 스크립트 종료 코드: {{code}}',
   },
 
   // 옵션 에디터

@@ -102,6 +102,19 @@ export default {
       inputLabel: '遅延時間（秒）',
       inputError: '正の整数を入力してください',
     },
+    launch: {
+      label: 'プログラム起動',
+      optionLabel: 'プログラム設定',
+      programLabel: 'プログラムパス',
+      programPlaceholder: 'プログラムパスを入力するか右側の参照をクリック...',
+      argsLabel: '追加引数',
+      argsPlaceholder: '追加引数を入力（任意）',
+      waitLabel: '終了を待機',
+      waitDescription:
+        '有効時はプロセス終了後に続行します。スクリプトなど同期完了が必要な操作に適しています。無効時は起動後すぐに続行します',
+      waitYes: 'プログラム終了後に続行',
+      waitNo: '起動後すぐに続行',
+    },
   },
 
   // タスクリスト

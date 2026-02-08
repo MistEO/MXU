@@ -102,6 +102,19 @@ export default {
       inputLabel: '지연 시간(초)',
       inputError: '양의 정수를 입력해 주세요',
     },
+    launch: {
+      label: '프로그램 실행',
+      optionLabel: '프로그램 설정',
+      programLabel: '프로그램 경로',
+      programPlaceholder: '프로그램 경로를 입력하거나 오른쪽 찾아보기를 클릭...',
+      argsLabel: '추가 인수',
+      argsPlaceholder: '추가 인수 입력 (선택 사항)',
+      waitLabel: '종료 대기',
+      waitDescription:
+        '활성화하면 프로세스 종료 후 계속합니다. 스크립트 등 동기 완료가 필요한 작업에 적합합니다. 비활성화하면 실행 후 즉시 계속합니다',
+      waitYes: '프로그램 종료 후 계속',
+      waitNo: '실행 후 즉시 계속',
+    },
   },
 
   // 작업 목록

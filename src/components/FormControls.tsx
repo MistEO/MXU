@@ -222,6 +222,7 @@ interface FileInputProps {
   disabled?: boolean;
   filters?: { name: string; extensions: string[] }[];
   browseTitle?: string;
+  className?: string;
 }
 
 const defaultFileFilters = [
@@ -236,6 +237,7 @@ export function FileInput({
   disabled,
   filters = defaultFileFilters,
   browseTitle,
+  className,
 }: FileInputProps) {
   const { t } = useTranslation();
 
@@ -257,7 +259,7 @@ export function FileInput({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className={clsx('flex gap-2', className)}>
       <TextInput
         value={value}
         onChange={onChange}

@@ -101,6 +101,19 @@ export default {
       inputLabel: '延遲時間（秒）',
       inputError: '請輸入正整數',
     },
+    launch: {
+      label: '啟動程式',
+      optionLabel: '程式設定',
+      programLabel: '程式路徑',
+      programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
+      argsLabel: '附加參數',
+      argsPlaceholder: '輸入附加參數（可選）',
+      waitLabel: '等待退出',
+      waitDescription:
+        '啟用時等待進程退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動進程後立即繼續',
+      waitYes: '等待程式退出後繼續',
+      waitNo: '啟動後立即繼續',
+    },
   },
 
   // 任務列表

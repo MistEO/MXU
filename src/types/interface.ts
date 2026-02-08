@@ -114,6 +114,10 @@ export interface InputItem {
   pipeline_type?: 'string' | 'int' | 'bool';
   verify?: string;
   pattern_msg?: string;
+  /** MXU 扩展：输入控件类型，'file' 会渲染文件选择器 */
+  input_type?: 'text' | 'file';
+  /** MXU 扩展：输入框占位提示文本（i18n key） */
+  placeholder?: string;
 }
 
 export interface SelectOption {
@@ -232,7 +236,7 @@ export interface MxuSpecialTaskDefinition {
   /** 相关选项定义（键为选项 key） */
   optionDefs: Record<string, OptionDefinition>;
   /** 图标名称（对应 lucide-react 图标） */
-  iconName: 'Clock' | 'Zap' | 'Bell' | 'Timer' | 'Pause';
+  iconName: 'Clock' | 'Zap' | 'Bell' | 'Timer' | 'Pause' | 'Play';
   /** 图标颜色 CSS 类 */
   iconColorClass: string;
 }
@@ -241,6 +245,11 @@ export interface MxuSpecialTaskDefinition {
 export const MXU_SLEEP_TASK_NAME = '__MXU_SLEEP__';
 export const MXU_SLEEP_ENTRY = 'MXU_SLEEP';
 export const MXU_SLEEP_ACTION = 'MXU_SLEEP_ACTION';
+
+// MXU_LAUNCH 特殊任务常量
+export const MXU_LAUNCH_TASK_NAME = '__MXU_LAUNCH__';
+export const MXU_LAUNCH_ENTRY = 'MXU_LAUNCH';
+export const MXU_LAUNCH_ACTION = 'MXU_LAUNCH_ACTION';
 
 // MXU_SLEEP 任务定义
 const MXU_SLEEP_TASK_DEF_INTERNAL: TaskItem = {
@@ -279,6 +288,86 @@ const MXU_SLEEP_OPTION_DEF_INTERNAL: InputOption = {
   },
 };
 
+// MXU_LAUNCH 任务定义
+const MXU_LAUNCH_TASK_DEF_INTERNAL: TaskItem = {
+  name: MXU_LAUNCH_TASK_NAME,
+  label: 'specialTask.launch.label',
+  entry: MXU_LAUNCH_ENTRY,
+  option: [
+    '__MXU_LAUNCH_OPTION__',
+    '__MXU_LAUNCH_WAIT_OPTION__',
+  ],
+  pipeline_override: {
+    [MXU_LAUNCH_ENTRY]: {
+      action: 'Custom',
+      custom_action: MXU_LAUNCH_ACTION,
+    },
+  },
+};
+
+// MXU_LAUNCH 输入选项定义（程序路径和参数）
+const MXU_LAUNCH_INPUT_OPTION_DEF_INTERNAL: InputOption = {
+  type: 'input',
+  label: 'specialTask.launch.optionLabel',
+  inputs: [
+    {
+      name: 'program',
+      label: 'specialTask.launch.programLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'file',
+      placeholder: 'specialTask.launch.programPlaceholder',
+    },
+    {
+      name: 'args',
+      label: 'specialTask.launch.argsLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.launch.argsPlaceholder',
+    },
+  ],
+  pipeline_override: {
+    [MXU_LAUNCH_ENTRY]: {
+      custom_action_param: {
+        program: '{program}',
+        args: '{args}',
+      },
+    },
+  },
+};
+
+// MXU_LAUNCH 等待选项定义（是否等待进程退出）
+const MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL: SwitchOption = {
+  type: 'switch',
+  label: 'specialTask.launch.waitLabel',
+  description: 'specialTask.launch.waitDescription',
+  cases: [
+    {
+      name: 'Yes',
+      label: 'specialTask.launch.waitYes',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            wait_for_exit: true,
+          },
+        },
+      },
+    },
+    {
+      name: 'No',
+      label: 'specialTask.launch.waitNo',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            wait_for_exit: false,
+          },
+        },
+      },
+    },
+  ],
+  default_case: 'No',
+};
+
 /**
  * MXU 特殊任务注册表
  * 所有 MXU 内置特殊任务都在这里注册
@@ -295,15 +384,17 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     iconName: 'Clock',
     iconColorClass: 'text-warning/80',
   },
-  // 未来添加更多特殊任务示例：
-  // '__MXU_NOTIFY__': {
-  //   taskName: '__MXU_NOTIFY__',
-  //   entry: 'MXU_NOTIFY',
-  //   taskDef: { ... },
-  //   optionDefs: { ... },
-  //   iconName: 'Bell',
-  //   iconColorClass: 'text-accent/80',
-  // },
+  [MXU_LAUNCH_TASK_NAME]: {
+    taskName: MXU_LAUNCH_TASK_NAME,
+    entry: MXU_LAUNCH_ENTRY,
+    taskDef: MXU_LAUNCH_TASK_DEF_INTERNAL,
+    optionDefs: {
+      __MXU_LAUNCH_OPTION__: MXU_LAUNCH_INPUT_OPTION_DEF_INTERNAL,
+      __MXU_LAUNCH_WAIT_OPTION__: MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL,
+    },
+    iconName: 'Play',
+    iconColorClass: 'text-success/80',
+  },
 };
 
 // 导出兼容旧代码的常量（指向注册表中的定义）
@@ -342,6 +433,20 @@ export function getMxuSpecialTaskOption(
 ): OptionDefinition | undefined {
   const specialTask = MXU_SPECIAL_TASKS[taskName];
   return specialTask?.optionDefs[optionKey];
+}
+
+/**
+ * 通过选项键反查 MXU 特殊任务的选项定义
+ * 遍历所有注册的特殊任务，查找包含该 optionKey 的选项定义
+ * @param optionKey 选项键，如 '__MXU_LAUNCH_WAIT_OPTION__'
+ * @returns 选项定义，不存在则返回 undefined
+ */
+export function findMxuOptionByKey(optionKey: string): OptionDefinition | undefined {
+  for (const specialTask of Object.values(MXU_SPECIAL_TASKS)) {
+    const optionDef = specialTask.optionDefs[optionKey];
+    if (optionDef) return optionDef;
+  }
+  return undefined;
 }
 
 /**

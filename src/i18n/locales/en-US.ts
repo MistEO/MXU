@@ -103,6 +103,19 @@ export default {
       inputLabel: 'Delay Time (seconds)',
       inputError: 'Please enter a positive integer',
     },
+    launch: {
+      label: 'Launch Program',
+      optionLabel: 'Program Settings',
+      programLabel: 'Program Path',
+      programPlaceholder: 'Enter program path or click browse...',
+      argsLabel: 'Additional Arguments',
+      argsPlaceholder: 'Enter additional arguments (optional)',
+      waitLabel: 'Wait for Exit',
+      waitDescription:
+        'When enabled, waits for the process to exit before continuing, suitable for scripts that need to complete synchronously; when disabled, continues immediately after launch',
+      waitYes: 'Wait for program to exit before continuing',
+      waitNo: 'Continue immediately after launch',
+    },
   },
 
   // Task list

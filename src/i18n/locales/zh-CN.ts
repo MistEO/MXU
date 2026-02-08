@@ -102,6 +102,19 @@ export default {
       inputLabel: '延迟时间（秒）',
       inputError: '请输入正整数',
     },
+    launch: {
+      label: '启动程序',
+      optionLabel: '程序设置',
+      programLabel: '程序路径',
+      programPlaceholder: '输入程序路径或点击右侧浏览...',
+      argsLabel: '附加参数',
+      argsPlaceholder: '输入附加参数（可选）',
+      waitLabel: '等待退出',
+      waitDescription:
+        '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续',
+      waitYes: '等待程序退出后继续',
+      waitNo: '启动后立即继续',
+    },
   },
 
   // 任务列表

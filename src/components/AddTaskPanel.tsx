@@ -31,6 +31,7 @@ const ICON_MAP: Record<MxuSpecialTaskDefinition['iconName'], LucideIcon> = {
   Bell,
   Timer,
   Pause,
+  Play,
 };
 
 const log = loggers.task;

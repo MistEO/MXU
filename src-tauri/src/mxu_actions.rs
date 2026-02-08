@@ -77,6 +77,126 @@ pub fn get_mxu_sleep_action() -> MaaCustomActionCallback {
 }
 
 // ============================================================================
+// MXU_LAUNCH Custom Action
+// ============================================================================
+
+/// MXU_LAUNCH 动作名称常量
+const MXU_LAUNCH_ACTION: &str = "MXU_LAUNCH_ACTION";
+
+/// MXU_LAUNCH custom action 回调函数
+/// 从 custom_action_param 中读取 program, args, wait_for_exit，启动外部程序
+extern "C" fn mxu_launch_action(
+    _context: *mut MaaContext,
+    _task_id: MaaId,
+    _current_task_name: *const c_char,
+    _custom_action_name: *const c_char,
+    custom_action_param: *const c_char,
+    _reco_id: MaaId,
+    _box_rect: *const MaaRect,
+    _trans_arg: *mut c_void,
+) -> MaaBool {
+    let result = std::panic::catch_unwind(|| {
+        let param_str = if custom_action_param.is_null() {
+            warn!("[MXU_LAUNCH] custom_action_param is null");
+            "{}".to_string()
+        } else {
+            unsafe { from_cstr(custom_action_param) }
+        };
+
+        info!("[MXU_LAUNCH] Received param: {}", param_str);
+
+        let json: serde_json::Value = match serde_json::from_str(&param_str) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("[MXU_LAUNCH] Failed to parse param JSON: {}", e);
+                return 0u8;
+            }
+        };
+
+        let program = match json.get("program").and_then(|v| v.as_str()) {
+            Some(p) if !p.trim().is_empty() => p.to_string(),
+            _ => {
+                warn!("[MXU_LAUNCH] Missing or empty 'program' parameter");
+                return 0u8;
+            }
+        };
+
+        let args_str = json
+            .get("args")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let wait_for_exit = json
+            .get("wait_for_exit")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        info!(
+            "[MXU_LAUNCH] Launching: program={}, args={}, wait_for_exit={}",
+            program, args_str, wait_for_exit
+        );
+
+        let args_vec: Vec<&str> = if args_str.trim().is_empty() {
+            vec![]
+        } else {
+            args_str.split_whitespace().collect()
+        };
+
+        let mut cmd = std::process::Command::new(&program);
+
+        if !args_vec.is_empty() {
+            cmd.args(&args_vec);
+        }
+
+        // 默认使用程序所在目录作为工作目录
+        if let Some(parent) = std::path::Path::new(&program).parent() {
+            if parent.exists() {
+                cmd.current_dir(parent);
+            }
+        }
+
+        if wait_for_exit {
+            match cmd.status() {
+                Ok(status) => {
+                    let exit_code = status.code().unwrap_or(-1);
+                    info!("[MXU_LAUNCH] Process exited with code: {}", exit_code);
+                    1u8
+                }
+                Err(e) => {
+                    log::error!("[MXU_LAUNCH] Failed to run program: {}", e);
+                    0u8
+                }
+            }
+        } else {
+            match cmd.spawn() {
+                Ok(_) => {
+                    info!("[MXU_LAUNCH] Process spawned (not waiting)");
+                    1u8
+                }
+                Err(e) => {
+                    log::error!("[MXU_LAUNCH] Failed to spawn program: {}", e);
+                    0u8
+                }
+            }
+        }
+    });
+
+    match result {
+        Ok(ret) => ret,
+        Err(e) => {
+            log::error!("[MXU_LAUNCH] Panic caught: {:?}", e);
+            0
+        }
+    }
+}
+
+/// 获取 MXU_LAUNCH custom action 回调函数指针
+pub fn get_mxu_launch_action() -> MaaCustomActionCallback {
+    Some(mxu_launch_action)
+}
+
+// ============================================================================
 // 注册入口
 // ============================================================================
 
@@ -105,8 +225,22 @@ pub fn register_all_mxu_actions(
         warn!("[MXU] Failed to register custom action MXU_SLEEP_ACTION");
     }
 
-    // 未来可以在这里添加更多 MXU 内置 actions
-    // register_mxu_xxx_action(lib, resource)?;
+    // 注册 MXU_LAUNCH
+    let action_name = to_cstring(MXU_LAUNCH_ACTION);
+    let result = unsafe {
+        (lib.maa_resource_register_custom_action)(
+            resource,
+            action_name.as_ptr(),
+            get_mxu_launch_action(),
+            std::ptr::null_mut(),
+        )
+    };
+
+    if result != 0 {
+        info!("[MXU] Custom action MXU_LAUNCH_ACTION registered successfully");
+    } else {
+        warn!("[MXU] Failed to register custom action MXU_LAUNCH_ACTION");
+    }
 
     Ok(())
 }

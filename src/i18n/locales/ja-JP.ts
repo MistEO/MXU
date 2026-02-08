@@ -254,7 +254,7 @@ export default {
     preAction: '前処理プログラム',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
-    args: '追加引수',
+    args: '追加引数',
     argsPlaceholder: '追加引数を入力（オプション）',
     browse: '参照',
     waitForExit: '終了を待機',

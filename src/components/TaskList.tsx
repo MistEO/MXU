@@ -360,7 +360,6 @@ export function TaskList() {
           {showPreAction && (
             <ActionItem
               instanceId={instance.id}
-              type="pre"
               action={instance.preAction}
               disabled={isInstanceRunning}
             />
@@ -391,7 +390,6 @@ export function TaskList() {
           {showPreAction && (
             <ActionItem
               instanceId={instance.id}
-              type="pre"
               action={instance.preAction}
               disabled={isInstanceRunning}
             />

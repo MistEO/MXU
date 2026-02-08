@@ -8,7 +8,6 @@ import { FileField, TextField, SwitchField } from './FormControls';
 
 interface ActionItemProps {
   instanceId: string;
-  type: 'pre';
   action: ActionConfig | undefined;
   disabled?: boolean;
 }

@@ -10,7 +10,7 @@ import type {
   OptionValue,
   OptionDefinition,
 } from '@/types/interface';
-import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/interface';
+import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/specialTasks';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
 import { createDefaultOptionValue } from '@/stores/helpers';

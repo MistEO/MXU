@@ -7,7 +7,7 @@ import type {
   ActionConfig,
   OptionDefinition,
 } from '@/types/interface';
-import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/interface';
+import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,

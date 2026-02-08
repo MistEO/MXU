@@ -96,13 +96,19 @@ export default {
   // 特殊任務
   specialTask: {
     sleep: {
-      label: '⏰ 延遲',
-      optionLabel: '延遲設定',
-      inputLabel: '延遲時間（秒）',
+      label: '⏳ 倒數計時',
+      optionLabel: '倒數計時設定',
+      inputLabel: '等待時間（秒）',
       inputError: '請輸入正整數',
     },
+    waitUntil: {
+      label: '⏰ 定時等待',
+      optionLabel: '時間設定',
+      optionDescription: '等待到指定時間點後繼續執行，僅支援 24 小時內。若目標時間已過則等待到隔日該時間',
+      inputLabel: '目標時間',
+    },
     launch: {
-      label: '▶️ 自定義腳本',
+      label: '▶️ 自定義程式',
       optionLabel: '程式設定',
       programLabel: '程式路徑',
       programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
@@ -110,15 +116,41 @@ export default {
       argsPlaceholder: '輸入附加參數（可選）',
       waitLabel: '等待退出',
       waitDescription:
-        '啟用時等待進程退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動進程後立即繼續',
+        '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續',
       waitYes: '等待程式退出後繼續',
       waitNo: '啟動後立即繼續',
+    },
+    notify: {
+      label: '💬 系統通知',
+      optionLabel: '通知設定',
+      titleLabel: '通知標題',
+      titlePlaceholder: '輸入通知標題',
+      bodyLabel: '通知內容',
+      bodyPlaceholder: '輸入通知內容',
     },
     webhook: {
       label: '🔔 Webhook',
       optionLabel: '請求設定',
       urlLabel: '請求地址',
       urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+    },
+    killProc: {
+      label: '⛔ 結束程序',
+      selfLabel: '結束自身程序',
+      selfDescription: '開啟時結束本程式自身程序；關閉後可輸入其他程序名稱來結束',
+      selfYes: '結束自身',
+      selfNo: '結束指定程序',
+      nameOptionLabel: '程序設定',
+      nameLabel: '程序名稱',
+      namePlaceholder: '輸入要結束的程序名（如 notepad.exe）',
+    },
+    power: {
+      label: '⚡ 電腦操作',
+      optionLabel: '操作類型',
+      shutdown: '關機',
+      restart: '重新啟動',
+      screenoff: '關閉螢幕',
+      sleep: '睡眠',
     },
   },
 
@@ -214,7 +246,7 @@ export default {
   },
 
   action: {
-    preAction: '前置腳本',
+    preAction: '前置程式',
     program: '程式路徑',
     programPlaceholder: '輸入程式路徑或點擊右側瀏覽...',
     args: '附加參數',
@@ -222,17 +254,17 @@ export default {
     browse: '瀏覽',
     waitForExit: '等待退出',
     waitForExitHintPre:
-      '啟用時等待程序退出後再繼續，適用於執行腳本等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
+      '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',
     deviceReady: '裝置已就緒',
     windowReady: '視窗已就緒',
     deviceWaitTimeout: '等待裝置逾時',
     windowWaitTimeout: '等待視窗逾時',
-    preActionStarting: '正在執行前置腳本...',
-    preActionCompleted: '前置腳本執行完成',
-    preActionFailed: '前置腳本執行失敗: {{error}}',
-    preActionExitCode: '前置腳本結束碼: {{code}}',
+    preActionStarting: '正在執行前置程式...',
+    preActionCompleted: '前置程式執行完成',
+    preActionFailed: '前置程式執行失敗: {{error}}',
+    preActionExitCode: '前置程式結束碼: {{code}}',
   },
 
   // 選項編輯器

@@ -98,13 +98,19 @@ export default {
   // Special tasks
   specialTask: {
     sleep: {
-      label: '⏰ Delay',
-      optionLabel: 'Delay Settings',
-      inputLabel: 'Delay Time (seconds)',
+      label: '⏳ Countdown',
+      optionLabel: 'Countdown Settings',
+      inputLabel: 'Wait Time (seconds)',
       inputError: 'Please enter a positive integer',
     },
+    waitUntil: {
+      label: '⏰ Wait Until',
+      optionLabel: 'Time Settings',
+      optionDescription: 'Waits until the specified time before continuing. Only supports within 24 hours. If the target time has passed today, it will wait until that time tomorrow',
+      inputLabel: 'Target Time',
+    },
     launch: {
-      label: '▶️ Custom Script',
+      label: '▶️ Custom Program',
       optionLabel: 'Program Settings',
       programLabel: 'Program Path',
       programPlaceholder: 'Enter program path or click browse...',
@@ -112,15 +118,42 @@ export default {
       argsPlaceholder: 'Enter additional arguments (optional)',
       waitLabel: 'Wait for Exit',
       waitDescription:
-        'When enabled, waits for the process to exit before continuing, suitable for scripts that need to complete synchronously; when disabled, continues immediately after launch',
+        'When enabled, waits for the process to exit before continuing, suitable for programs that need to complete synchronously; when disabled, continues immediately after launch',
       waitYes: 'Wait for program to exit before continuing',
       waitNo: 'Continue immediately after launch',
+    },
+    notify: {
+      label: '💬 System Notification',
+      optionLabel: 'Notification Settings',
+      titleLabel: 'Title',
+      titlePlaceholder: 'Enter notification title',
+      bodyLabel: 'Content',
+      bodyPlaceholder: 'Enter notification content',
     },
     webhook: {
       label: '🔔 Webhook',
       optionLabel: 'Request Settings',
       urlLabel: 'Request URL',
       urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+    },
+    killProc: {
+      label: '⛔ Kill Process',
+      selfLabel: 'Kill Self',
+      selfDescription:
+        'When enabled, terminates this application itself; when disabled, you can enter another process name to kill',
+      selfYes: 'Kill self',
+      selfNo: 'Kill specified process',
+      nameOptionLabel: 'Process Settings',
+      nameLabel: 'Process Name',
+      namePlaceholder: 'Enter process name (e.g. notepad.exe)',
+    },
+    power: {
+      label: '⚡ Power Action',
+      optionLabel: 'Action Type',
+      shutdown: 'Shutdown',
+      restart: 'Restart',
+      screenoff: 'Turn Off Screen',
+      sleep: 'Sleep',
     },
   },
 
@@ -219,7 +252,7 @@ export default {
   },
 
   action: {
-    preAction: 'Pre-Script',
+    preAction: 'Pre-Program',
     program: 'Program Path',
     programPlaceholder: 'Enter program path or browse...',
     args: 'Arguments',
@@ -227,17 +260,17 @@ export default {
     browse: 'Browse',
     waitForExit: 'Wait for Exit',
     waitForExitHintPre:
-      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like script execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',
     windowReady: 'Window is ready',
     deviceWaitTimeout: 'Device wait timeout',
     windowWaitTimeout: 'Window wait timeout',
-    preActionStarting: 'Running pre-script...',
-    preActionCompleted: 'Pre-script completed',
-    preActionFailed: 'Pre-script failed: {{error}}',
-    preActionExitCode: 'Pre-script exit code: {{code}}',
+    preActionStarting: 'Running pre-program...',
+    preActionCompleted: 'Pre-program completed',
+    preActionFailed: 'Pre-program failed: {{error}}',
+    preActionExitCode: 'Pre-program exit code: {{code}}',
   },
 
   // Option Editor

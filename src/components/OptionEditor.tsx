@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem, OptionDefinition } from '@/types/interface';
-import { findMxuOptionByKey } from '@/types/interface';
+import { findMxuOptionByKey } from '@/types/specialTasks';
 import clsx from 'clsx';
 import { Info, AlertCircle, Loader2, FileText, Link, ChevronDown, Check } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
-import { SwitchButton, TextInput, FileInput } from './FormControls';
+import { SwitchButton, TextInput, FileInput, TimeInput } from './FormControls';
 import { Tooltip } from './ui/Tooltip';
 
 /** 判断 switch 类型的选项是否有子选项 */
@@ -225,6 +225,13 @@ function InputField({
             value={value}
             onChange={onChange}
             placeholder={inputPlaceholder}
+            disabled={disabled}
+            className="flex-1"
+          />
+        ) : input.input_type === 'time' ? (
+          <TimeInput
+            value={value}
+            onChange={onChange}
             disabled={disabled}
             className="flex-1"
           />

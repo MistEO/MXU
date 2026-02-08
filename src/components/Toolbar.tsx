@@ -14,7 +14,7 @@ import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
-import { getMxuSpecialTask } from '@/types/interface';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';

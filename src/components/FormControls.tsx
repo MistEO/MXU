@@ -213,6 +213,33 @@ export function NumberField({
   );
 }
 
+// ============ TimeInput 时间选择器（HH:MM 格式，无标签） ============
+
+interface TimeInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function TimeInput({ value, onChange, disabled, className }: TimeInputProps) {
+  return (
+    <input
+      type="time"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className={clsx(
+        'px-3 py-1.5 text-sm rounded-md border',
+        'bg-bg-secondary text-text-primary border-border',
+        'focus:outline-none focus:ring-1 focus:ring-accent/20 focus:border-accent',
+        disabled && 'opacity-60 cursor-not-allowed',
+        className,
+      )}
+    />
+  );
+}
+
 // ============ FileInput 文件路径输入框（纯输入框+浏览按钮，无标签） ============
 
 interface FileInputProps {

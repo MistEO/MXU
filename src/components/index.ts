@@ -8,6 +8,7 @@ export {
   TextInput,
   NumberInput,
   FileInput,
+  TimeInput,
   SwitchField,
   TextField,
   NumberField,

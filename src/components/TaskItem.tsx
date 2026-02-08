@@ -29,7 +29,7 @@ import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
-import { isMxuSpecialTask, getMxuSpecialTask, getMxuSpecialTaskOption } from '@/types/interface';
+import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
@@ -459,11 +459,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
       // 优先从 projectInterface 查找，MXU 特殊任务从注册表查找
       const isMxuOption = optionKey.startsWith('__MXU_');
-      const mxuTaskNameForOption = isMxuOption ? optionKey.replace(/_OPTION__$/, '__') : null;
       const optionDef = isMxuOption
-        ? mxuTaskNameForOption
-          ? getMxuSpecialTaskOption(mxuTaskNameForOption, optionKey)
-          : undefined
+        ? findMxuOptionByKey(optionKey)
         : projectInterface?.option?.[optionKey];
       if (!optionDef) continue;
 

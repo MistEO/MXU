@@ -97,13 +97,19 @@ export default {
   // 特殊任务
   specialTask: {
     sleep: {
-      label: '⏰ 延迟',
-      optionLabel: '延迟设置',
-      inputLabel: '延迟时间（秒）',
+      label: '⏳ 倒计时',
+      optionLabel: '倒计时设置',
+      inputLabel: '等待时间（秒）',
       inputError: '请输入正整数',
     },
+    waitUntil: {
+      label: '⏰ 定时等待',
+      optionLabel: '时间设置',
+      optionDescription: '等待到指定时间点后继续执行，仅支持 24 小时内。若目标时间已过则等待到次日该时间',
+      inputLabel: '目标时间',
+    },
     launch: {
-      label: '▶️ 自定义脚本',
+      label: '▶️ 自定义程序',
       optionLabel: '程序设置',
       programLabel: '程序路径',
       programPlaceholder: '输入程序路径或点击右侧浏览...',
@@ -111,15 +117,41 @@ export default {
       argsPlaceholder: '输入附加参数（可选）',
       waitLabel: '等待退出',
       waitDescription:
-        '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续',
+        '启用时等待进程退出后再继续，适用于执行程序等需要同步完成的操作；禁用时启动进程后立即继续',
       waitYes: '等待程序退出后继续',
       waitNo: '启动后立即继续',
+    },
+    notify: {
+      label: '💬 系统通知',
+      optionLabel: '通知设置',
+      titleLabel: '通知标题',
+      titlePlaceholder: '输入通知标题',
+      bodyLabel: '通知内容',
+      bodyPlaceholder: '输入通知内容',
     },
     webhook: {
       label: '🔔 Webhook',
       optionLabel: '请求设置',
       urlLabel: '请求地址',
       urlPlaceholder: '输入完整的 URL（如 https://example.com/webhook?key=xxx）',
+    },
+    killProc: {
+      label: '⛔ 结束进程',
+      selfLabel: '结束自身进程',
+      selfDescription: '开启时结束本程序自身进程；关闭后可输入其他进程名称来结束',
+      selfYes: '结束自身',
+      selfNo: '结束指定进程',
+      nameOptionLabel: '进程设置',
+      nameLabel: '进程名称',
+      namePlaceholder: '输入要结束的进程名（如 notepad.exe）',
+    },
+    power: {
+      label: '⚡ 电脑操作',
+      optionLabel: '操作类型',
+      shutdown: '关机',
+      restart: '重启',
+      screenoff: '息屏',
+      sleep: '睡眠',
     },
   },
 
@@ -215,7 +247,7 @@ export default {
   },
 
   action: {
-    preAction: '前置脚本',
+    preAction: '前置程序',
     program: '程序路径',
     programPlaceholder: '输入程序路径或点击右侧浏览...',
     args: '附加参数',
@@ -223,17 +255,17 @@ export default {
     browse: '浏览',
     waitForExit: '等待退出',
     waitForExitHintPre:
-      '启用时等待进程退出后再继续，适用于执行脚本等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
+      '启用时等待进程退出后再继续，适用于执行程序等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
     waitingForDevice: '正在等待设备就绪...',
     waitingForWindow: '正在等待窗口就绪...',
     deviceReady: '设备已就绪',
     windowReady: '窗口已就绪',
     deviceWaitTimeout: '等待设备超时',
     windowWaitTimeout: '等待窗口超时',
-    preActionStarting: '正在执行前置脚本...',
-    preActionCompleted: '前置脚本执行完成',
-    preActionFailed: '前置脚本执行失败: {{error}}',
-    preActionExitCode: '前置脚本退出码: {{code}}',
+    preActionStarting: '正在执行前置程序...',
+    preActionCompleted: '前置程序执行完成',
+    preActionFailed: '前置程序执行失败: {{error}}',
+    preActionExitCode: '前置程序退出码: {{code}}',
   },
 
   // 选项编辑器

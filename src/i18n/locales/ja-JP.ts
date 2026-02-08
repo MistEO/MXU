@@ -97,13 +97,19 @@ export default {
   // 特殊タスク
   specialTask: {
     sleep: {
-      label: '⏰ 遅延',
-      optionLabel: '遅延設定',
-      inputLabel: '遅延時間（秒）',
+      label: '⏳ カウントダウン',
+      optionLabel: 'カウントダウン設定',
+      inputLabel: '待機時間（秒）',
       inputError: '正の整数を入力してください',
     },
+    waitUntil: {
+      label: '⏰ 時刻まで待機',
+      optionLabel: '時刻設定',
+      optionDescription: '指定した時刻まで待機してから続行します。24時間以内のみ対応。目標時刻が過ぎている場合は翌日のその時刻まで待機します',
+      inputLabel: '目標時刻',
+    },
     launch: {
-      label: '▶️ カスタムスクリプト',
+      label: '▶️ カスタムプログラム',
       optionLabel: 'プログラム設定',
       programLabel: 'プログラムパス',
       programPlaceholder: 'プログラムパスを入力するか右側の参照をクリック...',
@@ -111,15 +117,42 @@ export default {
       argsPlaceholder: '追加引数を入力（任意）',
       waitLabel: '終了を待機',
       waitDescription:
-        '有効時はプロセス終了後に続行します。スクリプトなど同期完了が必要な操作に適しています。無効時は起動後すぐに続行します',
+        '有効時はプロセス終了後に続行します。プログラムなど同期完了が必要な操作に適しています。無効時は起動後すぐに続行します',
       waitYes: 'プログラム終了後に続行',
       waitNo: '起動後すぐに続行',
+    },
+    notify: {
+      label: '💬 システム通知',
+      optionLabel: '通知設定',
+      titleLabel: '通知タイトル',
+      titlePlaceholder: '通知タイトルを入力',
+      bodyLabel: '通知内容',
+      bodyPlaceholder: '通知内容を入力',
     },
     webhook: {
       label: '🔔 Webhook',
       optionLabel: 'リクエスト設定',
       urlLabel: 'リクエストURL',
       urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
+    },
+    killProc: {
+      label: '⛔ プロセス終了',
+      selfLabel: '自身のプロセスを終了',
+      selfDescription:
+        '有効にするとこのアプリ自体を終了します。無効にすると別のプロセス名を入力して終了できます',
+      selfYes: '自身を終了',
+      selfNo: '指定プロセスを終了',
+      nameOptionLabel: 'プロセス設定',
+      nameLabel: 'プロセス名',
+      namePlaceholder: '終了するプロセス名を入力（例：notepad.exe）',
+    },
+    power: {
+      label: '⚡ PC操作',
+      optionLabel: '操作タイプ',
+      shutdown: 'シャットダウン',
+      restart: '再起動',
+      screenoff: '画面オフ',
+      sleep: 'スリープ',
     },
   },
 
@@ -218,7 +251,7 @@ export default {
   },
 
   action: {
-    preAction: '前処理スクリプト',
+    preAction: '前処理プログラム',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
     args: '追加引수',
@@ -226,17 +259,17 @@ export default {
     browse: '参照',
     waitForExit: '終了を待機',
     waitForExitHintPre:
-      '有効にするとプロセスが終了するまで待機してから続行します。スクリプト実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
+      '有効にするとプロセスが終了するまで待機してから続行します。プログラム実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
     waitingForDevice: 'デバイスの準備を待機中...',
     waitingForWindow: 'ウィンドウの準備を待機中...',
     deviceReady: 'デバイスが準備完了',
     windowReady: 'ウィンドウが準備完了',
     deviceWaitTimeout: 'デバイス待機タイムアウト',
     windowWaitTimeout: 'ウィンドウ待機タイムアウト',
-    preActionStarting: '前処理スクリプトを実行中...',
-    preActionCompleted: '前処理スクリプト完了',
-    preActionFailed: '前処理スクリプト失敗: {{error}}',
-    preActionExitCode: '前処理スクリプト終了コード: {{code}}',
+    preActionStarting: '前処理プログラムを実行中...',
+    preActionCompleted: '前処理プログラム完了',
+    preActionFailed: '前処理プログラム失敗: {{error}}',
+    preActionExitCode: '前処理プログラム終了コード: {{code}}',
   },
 
   // オプションエディタ

@@ -4,7 +4,8 @@ MXU 特殊任务是通过 MaaFramework 的 `Custom Action` 机制实现的内置
 
 现有示例：
 
-- `MXU_SLEEP` —— 暂停执行指定秒数（单选项 input 示例）
+- `MXU_SLEEP` —— 倒计时等待指定秒数（单选项 input 示例）
+- `MXU_WAITUNTIL` —— 等待到指定时间点（time 类型 input 示例）
 - `MXU_LAUNCH` —— 启动外部程序（多选项 input + switch 示例）
 
 ## 架构概览
@@ -20,7 +21,7 @@ MXU 特殊任务是通过 MaaFramework 的 `Custom Action` 机制实现的内置
 | 步骤 | 文件 | 职责 |
 | ------ | ------ | ------ |
 | 1 | `src-tauri/src/mxu_actions.rs` | 实现 Rust 回调并注册 |
-| 2 | `src/types/interface.ts` | 注册任务/选项定义到 `MXU_SPECIAL_TASKS` |
+| 2 | `src/types/specialTasks.ts` | 注册任务/选项定义到 `MXU_SPECIAL_TASKS` |
 | 3 | `src/i18n/locales/*.ts` | 添加所有语言的翻译文本 |
 | 4 | `src/utils/pipelineOverride.ts` | **无需修改**（自动复用 `collectOptionOverrides`） |
 | 5 | `src/stores/appStore.ts` | **无需修改**（通用 `addMxuSpecialTask` 自动处理） |
@@ -116,7 +117,7 @@ pub fn register_all_mxu_actions(lib: &MaaLibrary, resource: *mut MaaResource) ->
 
 ## 步骤 2：注册任务定义
 
-在 `src/types/interface.ts` 的 `MXU_SPECIAL_TASKS` 注册表中添加条目。
+在 `src/types/specialTasks.ts` 的 `MXU_SPECIAL_TASKS` 注册表中添加条目。
 
 ### 2a. 定义常量
 
@@ -186,7 +187,7 @@ const MXU_EXAMPLE_OPTION: InputOption = {
 
 | 字段 | 类型 | 说明 |
 | ------ | ------ | ------ |
-| `input_type` | `'text' \| 'file'` | 控制 UI 渲染：`'file'` 会渲染带浏览按钮的文件选择器 |
+| `input_type` | `'text' \| 'file' \| 'time'` | 控制 UI 渲染：`'file'` 渲染带浏览按钮的文件选择器；`'time'` 渲染 HH:MM 时间选择器 |
 | `placeholder` | `string` | 输入框占位提示文本的 i18n key，通过 `t()` 翻译。若未设置则 fallback 到 `default` |
 
 **switch 类型**（开关）：

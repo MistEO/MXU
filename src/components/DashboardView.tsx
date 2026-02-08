@@ -31,7 +31,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig, AgentConfig } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
-import { getMxuSpecialTask } from '@/types/interface';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 
 const log = loggers.ui;
 

@@ -22,7 +22,7 @@
   - `services/`：核心业务逻辑层（配置管理、自动更新、Maa 服务封装）。
   - `stores/`：基于 Zustand 的全局状态存储。
   - `i18n/`：多语言定义与本地化资源。
-  - `types/`：TypeScript 类型定义，包括 PI V2 协议相关定义。
+  - `types/`：TypeScript 类型定义，包括 PI V2 协议相关定义（`interface.ts`）和 MXU 特殊任务系统（`specialTasks.ts`）。
   - `utils/`：通用工具函数（日志、路径处理、样式助手）。
 - `src-tauri/`：Rust 后端逻辑
   - `src/commands/`：Tauri 指令集，处理文件 IO、网络下载、Maa FFI 调用等底层逻辑。

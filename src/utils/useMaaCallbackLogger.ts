@@ -9,7 +9,7 @@ import { maaService, type MaaCallbackDetails } from '@/services/maaService';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
-import { getMxuSpecialTask } from '@/types/interface';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import {
   resolveI18nText,
   detectContentType,

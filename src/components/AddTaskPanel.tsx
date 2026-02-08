@@ -14,8 +14,9 @@ import { useResolvedContent } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import { getInterfaceLangKey } from '@/i18n';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig, MxuSpecialTaskDefinition } from '@/types/interface';
-import { getAllMxuSpecialTasks } from '@/types/interface';
+import type { TaskItem, ActionConfig } from '@/types/interface';
+import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
+import { getAllMxuSpecialTasks } from '@/types/specialTasks';
 import clsx from 'clsx';
 
 const log = loggers.task;

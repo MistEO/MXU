@@ -31,6 +31,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig, AgentConfig } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
+import { getMxuSpecialTask } from '@/types/interface';
 
 const log = loggers.ui;
 
@@ -219,16 +220,21 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           // 构建任务配置列表
           const taskConfigs: TaskConfig[] = [];
           for (const selectedTask of enabledTasks) {
-            const taskDef = projectInterface?.task.find((t) => t.name === selectedTask.taskName);
+            // 先检查是否是 MXU 特殊任务
+            const specialTask = getMxuSpecialTask(selectedTask.taskName);
+            const taskDef =
+              specialTask?.taskDef ||
+              projectInterface?.task.find((t) => t.name === selectedTask.taskName);
             if (!taskDef) continue;
 
             taskConfigs.push({
               entry: taskDef.entry,
               pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
             });
+            // MXU 特殊任务的 label 是 MXU i18n key，需要用 t() 翻译
             const taskDisplayName =
               selectedTask.customName ||
-              resolveI18nText(taskDef.label, translations) ||
+              (specialTask && taskDef.label ? t(taskDef.label) : resolveI18nText(taskDef.label, translations)) ||
               selectedTask.taskName;
             registerEntryTaskName(taskDef.entry, taskDisplayName);
           }
@@ -273,12 +279,14 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           taskIds.forEach((maaTaskId, index) => {
             if (enabledTasks[index]) {
               registerMaaTaskMapping(instanceId, maaTaskId, enabledTasks[index].id);
-              const taskDef = projectInterface?.task.find(
-                (t) => t.name === enabledTasks[index].taskName,
-              );
+              // MXU 特殊任务的 label 需要用 t() 翻译
+              const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
+              const taskDef =
+                specialTask?.taskDef ||
+                projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
               const taskDisplayName =
                 enabledTasks[index].customName ||
-                resolveI18nText(taskDef?.label, translations) ||
+                (specialTask && taskDef?.label ? t(taskDef.label) : resolveI18nText(taskDef?.label, translations)) ||
                 enabledTasks[index].taskName;
               registerTaskIdName(maaTaskId, taskDisplayName);
             }

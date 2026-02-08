@@ -7,7 +7,7 @@ import type {
   ActionConfig,
   OptionDefinition,
 } from '@/types/interface';
-import { getMxuSpecialTask } from '@/types/interface';
+import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/interface';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   defaultWindowSize,
@@ -779,8 +779,11 @@ export const useAppStore = create<AppState>()(
         return cleaned;
       };
 
-      // 获取有效的任务名称集合
-      const validTaskNames = new Set(pi?.task.map((t) => t.name) || []);
+      // 获取有效的任务名称集合（包含 interface 任务和 MXU 特殊任务）
+      const validTaskNames = new Set([
+        ...(pi?.task.map((t) => t.name) || []),
+        ...Object.keys(MXU_SPECIAL_TASKS),
+      ]);
 
       const instances: Instance[] = config.instances.map((inst) => {
         // 记录被过滤掉的无效任务
@@ -792,10 +795,22 @@ export const useAppStore = create<AppState>()(
           );
         }
 
-        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 中不存在的），并清理已删除的 option
+        // 恢复已保存的任务，过滤掉无效任务（taskName 在 interface 或 MXU 特殊任务中不存在的），并清理已删除的 option
         const savedTasks: SelectedTask[] = inst.tasks
           .filter((t) => validTaskNames.has(t.taskName))
           .map((t) => {
+            // MXU 特殊任务使用独立的选项系统，直接保留其 optionValues
+            if (isMxuSpecialTask(t.taskName)) {
+              return {
+                id: t.id,
+                taskName: t.taskName,
+                customName: t.customName,
+                enabled: t.enabled,
+                optionValues: t.optionValues,
+                expanded: false,
+              };
+            }
+
             const taskDef = pi?.task.find((td) => td.name === t.taskName);
             const cleanedValues = cleanOptionValues(t.optionValues);
             // 为缺失的 option 添加默认值（根据 default_case）

@@ -161,6 +161,7 @@ export function AddTaskPanel() {
     // 任务运行状态管理
     setTaskRunStatus,
     registerMaaTaskMapping,
+    registerTaskIdName,
     appendPendingTaskId,
     // 新增任务标记
     newTaskNames,
@@ -269,6 +270,11 @@ export function AddTaskPanel() {
 
         // 注册映射关系
         registerMaaTaskMapping(instance.id, maaTaskId, addedTask.id);
+        // 注册 task_id 与任务名的映射（用 t() 翻译特殊任务 label）
+        registerTaskIdName(
+          maaTaskId,
+          addedTask.customName || t(specialTask.taskDef.label || specialTask.taskName),
+        );
 
         // 设置任务状态为 pending
         setTaskRunStatus(instance.id, addedTask.id, 'pending');
@@ -322,6 +328,12 @@ export function AddTaskPanel() {
 
         // 注册映射关系
         registerMaaTaskMapping(instance.id, maaTaskId, addedTask.id);
+        // 注册 task_id 与任务名的映射
+        const taskDisplayName =
+          addedTask.customName ||
+          resolveI18nText(task.label, langKey) ||
+          addedTask.taskName;
+        registerTaskIdName(maaTaskId, taskDisplayName);
 
         // 设置任务状态为 pending
         setTaskRunStatus(instance.id, addedTask.id, 'pending');

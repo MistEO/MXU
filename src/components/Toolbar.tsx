@@ -656,9 +656,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
           });
           // 预注册 entry -> taskName 映射，确保回调时能找到任务名
+          // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译
           const taskDisplayName =
             selectedTask.customName ||
-            resolveI18nText(taskDef.label, translations) ||
+            (specialTask && taskDef.label ? t(taskDef.label) : resolveI18nText(taskDef.label, translations)) ||
             selectedTask.taskName;
           registerEntryTaskName(taskDef.entry, taskDisplayName);
         }
@@ -714,12 +715,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           if (enabledTasks[index]) {
             registerMaaTaskMapping(targetId, maaTaskId, enabledTasks[index].id);
             // 注册 task_id 与任务名的映射（使用自定义名称或 label）
-            const taskDef = projectInterface?.task.find(
-              (t) => t.name === enabledTasks[index].taskName,
-            );
+            // MXU 特殊任务的 label 需要用 t() 翻译
+            const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
+            const taskDef =
+              specialTask?.taskDef ||
+              projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
             const taskDisplayName =
               enabledTasks[index].customName ||
-              resolveI18nText(taskDef?.label, translations) ||
+              (specialTask && taskDef?.label ? t(taskDef.label) : resolveI18nText(taskDef?.label, translations)) ||
               enabledTasks[index].taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }

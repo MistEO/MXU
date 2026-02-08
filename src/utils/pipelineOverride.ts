@@ -9,7 +9,6 @@ import type {
   SelectedTask,
   OptionValue,
   OptionDefinition,
-  InputOption,
 } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/interface';
 import { loggers } from './logger';
@@ -129,7 +128,7 @@ export const generateTaskPipelineOverride = (
 
 /**
  * 生成 MXU 内置特殊任务的 pipeline override
- * 通用化实现：从注册表获取任务定义，根据选项定义生成 override
+ * 复用通用的 collectOptionOverrides 处理所有选项类型（input/select/switch 及嵌套选项）
  */
 const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
   const specialTask = getMxuSpecialTask(selectedTask.taskName);
@@ -146,54 +145,10 @@ const generateMxuSpecialTaskOverride = (selectedTask: SelectedTask): string => {
     overrides.push(taskDef.pipeline_override as Record<string, unknown>);
   }
 
-  // 处理任务的选项
+  // 复用通用选项处理函数，支持所有选项类型及嵌套选项
   if (taskDef.option) {
     for (const optionKey of taskDef.option) {
-      const optionDef = optionDefs[optionKey];
-      if (!optionDef) continue;
-
-      const optionValue =
-        selectedTask.optionValues[optionKey] || createDefaultOptionValue(optionDef);
-
-      // 处理 input 类型选项的 pipeline_override
-      if (
-        optionValue.type === 'input' &&
-        optionDef.type === 'input' &&
-        optionDef.pipeline_override
-      ) {
-        const inputDef = optionDef as InputOption;
-        let overrideStr = JSON.stringify(inputDef.pipeline_override);
-
-        for (const input of inputDef.inputs || []) {
-          const inputName = input.name;
-          const inputVal = optionValue.values[inputName] ?? input.default ?? '';
-          const pipelineType = input.pipeline_type || 'string';
-          const placeholder = `{${inputName}}`;
-          const placeholderRegex = new RegExp(
-            placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-            'g',
-          );
-
-          if (pipelineType === 'int') {
-            overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), inputVal || '0');
-            overrideStr = overrideStr.replace(placeholderRegex, inputVal || '0');
-          } else if (pipelineType === 'bool') {
-            const boolVal = ['true', '1', 'yes', 'y'].includes((inputVal || '').toLowerCase())
-              ? 'true'
-              : 'false';
-            overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), boolVal);
-            overrideStr = overrideStr.replace(placeholderRegex, boolVal);
-          } else {
-            overrideStr = overrideStr.replace(placeholderRegex, inputVal || '');
-          }
-        }
-
-        try {
-          overrides.push(JSON.parse(overrideStr));
-        } catch (e) {
-          loggers.task.warn('解析特殊任务选项覆盖失败:', e);
-        }
-      }
+      collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, optionDefs);
     }
   }
 

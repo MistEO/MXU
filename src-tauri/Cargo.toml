@@ -45,6 +45,7 @@ semver = "1.0"
 os_info = "3"
 urlencoding = "2.1"
 notify-rust = "4"
+shell-words = "1.1.1"
 
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析

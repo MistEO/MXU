@@ -152,10 +152,19 @@ extern "C" fn mxu_waituntil_action(
             .date_naive()
             .and_hms_opt(target_hour, target_minute, 0)
             .unwrap();
-        let today_target = chrono::Local
+        let today_target = match chrono::Local
             .from_local_datetime(&today_target)
             .single()
-            .unwrap();
+        {
+            Some(dt) => dt,
+            None => {
+                warn!(
+                    "[MXU_WAITUNTIL] Ambiguous or invalid local time for target {:02}:{:02}, falling back to current time",
+                    target_hour, target_minute
+                );
+                now
+            }
+        };
 
         let wait_duration = if today_target > now {
             today_target - now
@@ -252,10 +261,22 @@ extern "C" fn mxu_launch_action(
             program, args_str, wait_for_exit
         );
 
-        let args_vec: Vec<&str> = if args_str.trim().is_empty() {
-            vec![]
+        let args_vec: Vec<String> = if args_str.trim().is_empty() {
+            Vec::new()
         } else {
-            args_str.split_whitespace().collect()
+            match shell_words::split(&args_str) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    warn!(
+                        "[MXU_LAUNCH] Failed to parse arguments with shell_words ({}); falling back to whitespace split: {}",
+                        e, args_str
+                    );
+                    args_str
+                        .split_whitespace()
+                        .map(|s| s.to_string())
+                        .collect()
+                }
+            }
         };
 
         let mut cmd = std::process::Command::new(&program);
@@ -358,7 +379,18 @@ extern "C" fn mxu_webhook_action(
 
         info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
 
-        match reqwest::blocking::get(&url) {
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                log::error!("[MXU_WEBHOOK] Failed to build HTTP client: {}", e);
+                return 0u8;
+            }
+        };
+
+        match client.get(&url).send() {
             Ok(resp) => {
                 let status = resp.status();
                 info!("[MXU_WEBHOOK] Response status: {}", status);

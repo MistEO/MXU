@@ -152,8 +152,7 @@ pub fn update_tray_icon(icon_path: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to read icon file {:?}: {}", canonical_path, e))?;
 
     // 创建图标
-    let icon = Image::from_bytes(&icon_data)
-        .map_err(|e| format!("Failed to parse icon: {}", e))?;
+    let icon = Image::from_bytes(&icon_data).map_err(|e| format!("Failed to parse icon: {}", e))?;
 
     // 更新托盘图标
     let tray_mutex = TRAY_ICON.get_or_init(|| Mutex::new(None));

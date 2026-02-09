@@ -285,6 +285,13 @@ function App() {
     }
 
     setWindowTitle(title);
+
+    // 同时更新托盘 tooltip（只显示项目名称）
+    if (isTauri()) {
+      invoke('update_tray_tooltip', { tooltip: projectInterface.name }).catch((err) => {
+        log.warn('设置托盘 tooltip 失败:', err);
+      });
+    }
   }, [projectInterface, language, interfaceTranslations]);
 
   // 设置窗口图标（根据 ProjectInterface V2 协议）
@@ -309,6 +316,13 @@ function App() {
         log.info('窗口图标已设置:', fullIconPath);
       } catch (err) {
         log.warn('设置窗口图标失败:', err);
+      }
+
+      // 同时更新托盘图标
+      try {
+        await invoke('update_tray_icon', { iconPath: fullIconPath });
+      } catch (err) {
+        log.warn('设置托盘图标失败:', err);
       }
     };
 

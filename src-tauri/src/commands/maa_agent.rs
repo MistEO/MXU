@@ -7,6 +7,7 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use std::thread;
 
 use tauri::State;
@@ -649,12 +650,36 @@ pub fn maa_stop_agent(state: State<Arc<MaaState>>, instance_id: String) -> Resul
                 }
             }
 
-            // 等待子进程自行退出，避免僵尸进程
+            // 等待子进程自行退出，超时强制kill
             if let Some(mut child) = child_opt {
-                info!("Background: Waiting for agent child process to exit...");
-                let _ = child.wait();
-                info!("Background: Agent child process exited");
+                const WAIT_MS: u64 = 5000;
+                let start = Instant::now();
+                loop {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            info!("Agent child exited: {:?}", status);
+                            break;
+                        }
+                        Ok(None) => {
+                            if start.elapsed() >= Duration::from_millis(WAIT_MS) {
+                                warn!("Agent child not exit in {}ms, killing... pid: {:?}", WAIT_MS, child.id());
+                                if let Err(e) = child.kill() {
+                                    warn!("Failed to kill agent child: {:?}", e);
+                                } else {
+                                    let _ = child.wait();
+                                }
+                                break;
+                            }
+                            thread::sleep(Duration::from_millis(100));
+                        }
+                        Err(e) => {
+                            warn!("Failed to poll agent child: {:?}", e);
+                            break;
+                        }
+                    }
+                }
             }
+
         });
     }
 

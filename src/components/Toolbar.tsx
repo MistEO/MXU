@@ -1233,7 +1233,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 : instance?.isRunning
                   ? 'bg-error hover:bg-error/90 text-white'
                   : isDisabled
-                    ? 'bg-bg-active text-text-muted cursor-not-allowed'
+                    ? 'bg-bg-active text-text-tertiary cursor-not-allowed'
                     : 'bg-accent hover:bg-accent-hover text-white',
           )}
           title={getButtonTitle()}

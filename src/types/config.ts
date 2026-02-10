@@ -130,7 +130,7 @@ export interface AppSettings {
   tcpCompatMode?: boolean; // 通信兼容模式，强制使用 TCP 而非 IPC
   minimizeToTray?: boolean; // 关闭时最小化到托盘（默认 false）
   autoStartInstanceId?: string; // 启动后自动执行的实例 ID（为空或 undefined 表示不自动执行）
-  autoRunOnLaunch?: boolean; // 手动启动时是否也自动执行选定的实例（默认 false，仅开机自启动时生效）
+  autoRunOnLaunch?: boolean; // 非开机自启动的手动启动场景下，是否也自动执行选定的实例（默认 false）
   autoStartRemovedInstanceName?: string; // 被删除的自动执行配置名称（用于提示用户）
 }
 

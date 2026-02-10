@@ -26,6 +26,7 @@ tauri-plugin-http = "2"
 tauri-plugin-log = "2"
 tauri-plugin-process = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
 log = "0.4"
 chrono = "0.4"
 serde = { version = "1", features = ["derive"] }

@@ -86,6 +86,8 @@ export default {
     hotkeysGlobalOnlyStart: 'only start works in global mode',
     minimizeToTray: 'Minimize to tray on close',
     minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
+    autoStart: 'Launch at startup',
+    autoStartHint: 'Automatically start this application when the system boots',
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
     maxLogsPerInstance: 'Max logs per instance',

@@ -86,6 +86,8 @@ export default {
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
+    autoStart: '开机自启动',
+    autoStartHint: '系统启动时自动运行本程序',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表、导入覆盖等操作会先弹出确认对话框',
     maxLogsPerInstance: '每个实例保留的日志上限',

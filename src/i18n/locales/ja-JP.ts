@@ -86,6 +86,8 @@ export default {
     hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
     minimizeToTray: '閉じる時にトレイに最小化',
     minimizeToTrayHint: '閉じるボタンをクリックすると、終了せずにシステムトレイに隠れます',
+    autoStart: 'スタートアップ時に起動',
+    autoStartHint: 'システム起動時にこのアプリケーションを自動的に起動します',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',

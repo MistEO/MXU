@@ -85,6 +85,8 @@ export default {
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
+    autoStart: '시작 시 자동 실행',
+    autoStartHint: '시스템 부팅 시 이 애플리케이션을 자동으로 시작합니다',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint:
       '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',

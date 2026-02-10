@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings2, ListChecks, AppWindowMac, AlertCircle, Maximize2 } from 'lucide-react';
+import { Settings2, ListChecks, AppWindowMac, AlertCircle, Maximize2, Power } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
@@ -20,6 +20,35 @@ export function GeneralSection() {
     setRightPanelWidth,
     setRightPanelCollapsed,
   } = useAppStore();
+
+  // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
+  const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+  const [autoStartLoading, setAutoStartLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+      isEnabled().then(setAutoStartEnabled).catch(() => {});
+    });
+  }, []);
+
+  const handleAutoStartToggle = useCallback(async (enabled: boolean) => {
+    if (!isTauri()) return;
+    setAutoStartLoading(true);
+    try {
+      const { enable, disable } = await import('@tauri-apps/plugin-autostart');
+      if (enabled) {
+        await enable();
+      } else {
+        await disable();
+      }
+      setAutoStartEnabled(enabled);
+    } catch {
+      // 恢复原状
+    } finally {
+      setAutoStartLoading(false);
+    }
+  }, []);
 
   const handleResetWindowLayout = useCallback(async () => {
     if (!isTauri()) return;
@@ -81,6 +110,25 @@ export function GeneralSection() {
           <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
         </div>
       </div>
+
+      {isTauri() && (
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Power className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">{t('settings.autoStart')}</span>
+                <p className="text-xs text-text-muted mt-0.5">{t('settings.autoStartHint')}</p>
+              </div>
+            </div>
+            <SwitchButton
+              value={autoStartEnabled}
+              onChange={handleAutoStartToggle}
+              disabled={autoStartLoading}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">
         <div className="flex items-center justify-between">

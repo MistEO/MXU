@@ -216,9 +216,15 @@ export const useAppStore = create<AppState>()(
         });
       }
 
+      // 默认控制器和资源名称
+      const defaultControllerNameValue = pi?.controller[0]?.name;
+      const defaultResourceNameValue = pi?.resource[0]?.name;
+
       const newInstance: Instance = {
         id,
         name: name ? `${name} ${instanceNumber}` : `Config ${instanceNumber}`,
+        controllerName: defaultControllerNameValue,
+        resourceName: defaultResourceNameValue,
         selectedTasks: defaultTasks,
         isRunning: false,
       };
@@ -226,14 +232,28 @@ export const useAppStore = create<AppState>()(
       // 收集所有新建任务的 ID 用于入场动画
       const newTaskIds = defaultTasks.map((t) => t.id);
 
-      set((state) => ({
-        instances: [...state.instances, newInstance],
-        activeInstanceId: id,
-        nextInstanceNumber: state.nextInstanceNumber + 1,
-        showAddTaskPanel: true, // 新建配置时自动展开添加任务面板
-        animatingTaskIds: [...state.animatingTaskIds, ...newTaskIds],
-        animatingTabIds: [...state.animatingTabIds, id], // 添加到标签页进入动画列表
-      }));
+      set((state) => {
+        // 持久化默认控制器和资源选择，避免其他组件 fallback 到 controller[0] 导致判断错误
+        const newSelectedController = { ...state.selectedController };
+        const newSelectedResource = { ...state.selectedResource };
+        if (defaultControllerNameValue) {
+          newSelectedController[id] = defaultControllerNameValue;
+        }
+        if (defaultResourceNameValue) {
+          newSelectedResource[id] = defaultResourceNameValue;
+        }
+
+        return {
+          instances: [...state.instances, newInstance],
+          activeInstanceId: id,
+          nextInstanceNumber: state.nextInstanceNumber + 1,
+          showAddTaskPanel: true, // 新建配置时自动展开添加任务面板
+          animatingTaskIds: [...state.animatingTaskIds, ...newTaskIds],
+          animatingTabIds: [...state.animatingTabIds, id], // 添加到标签页进入动画列表
+          selectedController: newSelectedController,
+          selectedResource: newSelectedResource,
+        };
+      });
 
       return id;
     },
@@ -687,10 +707,24 @@ export const useAppStore = create<AppState>()(
         preAction: sourceInstance.preAction ? { ...sourceInstance.preAction } : undefined,
       };
 
+      // 复制源实例的控制器和资源选择
+      const newSelectedController = { ...state.selectedController };
+      const newSelectedResource = { ...state.selectedResource };
+      const sourceControllerName = state.selectedController[instanceId] || sourceInstance.controllerName;
+      const sourceResourceName = state.selectedResource[instanceId] || sourceInstance.resourceName;
+      if (sourceControllerName) {
+        newSelectedController[newId] = sourceControllerName;
+      }
+      if (sourceResourceName) {
+        newSelectedResource[newId] = sourceResourceName;
+      }
+
       set({
         instances: [...state.instances, newInstance],
         activeInstanceId: newId,
         nextInstanceNumber: instanceNumber + 1,
+        selectedController: newSelectedController,
+        selectedResource: newSelectedResource,
       });
 
       return newId;

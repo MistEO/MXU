@@ -32,10 +32,6 @@ import {
   autoReconnectAttempted,
 } from './connection';
 
-// 检测当前操作系统
-const isWindows = navigator.platform.toLowerCase().includes('win');
-const isMacOS = navigator.platform.toLowerCase().includes('mac');
-
 export function ConnectionPanel() {
   const { t } = useTranslation();
   const {
@@ -174,21 +170,8 @@ export function ConnectionPanel() {
   // 任务运行中时禁止切换控制器
   const isRunning = activeInstance?.isRunning || false;
 
-  // 获取控制器列表并根据操作系统过滤不支持的类型
-  const allControllers = projectInterface?.controller || [];
-  const controllers = useMemo(() => {
-    return allControllers.filter((c) => {
-      // 非 Windows 系统不支持 Win32 和 Gamepad
-      if (!isWindows && (c.type === 'Win32' || c.type === 'Gamepad')) {
-        return false;
-      }
-      // 非 macOS 系统不支持 PlayCover
-      if (!isMacOS && c.type === 'PlayCover') {
-        return false;
-      }
-      return true;
-    });
-  }, [allControllers]);
+  // 获取控制器列表（已在 interfaceLoader 解析阶段按平台过滤）
+  const controllers = projectInterface?.controller || [];
   const currentControllerName = selectedController[instanceId] || controllers[0]?.name;
   const currentController =
     controllers.find((c) => c.name === currentControllerName) || controllers[0];

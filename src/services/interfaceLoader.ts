@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ProjectInterface, TaskItem, OptionDefinition } from '@/types/interface';
+import type { ProjectInterface, TaskItem, OptionDefinition, ControllerType } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
@@ -245,6 +245,50 @@ async function processImports(
 }
 
 // ============================================================================
+// 平台过滤
+// ============================================================================
+
+// 检测当前操作系统
+const isWindows = navigator.platform.toLowerCase().includes('win');
+const isMacOS = navigator.platform.toLowerCase().includes('mac');
+
+/**
+ * 获取当前平台不支持的控制器类型集合
+ */
+function getUnsupportedControllerTypes(): Set<ControllerType> {
+  const unsupported = new Set<ControllerType>();
+  // 非 Windows 系统不支持 Win32 和 Gamepad
+  if (!isWindows) {
+    unsupported.add('Win32');
+    unsupported.add('Gamepad');
+  }
+  // 非 macOS 系统不支持 PlayCover
+  if (!isMacOS) {
+    unsupported.add('PlayCover');
+  }
+  return unsupported;
+}
+
+/**
+ * 过滤掉当前平台不支持的控制器
+ * 在解析阶段直接移除，使后续所有消费 controller 的地方都只看到兼容的控制器
+ */
+function filterControllersByPlatform(pi: ProjectInterface): void {
+  const unsupported = getUnsupportedControllerTypes();
+  if (unsupported.size === 0) return;
+
+  const originalCount = pi.controller.length;
+  pi.controller = pi.controller.filter((c) => !unsupported.has(c.type));
+  const filteredCount = originalCount - pi.controller.length;
+
+  if (filteredCount > 0) {
+    log.info(
+      `平台过滤: 移除了 ${filteredCount} 个不支持的控制器 (不支持的类型: ${[...unsupported].join(', ')})`,
+    );
+  }
+}
+
+// ============================================================================
 // 统一入口
 // ============================================================================
 
@@ -290,6 +334,9 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     // 处理 import 字段
     await processImports(pi, relativeBasePath, true);
 
+    // 过滤掉当前平台不支持的控制器
+    filterControllersByPlatform(pi);
+
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
     return { interface: pi, translations, basePath, dataPath };
   }
@@ -302,6 +349,9 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     // 处理 import 字段
     const httpBasePath = relativeBasePath ? `/${relativeBasePath}` : '';
     await processImports(pi, httpBasePath, false);
+
+    // 过滤掉当前平台不支持的控制器
+    filterControllersByPlatform(pi);
 
     const translations = await loadTranslationsFromHttp(pi, httpBasePath);
     // 浏览器环境下 dataPath 与 basePath 相同

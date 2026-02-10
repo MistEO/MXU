@@ -26,7 +26,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec!["--autostart".into()]),
         ))
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -164,6 +164,7 @@ pub fn run() {
             commands::download::cancel_download,
             // 系统相关命令
             commands::system::is_elevated,
+            commands::system::is_autostart,
             commands::system::restart_as_admin,
             commands::system::maa_set_save_draw,
             commands::system::open_file,

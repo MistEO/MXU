@@ -66,19 +66,21 @@ export function FrameRateSelector({ compact = false, className }: FrameRateSelec
   // 完整模式：带标题和图标，用于设置页面
   return (
     <div className={clsx('bg-bg-secondary rounded-xl p-4 border border-border', className)}>
-      <div className="flex items-center gap-3 mb-3">
-        <Camera className="w-5 h-5 text-accent" />
-        <div>
-          <span className="font-medium text-text-primary">{t('screenshot.frameRate.title')}</span>
-          <p className="text-xs text-text-muted mt-0.5">{t('screenshot.frameRate.hint')}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Camera className="w-5 h-5 text-accent" />
+          <div>
+            <span className="font-medium text-text-primary">{t('screenshot.frameRate.title')}</span>
+            <p className="text-xs text-text-muted mt-0.5">{t('screenshot.frameRate.hint')}</p>
+          </div>
         </div>
-      </div>
 
-      {/* 自定义美化下拉菜单 */}
-      <FrameRateDropdown
-        value={screenshotFrameRate}
-        onChange={(next) => setScreenshotFrameRate(next)}
-      />
+        {/* 自定义美化下拉菜单 */}
+        <FrameRateDropdown
+          value={screenshotFrameRate}
+          onChange={(next) => setScreenshotFrameRate(next)}
+        />
+      </div>
     </div>
   );
 }
@@ -188,7 +190,7 @@ function FrameRateDropdown({ value, onChange }: FrameRateDropdownProps) {
         id={triggerId}
         ref={triggerRef}
         className={clsx(
-          'w-full px-3 py-2.5 rounded-lg border text-sm flex items-center justify-between gap-2',
+          'min-w-[160px] px-3 py-1.5 rounded-lg border text-sm flex items-center justify-between gap-2',
           'bg-bg-tertiary border-border text-text-primary',
           'hover:bg-bg-hover transition-colors',
           'focus:outline-none focus:ring-2 focus:ring-accent/50',

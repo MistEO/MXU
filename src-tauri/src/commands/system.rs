@@ -296,6 +296,12 @@ pub fn check_vcredist_missing() -> bool {
     missing
 }
 
+/// 检查本次启动是否来自开机自启动（通过 --autostart 参数判断）
+#[tauri::command]
+pub fn is_autostart() -> bool {
+    std::env::args().any(|arg| arg == "--autostart")
+}
+
 /// 获取系统架构
 #[tauri::command]
 pub fn get_arch() -> String {

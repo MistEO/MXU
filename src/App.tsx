@@ -447,6 +447,35 @@ function App() {
         }
       }, 0);
 
+      // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
+      if (isTauri()) {
+        try {
+          const isAutoStart = await invoke<boolean>('is_autostart');
+          if (isAutoStart) {
+            const { autoStartInstanceId } = useAppStore.getState();
+            if (autoStartInstanceId) {
+              const targetInstance = useAppStore.getState().instances.find(
+                (i) => i.id === autoStartInstanceId,
+              );
+              if (targetInstance) {
+                log.info('开机自启动：激活配置并启动任务:', targetInstance.name);
+                useAppStore.getState().setActiveInstance(autoStartInstanceId);
+                // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
+                setTimeout(() => {
+                  document.dispatchEvent(
+                    new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+                  );
+                }, 500);
+              } else {
+                log.warn('开机自启动：目标实例不存在，跳过自动执行');
+              }
+            }
+          }
+        } catch (err) {
+          log.warn('检查开机自启动状态失败:', err);
+        }
+      }
+
       // 检查是否刚更新完成（重启后）
       const updateCompleteInfo = consumeUpdateCompleteInfo();
       if (updateCompleteInfo) {

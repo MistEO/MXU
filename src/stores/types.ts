@@ -322,6 +322,18 @@ export interface AppState {
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;
 
+  // 启动后自动执行的实例 ID
+  autoStartInstanceId: string | undefined;
+  setAutoStartInstanceId: (id: string | undefined) => void;
+
+  // 被删除的自动执行实例名称（用于提示用户）
+  autoStartRemovedInstanceName: string | undefined;
+  setAutoStartRemovedInstanceName: (name: string | undefined) => void;
+
+  // 手动启动时是否也自动执行
+  autoRunOnLaunch: boolean;
+  setAutoRunOnLaunch: (enabled: boolean) => void;
+
   // 新用户引导
   onboardingCompleted: boolean;
   setOnboardingCompleted: (completed: boolean) => void;

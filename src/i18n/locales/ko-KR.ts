@@ -87,6 +87,12 @@ export default {
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     autoStart: '시작 시 자동 실행',
     autoStartHint: '시스템 부팅 시 이 애플리케이션을 자동으로 시작합니다',
+    autoStartInstance: '시작 후 자동 실행',
+    autoStartInstanceHint: '시작 후 자동으로 활성화하고 작업을 실행할 구성을 선택합니다. 다른 구성의 예약 작업은 정상적으로 실행됩니다',
+    autoStartInstanceNone: '자동 실행 안 함',
+    autoStartInstanceRemoved: '이전에 선택한 구성 "{{name}}"이(가) 삭제되었습니다. 자동 실행이 비활성화되었습니다',
+    autoRunOnLaunch: '수동 실행 시에도 자동 실행',
+    autoRunOnLaunchHint: '앱을 수동으로 열 때마다 위에서 선택한 구성을 자동 실행합니다 (기본적으로 시스템 시작 시에만 트리거됨)',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint:
       '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',

@@ -1,6 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Settings2, ListChecks, AppWindowMac, AlertCircle, Maximize2, Power } from 'lucide-react';
+import {
+  Settings2,
+  ListChecks,
+  AppWindowMac,
+  AlertCircle,
+  Maximize2,
+  Power,
+  Play,
+  Rocket,
+  ChevronDown,
+  Check,
+} from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
@@ -19,11 +30,21 @@ export function GeneralSection() {
     setMinimizeToTray,
     setRightPanelWidth,
     setRightPanelCollapsed,
+    instances,
+    autoStartInstanceId,
+    setAutoStartInstanceId,
+    autoRunOnLaunch,
+    setAutoRunOnLaunch,
+    autoStartRemovedInstanceName,
   } = useAppStore();
 
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartLoading, setAutoStartLoading] = useState(false);
+
+  // 自定义下拉框状态
+  const [instanceDropdownOpen, setInstanceDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -31,6 +52,18 @@ export function GeneralSection() {
       isEnabled().then(setAutoStartEnabled).catch(() => {});
     });
   }, []);
+
+  // 点击外部关闭下拉框
+  useEffect(() => {
+    if (!instanceDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setInstanceDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [instanceDropdownOpen]);
 
   const handleAutoStartToggle = useCallback(async (enabled: boolean) => {
     if (!isTauri()) return;
@@ -72,6 +105,13 @@ export function GeneralSection() {
     }
   }, [setRightPanelWidth, setRightPanelCollapsed]);
 
+  // 构建下拉选项列表
+  const dropdownOptions = [
+    { id: '', name: t('settings.autoStartInstanceNone') },
+    ...instances.map((inst) => ({ id: inst.id, name: inst.name })),
+  ];
+  const selectedOption = dropdownOptions.find((opt) => opt.id === (autoStartInstanceId ?? ''));
+
   return (
     <section id="section-general" className="space-y-4 scroll-mt-4">
       <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
@@ -79,38 +119,7 @@ export function GeneralSection() {
         {t('settings.general')}
       </h2>
 
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ListChecks className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">
-                {t('settings.showOptionPreview')}
-              </span>
-              <p className="text-xs text-text-muted mt-0.5">
-                {t('settings.showOptionPreviewHint')}
-              </p>
-            </div>
-          </div>
-          <SwitchButton value={showOptionPreview} onChange={(v) => setShowOptionPreview(v)} />
-        </div>
-      </div>
-
-      <FrameRateSelector />
-
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AppWindowMac className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('settings.minimizeToTray')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.minimizeToTrayHint')}</p>
-            </div>
-          </div>
-          <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
-        </div>
-      </div>
-
+      {/* ① 开机自启动 */}
       {isTauri() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">
@@ -130,6 +139,139 @@ export function GeneralSection() {
         </div>
       )}
 
+      {/* ② 启动后自动执行（独立卡片 + 自定义下拉框） */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center gap-3 mb-3">
+          <Play className="w-5 h-5 text-accent" />
+          <div>
+            <span className="font-medium text-text-primary">
+              {t('settings.autoStartInstance')}
+            </span>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t('settings.autoStartInstanceHint')}
+            </p>
+          </div>
+        </div>
+
+        {/* 自定义下拉框 */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setInstanceDropdownOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setInstanceDropdownOpen(false);
+            }}
+            className="w-full px-3 py-2.5 text-sm rounded-lg border flex items-center justify-between gap-2 bg-bg-tertiary border-border text-text-primary hover:bg-bg-hover transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
+            aria-haspopup="listbox"
+            aria-expanded={instanceDropdownOpen}
+          >
+            <span className="truncate">{selectedOption?.name ?? t('settings.autoStartInstanceNone')}</span>
+            <ChevronDown
+              className={`w-4 h-4 text-text-muted shrink-0 transition-transform ${instanceDropdownOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {instanceDropdownOpen && (
+            <div
+              className="absolute right-0 z-20 mt-1 w-full min-w-[160px] max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg"
+              role="listbox"
+            >
+              {dropdownOptions.map((opt) => {
+                const isSelected = opt.id === (autoStartInstanceId ?? '');
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 transition-colors ${
+                      isSelected
+                        ? 'bg-accent/10 text-accent font-medium'
+                        : 'text-text-primary hover:bg-bg-hover'
+                    }`}
+                    onClick={() => {
+                      setAutoStartInstanceId(opt.id || undefined);
+                      setInstanceDropdownOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={`w-4 h-4 shrink-0 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+                    />
+                    <span className="truncate">{opt.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 被删除的自动执行配置提示 */}
+        {autoStartRemovedInstanceName && (
+          <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>{t('settings.autoStartInstanceRemoved', { name: autoStartRemovedInstanceName })}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ③ 手动启动时也自动执行 */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Rocket className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.autoRunOnLaunch')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.autoRunOnLaunchHint')}
+              </p>
+            </div>
+          </div>
+          <SwitchButton
+            value={autoRunOnLaunch}
+            onChange={(v) => setAutoRunOnLaunch(v)}
+            disabled={!autoStartInstanceId}
+          />
+        </div>
+      </div>
+
+      {/* ④ 最小化到托盘 */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AppWindowMac className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">{t('settings.minimizeToTray')}</span>
+              <p className="text-xs text-text-muted mt-0.5">{t('settings.minimizeToTrayHint')}</p>
+            </div>
+          </div>
+          <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
+        </div>
+      </div>
+
+      {/* ⑤ 显示选项预览 */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ListChecks className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.showOptionPreview')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.showOptionPreviewHint')}
+              </p>
+            </div>
+          </div>
+          <SwitchButton value={showOptionPreview} onChange={(v) => setShowOptionPreview(v)} />
+        </div>
+      </div>
+
+      {/* ⑥ 帧率选择器 */}
+      <FrameRateSelector />
+
+      {/* ⑦ 删除确认 */}
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -147,6 +289,7 @@ export function GeneralSection() {
         </div>
       </div>
 
+      {/* ⑧ 重置窗口布局 */}
       {isTauri() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">

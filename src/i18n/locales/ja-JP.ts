@@ -89,11 +89,14 @@ export default {
     autoStart: 'スタートアップ時に起動',
     autoStartHint: 'システム起動時にこのアプリケーションを自動的に起動します',
     autoStartInstance: '起動後に自動実行',
-    autoStartInstanceHint: '起動後に自動的にアクティブにしてタスクを実行する設定を選択します。他の設定のスケジュールタスクは通常通り実行されます',
+    autoStartInstanceHint:
+      '起動後に自動的にアクティブにしてタスクを実行する設定を選択します。他の設定のスケジュールタスクは通常通り実行されます',
     autoStartInstanceNone: '自動実行しない',
-    autoStartInstanceRemoved: '以前選択した設定「{{name}}」が削除されました。自動実行は無効になりました',
+    autoStartInstanceRemoved:
+      '以前選択した設定「{{name}}」が削除されました。自動実行は無効になりました',
     autoRunOnLaunch: '手動起動時も自動実行',
-    autoRunOnLaunchHint: 'アプリを手動で開くたびに、上で選択した設定を自動実行します（デフォルトではシステム起動時のみ）',
+    autoRunOnLaunchHint:
+      'アプリを手動で開くたびに、上で選択した設定を自動実行します（デフォルトではシステム起動時のみ）',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア/上書きインポート等の前に確認ダイアログを表示します',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',

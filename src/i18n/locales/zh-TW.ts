@@ -78,7 +78,7 @@ export default {
     hotkeysStartTasks: '開始任務快捷鍵',
     hotkeysStopTasks: '結束任務快捷鍵',
     hotkeysHint:
-        '僅在主畫面中生效，用於開始 / 結束當前執行個體的任務。支援組合鍵（例如 Ctrl+F10、Ctrl+Shift+F11），純 F5/F12 仍保留給系統 / 瀏覽器快捷鍵。',
+      '僅在主畫面中生效，用於開始 / 結束當前執行個體的任務。支援組合鍵（例如 Ctrl+F10、Ctrl+Shift+F11），純 F5/F12 仍保留給系統 / 瀏覽器快捷鍵。',
     hotkeysConflict: '開始與結束快捷鍵不應相同，請選擇不同的按鍵',
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
@@ -89,14 +89,13 @@ export default {
     autoStartHint: '系統啟動時自動執行本程式',
     autoStartInstance: '啟動後自動執行',
     autoStartInstanceHint:
-        '選擇程式啟動後自動啟用並執行任務的配置，未選擇的配置其定時任務仍會正常運行',
+      '選擇程式啟動後自動啟用並執行任務的配置，未選擇的配置其定時任務仍會正常運行',
     autoStartInstanceNone: '不自動執行',
     autoStartInstanceRemoved: '之前選擇的配置「{{name}}」已被刪除，自動執行已停用',
     autoRunOnLaunch: '手動啟動時也自動執行',
     autoRunOnLaunchHint: '每次手動開啟程式時，也自動執行上方選定的配置（預設僅在開機自啟動時觸發）',
     confirmBeforeDelete: '刪除操作需要二次確認',
-    confirmBeforeDeleteHint:
-        '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
+    confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',
@@ -115,7 +114,7 @@ export default {
       label: '⏰ 定時等待',
       optionLabel: '時間設定',
       optionDescription:
-          '等待到指定時間點後繼續執行，僅支援 24 小時內。若目標時間已過則等待到隔日該時間',
+        '等待到指定時間點後繼續執行，僅支援 24 小時內。若目標時間已過則等待到隔日該時間',
       inputLabel: '目標時間',
     },
     launch: {
@@ -127,7 +126,7 @@ export default {
       argsPlaceholder: '輸入附加參數（可選）',
       waitLabel: '等待退出',
       waitDescription:
-          '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續',
+        '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續',
       waitYes: '等待程式退出後繼續',
       waitNo: '啟動後立即繼續',
     },
@@ -143,14 +142,12 @@ export default {
       label: '🔔 Webhook',
       optionLabel: '請求設定',
       urlLabel: '請求地址',
-      urlPlaceholder:
-          '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
     },
     killProc: {
       label: '⛔ 結束程序',
       selfLabel: '結束自身程序',
-      selfDescription:
-          '開啟時結束本程式自身程序；關閉後可輸入其他程序名稱來結束',
+      selfDescription: '開啟時結束本程式自身程序；關閉後可輸入其他程序名稱來結束',
       selfYes: '結束自身',
       selfNo: '結束指定程序',
       nameOptionLabel: '程序設定',
@@ -178,8 +175,7 @@ export default {
     noTasks: '暫無任務',
     dragToReorder: '拖動以重新排序',
     importConfirmTitle: '匯入任務列表',
-    importConfirmMessageOverwrite:
-        '匯入將覆蓋目前執行個體的任務列表，是否繼續？',
+    importConfirmMessageOverwrite: '匯入將覆蓋目前執行個體的任務列表，是否繼續？',
     importConfirmMessageMerge: '匯入將合併到目前執行個體的任務列表，是否繼續？',
     importConfirmAction: '匯入',
     importPreviewCount: '匯入內容：{{count}} 個任務',
@@ -268,7 +264,7 @@ export default {
     browse: '瀏覽',
     waitForExit: '等待退出',
     waitForExitHintPre:
-        '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
+      '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',
     deviceReady: '裝置已就緒',
@@ -460,8 +456,7 @@ export default {
     saveDraw: '儲存除錯圖像',
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
-    tcpCompatModeHint:
-        '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+    tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
   },
 
   // 欢迎彈窗
@@ -472,8 +467,7 @@ export default {
   // 新用戶引導
   onboarding: {
     title: '從這裡開始',
-    message:
-        '首先在「連接設定」中選擇裝置並載入資源，然後就可以開始執行任務了。',
+    message: '首先在「連接設定」中選擇裝置並載入資源，然後就可以開始執行任務了。',
     gotIt: '知道了',
   },
 
@@ -533,7 +527,7 @@ export default {
     cdkPlaceholder: '輸入您的 CDK（可選）',
     serviceName: 'Mirror酱',
     cdkHintAfterLink:
-        ' 是獨立的第三方加速下載服務，需要付費使用，並非「{{projectName}}」收費。其營運成本由訂閱收入支撐，部分收益將回饋專案開發者。歡迎訂閱 CDK 享受高速下載，同時支援專案持續開發。未填寫 CDK 時將自動透過 GitHub 下載，若失敗請嘗試設定網路代理。',
+      ' 是獨立的第三方加速下載服務，需要付費使用，並非「{{projectName}}」收費。其營運成本由訂閱收入支撐，部分收益將回饋專案開發者。歡迎訂閱 CDK 享受高速下載，同時支援專案持續開發。未填寫 CDK 時將自動透過 GitHub 下載，若失敗請嘗試設定網路代理。',
     getCdk: '沒有CDK？立即訂閱',
     cdkHint: '請檢查您的 CDK 是否正確或已過期',
     checkUpdate: '檢查更新',
@@ -578,8 +572,7 @@ export default {
     restartNow: '立即重啟',
     restarting: '正在重啟...',
     installerOpened: '安裝程式已開啟',
-    installerOpenedHint:
-        '請完成安裝程式的操作，安裝完成後重新啟動本應用程式即可',
+    installerOpenedHint: '請完成安裝程式的操作，安裝完成後重新啟動本應用程式即可',
     // 更新完成後
     updateCompleteTitle: '更新完成',
     updateCompleteMessage: '已成功更新到最新版本',
@@ -703,7 +696,7 @@ export default {
   versionWarning: {
     title: 'MaaFramework 版本過低',
     message:
-        '目前 MaaFramework 版本 ({{current}}) 低於最低支援版本 ({{minimum}})，部分功能可能無法正常工作。',
+      '目前 MaaFramework 版本 ({{current}}) 低於最低支援版本 ({{minimum}})，部分功能可能無法正常工作。',
     suggestion: '請聯絡專案開發者更新 MaaFramework 版本。',
     understand: '我已了解',
   },
@@ -711,8 +704,7 @@ export default {
   // 權限提示
   permission: {
     title: '需要管理員權限',
-    message:
-        '目前控制器需要管理員權限才能正常操作目標視窗。請以管理員身分重啟應用程式。',
+    message: '目前控制器需要管理員權限才能正常操作目標視窗。請以管理員身分重啟應用程式。',
     hint: '重啟後將自動恢復目前設定。',
     restart: '以管理員身分重啟',
     restarting: '正在重啟...',
@@ -744,12 +736,11 @@ export default {
     title: '程式位置不對',
     rootTitle: '別把程式放在磁碟根目錄啦！',
     rootDescription:
-        '程式放在 C盤、D盤 這種根目錄下會出問題的。找個資料夾放進去再用吧，比如「D:\\MyApps\\」之類的。',
+      '程式放在 C盤、D盤 這種根目錄下會出問題的。找個資料夾放進去再用吧，比如「D:\\MyApps\\」之類的。',
     tempTitle: '你好像直接雙擊壓縮檔裡的程式了',
     tempDescription:
-        '程式現在在暫存目錄裡跑著呢，一關掉可能就沒了。先把壓縮檔解壓到一個資料夾裡，再開啟裡面的程式吧。',
-    hint:
-        '小提示：建議解壓到一個專門的資料夾，比如「D:\\MaaXXX」，别放桌面或者下載資料夾，那樣更方便管理。',
+      '程式現在在暫存目錄裡跑著呢，一關掉可能就沒了。先把壓縮檔解壓到一個資料夾裡，再開啟裡面的程式吧。',
+    hint: '小提示：建議解壓到一個專門的資料夾，比如「D:\\MaaXXX」，别放桌面或者下載資料夾，那樣更方便管理。',
     exit: '退出程式',
   },
   // 代理設定

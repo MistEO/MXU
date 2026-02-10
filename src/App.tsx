@@ -454,9 +454,9 @@ function App() {
           if (isAutoStart) {
             const { autoStartInstanceId } = useAppStore.getState();
             if (autoStartInstanceId) {
-              const targetInstance = useAppStore.getState().instances.find(
-                (i) => i.id === autoStartInstanceId,
-              );
+              const targetInstance = useAppStore
+                .getState()
+                .instances.find((i) => i.id === autoStartInstanceId);
               if (targetInstance) {
                 log.info('开机自启动：激活配置并启动任务:', targetInstance.name);
                 useAppStore.getState().setActiveInstance(autoStartInstanceId);

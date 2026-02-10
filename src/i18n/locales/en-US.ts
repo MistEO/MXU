@@ -62,8 +62,7 @@ export default {
     deleteCustomAccent: 'Delete',
     noCustomAccents: 'No custom accents yet',
     customAccentNameRequired: 'Please enter a name',
-    deleteCustomAccentConfirm:
-        'Are you sure you want to delete this custom accent?',
+    deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent?',
     customAccentDeleted: 'Deleted {{name}}',
     accentName: 'Name',
     accentNamePlaceholder: 'e.g. Dark Violet',
@@ -80,33 +79,31 @@ export default {
     hotkeysStartTasks: 'Start Tasks Hotkey',
     hotkeysStopTasks: 'Stop Tasks Hotkey',
     hotkeysHint:
-        'Effective only on the main screen, used to start/stop tasks of the current instance. Modifier combinations are supported (e.g. Ctrl+F10, Ctrl+Shift+F11); plain F5/F12 remain reserved by the system/browser.',
-    hotkeysConflict:
-        'Start and stop hotkeys should not be the same. Please choose different keys.',
+      'Effective only on the main screen, used to start/stop tasks of the current instance. Modifier combinations are supported (e.g. Ctrl+F10, Ctrl+Shift+F11); plain F5/F12 remain reserved by the system/browser.',
+    hotkeysConflict: 'Start and stop hotkeys should not be the same. Please choose different keys.',
     hotkeysGlobal: 'Global hotkeys',
     hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     hotkeysGlobalOnlyStart: 'only start works in global mode',
     minimizeToTray: 'Minimize to tray on close',
-    minimizeToTrayHint:
-        'Hide to system tray instead of exiting when clicking close button',
+    minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
     autoStart: 'Launch at startup',
     autoStartHint: 'Automatically start this application when the system boots',
     autoStartInstance: 'Auto-execute on startup',
     autoStartInstanceHint:
-        'Select a configuration to activate and run tasks automatically after startup. Scheduled tasks for other configurations will still run normally',
+      'Select a configuration to activate and run tasks automatically after startup. Scheduled tasks for other configurations will still run normally',
     autoStartInstanceNone: 'Do not auto-execute',
-    autoStartInstanceRemoved: 'Previously selected configuration "{{name}}" has been deleted. Auto-execute has been disabled',
+    autoStartInstanceRemoved:
+      'Previously selected configuration "{{name}}" has been deleted. Auto-execute has been disabled',
     autoRunOnLaunch: 'Also auto-execute on manual launch',
-    autoRunOnLaunchHint: 'Auto-execute the selected configuration every time you manually open the app (by default, only triggered on system startup)',
+    autoRunOnLaunchHint:
+      'Auto-execute the selected configuration every time you manually open the app (by default, only triggered on system startup)',
     confirmBeforeDelete: 'Confirm delete actions',
-    confirmBeforeDeleteHint:
-        'Show confirmation before delete/clear list/import overwrite, etc.',
+    confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
-        'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
+      'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
     resetWindowLayout: 'Reset Window Layout',
-    resetWindowLayoutHint:
-        'Restore window size to default and center the window',
+    resetWindowLayoutHint: 'Restore window size to default and center the window',
   },
 
   // Special tasks
@@ -121,7 +118,7 @@ export default {
       label: '⏰ Wait Until',
       optionLabel: 'Time Settings',
       optionDescription:
-          'Waits until the specified time before continuing. Only supports within 24 hours. If the target time has passed today, it will wait until that time tomorrow',
+        'Waits until the specified time before continuing. Only supports within 24 hours. If the target time has passed today, it will wait until that time tomorrow',
       inputLabel: 'Target Time',
     },
     launch: {
@@ -133,7 +130,7 @@ export default {
       argsPlaceholder: 'Enter additional arguments (optional)',
       waitLabel: 'Wait for Exit',
       waitDescription:
-          'When enabled, waits for the process to exit before continuing, suitable for programs that need to complete synchronously; when disabled, continues immediately after launch',
+        'When enabled, waits for the process to exit before continuing, suitable for programs that need to complete synchronously; when disabled, continues immediately after launch',
       waitYes: 'Wait for program to exit before continuing',
       waitNo: 'Continue immediately after launch',
     },
@@ -149,14 +146,13 @@ export default {
       label: '🔔 Webhook',
       optionLabel: 'Request Settings',
       urlLabel: 'Request URL',
-      urlPlaceholder:
-          'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+      urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
     },
     killProc: {
       label: '⛔ Kill Process',
       selfLabel: 'Kill Self',
       selfDescription:
-          'When enabled, terminates this application itself; when disabled, you can enter another process name to kill',
+        'When enabled, terminates this application itself; when disabled, you can enter another process name to kill',
       selfYes: 'Kill self',
       selfNo: 'Kill specified process',
       nameOptionLabel: 'Process Settings',
@@ -185,21 +181,18 @@ export default {
     dragToReorder: 'Drag to reorder',
     importConfirmTitle: 'Import task list',
     importConfirmMessageOverwrite:
-        'Import will overwrite the current instance task list. Continue?',
+      'Import will overwrite the current instance task list. Continue?',
     importConfirmMessageMerge:
-        'Import will be merged into the current instance task list. Continue?',
+      'Import will be merged into the current instance task list. Continue?',
     importConfirmAction: 'Import',
     importPreviewCount: 'Import content: {{count}} tasks',
     importModeLabel: 'Import mode',
     importModeOverwrite: 'Import and overwrite',
-    importModeOverwriteHint:
-        'Overwrite the current instance task list with imported content',
+    importModeOverwriteHint: 'Overwrite the current instance task list with imported content',
     importModeMerge: 'Import without overwrite (merge)',
-    importModeMergeHint:
-        'Keep current tasks and only add non-duplicate imported tasks',
+    importModeMergeHint: 'Keep current tasks and only add non-duplicate imported tasks',
     exportConfirmTitle: 'Export task list',
-    exportConfirmHint:
-        'You are about to export {{count}} tasks from the current instance',
+    exportConfirmHint: 'You are about to export {{count}} tasks from the current instance',
     exportConfirmAction: 'Confirm export',
     selectNone: 'Select none',
     selectionCount: 'Selected: {{selected}} / {{total}}',
@@ -222,7 +215,7 @@ export default {
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
       needConfig:
-          'Please connect device and load resource first, or save device config in connection panel',
+        'Please connect device and load resource first, or save device config in connection panel',
     },
   },
 
@@ -279,7 +272,7 @@ export default {
     browse: 'Browse',
     waitForExit: 'Wait for Exit',
     waitForExitHintPre:
-        'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',
@@ -325,10 +318,8 @@ export default {
     noWindows: 'No windows found',
     playcoverHint: 'Enter PlayCover app listen address',
     lastSelected: 'Last selected · Click to search',
-    savedDeviceNotFound:
-        'Previous device not found, please check connection or select another',
-    savedWindowNotFound:
-        'Previous window not found, please check connection or select another',
+    savedDeviceNotFound: 'Previous device not found, please check connection or select another',
+    savedWindowNotFound: 'Previous window not found, please check connection or select another',
   },
 
   // Resource
@@ -366,8 +357,7 @@ export default {
     // Frame rate settings
     frameRate: {
       title: 'Screenshot Frame Rate',
-      hint:
-          'Only affects preview smoothness and system resource usage, does not impact task recognition or execution',
+      hint: 'Only affects preview smoothness and system resource usage, does not impact task recognition or execution',
       unlimited: 'Unlimited',
       fps5: '5 FPS',
       fps1: '1 FPS',
@@ -473,10 +463,10 @@ export default {
     devModeHint: 'Allow pressing F5 to refresh UI when enabled',
     saveDraw: 'Save Debug Images',
     saveDrawHint:
-        'Save recognition and action debug images to log directory (auto-disabled on restart)',
+      'Save recognition and action debug images to log directory (auto-disabled on restart)',
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
-        'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+      'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
   },
 
   // Welcome dialog
@@ -488,7 +478,7 @@ export default {
   onboarding: {
     title: 'Start Here',
     message:
-        'First, select a device and load resources in "Connection Settings", then you can start running tasks.',
+      'First, select a device and load resources in "Connection Settings", then you can start running tasks.',
     gotIt: 'Got it',
   },
 
@@ -528,8 +518,7 @@ export default {
     remove: 'Remove from list',
     clearAll: 'Clear all',
     clearAllConfirmTitle: 'Clear recently closed',
-    clearAllConfirmMessage:
-        'Are you sure you want to clear the recently closed list?',
+    clearAllConfirmMessage: 'Are you sure you want to clear the recently closed list?',
     justNow: 'Just now',
     minutesAgo: '{{count}} minutes ago',
     hoursAgo: '{{count}} hours ago',
@@ -549,7 +538,7 @@ export default {
     cdkPlaceholder: 'Enter your CDK (optional)',
     serviceName: 'MirrorChyan',
     cdkHintAfterLink:
-        ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
+      ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
     getCdk: 'No CDKey? Subscribe Now',
     cdkHint: 'Please check if your CDK is correct or has expired',
     checkUpdate: 'Check for Updates',
@@ -568,8 +557,7 @@ export default {
     downloadComplete: 'Download Complete',
     downloadFailed: 'Download Failed',
     viewDetails: 'View Details',
-    noDownloadUrl:
-        'No download URL available. Please fill in CDK or check network environment',
+    noDownloadUrl: 'No download URL available. Please fill in CDK or check network environment',
     openFolder: 'Open Folder',
     retry: 'Retry',
     preparingDownload: 'Preparing download...',
@@ -595,8 +583,7 @@ export default {
     restartNow: 'Restart Now',
     restarting: 'Restarting...',
     installerOpened: 'Installer Opened',
-    installerOpenedHint:
-        'Please complete the installer, then restart this app after installation',
+    installerOpenedHint: 'Please complete the installer, then restart this app after installation',
     // After update complete
     updateCompleteTitle: 'Update Complete',
     updateCompleteMessage: 'Successfully updated to the latest version',
@@ -720,7 +707,7 @@ export default {
   versionWarning: {
     title: 'MaaFramework Version Too Low',
     message:
-        'Current MaaFramework version ({{current}}) is lower than the minimum supported version ({{minimum}}). Some features may not work properly.',
+      'Current MaaFramework version ({{current}}) is lower than the minimum supported version ({{minimum}}). Some features may not work properly.',
     suggestion: 'Please contact the project developer to update MaaFramework.',
     understand: 'I Understand',
   },
@@ -729,7 +716,7 @@ export default {
   permission: {
     title: 'Administrator Privileges Required',
     message:
-        'The current controller requires administrator privileges to interact with the target window. Please restart the application as administrator.',
+      'The current controller requires administrator privileges to interact with the target window. Please restart the application as administrator.',
     hint: 'Your current configuration will be restored after restart.',
     restart: 'Restart as Administrator',
     restarting: 'Restarting...',
@@ -745,32 +732,29 @@ export default {
   // VC++ Runtime
   vcredist: {
     title: 'Missing Runtime',
-    description:
-        'MaaFramework requires Microsoft Visual C++ Runtime to work properly.',
+    description: 'MaaFramework requires Microsoft Visual C++ Runtime to work properly.',
     downloading: 'Downloading runtime...',
     downloadFailed: 'Download Failed',
     waitingInstall:
-        'Waiting for installation. Please complete the installation in the installer window...',
+      'Waiting for installation. Please complete the installation in the installer window...',
     retrying: 'Reloading...',
     success: 'Runtime installed successfully!',
     stillFailed:
-        'Installation complete, but loading still failed. Please restart your computer and try again.',
-    restartHint:
-        'If the problem persists, please restart your computer and try again.',
+      'Installation complete, but loading still failed. Please restart your computer and try again.',
+    restartHint: 'If the problem persists, please restart your computer and try again.',
     retry: 'Retry',
   },
 
   // Bad path warning
   badPath: {
     title: 'Wrong Location',
-    rootTitle: 'Don\'t put the program in the disk root!',
+    rootTitle: "Don't put the program in the disk root!",
     rootDescription:
-        'Running from the root of a drive (like C:\\ or D:\\) can cause issues. Please move it to a folder, like "D:\\MyApps\\".',
+      'Running from the root of a drive (like C:\\ or D:\\) can cause issues. Please move it to a folder, like "D:\\MyApps\\".',
     tempTitle: 'Looks like you ran it directly from the archive',
     tempDescription:
-        'The program is running from a temporary folder. It may disappear when closed. Please extract the archive to a folder first, then run the program from there.',
-    hint:
-        'Tip: We recommend extracting to a dedicated folder like "D:\\MaaXXX". Avoid Desktop or Downloads for easier management.',
+      'The program is running from a temporary folder. It may disappear when closed. Please extract the archive to a folder first, then run the program from there.',
+    hint: 'Tip: We recommend extracting to a dedicated folder like "D:\\MaaXXX". Avoid Desktop or Downloads for easier management.',
     exit: 'Exit',
   },
   // Proxy Settings

@@ -49,7 +49,9 @@ export function GeneralSection() {
   useEffect(() => {
     if (!isTauri()) return;
     import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
-      isEnabled().then(setAutoStartEnabled).catch(() => {});
+      isEnabled()
+        .then(setAutoStartEnabled)
+        .catch(() => {});
     });
   }, []);
 
@@ -144,12 +146,8 @@ export function GeneralSection() {
         <div className="flex items-center gap-3 mb-3">
           <Play className="w-5 h-5 text-accent" />
           <div>
-            <span className="font-medium text-text-primary">
-              {t('settings.autoStartInstance')}
-            </span>
-            <p className="text-xs text-text-muted mt-0.5">
-              {t('settings.autoStartInstanceHint')}
-            </p>
+            <span className="font-medium text-text-primary">{t('settings.autoStartInstance')}</span>
+            <p className="text-xs text-text-muted mt-0.5">{t('settings.autoStartInstanceHint')}</p>
           </div>
         </div>
 
@@ -165,7 +163,9 @@ export function GeneralSection() {
             aria-haspopup="listbox"
             aria-expanded={instanceDropdownOpen}
           >
-            <span className="truncate">{selectedOption?.name ?? t('settings.autoStartInstanceNone')}</span>
+            <span className="truncate">
+              {selectedOption?.name ?? t('settings.autoStartInstanceNone')}
+            </span>
             <ChevronDown
               className={`w-4 h-4 text-text-muted shrink-0 transition-transform ${instanceDropdownOpen ? 'rotate-180' : ''}`}
             />
@@ -209,7 +209,9 @@ export function GeneralSection() {
         {autoStartRemovedInstanceName && (
           <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{t('settings.autoStartInstanceRemoved', { name: autoStartRemovedInstanceName })}</span>
+            <span>
+              {t('settings.autoStartInstanceRemoved', { name: autoStartRemovedInstanceName })}
+            </span>
           </div>
         )}
       </div>
@@ -220,12 +222,8 @@ export function GeneralSection() {
           <div className="flex items-center gap-3">
             <Rocket className="w-5 h-5 text-accent" />
             <div>
-              <span className="font-medium text-text-primary">
-                {t('settings.autoRunOnLaunch')}
-              </span>
-              <p className="text-xs text-text-muted mt-0.5">
-                {t('settings.autoRunOnLaunchHint')}
-              </p>
+              <span className="font-medium text-text-primary">{t('settings.autoRunOnLaunch')}</span>
+              <p className="text-xs text-text-muted mt-0.5">{t('settings.autoRunOnLaunchHint')}</p>
             </div>
           </div>
           <SwitchButton

@@ -89,7 +89,8 @@ export default {
     autoStart: '开机自启动',
     autoStartHint: '系统启动时自动运行本程序',
     autoStartInstance: '启动后自动执行',
-    autoStartInstanceHint: '选择程序启动后自动激活并执行任务的配置，未选择的配置其定时任务仍会正常运行',
+    autoStartInstanceHint:
+      '选择程序启动后自动激活并执行任务的配置，未选择的配置其定时任务仍会正常运行',
     autoStartInstanceNone: '不自动执行',
     autoStartInstanceRemoved: '之前选择的配置「{{name}}」已被删除，自动执行已停用',
     autoRunOnLaunch: '手动启动时也自动执行',

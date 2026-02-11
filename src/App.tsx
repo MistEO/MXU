@@ -448,27 +448,29 @@ function App() {
       }, 0);
 
       // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
+      // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
       if (isTauri()) {
         try {
           const isAutoStart = await invoke<boolean>('is_autostart');
-          if (isAutoStart) {
-            const { autoStartInstanceId } = useAppStore.getState();
-            if (autoStartInstanceId) {
-              const targetInstance = useAppStore
-                .getState()
-                .instances.find((i) => i.id === autoStartInstanceId);
-              if (targetInstance) {
-                log.info('开机自启动：激活配置并启动任务:', targetInstance.name);
-                useAppStore.getState().setActiveInstance(autoStartInstanceId);
-                // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
-                setTimeout(() => {
-                  document.dispatchEvent(
-                    new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
-                  );
-                }, 500);
-              } else {
-                log.warn('开机自启动：目标实例不存在，跳过自动执行');
-              }
+          const { autoStartInstanceId, autoRunOnLaunch } = useAppStore.getState();
+          // 开机自启动 或 手动启动且勾选了"手动启动时也自动执行"
+          const shouldAutoRun = isAutoStart || autoRunOnLaunch;
+          if (shouldAutoRun && autoStartInstanceId) {
+            const targetInstance = useAppStore
+              .getState()
+              .instances.find((i) => i.id === autoStartInstanceId);
+            if (targetInstance) {
+              const source = isAutoStart ? '开机自启动' : '手动启动';
+              log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
+              useAppStore.getState().setActiveInstance(autoStartInstanceId);
+              // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
+              setTimeout(() => {
+                document.dispatchEvent(
+                  new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+                );
+              }, 500);
+            } else {
+              log.warn('自动执行：目标实例不存在，跳过自动执行');
             }
           }
         } catch (err) {

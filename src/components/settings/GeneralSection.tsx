@@ -36,6 +36,14 @@ export function GeneralSection() {
     autoRunOnLaunch,
     setAutoRunOnLaunch,
     autoStartRemovedInstanceName,
+    logOverlayEnabled,
+    setLogOverlayEnabled,
+    logOverlayMode,
+    setLogOverlayMode,
+    logOverlayAnchor,
+    setLogOverlayAnchor,
+    logOverlayZOrder,
+    setLogOverlayZOrder,
   } = useAppStore();
 
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
@@ -287,7 +295,107 @@ export function GeneralSection() {
         </div>
       </div>
 
-      {/* ⑧ 重置窗口布局 */}
+      {/* ⑧ 日志悬浮窗 */}
+      {isTauri() && (
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Settings2 className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">
+                  {t('settings.logOverlay')}
+                </span>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {t('settings.logOverlayHint')}
+                </p>
+              </div>
+            </div>
+            <SwitchButton
+              value={logOverlayEnabled}
+              onChange={(v) => {
+                setLogOverlayEnabled(v);
+                if (v) {
+                  import('@/services/logOverlayService').then(({ showLogOverlay }) => showLogOverlay());
+                } else {
+                  import('@/services/logOverlayService').then(({ hideLogOverlay }) => hideLogOverlay());
+                }
+              }}
+            />
+          </div>
+          {logOverlayEnabled && (
+            <div className="mt-3 pt-3 border-t border-border space-y-3">
+              {/* 模式选择 */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">
+                  {t('settings.logOverlayMode')}
+                </span>
+                <select
+                  value={logOverlayMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'fixed' | 'follow';
+                    setLogOverlayMode(mode);
+                    import('@/services/logOverlayService').then(({ onOverlaySettingsChanged }) =>
+                      onOverlaySettingsChanged(),
+                    );
+                  }}
+                  className="px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-lg text-text-primary"
+                >
+                  <option value="fixed">{t('settings.logOverlayModeFixed')}</option>
+                  <option value="follow">{t('settings.logOverlayModeFollow')}</option>
+                </select>
+              </div>
+
+              {/* 跟随模式下的锚定位置 */}
+              {logOverlayMode === 'follow' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-text-secondary">
+                    {t('settings.logOverlayAnchor')}
+                  </span>
+                  <select
+                    value={logOverlayAnchor}
+                    onChange={(e) => {
+                      setLogOverlayAnchor(
+                        e.target.value as 'left-center' | 'right-top-third' | 'right-bottom-third' | 'top-center',
+                      );
+                      import('@/services/logOverlayService').then(({ onOverlaySettingsChanged }) =>
+                        onOverlaySettingsChanged(),
+                      );
+                    }}
+                    className="px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-lg text-text-primary"
+                  >
+                    <option value="left-center">{t('settings.logOverlayAnchorLeftCenter')}</option>
+                    <option value="right-top-third">{t('settings.logOverlayAnchorRightTop')}</option>
+                    <option value="right-bottom-third">{t('settings.logOverlayAnchorRightBottom')}</option>
+                    <option value="top-center">{t('settings.logOverlayAnchorTopCenter')}</option>
+                  </select>
+                </div>
+              )}
+
+              {/* 窗口层级 */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">
+                  {t('settings.logOverlayZOrder')}
+                </span>
+                <select
+                  value={logOverlayZOrder}
+                  onChange={(e) => {
+                    setLogOverlayZOrder(e.target.value as 'always_on_top' | 'above_target');
+                    import('@/services/logOverlayService').then(({ onOverlaySettingsChanged }) =>
+                      onOverlaySettingsChanged(),
+                    );
+                  }}
+                  className="px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-lg text-text-primary"
+                >
+                  <option value="always_on_top">{t('settings.logOverlayZOrderTop')}</option>
+                  <option value="above_target">{t('settings.logOverlayZOrderAboveTarget')}</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ⑨ 重置窗口布局 */}
       {isTauri() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">

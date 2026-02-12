@@ -322,6 +322,27 @@ export interface AppState {
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;
 
+  // 日志悬浮窗设置
+  logOverlayEnabled: boolean;
+  setLogOverlayEnabled: (enabled: boolean) => void;
+  logOverlayMode: 'fixed' | 'follow';
+  setLogOverlayMode: (mode: 'fixed' | 'follow') => void;
+  /** 跟随模式下的锚定位置 */
+  logOverlayAnchor: 'left-center' | 'right-top-third' | 'right-bottom-third' | 'top-center';
+  setLogOverlayAnchor: (anchor: 'left-center' | 'right-top-third' | 'right-bottom-third' | 'top-center') => void;
+  /** 悬浮窗层级：always_on_top 最置顶，above_target 只在连接窗口上一层 */
+  logOverlayZOrder: 'always_on_top' | 'above_target';
+  setLogOverlayZOrder: (z: 'always_on_top' | 'above_target') => void;
+  /** 悬浮窗逻辑宽度 */
+  logOverlayWidth: number;
+  /** 悬浮窗逻辑高度 */
+  logOverlayHeight: number;
+  setLogOverlaySize: (width: number, height: number) => void;
+
+  // 控制器连接的窗口句柄（Win32/Gamepad）
+  instanceConnectedHandle: Record<string, number | null>;
+  setConnectedHandle: (instanceId: string, handle: number | null) => void;
+
   // 启动后自动执行的实例 ID
   autoStartInstanceId: string | undefined;
   setAutoStartInstanceId: (id: string | undefined) => void;

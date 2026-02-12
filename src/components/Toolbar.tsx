@@ -78,6 +78,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     addLog,
     // 添加任务面板
     setShowAddTaskPanel,
+    // 日志悬浮窗 (保存句柄用)
+    setConnectedHandle,
     // 国际化
     interfaceTranslations,
     language,
@@ -647,7 +649,17 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
           if (!connectResult) {
             log.warn(`实例 ${targetInstance.name}: 连接设备失败`);
+            setConnectedHandle(targetId, null);
             return false;
+          }
+
+          // 保存已连接的窗口句柄（Win32/Gamepad），供悬浮窗跟随使用
+          if (config && (config.type === 'Win32' || config.type === 'Gamepad') && 'handle' in config) {
+            log.info(`实例 ${targetInstance.name}: 保存窗口句柄 handle=${config.handle}`);
+            setConnectedHandle(targetId, config.handle);
+          } else {
+            log.info(`实例 ${targetInstance.name}: 非窗口控制器，无 handle`);
+            setConnectedHandle(targetId, null);
           }
         }
 
@@ -1245,6 +1257,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">{t('taskList.addTask')}</span>
         </button>
+
       </div>
 
       {/* 右侧执行按钮组 */}

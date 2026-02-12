@@ -587,6 +587,16 @@ pub fn maa_connect_controller(
         }
 
         instance.controller = Some(controller);
+
+        // 保存 Win32/Gamepad 窗口句柄
+        instance.connected_window_handle = match &config {
+            ControllerConfig::Win32 { handle, .. } => Some(*handle),
+            ControllerConfig::Gamepad { handle, .. } => Some(*handle),
+            _ => None,
+        };
+        if let Some(h) = instance.connected_window_handle {
+            info!("Stored connected window handle: {} for instance {}", h, instance_id);
+        }
     }
 
     Ok(conn_id)

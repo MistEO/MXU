@@ -977,6 +977,12 @@ export const useAppStore = create<AppState>()(
           stopTasks: 'F11',
           globalEnabled: false,
         },
+        logOverlayEnabled: config.settings.logOverlay?.enabled ?? false,
+        logOverlayMode: config.settings.logOverlay?.mode ?? 'fixed',
+        logOverlayAnchor: config.settings.logOverlay?.anchor ?? 'right-top-third',
+        logOverlayZOrder: config.settings.logOverlay?.zOrder ?? 'always_on_top',
+        logOverlayWidth: config.settings.logOverlay?.width ?? 360,
+        logOverlayHeight: config.settings.logOverlay?.height ?? 260,
         recentlyClosed: config.recentlyClosed || [],
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
@@ -1280,6 +1286,29 @@ export const useAppStore = create<AppState>()(
       }
     },
 
+    // 日志悬浮窗设置
+    logOverlayEnabled: false,
+    setLogOverlayEnabled: (enabled) => set({ logOverlayEnabled: enabled }),
+    logOverlayMode: 'fixed' as 'fixed' | 'follow',
+    setLogOverlayMode: (mode) => set({ logOverlayMode: mode }),
+    logOverlayAnchor: 'right-top-third' as 'left-center' | 'right-top-third' | 'right-bottom-third' | 'top-center',
+    setLogOverlayAnchor: (anchor) => set({ logOverlayAnchor: anchor }),
+    logOverlayZOrder: 'always_on_top' as 'always_on_top' | 'above_target',
+    setLogOverlayZOrder: (z) => set({ logOverlayZOrder: z }),
+    logOverlayWidth: 360,
+    logOverlayHeight: 260,
+    setLogOverlaySize: (width, height) => set({ logOverlayWidth: width, logOverlayHeight: height }),
+
+    // 控制器连接的窗口句柄
+    instanceConnectedHandle: {},
+    setConnectedHandle: (instanceId, handle) =>
+      set((state) => ({
+        instanceConnectedHandle: {
+          ...state.instanceConnectedHandle,
+          [instanceId]: handle,
+        },
+      })),
+
     // 新用户引导
     onboardingCompleted: false,
     setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
@@ -1559,6 +1588,25 @@ export const useAppStore = create<AppState>()(
           : DEFAULT_MAX_LOGS_PER_INSTANCE;
         const limit = Math.min(10000, Math.max(100, Math.floor(rawLimit)));
         const updatedLogs = [...logs, newLog].slice(-limit);
+
+        // 广播日志到悬浮窗（fire-and-forget，不阻塞 store 更新）
+        import('@tauri-apps/api/event')
+          .then(({ emit }) =>
+            emit('log-overlay-new-log', {
+              instanceId,
+              log: {
+                id: newLog.id,
+                timestamp: newLog.timestamp.getTime(),
+                type: newLog.type,
+                message: newLog.message,
+                html: newLog.html,
+              },
+            }),
+          )
+          .catch(() => {
+            /* ignore in non-tauri env */
+          });
+
         return {
           instanceLogs: {
             ...state.instanceLogs,
@@ -1567,13 +1615,17 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-    clearLogs: (instanceId) =>
-      set((state) => ({
+    clearLogs: (instanceId) => {
+      import('@tauri-apps/api/event')
+        .then(({ emit }) => emit('log-overlay-clear', { instanceId }))
+        .catch(() => {});
+      return set((state) => ({
         instanceLogs: {
           ...state.instanceLogs,
           [instanceId]: [],
         },
-      })),
+      }));
+    },
 
     // 回调 ID 与名称的映射
     ctrlIdToName: {},
@@ -1660,6 +1712,14 @@ function generateConfig(): MxuConfig {
       minimizeToTray: state.minimizeToTray,
       onboardingCompleted: state.onboardingCompleted,
       hotkeys: state.hotkeys,
+        logOverlay: {
+        enabled: state.logOverlayEnabled,
+        mode: state.logOverlayMode,
+        anchor: state.logOverlayAnchor,
+        zOrder: state.logOverlayZOrder,
+        width: state.logOverlayWidth,
+        height: state.logOverlayHeight,
+      },
     },
     recentlyClosed: state.recentlyClosed,
     // 保存当前 interface.json 的任务名列表快照，用于下次加载时检测新增任务
@@ -1718,6 +1778,12 @@ useAppStore.subscribe(
     minimizeToTray: state.minimizeToTray,
     onboardingCompleted: state.onboardingCompleted,
     hotkeys: state.hotkeys,
+    logOverlayEnabled: state.logOverlayEnabled,
+    logOverlayMode: state.logOverlayMode,
+    logOverlayAnchor: state.logOverlayAnchor,
+    logOverlayZOrder: state.logOverlayZOrder,
+    logOverlayWidth: state.logOverlayWidth,
+    logOverlayHeight: state.logOverlayHeight,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
     customAccents: state.customAccents,

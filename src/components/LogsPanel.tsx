@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive, MonitorUp } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
@@ -11,8 +11,10 @@ import { ExportLogsModal } from './settings/ExportLogsModal';
 export function LogsPanel() {
   const { t } = useTranslation();
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
-    useAppStore();
+  const {
+    sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs,
+    logOverlayEnabled, setLogOverlayEnabled,
+  } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
@@ -137,6 +139,32 @@ export function LogsPanel() {
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
         <div className="flex items-center gap-2">
+          {/* 日志悬浮窗开关 */}
+          {isTauri() && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const newEnabled = !logOverlayEnabled;
+                setLogOverlayEnabled(newEnabled);
+                import('@/services/logOverlayService').then(({ showLogOverlay, hideLogOverlay }) => {
+                  if (newEnabled) {
+                    showLogOverlay();
+                  } else {
+                    hideLogOverlay();
+                  }
+                });
+              }}
+              className={clsx(
+                'p-1 rounded-md transition-colors',
+                logOverlayEnabled
+                  ? 'text-accent bg-accent/10'
+                  : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
+              )}
+              title={t('settings.logOverlay')}
+            >
+              <MonitorUp className="w-3.5 h-3.5" />
+            </button>
+          )}
           {/* 导出日志 */}
           <button
             onClick={(e) => {

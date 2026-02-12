@@ -24,6 +24,9 @@
     "core:window:allow-start-resize-dragging",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "core:window:allow-get-all-windows",
     "opener:default",
     {
       "identifier": "opener:allow-open-path",

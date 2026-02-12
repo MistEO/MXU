@@ -142,6 +142,8 @@ pub struct InstanceRuntime {
     pub stop_in_progress: bool,
     /// stop 请求的起始时间（用于节流/重试）
     pub stop_started_at: Option<Instant>,
+    /// Win32/Gamepad 控制器连接的窗口句柄（供悬浮窗跟随使用）
+    pub connected_window_handle: Option<u64>,
 }
 
 // 为原始指针实现 Send 和 Sync
@@ -157,6 +159,7 @@ impl Default for InstanceRuntime {
             tasker: None,
             agent_client: None,
             agent_child: None,
+            connected_window_handle: None,
             task_ids: Vec::new(),
             stop_in_progress: false,
             stop_started_at: None,

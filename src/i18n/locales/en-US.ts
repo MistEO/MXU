@@ -114,8 +114,11 @@ export default {
     logOverlayAnchorRightTop: 'Right Top (1/3)',
     logOverlayAnchorRightBottom: 'Right Bottom (2/3)',
     logOverlayAnchorTopCenter: 'Top Center',
+    logOverlayFollowWindow: 'Follow Window',
+    logOverlayFollowWindowNone: 'Not selected (auto)',
+    logOverlayRefreshWindows: 'Refresh window list',
     logOverlayZOrder: 'Window Layer',
-    logOverlayZOrderTop: 'Always on Top',
+    logOverlayZOrderTop: 'On Top',
     logOverlayZOrderAboveTarget: 'Above Connected Window',
   },
 

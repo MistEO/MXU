@@ -355,7 +355,7 @@ pub async fn create_log_overlay_window(
         return Ok(());
     }
 
-    let window = tauri::WebviewWindowBuilder::new(
+    let mut builder = tauri::WebviewWindowBuilder::new(
         &app_handle,
         label,
         tauri::WebviewUrl::App("log-overlay.html".into()),
@@ -366,8 +366,15 @@ pub async fn create_log_overlay_window(
     .resizable(true)
     .always_on_top(always_on_top)
     .skip_taskbar(true)
-    .transparent(true)
-    .visible(false)
+    .visible(false);
+
+    // transparent() 在 macOS 上需要 macos-private-api feature，仅 Windows 启用
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder
     .build()
     .map_err(|e| format!("Failed to create log overlay window: {}", e))?;
 
@@ -395,6 +402,26 @@ pub fn get_connected_window_handle(
         Ok(instance.connected_window_handle.map(|h| h as i64))
     } else {
         Ok(None)
+    }
+}
+
+/// 手动设置实例的跟随窗口句柄（用于 ADB 控制器手动选择模拟器窗口）
+#[tauri::command]
+pub fn set_connected_window_handle(
+    state: tauri::State<std::sync::Arc<super::types::MaaState>>,
+    instance_id: String,
+    handle: Option<i64>,
+) -> Result<(), String> {
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    if let Some(instance) = instances.get_mut(&instance_id) {
+        instance.connected_window_handle = handle.map(|h| h as u64);
+        info!(
+            "Manually set connected window handle for instance {}: {:?}",
+            instance_id, handle
+        );
+        Ok(())
+    } else {
+        Err("Instance not found".to_string())
     }
 }
 

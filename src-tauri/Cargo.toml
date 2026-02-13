@@ -51,16 +51,11 @@ shell-words = "1.1.1"
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析
 debug = true
-# 编译单元数量 - 增加到 4 可以减少内存占用（特别是在链接阶段）
-# 设置为 1 会最大化优化但增加内存占用，设置为 4 是内存和性能的平衡点
-codegen-units = 4
-# 使用薄 LTO 而不是完整 LTO，在保持优化效果的同时加快编译速度并减少内存占用
-# 如果内存仍然不足，可以注释掉这一行（但会略微降低运行时性能）
-lto = "thin"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
     "Win32_Security",
     "Win32_System_LibraryLoader",
@@ -68,9 +63,8 @@ windows = { version = "0.58", features = [
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
-    "Win32_UI_HiDpi",
-    "Win32_Graphics_Dwm",
 ] }
 

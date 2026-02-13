@@ -176,6 +176,7 @@ pub fn run() {
             commands::system::get_system_info,
             commands::system::create_log_overlay_window,
             commands::system::get_connected_window_handle,
+            commands::system::set_connected_window_handle,
             commands::system::get_window_rect_by_handle,
             commands::system::set_overlay_above_target,
             commands::system::set_overlay_always_on_top,

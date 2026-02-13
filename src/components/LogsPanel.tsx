@@ -1,12 +1,13 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive, MonitorUp } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive, MonitorUp, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
+import type { Win32Window } from '@/types/maa';
 
 export function LogsPanel() {
   const { t } = useTranslation();
@@ -14,7 +15,57 @@ export function LogsPanel() {
   const {
     sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs,
     logOverlayEnabled, setLogOverlayEnabled,
+    logOverlayMode, selectedController: selectedControllerMap, projectInterface,
   } = useAppStore();
+
+  // ADB 跟随窗口选择器
+  const [followWindows, setFollowWindows] = useState<Win32Window[]>([]);
+  const [followWindowHandle, setFollowWindowHandle] = useState<number | null>(null);
+  const [followWindowLoading, setFollowWindowLoading] = useState(false);
+
+  const activeControllerName = activeInstanceId ? selectedControllerMap[activeInstanceId] : undefined;
+  const activeControllerDef = projectInterface?.controller.find((c) => c.name === activeControllerName);
+  const isAdbController = activeControllerDef?.type === 'Adb' || activeControllerDef?.type === 'PlayCover';
+  const showWindowPicker = logOverlayEnabled && logOverlayMode === 'follow' && isAdbController;
+
+  // 切换实例时重置选中的窗口句柄
+  useEffect(() => {
+    setFollowWindowHandle(null);
+  }, [activeInstanceId]);
+
+  const refreshFollowWindows = useCallback(async () => {
+    if (!isTauri()) return;
+    setFollowWindowLoading(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
+        classRegex: '',
+        windowRegex: '',
+      });
+      setFollowWindows(windows.filter((w) => w.window_name.trim().length > 0));
+    } catch {
+      // ignore
+    } finally {
+      setFollowWindowLoading(false);
+    }
+  }, []);
+
+  const selectFollowWindow = useCallback(async (handle: number | null) => {
+    if (!isTauri() || !activeInstanceId) return;
+    setFollowWindowHandle(handle);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('set_connected_window_handle', {
+        instanceId: activeInstanceId,
+        handle,
+      });
+      import('@/services/logOverlayService').then(({ onOverlaySettingsChanged }) =>
+        onOverlaySettingsChanged(),
+      );
+    } catch {
+      // ignore
+    }
+  }, [activeInstanceId]);
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
@@ -164,6 +215,43 @@ export function LogsPanel() {
             >
               <MonitorUp className="w-3.5 h-3.5" />
             </button>
+          )}
+          {/* ADB 模式下选择跟随窗口 */}
+          {showWindowPicker && (
+            <>
+              <select
+                value={followWindowHandle ?? ''}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const val = e.target.value;
+                  selectFollowWindow(val ? Number(val) : null);
+                }}
+                onFocus={() => {
+                  if (followWindows.length === 0) refreshFollowWindows();
+                }}
+                className="px-1.5 py-0.5 text-xs bg-bg-tertiary border border-border rounded text-text-primary max-w-[140px] truncate"
+                title={t('settings.logOverlayFollowWindow')}
+              >
+                <option value="">{t('settings.logOverlayFollowWindowNone')}</option>
+                {followWindows.map((w) => (
+                  <option key={w.handle} value={w.handle}>
+                    {w.window_name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refreshFollowWindows();
+                }}
+                disabled={followWindowLoading}
+                className="p-1 rounded-md text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-50"
+                title={t('settings.logOverlayRefreshWindows')}
+              >
+                <RefreshCw className={`w-3 h-3 ${followWindowLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </>
           )}
           {/* 导出日志 */}
           <button

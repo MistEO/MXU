@@ -193,20 +193,23 @@ pub fn run() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // 悬浮窗关闭时：获取当前尺寸，通知前端同步状态
                     if window.label() == "log-overlay" {
+                        let scale = window.scale_factor().unwrap_or(1.0);
                         let size = window.inner_size().ok();
                         let pos = window.outer_position().ok();
+                        // 转换为逻辑像素保存（inner_size 返回物理像素，创建时用逻辑像素）
                         let payload = serde_json::json!({
-                            "width": size.as_ref().map(|s| s.width).unwrap_or(360),
-                            "height": size.as_ref().map(|s| s.height).unwrap_or(260),
+                            "width": size.as_ref().map(|s| (s.width as f64 / scale).round() as u32).unwrap_or(360),
+                            "height": size.as_ref().map(|s| (s.height as f64 / scale).round() as u32).unwrap_or(260),
                             "x": pos.as_ref().map(|p| p.x).unwrap_or(100),
                             "y": pos.as_ref().map(|p| p.y).unwrap_or(100),
                         });
                         let _ = window.app_handle().emit("log-overlay-closed", payload);
                     }
                     // 主窗口关闭/最小化到托盘时，同步关闭悬浮窗
+                    // 使用 close() 而非 destroy()，让 CloseRequested 事件先触发以保存几何信息
                     if window.label() == "main" {
                         if let Some(overlay) = window.app_handle().get_webview_window("log-overlay") {
-                            let _ = overlay.destroy();
+                            let _ = overlay.close();
                         }
                     }
                     if tray::handle_close_requested(window.app_handle()) {

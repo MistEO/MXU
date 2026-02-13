@@ -29,6 +29,9 @@ const DEFAULT_Y = 100;
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 let closeListenerCleanup: (() => void) | null = null;
+let closeListenerPending = false;
+/** 程序主动关闭悬浮窗时为 true，close 事件中不修改 enabled 状态 */
+let programmaticClose = false;
 let saveTickCounter = 0;
 const SAVE_INTERVAL_TICKS = 15; // 每 15 次 poll (~4.5s) 保存一次几何信息
 
@@ -36,7 +39,25 @@ const SAVE_INTERVAL_TICKS = 15; // 每 15 次 poll (~4.5s) 保存一次几何信
 
 async function queryConnectedHandle(): Promise<number | null> {
   const state = useAppStore.getState();
+
+  // 优先查询当前激活实例的窗口句柄
+  if (state.activeInstanceId) {
+    const activeStatus = state.instanceConnectionStatus[state.activeInstanceId];
+    if (activeStatus === 'Connected') {
+      try {
+        const handle = await invoke<number | null>('get_connected_window_handle', {
+          instanceId: state.activeInstanceId,
+        });
+        if (handle) return handle;
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 回退：查找任意已连接实例
   for (const [instanceId, status] of Object.entries(state.instanceConnectionStatus)) {
+    if (instanceId === state.activeInstanceId) continue; // 已经查过了
     if (status !== 'Connected') continue;
     try {
       const handle = await invoke<number | null>('get_connected_window_handle', { instanceId });
@@ -68,25 +89,36 @@ async function queryTargetRect(handle: number) {
  * 保存尺寸并同步 toggle 状态
  */
 function setupCloseListener() {
-  if (closeListenerCleanup) return;
+  if (closeListenerCleanup || closeListenerPending) return;
+  closeListenerPending = true;
 
   listen<{ width: number; height: number; x: number; y: number }>(
     'log-overlay-closed',
     (event) => {
-      const { width, height } = event.payload;
-      log.info(`Log overlay closed, saving size: ${width}x${height}`);
+      const { width, height, x, y } = event.payload;
+      log.info(`Log overlay closed, saving size: ${width}x${height}, pos: (${x}, ${y})`);
 
-      // 保存逻辑尺寸（inner_size 返回的是逻辑像素）
+      // 保存逻辑尺寸（Rust 端已将物理像素转为逻辑像素）
       if (width > 0 && height > 0) {
         useAppStore.getState().setLogOverlaySize(width, height);
       }
 
-      // 同步 toggle 状态
-      useAppStore.getState().setLogOverlayEnabled(false);
+      // 保存位置（物理像素，与创建时一致）
+      if (x != null && y != null) {
+        useAppStore.getState().setLogOverlayPosition(x, y);
+      }
+
+      // 仅用户手动关闭时同步 enabled 状态；
+      // 程序主动关闭（断开连接等）不修改 enabled，保留用户偏好
+      if (!programmaticClose) {
+        useAppStore.getState().setLogOverlayEnabled(false);
+      }
+      programmaticClose = false;
       stopPolling();
     },
   ).then((unlisten) => {
     closeListenerCleanup = unlisten;
+    closeListenerPending = false;
   });
 }
 
@@ -105,7 +137,7 @@ async function clampToScreen(
     if (monitors.length === 0) return { x, y };
 
     // 检查位置是否在任一显示器范围内（至少有一部分可见）
-    const isVisible = monitors.some((m: { position: { x: number; y: number }; size: { width: number; height: number } }) => {
+    const isVisible = monitors.some((m) => {
       const mx = m.position.x;
       const my = m.position.y;
       const mw = m.size.width;
@@ -117,7 +149,7 @@ async function clampToScreen(
 
     // 不可见，移到主显示器左上角
     log.info('Log overlay: position out of screen, resetting');
-    const primary = monitors[0] as { position: { x: number; y: number } };
+    const primary = monitors[0];
     return {
       x: primary.position.x + 50,
       y: primary.position.y + 50,
@@ -181,15 +213,20 @@ export async function showLogOverlay(): Promise<void> {
   }
 }
 
-export async function hideLogOverlay(): Promise<void> {
+export async function hideLogOverlay(keepEnabled = false): Promise<void> {
   if (!isTauri()) return;
   stopPolling();
   try {
     // 关闭前保存尺寸
     await saveOverlayGeometry();
+    // 标记为程序主动关闭，close 事件中不修改 enabled 状态
+    if (keepEnabled) {
+      programmaticClose = true;
+    }
     await invoke('close_log_overlay');
     log.info('Log overlay closed');
   } catch (err) {
+    programmaticClose = false;
     log.error('Failed to close log overlay window:', err);
   }
 }
@@ -271,7 +308,7 @@ async function pollTick() {
 }
 
 /**
- * 保存悬浮窗当前尺寸到 store（自动持久化到配置文件）
+ * 保存悬浮窗当前尺寸和位置到 store（自动持久化到配置文件）
  */
 async function saveOverlayGeometry() {
   try {
@@ -279,13 +316,23 @@ async function saveOverlayGeometry() {
     const overlayWin = windows.find((w) => w.label === OVERLAY_LABEL);
     if (!overlayWin) return;
 
-    const size = await overlayWin.innerSize();
-    if (size.width > 0 && size.height > 0) {
+    const physSize = await overlayWin.innerSize();
+    const scaleFactor = await overlayWin.scaleFactor();
+    // inner_size 返回物理像素，创建窗口时用逻辑像素，需要转换
+    const logicalW = Math.round(physSize.width / scaleFactor);
+    const logicalH = Math.round(physSize.height / scaleFactor);
+    if (logicalW > 0 && logicalH > 0) {
       const { logOverlayWidth, logOverlayHeight } = useAppStore.getState();
-      // 只在尺寸变化时才更新 store（避免无谓的配置写入）
-      if (size.width !== logOverlayWidth || size.height !== logOverlayHeight) {
-        useAppStore.getState().setLogOverlaySize(size.width, size.height);
+      if (logicalW !== logOverlayWidth || logicalH !== logOverlayHeight) {
+        useAppStore.getState().setLogOverlaySize(logicalW, logicalH);
       }
+    }
+
+    // 保存位置（outer_position 返回物理像素，与创建时 PhysicalPosition 一致）
+    const physPos = await overlayWin.outerPosition();
+    const { logOverlayX, logOverlayY } = useAppStore.getState();
+    if (physPos.x !== logOverlayX || physPos.y !== logOverlayY) {
+      useAppStore.getState().setLogOverlayPosition(physPos.x, physPos.y);
     }
   } catch {
     // overlay may have been closed
@@ -337,18 +384,25 @@ async function getInitialPosition(
     }
   }
 
+  // 定点模式：优先使用上次保存的位置
+  if (state.logOverlayX != null && state.logOverlayY != null) {
+    return { x: state.logOverlayX, y: state.logOverlayY };
+  }
+
   return { x: DEFAULT_X, y: DEFAULT_Y };
 }
 
 export async function onOverlaySettingsChanged(): Promise<void> {
   const state = useAppStore.getState();
 
+  // 检查悬浮窗是否存在，不存在则无需操作
+  const windows = await getAllWindows();
+  if (!windows.some((w) => w.label === OVERLAY_LABEL)) return;
+
   try {
-    if (state.logOverlayZOrder === 'always_on_top') {
-      await invoke('set_overlay_always_on_top', { alwaysOnTop: true });
-    } else {
-      await invoke('set_overlay_always_on_top', { alwaysOnTop: false });
-    }
+    await invoke('set_overlay_always_on_top', {
+      alwaysOnTop: state.logOverlayZOrder === 'always_on_top',
+    });
   } catch {
     // overlay may not exist yet
   }
@@ -378,8 +432,8 @@ export function subscribeConnectionStatus(): () => void {
         log.info('Log overlay: connection detected, showing overlay');
         setTimeout(() => showLogOverlay().catch(() => {}), 500);
       } else if (!nowConnected && wasConnected) {
-        log.info('Log overlay: all disconnected, hiding overlay');
-        hideLogOverlay().catch(() => {});
+        log.info('Log overlay: all disconnected, hiding overlay (keeping enabled)');
+        hideLogOverlay(true).catch(() => {});
       }
     },
     { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },

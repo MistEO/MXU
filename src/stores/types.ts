@@ -338,6 +338,11 @@ export interface AppState {
   /** 悬浮窗逻辑高度 */
   logOverlayHeight: number;
   setLogOverlaySize: (width: number, height: number) => void;
+  /** 悬浮窗上次位置 X（物理像素，与 Win32 API / PhysicalPosition 一致） */
+  logOverlayX: number | null;
+  /** 悬浮窗上次位置 Y（物理像素，与 Win32 API / PhysicalPosition 一致） */
+  logOverlayY: number | null;
+  setLogOverlayPosition: (x: number, y: number) => void;
 
   // 控制器连接的窗口句柄（Win32/Gamepad）
   instanceConnectedHandle: Record<string, number | null>;

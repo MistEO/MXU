@@ -983,6 +983,8 @@ export const useAppStore = create<AppState>()(
         logOverlayZOrder: config.settings.logOverlay?.zOrder ?? 'always_on_top',
         logOverlayWidth: config.settings.logOverlay?.width ?? 360,
         logOverlayHeight: config.settings.logOverlay?.height ?? 260,
+        logOverlayX: config.settings.logOverlay?.x ?? null,
+        logOverlayY: config.settings.logOverlay?.y ?? null,
         recentlyClosed: config.recentlyClosed || [],
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
@@ -1298,6 +1300,9 @@ export const useAppStore = create<AppState>()(
     logOverlayWidth: 360,
     logOverlayHeight: 260,
     setLogOverlaySize: (width, height) => set({ logOverlayWidth: width, logOverlayHeight: height }),
+    logOverlayX: null as number | null,
+    logOverlayY: null as number | null,
+    setLogOverlayPosition: (x, y) => set({ logOverlayX: x, logOverlayY: y }),
 
     // 控制器连接的窗口句柄
     instanceConnectedHandle: {},
@@ -1719,6 +1724,8 @@ function generateConfig(): MxuConfig {
         zOrder: state.logOverlayZOrder,
         width: state.logOverlayWidth,
         height: state.logOverlayHeight,
+        x: state.logOverlayX ?? undefined,
+        y: state.logOverlayY ?? undefined,
       },
     },
     recentlyClosed: state.recentlyClosed,
@@ -1784,6 +1791,8 @@ useAppStore.subscribe(
     logOverlayZOrder: state.logOverlayZOrder,
     logOverlayWidth: state.logOverlayWidth,
     logOverlayHeight: state.logOverlayHeight,
+    logOverlayX: state.logOverlayX,
+    logOverlayY: state.logOverlayY,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
     customAccents: state.customAccents,

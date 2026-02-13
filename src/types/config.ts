@@ -113,6 +113,10 @@ export interface LogOverlaySettings {
   width?: number;
   /** 悬浮窗逻辑高度 */
   height?: number;
+  /** 悬浮窗上次位置 X（物理像素） */
+  x?: number;
+  /** 悬浮窗上次位置 Y（物理像素） */
+  y?: number;
 }
 
 // 应用设置

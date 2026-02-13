@@ -117,6 +117,7 @@ export default {
     logOverlayFollowWindowNone: '未選択',
     logOverlayFollowWindowAuto: '接続中のウィンドウ',
     logOverlayRefreshWindows: 'ウィンドウ一覧を更新',
+    logOverlayWaitingLogs: 'ログを待機中...',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
     maxLogsPerInstanceHint: '上限を超えると古いログから自動的に破棄します（推奨 500～2000）',
     resetWindowLayout: 'ウィンドウレイアウトをリセット',

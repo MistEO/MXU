@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -17,6 +18,7 @@ interface OverlayLogEntry {
 const MAX_OVERLAY_LOGS = 200;
 
 export function LogOverlayApp() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<OverlayLogEntry[]>([]);
   const [isHovered, setIsHovered] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -146,7 +148,7 @@ export function LogOverlayApp() {
       >
         {logs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/25 text-[11px]">
-            等待日志...
+            {t('settings.logOverlayWaitingLogs')}
           </div>
         ) : (
           <>

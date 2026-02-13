@@ -126,7 +126,12 @@ function setupCloseListener() {
 
 /**
  * 确保位置在屏幕可见范围内（定点模式用）
- * 使用 Tauri 的 availableMonitors API 获取所有显示器信息
+ *
+ * 坐标空间说明：
+ * - 输入 x, y 为物理像素（来自 outerPosition / 保存的 logOverlayX/Y）
+ * - Tauri 2.0 的 availableMonitors() 返回的 Monitor.position (PhysicalPosition)
+ *   和 Monitor.size (PhysicalSize) 同样是物理像素
+ * - 因此两者在同一坐标空间，无需额外转换
  */
 async function clampToScreen(
   x: number,
@@ -137,6 +142,7 @@ async function clampToScreen(
     if (monitors.length === 0) return { x, y };
 
     // 检查位置是否在任一显示器范围内（至少有一部分可见）
+    // position/size 均为物理像素
     const isVisible = monitors.some((m) => {
       const mx = m.position.x;
       const my = m.position.y;
@@ -419,24 +425,23 @@ export function subscribeConnectionStatus(): () => void {
 
   const unsub = useAppStore.subscribe(
     (state) => ({
-      connectionStatus: state.instanceConnectionStatus,
+      hasConnection: Object.values(state.instanceConnectionStatus).some((s) => s === 'Connected'),
       enabled: state.logOverlayEnabled,
     }),
     (curr, prev) => {
       if (!curr.enabled) return;
 
-      const nowConnected = Object.values(curr.connectionStatus).some((s) => s === 'Connected');
-      const wasConnected = Object.values(prev.connectionStatus).some((s) => s === 'Connected');
-
-      if (nowConnected && !wasConnected) {
+      if (curr.hasConnection && !prev.hasConnection) {
         log.info('Log overlay: connection detected, showing overlay');
         setTimeout(() => showLogOverlay().catch(() => {}), 500);
-      } else if (!nowConnected && wasConnected) {
+      } else if (!curr.hasConnection && prev.hasConnection) {
         log.info('Log overlay: all disconnected, hiding overlay (keeping enabled)');
         hideLogOverlay(true).catch(() => {});
       }
     },
-    { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+    {
+      equalityFn: (a, b) => a.hasConnection === b.hasConnection && a.enabled === b.enabled,
+    },
   );
 
   return () => {

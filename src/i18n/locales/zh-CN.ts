@@ -116,6 +116,7 @@ export default {
     logOverlayFollowWindowNone: '未选择',
     logOverlayFollowWindowAuto: '已连接窗口',
     logOverlayRefreshWindows: '刷新窗口列表',
+    logOverlayWaitingLogs: '等待日志...',
     maxLogsPerInstance: '每个实例保留的日志上限',
     maxLogsPerInstanceHint: '超过上限会自动丢弃最旧的日志（建议 500～2000）',
     resetWindowLayout: '重置窗口布局',

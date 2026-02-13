@@ -117,6 +117,7 @@ export default {
     logOverlayFollowWindowNone: '선택 안 함',
     logOverlayFollowWindowAuto: '연결된 창',
     logOverlayRefreshWindows: '창 목록 새로고침',
+    logOverlayWaitingLogs: '로그 대기 중...',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
     resetWindowLayout: '창 레이아웃 초기화',

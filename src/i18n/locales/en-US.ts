@@ -119,6 +119,7 @@ export default {
     logOverlayFollowWindowNone: 'Not selected',
     logOverlayFollowWindowAuto: 'Connected window',
     logOverlayRefreshWindows: 'Refresh window list',
+    logOverlayWaitingLogs: 'Waiting for logs...',
     logOverlayZOrder: 'Window Layer',
     logOverlayZOrderTop: 'On Top',
     logOverlayZOrderAboveTarget: 'Above Connected Window',

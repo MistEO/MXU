@@ -115,6 +115,7 @@ export default {
     logOverlayFollowWindowNone: '未選擇',
     logOverlayFollowWindowAuto: '已連接視窗',
     logOverlayRefreshWindows: '重新整理視窗列表',
+    logOverlayWaitingLogs: '等待日誌...',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',

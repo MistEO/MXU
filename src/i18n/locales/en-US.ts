@@ -116,7 +116,7 @@ export default {
     logOverlayAnchorTopCenter: 'Top Center',
     logOverlayEnable: 'Enable',
     logOverlayFollowWindow: 'Follow Window',
-    logOverlayFollowWindowNone: 'Not selected (auto)',
+    logOverlayFollowWindowNone: 'Not selected',
     logOverlayFollowWindowAuto: 'Connected window',
     logOverlayRefreshWindows: 'Refresh window list',
     logOverlayZOrder: 'Window Layer',

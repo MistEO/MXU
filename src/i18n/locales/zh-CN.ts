@@ -113,7 +113,7 @@ export default {
     logOverlayAnchorTopCenter: '上中',
     logOverlayEnable: '开启',
     logOverlayFollowWindow: '跟随窗口',
-    logOverlayFollowWindowNone: '未选择（自动）',
+    logOverlayFollowWindowNone: '未选择',
     logOverlayFollowWindowAuto: '已连接窗口',
     logOverlayRefreshWindows: '刷新窗口列表',
     maxLogsPerInstance: '每个实例保留的日志上限',

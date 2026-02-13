@@ -114,7 +114,7 @@ export default {
     logOverlayAnchorTopCenter: '위쪽 가운데',
     logOverlayEnable: '사용',
     logOverlayFollowWindow: '따라갈 창',
-    logOverlayFollowWindowNone: '선택 안 함 (자동)',
+    logOverlayFollowWindowNone: '선택 안 함',
     logOverlayFollowWindowAuto: '연결된 창',
     logOverlayRefreshWindows: '창 목록 새로고침',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',

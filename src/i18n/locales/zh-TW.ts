@@ -112,7 +112,7 @@ export default {
     logOverlayAnchorTopCenter: '上中',
     logOverlayEnable: '開啟',
     logOverlayFollowWindow: '跟隨視窗',
-    logOverlayFollowWindowNone: '未選擇（自動）',
+    logOverlayFollowWindowNone: '未選擇',
     logOverlayFollowWindowAuto: '已連接視窗',
     logOverlayRefreshWindows: '重新整理視窗列表',
     maxLogsPerInstance: '每個實例保留的日誌上限',

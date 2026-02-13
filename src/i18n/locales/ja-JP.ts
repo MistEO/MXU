@@ -114,7 +114,7 @@ export default {
     logOverlayAnchorTopCenter: '上中央',
     logOverlayEnable: '有効',
     logOverlayFollowWindow: '追従ウィンドウ',
-    logOverlayFollowWindowNone: '未選択（自動）',
+    logOverlayFollowWindowNone: '未選択',
     logOverlayFollowWindowAuto: '接続中のウィンドウ',
     logOverlayRefreshWindows: 'ウィンドウ一覧を更新',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',

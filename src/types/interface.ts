@@ -15,7 +15,7 @@ export interface ProjectInterface {
   license?: string;
   welcome?: string;
   description?: string;
-  agent?: AgentConfig;
+  agent?: AgentConfig | AgentConfig[];
   controller: ControllerItem[];
   resource: ResourceItem[];
   task: TaskItem[];
@@ -30,6 +30,17 @@ export interface AgentConfig {
   identifier?: string;
   /** 连接超时时间（毫秒），-1 表示无限等待 */
   timeout?: number;
+}
+
+/**
+ * 将 PI 协议中的 agent 字段（单对象或数组）标准化为数组。
+ * 如果 agent 未定义则返回 undefined。
+ */
+export function normalizeAgentConfigs(
+  agent: AgentConfig | AgentConfig[] | undefined,
+): AgentConfig[] | undefined {
+  if (!agent) return undefined;
+  return Array.isArray(agent) ? agent : [agent];
 }
 
 export type ControllerType = 'Adb' | 'Win32' | 'PlayCover' | 'Gamepad';

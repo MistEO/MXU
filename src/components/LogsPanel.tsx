@@ -1,18 +1,26 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive, MonitorUp } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
+import { LogOverlayPopover } from './LogOverlayPopover';
 
 export function LogsPanel() {
   const { t } = useTranslation();
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
-    useAppStore();
+  const [overlayPopoverOpen, setOverlayPopoverOpen] = useState(false);
+  const overlayTriggerRef = useRef<HTMLButtonElement>(null);
+  // popover 关闭瞬间设为 true，防止同一次点击触发标题栏的 toggleSidePanelExpanded
+  const popoverJustClosedRef = useRef(false);
+  const {
+    sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs,
+    logOverlayEnabled,
+  } = useAppStore();
+
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
@@ -108,25 +116,20 @@ export function LogsPanel() {
     ],
   );
 
-  // 根据日志类型获取前缀标签
-  const getLogPrefix = (type: LogType) => {
-    switch (type) {
-      case 'agent':
-        return '';
-      case 'focus':
-        return '';
-      default:
-        return '';
-    }
-  };
-
   return (
     <div className="flex-1 flex flex-col bg-bg-secondary rounded-lg border border-border overflow-hidden">
       {/* 标题栏（可点击展开/折叠上方面板） */}
       <div
         role="button"
         tabIndex={0}
-        onClick={toggleSidePanelExpanded}
+        onClick={() => {
+          // popover 刚关闭时跳过，避免同一次点击既关闭 popover 又切换面板
+          if (popoverJustClosedRef.current) {
+            popoverJustClosedRef.current = false;
+            return;
+          }
+          toggleSidePanelExpanded();
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -137,6 +140,42 @@ export function LogsPanel() {
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
         <div className="flex items-center gap-2">
+          {/* 日志悬浮窗：点击打开统一设置弹层 */}
+          {isTauri() && (
+            <>
+              <button
+                ref={overlayTriggerRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOverlayPopoverOpen((v) => !v);
+                }}
+                className={clsx(
+                  'relative p-1 rounded-md transition-colors ring-1',
+                  logOverlayEnabled
+                    ? 'text-accent bg-accent/15 ring-accent/30'
+                    : 'text-text-primary ring-border/60 hover:ring-accent/40 hover:bg-bg-tertiary',
+                )}
+                title={t('settings.logOverlay')}
+              >
+                <MonitorUp className="w-3.5 h-3.5" />
+                {logOverlayEnabled && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent ring-2 ring-bg-secondary" />
+                )}
+              </button>
+              <LogOverlayPopover
+                open={overlayPopoverOpen}
+                onClose={() => {
+                  popoverJustClosedRef.current = true;
+                  setOverlayPopoverOpen(false);
+                  // 下一帧重置，确保后续点击正常触发 toggle
+                  requestAnimationFrame(() => {
+                    popoverJustClosedRef.current = false;
+                  });
+                }}
+                anchorRef={overlayTriggerRef}
+              />
+            </>
+          )}
           {/* 导出日志 */}
           <button
             onClick={(e) => {
@@ -217,7 +256,6 @@ export function LogsPanel() {
                     [{log.timestamp.toLocaleTimeString()}]
                   </span>
                   <span className="break-all">
-                    {getLogPrefix(log.type)}
                     {log.message}
                   </span>
                 </div>

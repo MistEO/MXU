@@ -6,7 +6,7 @@ mod tray;
 use commands::MaaState;
 use maa_ffi::MaaLibraryError;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -174,6 +174,13 @@ pub fn run() {
             commands::system::check_vcredist_missing,
             commands::system::get_arch,
             commands::system::get_system_info,
+            commands::system::create_log_overlay_window,
+            commands::system::get_connected_window_handle,
+            commands::system::set_connected_window_handle,
+            commands::system::get_window_rect_by_handle,
+            commands::system::set_overlay_above_target,
+            commands::system::set_overlay_always_on_top,
+            commands::system::close_log_overlay,
             // 托盘相关命令
             commands::tray::set_minimize_to_tray,
             commands::tray::get_minimize_to_tray,
@@ -184,12 +191,39 @@ pub fn run() {
             match event {
                 // 窗口关闭请求：检查是否最小化到托盘
                 tauri::WindowEvent::CloseRequested { api, .. } => {
+                    // 悬浮窗关闭时：获取当前尺寸，通知前端同步状态
+                    if window.label() == "log-overlay" {
+                        let scale = window.scale_factor().unwrap_or(1.0);
+                        let size = window.inner_size().ok();
+                        let pos = window.outer_position().ok();
+                        // 转换为逻辑像素保存（inner_size 返回物理像素，创建时用逻辑像素）
+                        let payload = serde_json::json!({
+                            "width": size.as_ref().map(|s| (s.width as f64 / scale).round() as u32).unwrap_or(360),
+                            "height": size.as_ref().map(|s| (s.height as f64 / scale).round() as u32).unwrap_or(260),
+                            "x": pos.as_ref().map(|p| p.x).unwrap_or(100),
+                            "y": pos.as_ref().map(|p| p.y).unwrap_or(100),
+                        });
+                        let _ = window.app_handle().emit("log-overlay-closed", payload);
+                    }
+                    // 主窗口关闭/最小化到托盘时，同步关闭悬浮窗
+                    // 使用 close() 而非 destroy()，让 CloseRequested 事件先触发以保存几何信息
+                    if window.label() == "main" {
+                        if let Some(overlay) = window.app_handle().get_webview_window("log-overlay") {
+                            let _ = overlay.close();
+                        }
+                    }
                     if tray::handle_close_requested(window.app_handle()) {
                         api.prevent_close();
                     }
                 }
-                // 窗口销毁时清理所有 agent 子进程
+                // 主窗口销毁时清理所有 agent 子进程和悬浮窗
                 tauri::WindowEvent::Destroyed => {
+                    if window.label() == "main" {
+                        // 关闭悬浮窗
+                        if let Some(overlay) = window.app_handle().get_webview_window("log-overlay") {
+                            let _ = overlay.destroy();
+                        }
+                    }
                     if let Some(state) = window.try_state::<Arc<MaaState>>() {
                         state.cleanup_all_agent_children();
                     }

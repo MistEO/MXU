@@ -103,6 +103,22 @@ export interface HotkeySettings {
   globalEnabled?: boolean;
 }
 
+// 日志悬浮窗配置
+export interface LogOverlaySettings {
+  enabled: boolean;
+  mode: 'fixed' | 'follow';
+  anchor?: 'left-center' | 'right-top-third' | 'right-bottom-third' | 'top-center';
+  zOrder?: 'always_on_top' | 'above_target';
+  /** 悬浮窗逻辑宽度 */
+  width?: number;
+  /** 悬浮窗逻辑高度 */
+  height?: number;
+  /** 悬浮窗上次位置 X（物理像素） */
+  x?: number;
+  /** 悬浮窗上次位置 Y（物理像素） */
+  y?: number;
+}
+
 // 应用设置
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -132,6 +148,7 @@ export interface AppSettings {
   autoStartInstanceId?: string; // 启动后自动执行的实例 ID（为空或 undefined 表示不自动执行）
   autoRunOnLaunch?: boolean; // 非开机自启动的手动启动场景下，是否也自动执行选定的实例（默认 false）
   autoStartRemovedInstanceName?: string; // 被删除的自动执行配置名称（用于提示用户）
+  logOverlay?: LogOverlaySettings; // 日志悬浮窗配置
 }
 
 // MXU 配置文件完整结构

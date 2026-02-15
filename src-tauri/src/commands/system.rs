@@ -331,3 +331,216 @@ pub fn get_system_info() -> SystemInfo {
         tauri_version,
     }
 }
+
+/// 创建日志悬浮窗
+/// x, y 为物理像素坐标（与 GetWindowRect 一致）
+#[tauri::command]
+pub async fn create_log_overlay_window(
+    app_handle: tauri::AppHandle,
+    x: i32,
+    y: i32,
+    width: f64,
+    height: f64,
+    always_on_top: bool,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let label = "log-overlay";
+
+    // 检查窗口是否已存在
+    if let Some(window) = app_handle.get_webview_window(label) {
+        info!("Log overlay window already exists");
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        &app_handle,
+        label,
+        tauri::WebviewUrl::App("log-overlay.html".into()),
+    )
+    .title("日志悬浮窗")
+    .inner_size(width, height)
+    .decorations(false)
+    .resizable(true)
+    .always_on_top(always_on_top)
+    .skip_taskbar(true)
+    .visible(false);
+
+    // transparent() 在 macOS 上需要 macos-private-api feature，仅 Windows 启用
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder
+    .build()
+    .map_err(|e| format!("Failed to create log overlay window: {}", e))?;
+
+    // 使用物理像素坐标设置位置（避免 DPI 缩放问题）
+    use tauri::PhysicalPosition;
+    window
+        .set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)))
+        .map_err(|e| format!("Failed to set position: {}", e))?;
+
+    window.show().map_err(|e| format!("Failed to show window: {}", e))?;
+
+    info!("Log overlay window created (always_on_top={}, pos=({},{}))", always_on_top, x, y);
+
+    Ok(())
+}
+
+/// 获取实例连接的窗口句柄（由 Rust 后端存储，前端直接查询）
+#[tauri::command]
+pub fn get_connected_window_handle(
+    state: tauri::State<std::sync::Arc<super::types::MaaState>>,
+    instance_id: String,
+) -> Result<Option<i64>, String> {
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    if let Some(instance) = instances.get(&instance_id) {
+        Ok(instance.connected_window_handle.map(|h| h as i64))
+    } else {
+        Ok(None)
+    }
+}
+
+/// 手动设置实例的跟随窗口句柄（用于 ADB 控制器手动选择模拟器窗口）
+#[tauri::command]
+pub fn set_connected_window_handle(
+    state: tauri::State<std::sync::Arc<super::types::MaaState>>,
+    instance_id: String,
+    handle: Option<i64>,
+) -> Result<(), String> {
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    if let Some(instance) = instances.get_mut(&instance_id) {
+        instance.connected_window_handle = handle.map(|h| h as u64);
+        info!(
+            "Manually set connected window handle for instance {}: {:?}",
+            instance_id, handle
+        );
+        Ok(())
+    } else {
+        Err("Instance not found".to_string())
+    }
+}
+
+/// 获取指定窗口的可见区域位置和大小 (物理像素, Windows only)
+///
+/// 返回 (x, y, width, height, scale_factor)
+/// 优先使用 DwmGetWindowAttribute(DWMWA_EXTENDED_FRAME_BOUNDS) 获取真实可见边界，
+/// 排除 Windows 10/11 不可见的扩展边框。回退到 GetWindowRect。
+/// scale_factor 为该窗口所在监视器的 DPI 缩放比 (如 1.0, 1.25, 1.5)。
+#[tauri::command]
+pub fn get_window_rect_by_handle(handle: i64) -> Result<(i32, i32, i32, i32, f64), String> {
+    #[cfg(windows)]
+    {
+        use windows::Win32::Foundation::{HWND, RECT};
+        use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+        use windows::Win32::UI::HiDpi::GetDpiForWindow;
+        use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
+
+        let hwnd = HWND(handle as *mut _);
+        let mut rect = RECT::default();
+
+        // 优先用 DWM 获取真实可见边界
+        let ok = unsafe {
+            DwmGetWindowAttribute(
+                hwnd,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                &mut rect as *mut RECT as *mut _,
+                std::mem::size_of::<RECT>() as u32,
+            )
+        };
+
+        if ok.is_err() {
+            unsafe {
+                GetWindowRect(hwnd, &mut rect)
+                    .map_err(|e| format!("GetWindowRect failed: {}", e))?;
+            }
+        }
+
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        let scale = if dpi > 0 { dpi as f64 / 96.0 } else { 1.0 };
+
+        Ok((rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, scale))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = handle;
+        Err("Not supported on this platform".to_string())
+    }
+}
+
+/// 将悬浮窗放置在目标窗口的上一层（z-order）
+#[tauri::command]
+pub async fn set_overlay_above_target(
+    app_handle: tauri::AppHandle,
+    target_handle: i64,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindow, SetWindowPos, GW_HWNDPREV, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE,
+            HWND_TOP,
+        };
+
+        let overlay = app_handle
+            .get_webview_window("log-overlay")
+            .ok_or("Overlay window not found")?;
+        let overlay_hwnd = overlay.hwnd().map_err(|e| format!("Failed to get overlay hwnd: {}", e))?;
+
+        let target_hwnd = HWND(target_handle as *mut _);
+        let overlay_win_hwnd = HWND(overlay_hwnd.0 as *mut _);
+        let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+
+        unsafe {
+            // 找到 target 上方的窗口，把 overlay 插到那下面（即 target 上方）
+            let insert_after = GetWindow(target_hwnd, GW_HWNDPREV)
+                .ok()
+                .filter(|h| !h.is_invalid())
+                .unwrap_or(HWND_TOP);
+
+            let _ = SetWindowPos(overlay_win_hwnd, insert_after, 0, 0, 0, 0, flags);
+        }
+
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app_handle, target_handle);
+        Ok(())
+    }
+}
+
+/// 设置悬浮窗是否始终置顶
+#[tauri::command]
+pub async fn set_overlay_always_on_top(
+    app_handle: tauri::AppHandle,
+    always_on_top: bool,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let overlay = app_handle
+        .get_webview_window("log-overlay")
+        .ok_or("Overlay window not found")?;
+
+    overlay
+        .set_always_on_top(always_on_top)
+        .map_err(|e| format!("Failed to set always_on_top: {}", e))?;
+
+    info!("Log overlay always_on_top set to {}", always_on_top);
+    Ok(())
+}
+
+/// 关闭日志悬浮窗
+#[tauri::command]
+pub async fn close_log_overlay(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(overlay) = app_handle.get_webview_window("log-overlay") {
+        overlay.close().map_err(|e| format!("Failed to close overlay: {}", e))?;
+    }
+    Ok(())
+}

@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import path from "path";
+import path, { resolve } from "path";
 import { readFileSync } from "node:fs";
 
 // @ts-expect-error process is a nodejs global
@@ -24,7 +24,17 @@ export default defineConfig(async () => ({
     __MXU_VERSION__: JSON.stringify(mxuVersion),
   },
   build: {
+    // 启用压缩以减小输出大小
+    minify: "esbuild",
+    // 禁用 source map 以加快构建速度（生产环境通常不需要）
+    sourcemap: false,
+    // 优化 chunk 大小
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        "log-overlay": resolve(__dirname, "log-overlay.html"),
+      },
       output: {
         manualChunks(id) {
           const normalizedId = id.replace(/\\/g, "/");

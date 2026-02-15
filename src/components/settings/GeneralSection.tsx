@@ -287,7 +287,7 @@ export function GeneralSection() {
         </div>
       </div>
 
-      {/* ⑧ 重置窗口布局 */}
+      {/* ⑨ 重置窗口布局 */}
       {isTauri() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">

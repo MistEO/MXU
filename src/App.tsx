@@ -447,6 +447,15 @@ function App() {
         }
       }, 0);
 
+      // 订阅连接状态变化，自动显示/隐藏日志悬浮窗
+      if (isTauri()) {
+        import('@/services/logOverlayService')
+          .then(({ subscribeConnectionStatus }) => {
+            subscribeConnectionStatus();
+          })
+          .catch((err) => log.warn('订阅日志悬浮窗状态失败:', err));
+      }
+
       // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
       // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
       if (isTauri()) {

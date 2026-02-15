@@ -274,6 +274,9 @@ export default {
     waitForExit: '終了を待機',
     waitForExitHintPre:
       '有効にするとプロセスが終了するまで待機してから続行します。プログラム実行など同期操作に適しています。無効にするとプロセス起動後すぐに続行し、デバイス接続状態をポーリングします。ゲーム起動など非同期シナリオに適しています',
+    delayAfter: '実行後の待機',
+    delayAfterPlaceholder: '待機時間（秒）',
+    delayAfterSuffix: '秒',
     waitingForDevice: 'デバイスの準備を待機中...',
     waitingForWindow: 'ウィンドウの準備を待機中...',
     deviceReady: 'デバイスが準備完了',
@@ -284,6 +287,8 @@ export default {
     preActionCompleted: '前処理プログラム完了',
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
+    delayAfterWaiting: '{{seconds}}秒待機中...',
+    delayAfterCompleted: '待機完了',
   },
 
   // オプションエディタ

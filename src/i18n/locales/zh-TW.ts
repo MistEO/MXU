@@ -268,6 +268,9 @@ export default {
     waitForExit: '等待退出',
     waitForExitHintPre:
       '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
+    delayAfter: '執行後等待',
+    delayAfterPlaceholder: '等待時間（秒）',
+    delayAfterSuffix: '秒',
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',
     deviceReady: '裝置已就緒',
@@ -278,6 +281,8 @@ export default {
     preActionCompleted: '前置程式執行完成',
     preActionFailed: '前置程式執行失敗: {{error}}',
     preActionExitCode: '前置程式結束碼: {{code}}',
+    delayAfterWaiting: '等待 {{seconds}} 秒...',
+    delayAfterCompleted: '等待完成',
   },
 
   // 選項編輯器

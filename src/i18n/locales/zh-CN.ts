@@ -269,6 +269,9 @@ export default {
     waitForExit: '等待退出',
     waitForExitHintPre:
       '启用时等待进程退出后再继续，适用于执行程序等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
+    delayAfter: '执行后等待',
+    delayAfterPlaceholder: '等待时间（秒）',
+    delayAfterSuffix: '秒',
     waitingForDevice: '正在等待设备就绪...',
     waitingForWindow: '正在等待窗口就绪...',
     deviceReady: '设备已就绪',
@@ -279,6 +282,8 @@ export default {
     preActionCompleted: '前置程序执行完成',
     preActionFailed: '前置程序执行失败: {{error}}',
     preActionExitCode: '前置程序退出码: {{code}}',
+    delayAfterWaiting: '等待 {{seconds}} 秒...',
+    delayAfterCompleted: '等待完成',
   },
 
   // 选项编辑器

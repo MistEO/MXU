@@ -275,6 +275,9 @@ export default {
     waitForExit: 'Wait for Exit',
     waitForExitHintPre:
       'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+    delayAfter: 'Delay After',
+    delayAfterPlaceholder: 'Wait time (seconds)',
+    delayAfterSuffix: 'seconds',
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',
@@ -285,6 +288,8 @@ export default {
     preActionCompleted: 'Pre-program completed',
     preActionFailed: 'Pre-program failed: {{error}}',
     preActionExitCode: 'Pre-program exit code: {{code}}',
+    delayAfterWaiting: 'Waiting {{seconds}} seconds...',
+    delayAfterCompleted: 'Wait completed',
   },
 
   // Option Editor

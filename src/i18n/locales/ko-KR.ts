@@ -273,6 +273,9 @@ export default {
     waitForExit: '종료 대기',
     waitForExitHintPre:
       '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 프로그램 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 계속하고 장치 연결 상태를 폴링합니다. 게임 시작과 같은 비동기 시나리오에 적합합니다',
+    delayAfter: '실행 후 대기',
+    delayAfterPlaceholder: '대기 시간 (초)',
+    delayAfterSuffix: '초',
     waitingForDevice: '장치 준비 대기 중...',
     waitingForWindow: '윈도우 준비 대기 중...',
     deviceReady: '장치 준비 완료',
@@ -283,6 +286,8 @@ export default {
     preActionCompleted: '전처리 프로그램 완료',
     preActionFailed: '전처리 프로그램 실패: {{error}}',
     preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
+    delayAfterWaiting: '{{seconds}}초 대기 중...',
+    delayAfterCompleted: '대기 완료',
   },
 
   // 옵션 에디터

@@ -4,7 +4,7 @@ import { ChevronRight, X, Play, GripVertical } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
-import { FileField, TextField, SwitchField } from './FormControls';
+import { FileField, TextField, SwitchField, NumberField } from './FormControls';
 
 interface ActionItemProps {
   instanceId: string;
@@ -17,6 +17,7 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
+  delayAfter: 30,
 };
 
 export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
@@ -178,6 +179,16 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               hint={t('action.waitForExitHintPre')}
               value={currentAction.waitForExit}
               onChange={(v) => updateAction({ waitForExit: v })}
+              disabled={disabled}
+            />
+
+            {/* 执行后等待时间 */}
+            <NumberField
+              label={t('action.delayAfter')}
+              value={currentAction.delayAfter ?? 10}
+              onChange={(v) => updateAction({ delayAfter: v })}
+              min={0}
+              suffix={t('action.delayAfterSuffix')}
               disabled={disabled}
             />
           </div>

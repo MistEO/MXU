@@ -415,6 +415,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 });
               }
             }
+
+            // 如果设置了延迟时间，等待指定秒数
+            if (targetInstance.preAction.delayAfter && targetInstance.preAction.delayAfter > 0) {
+              const delaySeconds = targetInstance.preAction.delayAfter;
+              log.info(`实例 ${targetInstance.name}: 等待 ${delaySeconds} 秒...`);
+              addLog(targetId, {
+                type: 'info',
+                message: t('action.delayAfterWaiting', { seconds: delaySeconds }),
+              });
+              await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+              addLog(targetId, {
+                type: 'success',
+                message: t('action.delayAfterCompleted'),
+              });
+            }
           } catch (err) {
             log.error(`实例 ${targetInstance.name}: 前置动作执行失败:`, err);
             addLog(targetId, {

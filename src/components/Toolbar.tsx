@@ -16,7 +16,6 @@ import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
-import type { AgentConfig as MaaAgentConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';

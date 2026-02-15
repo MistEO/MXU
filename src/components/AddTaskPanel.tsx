@@ -10,6 +10,7 @@ import { Tooltip } from './ui/Tooltip';
 import type { TaskItem, ActionConfig } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import { getAllMxuSpecialTasks } from '@/types/specialTasks';
+import { DEFAULT_DELAY_AFTER } from './ActionItem';
 import clsx from 'clsx';
 
 const log = loggers.task;
@@ -124,7 +125,7 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
-  delayAfter: 30,
+  delayAfter: DEFAULT_DELAY_AFTER,
 };
 
 export function AddTaskPanel() {

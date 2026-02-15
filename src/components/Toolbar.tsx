@@ -417,14 +417,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             }
 
             // 如果设置了延迟时间，等待指定秒数
-            if (targetInstance.preAction.delayAfter && targetInstance.preAction.delayAfter > 0) {
-              const delaySeconds = targetInstance.preAction.delayAfter;
-              log.info(`实例 ${targetInstance.name}: 等待 ${delaySeconds} 秒...`);
+            const delayAfter = targetInstance.preAction.delayAfter;
+            if (
+              delayAfter != null &&
+              typeof delayAfter === 'number' &&
+              isFinite(delayAfter) &&
+              delayAfter > 0
+            ) {
+              log.info(`实例 ${targetInstance.name}: 等待 ${delayAfter} 秒...`);
               addLog(targetId, {
                 type: 'info',
-                message: t('action.delayAfterWaiting', { seconds: delaySeconds }),
+                message: t('action.delayAfterWaiting', { seconds: delayAfter }),
               });
-              await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+              await new Promise((resolve) => setTimeout(resolve, delayAfter * 1000));
               addLog(targetId, {
                 type: 'success',
                 message: t('action.delayAfterCompleted'),

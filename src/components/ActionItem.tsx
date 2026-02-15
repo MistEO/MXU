@@ -6,6 +6,8 @@ import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
 import { FileField, TextField, SwitchField, NumberField } from './FormControls';
 
+export const DEFAULT_DELAY_AFTER = 30;
+
 interface ActionItemProps {
   instanceId: string;
   action: ActionConfig | undefined;
@@ -17,7 +19,7 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
-  delayAfter: 30,
+  delayAfter: DEFAULT_DELAY_AFTER,
 };
 
 export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
@@ -185,7 +187,7 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
             {/* 执行后等待时间 */}
             <NumberField
               label={t('action.delayAfter')}
-              value={currentAction.delayAfter ?? 10}
+              value={currentAction.delayAfter ?? DEFAULT_DELAY_AFTER}
               onChange={(v) => updateAction({ delayAfter: v })}
               min={0}
               suffix={t('action.delayAfterSuffix')}

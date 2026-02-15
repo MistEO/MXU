@@ -135,7 +135,7 @@ export function TitleBar() {
           )}
         </div>
         <span
-          className="text-xs text-text-secondary px-2 truncate max-w-[200px]"
+          className="text-xs text-text-secondary px-2 truncate max-w-lg"
           data-tauri-drag-region
         >
           {getWindowTitle()}

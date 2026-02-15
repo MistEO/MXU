@@ -222,11 +222,12 @@ async fn start_single_agent(
         child.id()
     );
 
-    // 创建 agent 日志文件（多 agent 时使用不同文件名）
+    // 创建 agent 日志文件（多 agent、多实例时使用不同文件名，包含进程 PID）
+    let pid = child.id();
     let log_filename = if agent_index == 0 {
-        "mxu-agent.log".to_string()
+        format!("mxu-agent-{}.log", pid)
     } else {
-        format!("mxu-agent-{}.log", agent_index)
+        format!("mxu-agent-{}-{}.log", agent_index, pid)
     };
     let agent_log_file = get_logs_dir().join(&log_filename);
     let log_file = Arc::new(Mutex::new(
@@ -360,14 +361,19 @@ async fn start_single_agent(
             .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
         let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
-        // 将 child 保存到 instance 中以便后续清理
-        let mut instances = state
-            .instances
-            .lock()
-            .map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
-        if let Some(instance) = instances.get_mut(instance_id) {
-            instance.agent_children.push(child);
+        // 直接终止未成功连接的子进程，避免无用的后台进程残留
+        if let Err(e) = child.kill() {
+            warn!(
+                "[agent#{}] Failed to kill agent child process after connection failure: {}",
+                agent_index, e
+            );
+        } else if let Err(e) = child.wait() {
+            warn!(
+                "[agent#{}] Failed to wait on agent child process after connection failure: {}",
+                agent_index, e
+            );
         }
+
         unsafe {
             (lib.maa_agent_client_destroy)(agent_client.as_ptr());
         }
@@ -564,6 +570,7 @@ pub async fn maa_start_tasks(
                         }
                         for mut child in started_children {
                             let _ = child.kill();
+                            let _ = child.wait();
                         }
 
                         return Err(e);

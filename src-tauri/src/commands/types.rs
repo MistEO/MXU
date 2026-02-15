@@ -174,9 +174,10 @@ impl Drop for InstanceRuntime {
                         (lib.maa_agent_client_disconnect)(agent);
                         (lib.maa_agent_client_destroy)(agent);
                     }
-                    // 终止所有 agent 子进程
+                    // 终止并回收所有 agent 子进程
                     for mut child in self.agent_children.drain(..) {
                         let _ = child.kill();
+                        let _ = child.wait();
                     }
                     if let Some(tasker) = self.tasker.take() {
                         (lib.maa_tasker_destroy)(tasker);
@@ -230,6 +231,8 @@ impl MaaState {
                             e
                         );
                     }
+                    // 回收子进程，避免 *nix 上产生僵尸进程
+                    let _ = child.wait();
                 }
             }
         }

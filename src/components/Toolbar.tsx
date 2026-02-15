@@ -169,7 +169,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             log.info('所有任务执行完成');
 
             // 停止 Agent（如果有）
-            if (normalizeAgentConfigs(projectInterface?.agent)) {
+            const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+            if (agentConfigs && agentConfigs.length > 0) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
@@ -210,7 +211,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             log.info('所有任务执行完毕（有任务失败）');
 
             // 停止 Agent（如果有）
-            if (normalizeAgentConfigs(projectInterface?.agent)) {
+            const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+            if (agentConfigs && agentConfigs.length > 0) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
@@ -796,7 +798,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       } catch (err) {
         log.error(`实例 ${targetInstance.name}: 任务启动异常:`, err);
 
-        if (normalizeAgentConfigs(projectInterface?.agent)) {
+        const failedAgentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+        if (failedAgentConfigs && failedAgentConfigs.length > 0) {
           try {
             await maaService.stopAgent(targetId);
           } catch {
@@ -1006,7 +1009,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
         return;
       }
-      if (normalizeAgentConfigs(projectInterface?.agent)) {
+      const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+      if (agentConfigs && agentConfigs.length > 0) {
         // 任务已停止后再断开 agent，避免释放顺序问题
         await maaService.stopAgent(targetInstanceId);
       }

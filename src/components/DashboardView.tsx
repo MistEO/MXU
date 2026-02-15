@@ -195,7 +195,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           log.info(`[${instanceName}] 停止任务...`);
           setIsStopping(true);
           await maaService.stopTask(instanceId);
-          if (normalizeAgentConfigs(projectInterface?.agent)) {
+          const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+          if (agentConfigs && agentConfigs.length > 0) {
             await maaService.stopAgent(instanceId);
           }
           updateInstance(instanceId, { isRunning: false });
@@ -302,7 +303,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           setIsStarting(false);
         } catch (err) {
           log.error(`[${instanceName}] 任务启动异常:`, err);
-          if (normalizeAgentConfigs(projectInterface?.agent)) {
+          const failedAgentConfigs = normalizeAgentConfigs(projectInterface?.agent);
+          if (failedAgentConfigs && failedAgentConfigs.length > 0) {
             try {
               await maaService.stopAgent(instanceId);
             } catch {

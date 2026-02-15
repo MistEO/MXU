@@ -29,7 +29,8 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
-import type { TaskConfig, AgentConfig } from '@/types/maa';
+import type { TaskConfig } from '@/types/maa';
+import { normalizeAgentConfigs } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 
@@ -194,7 +195,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           log.info(`[${instanceName}] 停止任务...`);
           setIsStopping(true);
           await maaService.stopTask(instanceId);
-          if (projectInterface?.agent) {
+          if (normalizeAgentConfigs(projectInterface?.agent)) {
             await maaService.stopAgent(instanceId);
           }
           updateInstance(instanceId, { isRunning: false });
@@ -247,16 +248,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             return;
           }
 
-          // 准备 Agent 配置
-          let agentConfig: AgentConfig | undefined;
-          if (projectInterface?.agent) {
-            agentConfig = {
-              child_exec: projectInterface.agent.child_exec,
-              child_args: projectInterface.agent.child_args,
-              identifier: projectInterface.agent.identifier,
-              timeout: projectInterface.agent.timeout,
-            };
-          }
+          // 准备 Agent 配置（支持单个或多个 Agent）
+          const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
 
           updateInstance(instanceId, { isRunning: true });
           setInstanceTaskStatus(instanceId, 'Running');
@@ -266,7 +259,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           const taskIds = await maaService.startTasks(
             instanceId,
             taskConfigs,
-            agentConfig,
+            agentConfigs,
             basePath,
             tcpCompatMode,
           );
@@ -309,7 +302,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           setIsStarting(false);
         } catch (err) {
           log.error(`[${instanceName}] 任务启动异常:`, err);
-          if (projectInterface?.agent) {
+          if (normalizeAgentConfigs(projectInterface?.agent)) {
             try {
               await maaService.stopAgent(instanceId);
             } catch {

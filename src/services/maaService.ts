@@ -356,7 +356,7 @@ export const maaService = {
    * 启动任务（支持 Agent）
    * @param instanceId 实例 ID
    * @param tasks 任务列表
-   * @param agentConfig Agent 配置（可选）
+   * @param agentConfigs Agent 配置列表（可选，支持多个 Agent）
    * @param cwd 工作目录（Agent 子进程的 CWD）
    * @param tcpCompatMode 通信兼容模式（强制使用 TCP）
    * @returns 任务 ID 列表
@@ -364,7 +364,7 @@ export const maaService = {
   async startTasks(
     instanceId: string,
     tasks: TaskConfig[],
-    agentConfig?: AgentConfig,
+    agentConfigs?: AgentConfig[],
     cwd?: string,
     tcpCompatMode?: boolean,
   ): Promise<number[]> {
@@ -372,8 +372,15 @@ export const maaService = {
     tasks.forEach((task, i) => {
       log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${task.pipeline_override}`);
     });
-    if (agentConfig) {
-      log.info('Agent 配置:', JSON.stringify(agentConfig), ', tcpCompatMode:', tcpCompatMode);
+    if (agentConfigs && agentConfigs.length > 0) {
+      log.info(
+        'Agent 配置:',
+        JSON.stringify(agentConfigs),
+        ', 数量:',
+        agentConfigs.length,
+        ', tcpCompatMode:',
+        tcpCompatMode,
+      );
     }
     if (!isTauri()) {
       return tasks.map((_, i) => i + 1);
@@ -381,7 +388,7 @@ export const maaService = {
     const taskIds = await invoke<number[]>('maa_start_tasks', {
       instanceId,
       tasks,
-      agentConfig: agentConfig || null,
+      agentConfigs: agentConfigs && agentConfigs.length > 0 ? agentConfigs : null,
       cwd: cwd || '.',
       tcpCompatMode: tcpCompatMode || false,
     });

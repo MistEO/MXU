@@ -134,8 +134,8 @@ pub struct InstanceRuntime {
     pub resource: Option<*mut MaaResource>,
     pub controller: Option<*mut MaaController>,
     pub tasker: Option<*mut MaaTasker>,
-    pub agent_client: Option<*mut MaaAgentClient>,
-    pub agent_child: Option<Child>,
+    pub agent_clients: Vec<*mut MaaAgentClient>,
+    pub agent_children: Vec<Child>,
     /// 当前运行的任务 ID 列表（用于刷新后恢复状态）
     pub task_ids: Vec<i64>,
     /// 是否正在停止任务（用于防重复 stop）
@@ -155,8 +155,8 @@ impl Default for InstanceRuntime {
             resource: None,
             controller: None,
             tasker: None,
-            agent_client: None,
-            agent_child: None,
+            agent_clients: Vec::new(),
+            agent_children: Vec::new(),
             task_ids: Vec::new(),
             stop_in_progress: false,
             stop_started_at: None,
@@ -169,13 +169,13 @@ impl Drop for InstanceRuntime {
         if let Ok(guard) = MAA_LIBRARY.lock() {
             if let Some(lib) = guard.as_ref() {
                 unsafe {
-                    // 断开并销毁 agent
-                    if let Some(agent) = self.agent_client.take() {
+                    // 断开并销毁所有 agent
+                    for agent in self.agent_clients.drain(..) {
                         (lib.maa_agent_client_disconnect)(agent);
                         (lib.maa_agent_client_destroy)(agent);
                     }
-                    // 终止 agent 子进程
-                    if let Some(mut child) = self.agent_child.take() {
+                    // 终止所有 agent 子进程
+                    for mut child in self.agent_children.drain(..) {
                         let _ = child.kill();
                     }
                     if let Some(tasker) = self.tasker.take() {
@@ -221,7 +221,7 @@ impl MaaState {
     pub fn cleanup_all_agent_children(&self) {
         if let Ok(mut instances) = self.instances.lock() {
             for (id, instance) in instances.iter_mut() {
-                if let Some(mut child) = instance.agent_child.take() {
+                for mut child in instance.agent_children.drain(..) {
                     log::info!("Killing agent child process for instance: {}", id);
                     if let Err(e) = child.kill() {
                         log::warn!(

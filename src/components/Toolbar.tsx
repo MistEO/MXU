@@ -15,7 +15,9 @@ import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
-import type { TaskConfig, AgentConfig, ControllerConfig } from '@/types/maa';
+import type { TaskConfig, ControllerConfig } from '@/types/maa';
+import type { AgentConfig as MaaAgentConfig } from '@/types/maa';
+import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
 import type { Instance } from '@/types/interface';
@@ -168,7 +170,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             log.info('所有任务执行完成');
 
             // 停止 Agent（如果有）
-            if (projectInterface?.agent) {
+            if (normalizeAgentConfigs(projectInterface?.agent)) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
@@ -209,7 +211,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             log.info('所有任务执行完毕（有任务失败）');
 
             // 停止 Agent（如果有）
-            if (projectInterface?.agent) {
+            if (normalizeAgentConfigs(projectInterface?.agent)) {
               maaService.stopAgent(runningInstanceId).catch((err) => {
                 log.error('停止 Agent 失败:', err);
               });
@@ -727,16 +729,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           return false;
         }
 
-        // 准备 Agent 配置
-        let agentConfig: AgentConfig | undefined;
-        if (projectInterface?.agent) {
-          agentConfig = {
-            child_exec: projectInterface.agent.child_exec,
-            child_args: projectInterface.agent.child_args,
-            identifier: projectInterface.agent.identifier,
-            timeout: projectInterface.agent.timeout,
-          };
-        }
+        // 准备 Agent 配置（支持单个或多个 Agent）
+        const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
 
         updateInstance(targetId, { isRunning: true });
         setInstanceTaskStatus(targetId, 'Running');
@@ -754,7 +748,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         const taskIds = await maaService.startTasks(
           targetId,
           taskConfigs,
-          agentConfig,
+          agentConfigs,
           basePath,
           tcpCompatMode,
         );
@@ -803,7 +797,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       } catch (err) {
         log.error(`实例 ${targetInstance.name}: 任务启动异常:`, err);
 
-        if (projectInterface?.agent) {
+        if (normalizeAgentConfigs(projectInterface?.agent)) {
           try {
             await maaService.stopAgent(targetId);
           } catch {
@@ -1013,7 +1007,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
         return;
       }
-      if (projectInterface?.agent) {
+      if (normalizeAgentConfigs(projectInterface?.agent)) {
         // 任务已停止后再断开 agent，避免释放顺序问题
         await maaService.stopAgent(targetInstanceId);
       }

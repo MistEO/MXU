@@ -1,10 +1,8 @@
 pub mod commands;
-mod maa_ffi;
 mod mxu_actions;
 mod tray;
 
 use commands::MaaState;
-use maa_ffi::MaaLibraryError;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
@@ -48,9 +46,6 @@ pub fn run() {
             let maa_state = Arc::new(MaaState::default());
             app.manage(maa_state);
 
-            // 存储 AppHandle 供 MaaFramework 回调使用（发送事件到前端）
-            maa_ffi::set_app_handle(app.handle().clone());
-
             // Windows 下移除系统标题栏（使用自定义标题栏）
             // macOS/Linux 保留完整的原生标题栏
             #[cfg(target_os = "windows")]
@@ -84,18 +79,25 @@ pub fn run() {
             // 启动时自动加载 MaaFramework DLL
             if let Ok(maafw_dir) = commands::get_maafw_dir() {
                 if maafw_dir.exists() {
-                    match maa_ffi::init_maa_library(&maafw_dir) {
-                        Ok(()) => log::info!("MaaFramework loaded from {:?}", maafw_dir),
+                    #[cfg(windows)]
+                    let dll_path = maafw_dir.join("MaaFramework.dll");
+                    #[cfg(target_os = "macos")]
+                    let dll_path = maafw_dir.join("libMaaFramework.dylib");
+                    #[cfg(target_os = "linux")]
+                    let dll_path = maafw_dir.join("libMaaFramework.so");
+
+                    match maa_framework::load_library(&dll_path) {
+                        Ok(()) => log::info!("MaaFramework loaded from {:?}", dll_path),
                         Err(e) => {
                             log::error!("Failed to load MaaFramework: {}", e);
                             // 检查是否是 DLL 存在但加载失败的情况（可能是运行库缺失）
-                            if let MaaLibraryError::LoadFailed { dlls_exist: true, error, .. } = &e {
+                            if dll_path.exists() {
                                 log::warn!(
                                     "DLLs exist but failed to load, possibly missing VC++ runtime: {}",
-                                    error
+                                    e
                                 );
                                 // 设置标记，前端加载完成后会查询此标记
-                                maa_ffi::set_vcredist_missing(true);
+                                commands::system::set_vcredist_missing(true);
                             }
                         }
                     }

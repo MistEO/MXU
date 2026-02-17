@@ -18,7 +18,9 @@ use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
 use super::types::{AgentConfig, MaaState, TaskConfig};
-use super::utils::{get_logs_dir, normalize_path};
+use super::utils::{emit_callback_event, get_logs_dir, normalize_path};
+use regex::Regex;
+use std::sync::LazyLock;
 
 /// Agent 输出事件载荷
 #[derive(Clone, serde::Serialize)]
@@ -26,12 +28,6 @@ pub struct AgentOutputEvent {
     pub instance_id: String,
     pub stream: String,
     pub line: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-pub struct MaaCallbackEvent {
-    pub message: String,
-    pub details: String,
 }
 
 /// 发送 Agent 输出事件
@@ -46,22 +42,12 @@ fn emit_agent_output(app: &tauri::AppHandle, instance_id: &str, stream: &str, li
     }
 }
 
-/// 发送回调事件到前端
-fn emit_callback_event<S: Into<String>>(app: &tauri::AppHandle, message: S, details: S) {
-    let event = MaaCallbackEvent {
-        message: message.into(),
-        details: details.into(),
-    };
-    if let Err(e) = app.emit("maa-callback", event) {
-        log::error!("Failed to emit maa-callback: {}", e);
-    }
-}
-
 /// 移除 ANSI 转义序列
+static ANSI_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07?").unwrap());
+
 fn strip_ansi_escapes(s: &str) -> String {
-    // 去除常见的 ANSI 转义
-    let re = regex::Regex::new(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07?").unwrap();
-    re.replace_all(s, "").into_owned()
+    ANSI_RE.replace_all(s, "").into_owned()
 }
 
 /// 启动单个 Agent 子进程并完成连接
@@ -323,10 +309,9 @@ pub async fn maa_start_tasks(
 
     // 启动所有 Agent（如果配置了）
     debug!("[start_tasks] Checking agent configs...");
-    let has_agents = if let Some(configs) = agent_configs {
+    if let Some(configs) = agent_configs {
         if configs.is_empty() {
             debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
-            false
         } else {
             info!("[start_tasks] Starting {} agent(s)...", configs.len());
 
@@ -389,11 +374,11 @@ pub async fn maa_start_tasks(
                 "[start_tasks] All {} agent(s) started successfully",
                 configs.len()
             );
-            true
+
+            info!("[start_tasks] Tasks started with agent(s)");
         }
     } else {
         debug!("[start_tasks] No agent configs, skipping agent setup");
-        false
     };
 
     debug!("[start_tasks] Checking tasker inited status...");
@@ -445,10 +430,6 @@ pub async fn maa_start_tasks(
         }
     }
     debug!("[start_tasks] Task_ids cached");
-
-    if has_agents {
-        info!("[start_tasks] Tasks started with agent(s)");
-    }
 
     info!(
         "[start_tasks] maa_start_tasks completed successfully, returning {} task_ids",

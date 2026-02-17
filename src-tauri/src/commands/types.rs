@@ -192,6 +192,13 @@ impl MaaState {
     }
 }
 
+/// Maa回调事件
+#[derive(Clone, Serialize, Deserialize)]
+pub struct MaaCallbackEvent {
+    pub message: String,
+    pub details: String,
+}
+
 /// Agent 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {

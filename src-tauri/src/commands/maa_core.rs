@@ -6,7 +6,7 @@ use log::{debug, error, info, warn};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tauri::{Emitter, State};
+use tauri::State;
 
 use maa_framework::controller::{AdbControllerBuilder, Controller};
 use maa_framework::resource::Resource;
@@ -18,27 +18,10 @@ use super::types::{
     AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
     Win32Window,
 };
-use super::utils::{get_maafw_dir, normalize_path};
+use super::utils::{emit_callback_event, get_maafw_dir, normalize_path};
 
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
-
-/// 辅助函数：发送回调事件到前端
-fn emit_callback_event<S: Into<String>>(app: &tauri::AppHandle, message: S, details: S) {
-    let event = MaaCallbackEvent {
-        message: message.into(),
-        details: details.into(),
-    };
-    if let Err(e) = app.emit("maa-callback", event) {
-        error!("Failed to emit maa-callback: {}", e);
-    }
-}
-
-#[derive(Clone, serde::Serialize)]
-pub struct MaaCallbackEvent {
-    pub message: String,
-    pub details: String,
-}
 
 // ============================================================================
 // 初始化和版本命令
@@ -378,8 +361,13 @@ pub async fn maa_connect_controller(
                     .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
 
                 AdbControllerBuilder::new(adb_path, address)
-                    .screencap_methods(unsafe { std::mem::transmute(screencap) })
-                    .input_methods(unsafe { std::mem::transmute(input) })
+                    .screencap_methods(
+                        maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap)
+                            .bits(),
+                    )
+                    .input_methods(
+                        maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
+                    )
                     .config(config)
                     .agent_path(&agent_path)
                     .build()
@@ -394,9 +382,14 @@ pub async fn maa_connect_controller(
                 let hwnd = *handle as *mut std::ffi::c_void;
                 Controller::new_win32(
                     hwnd,
-                    unsafe { std::mem::transmute(*screencap_method) },
-                    unsafe { std::mem::transmute(*mouse_method) },
-                    unsafe { std::mem::transmute(*keyboard_method) },
+                    maa_framework::common::Win32ScreencapMethod::from_bits_truncate(
+                        *screencap_method,
+                    )
+                    .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method)
+                        .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method)
+                        .bits(),
                 )
                 .map_err(|e| e.to_string())?
             }
@@ -754,7 +747,9 @@ pub fn maa_get_cached_image(
         .ok_or("Controller not connected")?;
 
     let buffer = controller.cached_image().map_err(|e| e.to_string())?;
-    let data = buffer.to_vec().unwrap_or_default();
+    let data = buffer
+        .to_vec()
+        .ok_or("Failed to convert image buffer".to_string())?;
 
     if data.is_empty() {
         return Err("No image data available".to_string());

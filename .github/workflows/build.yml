@@ -145,17 +145,23 @@ jobs:
           $uri = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/$guid/$cabName"
 
           Write-Host "Downloading $cabName from Microsoft CDN ..."
-          Invoke-WebRequest -Uri $uri -OutFile $cabName
+          Invoke-WebRequest -Uri $uri -OutFile $cabName -ErrorAction Stop
 
           $tempDir = "temp_wv2"
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
           expand.exe $cabName -F:* $tempDir
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to extract $cabName with exit code $LASTEXITCODE"
+          }
 
           $dest = "install\webview2_runtime"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
           # cab 解压后文件在版本子目录中，将其内容移动到 webview2_runtime/
           $versionDir = Get-ChildItem $tempDir -Directory | Where-Object { $_.Name -like "Microsoft.WebView2*" } | Select-Object -First 1
+          if (-not $versionDir -and (Get-ChildItem $tempDir).Count -eq 0) {
+            throw "No files found after extracting $cabName"
+          }
           if ($versionDir) {
             Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse -Force -ErrorAction Stop
           } else {

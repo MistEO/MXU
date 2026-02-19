@@ -15,10 +15,22 @@ fn main() {
                 // 确保目录存在
                 let _ = std::fs::create_dir_all(&webview_data_dir);
                 std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview_data_dir);
+
+                // 检测内置的 WebView2 固定版本运行时
+                let webview2_runtime_dir = exe_dir.join("webview2_runtime");
+                if webview2_runtime_dir.exists() {
+                    std::env::set_var(
+                        "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
+                        &webview2_runtime_dir,
+                    );
+                }
             }
         }
 
-        if !webview2::ensure_webview2() {
+        // 未内置 WebView2 运行时时，检测系统是否已安装，未安装则自动下载安装
+        if std::env::var_os("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER").is_none()
+            && !webview2::ensure_webview2()
+        {
             std::process::exit(1);
         }
 

@@ -126,6 +126,43 @@ jobs:
           name: MXU-win-${{ matrix.arch }}
           path: "install"
 
+      - name: Copy WebView2 Runtime for fixed-webview variant
+        if: matrix.arch == 'x86_64'
+        shell: pwsh
+        run: |
+          # 优先使用 WebView2 Runtime，其次使用 Edge 安装目录
+          $wv2Base = "C:\Program Files (x86)\Microsoft\EdgeWebView\Application"
+          if (-not (Test-Path $wv2Base)) {
+            $wv2Base = "C:\Program Files (x86)\Microsoft\Edge\Application"
+          }
+          if (-not (Test-Path $wv2Base)) {
+            Write-Error "Neither WebView2 Runtime nor Edge found"
+            exit 1
+          }
+          $versionDir = Get-ChildItem $wv2Base -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+' } |
+            Sort-Object { [version]($_.Name -replace '-.*$','') } -Descending |
+            Select-Object -First 1
+          if (-not $versionDir) {
+            Write-Error "No WebView2 version directory found in $wv2Base"
+            exit 1
+          }
+          $dest = "install\webview2_runtime"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse
+          # 删除不需要的 Installer 子目录以减小体积
+          if (Test-Path "$dest\Installer") {
+            Remove-Item -Path "$dest\Installer" -Recurse -Force
+          }
+          Write-Host "Copied WebView2 runtime $($versionDir.Name) from $wv2Base"
+
+      - name: Upload fixed-webview artifacts
+        if: matrix.arch == 'x86_64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: MXU-win-${{ matrix.arch }}-fixed-webview
+          path: "install"
+
   linux:
     needs: meta
     runs-on: ubuntu-latest

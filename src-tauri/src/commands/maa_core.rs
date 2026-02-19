@@ -57,7 +57,14 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         extern "system" {
             fn SetDllDirectoryW(path: *const u16) -> i32;
         }
-        let wide_path: Vec<u16> = lib_path
+
+        let dll_dir = if lib_path.is_file() {
+            lib_path.parent().unwrap_or(&lib_path)
+        } else {
+            &lib_path
+        };
+
+        let wide_path: Vec<u16> = dll_dir
             .as_os_str()
             .encode_wide()
             .chain(std::iter::once(0))
@@ -66,7 +73,7 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         if result == 0 {
             warn!("SetDllDirectoryW failed");
         } else {
-            debug!("SetDllDirectoryW set to {:?}", lib_path);
+            debug!("SetDllDirectoryW set to {:?}", dll_dir);
         }
     }
 

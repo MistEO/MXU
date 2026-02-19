@@ -130,23 +130,33 @@ jobs:
         if: matrix.arch == 'x86_64'
         shell: pwsh
         run: |
-          # 优先使用 WebView2 Runtime，其次使用 Edge 安装目录
-          $wv2Base = "C:\Program Files (x86)\Microsoft\EdgeWebView\Application"
-          if (-not (Test-Path $wv2Base)) {
-            $wv2Base = "C:\Program Files (x86)\Microsoft\Edge\Application"
+          # 搜索所有可能的 WebView2/Edge 安装路径（x86 + 64-bit）
+          $candidateBases = @(
+            "C:\Program Files (x86)\Microsoft\EdgeWebView\Application",
+            "C:\Program Files\Microsoft\EdgeWebView\Application",
+            "C:\Program Files (x86)\Microsoft\Edge\Application",
+            "C:\Program Files\Microsoft\Edge\Application"
+          )
+
+          # 从所有存在的路径中收集版本目录，选取最新版本
+          $allVersionDirs = @()
+          foreach ($base in $candidateBases) {
+            if (Test-Path $base) {
+              $dirs = Get-ChildItem $base -Directory |
+                Where-Object { $_.Name -match '^\d+\.\d+' }
+              if ($dirs) { $allVersionDirs += $dirs }
+            }
           }
-          if (-not (Test-Path $wv2Base)) {
-            Write-Error "Neither WebView2 Runtime nor Edge found"
+
+          if ($allVersionDirs.Count -eq 0) {
+            Write-Error "No WebView2/Edge runtime found in any of the probed paths"
             exit 1
           }
-          $versionDir = Get-ChildItem $wv2Base -Directory |
-            Where-Object { $_.Name -match '^\d+\.\d+' } |
+
+          $versionDir = $allVersionDirs |
             Sort-Object { [version]($_.Name -replace '-.*$','') } -Descending |
             Select-Object -First 1
-          if (-not $versionDir) {
-            Write-Error "No WebView2 version directory found in $wv2Base"
-            exit 1
-          }
+
           $dest = "install\webview2_runtime"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
           Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse
@@ -154,7 +164,7 @@ jobs:
           if (Test-Path "$dest\Installer") {
             Remove-Item -Path "$dest\Installer" -Recurse -Force
           }
-          Write-Host "Copied WebView2 runtime $($versionDir.Name) from $wv2Base"
+          Write-Host "Copied WebView2 runtime $($versionDir.Name) from $($versionDir.Parent.FullName)"
 
       - name: Upload fixed-webview artifacts
         if: matrix.arch == 'x86_64'

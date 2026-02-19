@@ -129,17 +129,22 @@ jobs:
       - name: Download WebView2 Fixed Version Runtime
         shell: pwsh
         run: |
+          # 从微软官方 CDN 下载 WebView2 Fixed Version Runtime
+          # 更新版本时需同步更新 $version 和 $guidMap 中的 GUID
+          # GUID 可在 https://developer.microsoft.com/en-us/microsoft-edge/webview2/ 页面从 Fixed Version 的下载链接中获取
+          # 或前往 Scoop 存储库查看 https://github.com/ScoopInstaller/Extras/blob/master/bucket/webview2.json
+          $version = '145.0.3800.65'
           $archMap = @{ 'x86_64' = 'x64'; 'aarch64' = 'arm64' }
-          $matrixArch = '${{ matrix.arch }}'
-          if (-not $archMap.ContainsKey($matrixArch)) {
-            throw "Unsupported architecture: $matrixArch"
+          $guidMap = @{
+            'x64'   = 'c411606c-d282-4304-8420-8ae6b1dd3e9a'
+            'arm64' = '2d2cf37b-d24c-4c72-b5bc-e8061e7a7583'
           }
-          $arch = $archMap[$matrixArch]
-          $version = '133.0.3065.92'
+          $arch = $archMap['${{ matrix.arch }}']
+          $guid = $guidMap[$arch]
           $cabName = "Microsoft.WebView2.FixedVersionRuntime.$version.$arch.cab"
-          $uri = "https://github.com/westinyang/WebView2RuntimeArchive/releases/download/$version/$cabName"
+          $uri = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/$guid/$cabName"
 
-          Write-Host "Downloading $cabName ..."
+          Write-Host "Downloading $cabName from Microsoft CDN ..."
           Invoke-WebRequest -Uri $uri -OutFile $cabName
 
           $tempDir = "temp_wv2"

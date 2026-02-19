@@ -154,7 +154,7 @@ jobs:
           if ($versionDir) {
             Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse -Force -ErrorAction Stop
           } else {
-            Copy-Item -Path "$tempDir\*" -Destination $dest -Recurse -Force
+            Copy-Item -Path "$tempDir\*" -Destination $dest -Recurse -Force -ErrorAction Stop
           }
 
           Remove-Item $cabName, $tempDir -Recurse -Force

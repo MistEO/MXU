@@ -354,8 +354,12 @@ pub async fn maa_connect_controller(
                 config,
             } => {
                 // 将字符串解析为 u64
-                let screencap = screencap_methods.parse::<u64>().unwrap_or(0);
-                let input = input_methods.parse::<u64>().unwrap_or(0);
+                let screencap = screencap_methods.parse::<u64>().map_err(|e| {
+                    format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
+                })?;
+                let input = input_methods.parse::<u64>().map_err(|e| {
+                    format!("Invalid input_methods '{}': {}", input_methods, e)
+                })?;
                 let agent_path = get_maafw_dir()
                     .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
                     .unwrap_or_else(|_| "./MaaAgentBinary".to_string());

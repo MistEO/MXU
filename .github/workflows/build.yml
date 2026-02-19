@@ -148,7 +148,7 @@ jobs:
           # cab 解压后文件在版本子目录中，将其内容移动到 webview2_runtime/
           $versionDir = Get-ChildItem $tempDir -Directory | Where-Object { $_.Name -like "Microsoft.WebView2*" } | Select-Object -First 1
           if ($versionDir) {
-            Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse -Force
+            Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse -Force -ErrorAction Stop
           } else {
             Copy-Item -Path "$tempDir\*" -Destination $dest -Recurse -Force
           }

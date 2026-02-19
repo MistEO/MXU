@@ -44,6 +44,7 @@ struct DialogState {
     status_hwnd: Option<HWND>,
     button_hwnd: Option<HWND>,
     hfont: Option<HGDIOBJ>,
+    dialog_type: Option<DialogType>,
 }
 
 impl DialogState {
@@ -51,6 +52,7 @@ impl DialogState {
         self.progress_hwnd = None;
         self.status_hwnd = None;
         self.button_hwnd = None;
+        self.dialog_type = None;
     }
 }
 
@@ -90,7 +92,17 @@ unsafe extern "system" fn dialog_wnd_proc(
             }
             LRESULT(0)
         }
-        WM_DIALOG_CLOSE | WM_CLOSE => {
+        WM_CLOSE => {
+            // 用户点击 X 关闭窗口：进度对话框直接退出进程（此时 Tauri 尚未启动）
+            DIALOG_STATE.with(|s| {
+                if s.borrow().dialog_type == Some(DialogType::Progress) {
+                    std::process::exit(0);
+                }
+            });
+            PostQuitMessage(0);
+            LRESULT(0)
+        }
+        WM_DIALOG_CLOSE => {
             PostQuitMessage(0);
             LRESULT(0)
         }
@@ -216,15 +228,27 @@ impl CustomDialog {
             RegisterClassW(&wc);
 
             let title_wide = to_wide(&title_owned);
+            let wnd_style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
+            // width/height represent desired client area; compute actual window size
+            let mut rc = windows::Win32::Foundation::RECT {
+                left: 0,
+                top: 0,
+                right: width,
+                bottom: height,
+            };
+            let _ = AdjustWindowRect(&mut rc, wnd_style, false);
+            let wnd_w = rc.right - rc.left;
+            let wnd_h = rc.bottom - rc.top;
+
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
                 PCWSTR::from_raw(class_name.as_ptr()),
                 PCWSTR::from_raw(title_wide.as_ptr()),
-                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                wnd_style,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                width,
-                height,
+                wnd_w,
+                wnd_h,
                 None,
                 None,
                 hinstance,
@@ -232,7 +256,7 @@ impl CustomDialog {
             )
             .unwrap_or_default();
 
-            center_window(hwnd, width, height);
+            center_window(hwnd, wnd_w, wnd_h);
 
             const MARGIN: i32 = 24;
             const BTN_W: i32 = 96;
@@ -279,6 +303,7 @@ impl CustomDialog {
                         let mut g = s.borrow_mut();
                         g.status_hwnd = Some(status_hwnd);
                         g.progress_hwnd = Some(progressbar_hwnd);
+                        g.dialog_type = Some(dialog_type);
                     });
                 }
                 DialogType::Success | DialogType::Error => {

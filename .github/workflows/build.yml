@@ -130,7 +130,11 @@ jobs:
         shell: pwsh
         run: |
           $archMap = @{ 'x86_64' = 'x64'; 'aarch64' = 'arm64' }
-          $arch = $archMap['${{ matrix.arch }}']
+          $matrixArch = '${{ matrix.arch }}'
+          if (-not $archMap.ContainsKey($matrixArch)) {
+            throw "Unsupported architecture: $matrixArch"
+          }
+          $arch = $archMap[$matrixArch]
           $version = '133.0.3065.92'
           $cabName = "Microsoft.WebView2.FixedVersionRuntime.$version.$arch.cab"
           $uri = "https://github.com/westinyang/WebView2RuntimeArchive/releases/download/$version/$cabName"

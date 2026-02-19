@@ -53,11 +53,21 @@ pub type MaaWin32ScreencapMethod = u64;
 pub const MAA_WIN32_SCREENCAP_GDI: MaaWin32ScreencapMethod = 1;
 pub const MAA_WIN32_SCREENCAP_FRAMEPOOL: MaaWin32ScreencapMethod = 1 << 1;
 pub const MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP: MaaWin32ScreencapMethod = 1 << 2;
+pub const MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP_WINDOW: MaaWin32ScreencapMethod = 1 << 3;
+pub const MAA_WIN32_SCREENCAP_PRINTWINDOW: MaaWin32ScreencapMethod = 1 << 4;
+pub const MAA_WIN32_SCREENCAP_SCREENDC: MaaWin32ScreencapMethod = 1 << 5;
 
 // Win32 输入方法
 pub type MaaWin32InputMethod = u64;
 pub const MAA_WIN32_INPUT_SEIZE: MaaWin32InputMethod = 1;
 pub const MAA_WIN32_INPUT_SENDMESSAGE: MaaWin32InputMethod = 1 << 1;
+pub const MAA_WIN32_INPUT_POSTMESSAGE: MaaWin32InputMethod = 1 << 2;
+pub const MAA_WIN32_INPUT_LEGACYEVENT: MaaWin32InputMethod = 1 << 3;
+pub const MAA_WIN32_INPUT_POSTTHREADMESSAGE: MaaWin32InputMethod = 1 << 4;
+pub const MAA_WIN32_INPUT_SENDMESSAGE_WITH_CURSORPOS: MaaWin32InputMethod = 1 << 5;
+pub const MAA_WIN32_INPUT_POSTMESSAGE_WITH_CURSORPOS: MaaWin32InputMethod = 1 << 6;
+pub const MAA_WIN32_INPUT_SENDMESSAGE_WITH_WINDOWPOS: MaaWin32InputMethod = 1 << 7;
+pub const MAA_WIN32_INPUT_POSTMESSAGE_WITH_WINDOWPOS: MaaWin32InputMethod = 1 << 8;
 
 // Gamepad 类型
 pub type MaaGamepadType = i32;

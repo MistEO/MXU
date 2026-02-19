@@ -100,6 +100,8 @@ export const Win32InputMethod = {
   PostThreadMessage: 1n << 4n,
   SendMessageWithCursorPos: 1n << 5n,
   PostMessageWithCursorPos: 1n << 6n,
+  SendMessageWithWindowPos: 1n << 7n,
+  PostMessageWithWindowPos: 1n << 8n,
 } as const;
 
 /** Win32 截图方法名称映射 */
@@ -121,6 +123,8 @@ export const Win32InputMethodNames: Record<string, bigint> = {
   PostThreadMessage: Win32InputMethod.PostThreadMessage,
   SendMessageWithCursorPos: Win32InputMethod.SendMessageWithCursorPos,
   PostMessageWithCursorPos: Win32InputMethod.PostMessageWithCursorPos,
+  SendMessageWithWindowPos: Win32InputMethod.SendMessageWithWindowPos,
+  PostMessageWithWindowPos: Win32InputMethod.PostMessageWithWindowPos,
 };
 
 /** 解析 Win32 截图方法名称 */

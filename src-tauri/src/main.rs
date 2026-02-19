@@ -18,7 +18,7 @@ fn main() {
 
                 // 检测内置的 WebView2 固定版本运行时
                 let webview2_runtime_dir = exe_dir.join("webview2_runtime");
-                if webview2_runtime_dir.exists() {
+                if webview2_runtime_dir.is_dir() {
                     std::env::set_var(
                         "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
                         &webview2_runtime_dir,

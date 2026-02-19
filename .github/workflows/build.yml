@@ -126,48 +126,37 @@ jobs:
           name: MXU-win-${{ matrix.arch }}
           path: "install"
 
-      - name: Copy WebView2 Runtime for fixed-webview variant
-        if: matrix.arch == 'x86_64'
+      - name: Download WebView2 Fixed Version Runtime
         shell: pwsh
         run: |
-          # 搜索所有可能的 WebView2/Edge 安装路径（x86 + 64-bit）
-          $candidateBases = @(
-            "C:\Program Files (x86)\Microsoft\EdgeWebView\Application",
-            "C:\Program Files\Microsoft\EdgeWebView\Application",
-            "C:\Program Files (x86)\Microsoft\Edge\Application",
-            "C:\Program Files\Microsoft\Edge\Application"
-          )
+          $archMap = @{ 'x86_64' = 'x64'; 'aarch64' = 'arm64' }
+          $arch = $archMap['${{ matrix.arch }}']
+          $version = '133.0.3065.92'
+          $cabName = "Microsoft.WebView2.FixedVersionRuntime.$version.$arch.cab"
+          $uri = "https://github.com/westinyang/WebView2RuntimeArchive/releases/download/$version/$cabName"
 
-          # 从所有存在的路径中收集版本目录，选取最新版本
-          $allVersionDirs = @()
-          foreach ($base in $candidateBases) {
-            if (Test-Path $base) {
-              $dirs = Get-ChildItem $base -Directory |
-                Where-Object { $_.Name -match '^\d+\.\d+' }
-              if ($dirs) { $allVersionDirs += $dirs }
-            }
-          }
+          Write-Host "Downloading $cabName ..."
+          Invoke-WebRequest -Uri $uri -OutFile $cabName
 
-          if ($allVersionDirs.Count -eq 0) {
-            Write-Error "No WebView2/Edge runtime found in any of the probed paths"
-            exit 1
-          }
-
-          $versionDir = $allVersionDirs |
-            Sort-Object { [version]($_.Name -replace '-.*$','') } -Descending |
-            Select-Object -First 1
+          $tempDir = "temp_wv2"
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          expand.exe $cabName -F:* $tempDir
 
           $dest = "install\webview2_runtime"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse
-          # 删除不需要的 Installer 子目录以减小体积
-          if (Test-Path "$dest\Installer") {
-            Remove-Item -Path "$dest\Installer" -Recurse -Force
+
+          # cab 解压后文件在版本子目录中，将其内容移动到 webview2_runtime/
+          $versionDir = Get-ChildItem $tempDir -Directory | Where-Object { $_.Name -like "Microsoft.WebView2*" } | Select-Object -First 1
+          if ($versionDir) {
+            Copy-Item -Path "$($versionDir.FullName)\*" -Destination $dest -Recurse -Force
+          } else {
+            Copy-Item -Path "$tempDir\*" -Destination $dest -Recurse -Force
           }
-          Write-Host "Copied WebView2 runtime $($versionDir.Name) from $($versionDir.Parent.FullName)"
+
+          Remove-Item $cabName, $tempDir -Recurse -Force
+          Write-Host "WebView2 Fixed Version Runtime $version ($arch) ready at $dest"
 
       - name: Upload fixed-webview artifacts
-        if: matrix.arch == 'x86_64'
         uses: actions/upload-artifact@v4
         with:
           name: MXU-win-${{ matrix.arch }}-fixed-webview

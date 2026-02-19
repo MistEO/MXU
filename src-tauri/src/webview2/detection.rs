@@ -138,7 +138,6 @@ pub fn is_webview2_installed() -> bool {
 /// - HKCU\Software\Microsoft\Edge\WebView2\BrowserExecutableFolder (设置为空字符串表示禁用)
 ///
 /// 返回 Some(reason) 如果被禁用，None 如果未被禁用
-
 pub fn is_webview2_disabled() -> Option<String> {
     // 检查组策略禁用（通过 BrowserExecutableFolder 设置为特定值或空）
     // 参考: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#detect-if-a-suitable-webview2-runtime-is-already-installed

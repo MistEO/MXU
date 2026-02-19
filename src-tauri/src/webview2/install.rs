@@ -28,7 +28,10 @@ fn get_arch_info() -> Result<(&'static str, &'static str), String> {
     match std::env::consts::ARCH {
         "x86_64" => Ok(("x64", GUID_X64)),
         "aarch64" => Ok(("arm64", GUID_ARM64)),
-        other => Err(format!("不支持的架构: {}", other)),
+        other => Err(format!(
+            "不支持的 CPU 架构: {}。当前应用仅支持 64 位 Windows（x64、ARM64），请在 64 位系统上运行。",
+            other
+        )),
     }
 }
 
@@ -41,28 +44,54 @@ pub fn get_webview2_runtime_dir() -> Result<PathBuf, String> {
     Ok(exe_dir.join("webview2_runtime"))
 }
 
+/// 验证运行时目录包含关键可执行文件
+fn validate_runtime_dir(runtime_dir: &std::path::Path) -> Result<(), String> {
+    if !runtime_dir.join("msedgewebview2.exe").exists() {
+        return Err(
+            "解压后的 WebView2 运行时目录不完整（未找到 msedgewebview2.exe）。\n\
+            请删除 webview2_runtime/ 目录后重启程序重试。".to_string()
+        );
+    }
+    Ok(())
+}
+
 fn show_download_failed_dialog(error: &str) {
-    let (arch_label, _) = get_arch_info().unwrap_or(("x64", ""));
-    let cab_name = format!(
-        "Microsoft.WebView2.FixedVersionRuntime.{}.{}.cab",
-        WEBVIEW2_VERSION, arch_label
-    );
-    let message = format!(
-        "系统 WebView2 不可用，下载独立 WebView2 运行时失败：\r\n\
-         {}\r\n\r\n\
-         【方法一】检查网络连接后重启程序重试\r\n\r\n\
-         【方法二】手动下载 cab 文件并放到程序同目录\r\n\
-         1. 前往 https://aka.ms/webview2installer\r\n\
-            选择 \"Fixed Version\" 下载对应架构（{}）的 cab 文件\r\n\
-         2. 将下载的 cab 文件（文件名类似 {}）\r\n\
-            放到本程序 exe 所在目录下\r\n\
-         3. 重启程序，将自动检测并解压使用\r\n\r\n\
-         【方法三】手动安装系统 WebView2 运行时\r\n\
-         前往 https://aka.ms/webview2installer\r\n\
-         下载 Evergreen Bootstrapper，运行安装后重启电脑即可",
-        error, arch_label, cab_name
-    );
-    CustomDialog::show_error("WebView2 下载失败", &message);
+    match get_arch_info() {
+        Ok((arch_label, _)) => {
+            let cab_name = format!(
+                "Microsoft.WebView2.FixedVersionRuntime.{}.{}.cab",
+                WEBVIEW2_VERSION, arch_label
+            );
+            let message = format!(
+                "系统 WebView2 不可用，下载独立 WebView2 运行时失败：\r\n\
+                 {}\r\n\r\n\
+                 【方法一】检查网络连接后重启程序重试\r\n\r\n\
+                 【方法二】手动下载 cab 文件并放到程序同目录\r\n\
+                 1. 前往 https://aka.ms/webview2installer\r\n\
+                    选择 \"Fixed Version\" 下载对应架构（{}）的 cab 文件\r\n\
+                 2. 将下载的 cab 文件（文件名类似 {}）\r\n\
+                    放到本程序 exe 所在目录下\r\n\
+                 3. 重启程序，将自动检测并解压使用\r\n\r\n\
+                 【方法三】手动安装系统 WebView2 运行时\r\n\
+                 前往 https://aka.ms/webview2installer\r\n\
+                 下载 Evergreen Bootstrapper，运行安装后重启电脑即可",
+                error, arch_label, cab_name
+            );
+            CustomDialog::show_error("WebView2 下载失败", &message);
+        }
+        Err(arch_err) => {
+            let message = format!(
+                "系统 WebView2 不可用，下载独立 WebView2 运行时失败：\r\n\
+                 {}\r\n\r\n\
+                 此外，无法判断当前系统架构：{}\r\n\r\n\
+                 【手动安装系统 WebView2 运行时】\r\n\
+                 前往 https://aka.ms/webview2installer\r\n\
+                 下载 Evergreen Bootstrapper，运行安装后重启电脑即可",
+                error, arch_err
+            );
+            CustomDialog::show_error("WebView2 下载失败", &message);
+        }
+    }
 }
 
 /// 递归复制目录内容
@@ -77,7 +106,13 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
         let src_item = entry.path();
         let dst_item = dst.join(entry.file_name());
 
-        if src_item.is_dir() {
+        let file_type = entry.file_type().map_err(|e| format!("无法获取文件类型: {}", e))?;
+        if file_type.is_symlink() {
+            // WebView2 cab 中不应包含符号链接，跳过以避免安全风险
+            continue;
+        }
+
+        if file_type.is_dir() {
             copy_dir_recursive(&src_item, &dst_item)?;
         } else {
             std::fs::copy(&src_item, &dst_item).map_err(|e| {
@@ -93,16 +128,35 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
     Ok(())
 }
 
+/// 获取 expand.exe 的完整路径（从 System32 目录解析）
+fn get_expand_exe_path() -> Result<std::path::PathBuf, String> {
+    let system_root = std::env::var("SystemRoot")
+        .unwrap_or_else(|_| r"C:\Windows".to_string());
+    let expand_path = std::path::PathBuf::from(&system_root)
+        .join("System32")
+        .join("expand.exe");
+    if expand_path.exists() {
+        Ok(expand_path)
+    } else {
+        Err(format!(
+            "未找到 expand.exe，请确认系统完整性。\n预期路径: {}",
+            expand_path.display()
+        ))
+    }
+}
+
 /// 解压 cab 文件到 WebView2 运行时目录
 fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::Path) -> Result<(), String> {
+    let expand_exe = get_expand_exe_path()?;
+
     let temp_dir = std::env::temp_dir();
-    let extract_temp = temp_dir.join("mxu_webview2_extract");
+    let extract_temp = temp_dir.join(format!("mxu_webview2_extract_{}", std::process::id()));
 
     let _ = std::fs::remove_dir_all(&extract_temp);
     std::fs::create_dir_all(&extract_temp)
         .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
-    let status = std::process::Command::new("expand.exe")
+    let status = std::process::Command::new(&expand_exe)
         .arg(cab_path)
         .arg("-F:*")
         .arg(&extract_temp)
@@ -134,12 +188,41 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
         }
     }
 
-    // 准备目标目录
+    // 准备目标目录：删除前检查是否为符号链接/重解析点，防止通过构造链接删除任意目录
     if runtime_dir.exists() {
-        let _ = std::fs::remove_dir_all(runtime_dir);
+        let meta = std::fs::symlink_metadata(runtime_dir)
+            .map_err(|e| format!("读取运行时目录元数据失败: {}", e))?;
+        if meta.file_type().is_symlink() {
+            return Err(format!(
+                "运行时目录 [{}] 是符号链接或重解析点，出于安全原因拒绝操作。\n\
+                请手动删除该链接后重试。",
+                runtime_dir.display()
+            ));
+        }
+        if let Err(e) = std::fs::remove_dir_all(runtime_dir) {
+            let msg = if e.kind() == std::io::ErrorKind::PermissionDenied {
+                format!(
+                    "删除旧的 WebView2 运行时目录失败，可能有正在运行的程序正在使用该目录。\n\n\
+                    请关闭所有已运行的本应用实例后重试。\n\n系统错误: {}",
+                    e
+                )
+            } else {
+                format!("删除旧的 WebView2 运行时目录失败: {}", e)
+            };
+            return Err(msg);
+        }
     }
-    std::fs::create_dir_all(runtime_dir)
-        .map_err(|e| format!("创建运行时目录失败: {}", e))?;
+    std::fs::create_dir_all(runtime_dir).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            format!(
+                "创建运行时目录失败，可能缺少权限或有程序占用该路径。\n\n\
+                请关闭所有已运行的本应用实例或以管理员身份重新运行。\n\n系统错误: {}",
+                e
+            )
+        } else {
+            format!("创建运行时目录失败: {}", e)
+        }
+    })?;
 
     copy_dir_recursive(&source_dir, runtime_dir)?;
 
@@ -181,6 +264,8 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
     }
 
     // 优先使用架构匹配的 cab
+    // 注意：整个操作（解压 + 删除）统一处理 IO 错误，
+    // 如果在操作过程中文件被外部删除/修改（TOCTOU），视为 cab 不可用并回退到在线下载
     if let Some(cab_path) = matched {
         let progress_dialog = CustomDialog::new_progress(
             "正在解压 WebView2",
@@ -193,10 +278,17 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
             pw.close();
         }
 
-        if result.is_ok() {
-            let _ = std::fs::remove_file(&cab_path);
+        match result {
+            Ok(()) => {
+                let _ = std::fs::remove_file(&cab_path);
+                return Some(Ok(()));
+            }
+            Err(_) => {
+                // 本地 cab 解压失败（可能文件损坏或被移除），删除并回退到在线下载
+                let _ = std::fs::remove_file(&cab_path);
+                return None;
+            }
         }
-        return Some(result);
     }
 
     // 仅存在不匹配的 cab，弹窗提示
@@ -233,6 +325,7 @@ pub fn download_and_extract() -> Result<(), String> {
     // 优先检测 exe 同目录下是否存在已下载的 cab 文件
     if let Some(result) = try_extract_local_cab(&runtime_dir) {
         if result.is_ok() {
+            validate_runtime_dir(&runtime_dir)?;
             std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime_dir);
         }
         return result;
@@ -244,12 +337,15 @@ pub fn download_and_extract() -> Result<(), String> {
     );
 
     let temp_dir = std::env::temp_dir();
-    let cab_path = temp_dir.join(&cab_name);
+    let cab_path = temp_dir.join(format!("{}_{}", std::process::id(), &cab_name));
 
     // 下载 cab 文件（流式写入磁盘）
     let download_result = (|| -> Result<(), String> {
         let client = reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(false)
+            .tls_built_in_root_certs(true)
             .connect_timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(600))
             .build()
             .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
@@ -305,6 +401,9 @@ pub fn download_and_extract() -> Result<(), String> {
             }
         }
 
+        std::io::Write::flush(&mut file)
+            .map_err(|e| format!("刷新文件缓冲失败: {}", e))?;
+
         Ok(())
     })();
 
@@ -334,6 +433,9 @@ pub fn download_and_extract() -> Result<(), String> {
     let _ = std::fs::remove_file(&cab_path);
 
     extract_result?;
+
+    // 校验运行时目录完整性
+    validate_runtime_dir(&runtime_dir)?;
 
     // 设置环境变量供当前进程使用
     std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime_dir);

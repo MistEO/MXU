@@ -405,6 +405,9 @@ impl CustomDialog {
     }
 
     pub(crate) fn set_status(&self, text: &str) {
+        // 安全说明：wide_text 分配在栈上，其指针通过 LPARAM 传递给 UI 线程。
+        // 这里必须使用 SendMessageW（同步）而非 PostMessageW（异步），
+        // 因为 SendMessageW 会阻塞直到消息处理完成，确保 wide_text 在被使用期间有效。
         let wide_text = to_wide(text);
         unsafe {
             let _ = SendMessageW(

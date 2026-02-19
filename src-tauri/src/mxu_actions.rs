@@ -730,13 +730,16 @@ fn execute_power_sleep() -> bool {
 /// 为资源注册所有 MXU 内置 custom actions
 /// 在资源创建后调用此函数
 pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
-    // 定义一个局部宏打印日志
+    let mut failed_count = 0;
+
+    // 定义一个局部宏打印日志并统计失败
     macro_rules! reg_action {
         ($name:expr, $fn_name:expr) => {
             if let Err(e) =
                 resource.register_custom_action($name, Box::new(FnAction::new($fn_name)))
             {
                 warn!("[MXU] Failed to register {}: {:?}", $name, e);
+                failed_count += 1;
             } else {
                 info!("[MXU] Custom action {} registered successfully", $name);
             }
@@ -750,6 +753,13 @@ pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
     reg_action!(MXU_NOTIFY_ACTION, mxu_notify_action_fn);
     reg_action!(MXU_KILLPROC_ACTION, mxu_killproc_action_fn);
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
+
+    if failed_count > 0 {
+        return Err(format!(
+            "Failed to register {} custom actions",
+            failed_count
+        ));
+    }
 
     Ok(())
 }

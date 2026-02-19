@@ -155,7 +155,12 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
         #[cfg(target_os = "linux")]
         let dll_path = dir.join("libMaaFramework.so");
 
-        let _ = maa_framework::load_library(&dll_path);
+        if let Err(e) = maa_framework::load_library(&dll_path) {
+            error!(
+                "Failed to load MaaFramework library from {:?}: {:?}",
+                dll_path, e
+            );
+        }
     }
 
     let current_str = maa_framework::maa_version().to_string();
@@ -364,9 +369,9 @@ pub async fn maa_connect_controller(
                 let screencap = screencap_methods.parse::<u64>().map_err(|e| {
                     format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
                 })?;
-                let input = input_methods.parse::<u64>().map_err(|e| {
-                    format!("Invalid input_methods '{}': {}", input_methods, e)
-                })?;
+                let input = input_methods
+                    .parse::<u64>()
+                    .map_err(|e| format!("Invalid input_methods '{}': {}", input_methods, e))?;
                 let agent_path = get_maafw_dir()
                     .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
                     .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
@@ -438,7 +443,9 @@ pub async fn maa_connect_controller(
             .map_err(|e| e.to_string())?;
 
         // 设置默认参数
-        let _ = controller.set_screenshot_target_short_side(720);
+        if let Err(e) = controller.set_screenshot_target_short_side(720) {
+            warn!("Failed to set screenshot target short side to 720: {}", e);
+        }
 
         // 发起连接
         let conn_id = controller.post_connection().map_err(|e| e.to_string())?;
@@ -738,10 +745,7 @@ pub fn maa_post_screencap(state: State<Arc<MaaState>>, instance_id: String) -> R
         .as_ref()
         .ok_or("Controller not connected")?;
 
-    controller
-        .post_screencap()
-        .map(|id| id)
-        .map_err(|e| e.to_string())
+    controller.post_screencap().map_err(|e| e.to_string())
 }
 
 /// 获取缓存的截图（返回 base64 编码的 PNG 图像）

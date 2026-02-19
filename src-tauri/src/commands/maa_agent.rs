@@ -307,6 +307,12 @@ pub async fn maa_start_tasks(
     };
     debug!("[start_tasks] Resource, controller and tasker acquired, proceeding...");
 
+    // 检查 Tasker 初始化状态
+    if !tasker.inited() {
+        error!("[start_tasks] Tasker not properly initialized");
+        return Err("Tasker not properly initialized".to_string());
+    }
+
     // 启动所有 Agent（如果配置了）
     debug!("[start_tasks] Checking agent configs...");
     if let Some(configs) = agent_configs {
@@ -380,17 +386,6 @@ pub async fn maa_start_tasks(
     } else {
         debug!("[start_tasks] No agent configs, skipping agent setup");
     };
-
-    debug!("[start_tasks] Checking tasker inited status...");
-    let inited = tasker.inited();
-    info!("[start_tasks] Tasker inited status: {}", inited);
-    if !inited {
-        error!(
-            "[start_tasks] Tasker not properly initialized, inited: {}",
-            inited
-        );
-        return Err("Tasker not properly initialized".to_string());
-    }
 
     debug!("[start_tasks] Submitting {} tasks...", tasks.len());
     let mut task_ids = Vec::new();

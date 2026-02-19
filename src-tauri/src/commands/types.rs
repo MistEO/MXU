@@ -150,6 +150,10 @@ pub struct InstanceRuntime {
 
 impl Drop for InstanceRuntime {
     fn drop(&mut self) {
+        // 断开并销毁所有 agent
+        for client in &self.agent_clients {
+            let _ = client.disconnect();
+        }
         // 终止并回收所有 agent 子进程
         for mut child in self.agent_children.drain(..) {
             let _ = child.kill();

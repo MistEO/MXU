@@ -405,6 +405,7 @@ export function OptionEditor({
           className="flex-1"
           value={selectedCaseName}
           disabled={disabled}
+          basePath={basePath}
           options={optionDef.cases.map((caseItem) => {
             // 对于 MXU 内置选项，使用 t() 翻译；否则使用 resolveI18nText
             const label = isMxuOption
@@ -413,6 +414,7 @@ export function OptionEditor({
             return {
               value: caseItem.name,
               label,
+              icon: caseItem.icon,
             };
           })}
           onChange={(next) => {
@@ -451,9 +453,10 @@ export function OptionEditor({
 
 interface OptionSelectDropdownProps {
   value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; icon?: string }[];
   disabled?: boolean;
   className?: string;
+  basePath: string;
   onChange: (value: string) => void;
 }
 
@@ -462,6 +465,7 @@ function OptionSelectDropdown({
   options,
   disabled = false,
   className,
+  basePath,
   onChange,
 }: OptionSelectDropdownProps) {
   const triggerId = useId();
@@ -580,7 +584,10 @@ function OptionSelectDropdown({
         aria-expanded={open}
         aria-controls={listboxId}
       >
-        <span className="truncate">{selectedOption?.label}</span>
+        <span className="flex items-center gap-1.5 truncate">
+          <AsyncIcon icon={selectedOption?.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+          {selectedOption?.label}
+        </span>
         <ChevronDown
           className={clsx('w-4 h-4 text-text-secondary transition-transform', open && 'rotate-180')}
         />
@@ -620,7 +627,10 @@ function OptionSelectDropdown({
                 role="option"
                 aria-selected={isSelected}
               >
-                <span className="truncate">{opt.label}</span>
+                <span className="flex items-center gap-1.5 truncate">
+                  <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+                  {opt.label}
+                </span>
                 {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
               </button>
             );
@@ -637,6 +647,7 @@ function OptionSelectComboBox({
   options,
   disabled = false,
   className,
+  basePath,
   onChange,
 }: OptionSelectDropdownProps) {
   const { t } = useTranslation();
@@ -777,7 +788,10 @@ function OptionSelectComboBox({
         aria-expanded={open}
         aria-controls={listboxId}
       >
-        <span className="truncate">{selectedOption?.label}</span>
+        <span className="flex items-center gap-1.5 truncate">
+          <AsyncIcon icon={selectedOption?.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+          {selectedOption?.label}
+        </span>
         <ChevronDown
           className={clsx('w-4 h-4 text-text-secondary transition-transform', open && 'rotate-180')}
         />
@@ -842,7 +856,10 @@ function OptionSelectComboBox({
                     role="option"
                     aria-selected={isSelected}
                   >
-                    <span className="truncate">{opt.label}</span>
+                    <span className="flex items-center gap-1.5 truncate">
+                      <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+                      {opt.label}
+                    </span>
                     {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
                   </button>
                 );

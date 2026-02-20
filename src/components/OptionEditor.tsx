@@ -65,7 +65,7 @@ function OptionLabel({
 }) {
   return (
     <div className="flex items-center gap-1.5 min-w-[80px]">
-      <AsyncIcon icon={icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+      {icon && <AsyncIcon icon={icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />}
       <span className="text-sm text-text-secondary">{label}</span>
     </div>
   );
@@ -198,11 +198,13 @@ function InputField({
     <div className="space-y-1">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 min-w-[80px]">
-          <AsyncIcon
-            icon={input.icon}
-            basePath={basePath}
-            className="w-4 h-4 object-contain flex-shrink-0"
-          />
+          {input.icon && (
+            <AsyncIcon
+              icon={input.icon}
+              basePath={basePath}
+              className="w-4 h-4 object-contain flex-shrink-0"
+            />
+          )}
           <span className="text-sm text-text-tertiary">{inputLabel}</span>
           {inputDescription && (
             <Tooltip content={inputDescription} side="top" align="start" maxWidth="max-w-[200px]">
@@ -585,7 +587,7 @@ function OptionSelectDropdown({
         aria-controls={listboxId}
       >
         <span className="flex items-center gap-1.5 truncate">
-          <AsyncIcon icon={selectedOption?.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+          {selectedOption?.icon && <AsyncIcon icon={selectedOption.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />}
           {selectedOption?.label}
         </span>
         <ChevronDown
@@ -628,7 +630,7 @@ function OptionSelectDropdown({
                 aria-selected={isSelected}
               >
                 <span className="flex items-center gap-1.5 truncate">
-                  <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+                  {opt.icon && <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />}
                   {opt.label}
                 </span>
                 {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
@@ -789,7 +791,7 @@ function OptionSelectComboBox({
         aria-controls={listboxId}
       >
         <span className="flex items-center gap-1.5 truncate">
-          <AsyncIcon icon={selectedOption?.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+          {selectedOption?.icon && <AsyncIcon icon={selectedOption.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />}
           {selectedOption?.label}
         </span>
         <ChevronDown
@@ -857,7 +859,7 @@ function OptionSelectComboBox({
                     aria-selected={isSelected}
                   >
                     <span className="flex items-center gap-1.5 truncate">
-                      <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
+                      {opt.icon && <AsyncIcon icon={opt.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />}
                       {opt.label}
                     </span>
                     {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}

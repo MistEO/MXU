@@ -504,7 +504,7 @@ export function ScreenshotPanel() {
   ]);
 
   return (
-    <div className="bg-bg-secondary rounded-lg border border-border">
+    <div className="bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden">
       {/* 标题栏（可点击折叠） */}
       <div
         role="button"
@@ -513,13 +513,16 @@ export function ScreenshotPanel() {
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setScreenshotPanelExpanded(!screenshotPanelExpanded);
+            (e.currentTarget as HTMLElement).click();
           }
         }}
         className={clsx(
-          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors cursor-pointer',
+          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none',
           screenshotPanelExpanded ? 'rounded-t-lg' : 'rounded-lg',
         )}
+        style={{
+          transition: `background-color 150ms, border-radius 0s${screenshotPanelExpanded ? '' : ' 150ms'}`,
+        }}
       >
         <div className="flex items-center gap-2">
           <Monitor className="w-4 h-4 text-text-secondary" />

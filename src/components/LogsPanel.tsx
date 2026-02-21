@@ -10,7 +10,7 @@ import { ExportLogsModal } from './settings/ExportLogsModal';
 
 export function LogsPanel() {
   const { t } = useTranslation();
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
   const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
     useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
@@ -20,8 +20,9 @@ export function LogsPanel() {
   const logs = activeInstanceId ? instanceLogs[activeInstanceId] || [] : [];
 
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const el = logsContainerRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   }, [logs]);
 
@@ -121,7 +122,7 @@ export function LogsPanel() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-bg-secondary rounded-lg border border-border overflow-hidden">
+    <div className="flex-1 flex flex-col bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden min-h-50">
       {/* 标题栏（可点击展开/折叠上方面板） */}
       <div
         role="button"
@@ -133,7 +134,7 @@ export function LogsPanel() {
             toggleSidePanelExpanded();
           }
         }}
-        className="flex items-center justify-between px-3 py-2 border-b border-border hover:bg-bg-hover transition-colors cursor-pointer"
+        className="flex items-center justify-between px-3 py-2 border-b border-border hover:bg-bg-hover transition-colors cursor-pointer shrink-0 rounded-t-lg focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none"
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
         <div className="flex items-center gap-2">
@@ -190,7 +191,8 @@ export function LogsPanel() {
 
       {/* 日志内容 */}
       <div
-        className="flex-1 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
+        ref={logsContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
         onContextMenu={handleContextMenu}
       >
         {logs.length === 0 ? (
@@ -223,7 +225,6 @@ export function LogsPanel() {
                 </div>
               ),
             )}
-            <div ref={logsEndRef} />
           </>
         )}
       </div>

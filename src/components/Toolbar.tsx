@@ -1085,7 +1085,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
   // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
   useEffect(() => {
+    let starting = false;
     const handleStartTasks = async (evt: Event) => {
+      if (starting) return;
       const currentInstance = useAppStore.getState().getActiveInstance();
       if (!currentInstance) return;
 
@@ -1110,15 +1112,20 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       }
 
       // 直接使用从 store 获取的最新 instance，避免闭包捕获旧的 selectedTasks
-      const success = await startTasksForInstance(currentInstance, {
-        onPhaseChange: setAutoConnectPhase,
-      });
-      addLog(currentInstance.id, {
-        type: success ? 'success' : 'error',
-        message: success
-          ? t('logs.messages.hotkeyStartSuccess')
-          : t('logs.messages.hotkeyStartFailed'),
-      });
+      starting = true;
+      try {
+        const success = await startTasksForInstance(currentInstance, {
+          onPhaseChange: setAutoConnectPhase,
+        });
+        addLog(currentInstance.id, {
+          type: success ? 'success' : 'error',
+          message: success
+            ? t('logs.messages.hotkeyStartSuccess')
+            : t('logs.messages.hotkeyStartFailed'),
+        });
+      } finally {
+        starting = false;
+      }
     };
 
     const handleStopTasks = async (evt: Event) => {

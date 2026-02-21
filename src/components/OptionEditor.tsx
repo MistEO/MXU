@@ -263,6 +263,10 @@ function InputField({
             disabled={disabled}
             hasError={!!validationError}
             className="flex-1"
+            type={input.pipeline_type === 'int' ? 'number' : 'text'}
+            inputMode={input.pipeline_type === 'int' ? 'numeric' : undefined}
+            step={input.pipeline_type === 'int' ? 1 : undefined}
+            integerOnly={input.pipeline_type === 'int'}
           />
         )}
       </div>

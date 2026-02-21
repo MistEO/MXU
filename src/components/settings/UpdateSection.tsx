@@ -327,6 +327,7 @@ export function UpdateSection() {
             addDebugLog(
               `下载来源: ${result.downloadSource === 'github' ? 'GitHub' : 'Mirror酱 CDN'}`,
             );
+            startDownload(result);
           } else {
             addDebugLog('无可用下载链接');
           }

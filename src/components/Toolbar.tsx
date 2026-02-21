@@ -676,7 +676,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           const resIds = await maaService.loadResource(targetId, resourcePaths);
 
           // 注册 res_id 与资源名的映射
-          const resDisplayName = resource.label || resource.name;
+          const resDisplayName = resolveI18nText(resource.label, translations) || resource.name;
           resIds.forEach((resId) => {
             registerResIdName(resId, resDisplayName);
           });
@@ -1083,9 +1083,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
+  const hotkeyStartingRef = useRef(false);
+
   // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
   useEffect(() => {
     const handleStartTasks = async (evt: Event) => {
+      if (hotkeyStartingRef.current) return;
       const currentInstance = useAppStore.getState().getActiveInstance();
       if (!currentInstance) return;
 
@@ -1109,18 +1112,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         return;
       }
 
-      const before = currentInstance.isRunning;
-      await handleStartStop();
-      const after = useAppStore
-        .getState()
-        .instances.find((i) => i.id === currentInstance.id)?.isRunning;
-      const success = !before && !!after;
-      addLog(currentInstance.id, {
-        type: success ? 'success' : 'error',
-        message: success
-          ? t('logs.messages.hotkeyStartSuccess')
-          : t('logs.messages.hotkeyStartFailed'),
-      });
+      // 直接使用从 store 获取的最新 instance，避免闭包捕获旧的 selectedTasks
+      hotkeyStartingRef.current = true;
+      try {
+        const success = await startTasksForInstance(currentInstance, {
+          onPhaseChange: setAutoConnectPhase,
+        });
+        addLog(currentInstance.id, {
+          type: success ? 'success' : 'error',
+          message: success
+            ? t('logs.messages.hotkeyStartSuccess')
+            : t('logs.messages.hotkeyStartFailed'),
+        });
+      } finally {
+        hotkeyStartingRef.current = false;
+      }
     };
 
     const handleStopTasks = async (evt: Event) => {

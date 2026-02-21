@@ -866,6 +866,7 @@ function App() {
 
       // 应用内快捷键：开始/结束任务（默认 F10/F11，可在设置中自定义，支持组合键）
       // 使用自定义事件通知 Toolbar 组件，以复用现有启动/停止逻辑
+      if (e.repeat) return;
       if (shouldIgnoreHotkey(e)) return;
       const combo = getKeyCombo(e);
       if (!combo) {
@@ -917,9 +918,14 @@ function App() {
     // Ctrl -> CommandOrControl
     const toTauriKey = (k: string) => k.replace(/^Ctrl\+/i, 'CommandOrControl+');
 
+    const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
+    let lastStartTime = 0;
     const registerKeys = async () => {
       try {
         await register(toTauriKey(startKey), () => {
+          const now = Date.now();
+          if (now - lastStartTime < GLOBAL_HOTKEY_THROTTLE_MS) return;
+          lastStartTime = now;
           document.dispatchEvent(
             new CustomEvent('mxu-start-tasks', {
               detail: { source: 'global-hotkey', combo: startKey },

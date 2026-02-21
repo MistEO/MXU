@@ -918,12 +918,13 @@ function App() {
     // Ctrl -> CommandOrControl
     const toTauriKey = (k: string) => k.replace(/^Ctrl\+/i, 'CommandOrControl+');
 
+    const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
     let lastStartTime = 0;
     const registerKeys = async () => {
       try {
         await register(toTauriKey(startKey), () => {
           const now = Date.now();
-          if (now - lastStartTime < 1000) return;
+          if (now - lastStartTime < GLOBAL_HOTKEY_THROTTLE_MS) return;
           lastStartTime = now;
           document.dispatchEvent(
             new CustomEvent('mxu-start-tasks', {

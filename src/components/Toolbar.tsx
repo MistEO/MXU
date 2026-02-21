@@ -1109,12 +1109,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         return;
       }
 
-      const before = currentInstance.isRunning;
-      await handleStartStop();
-      const after = useAppStore
-        .getState()
-        .instances.find((i) => i.id === currentInstance.id)?.isRunning;
-      const success = !before && !!after;
+      // 直接使用从 store 获取的最新 instance，避免闭包捕获旧的 selectedTasks
+      const success = await startTasksForInstance(currentInstance, {
+        onPhaseChange: setAutoConnectPhase,
+      });
       addLog(currentInstance.id, {
         type: success ? 'success' : 'error',
         message: success

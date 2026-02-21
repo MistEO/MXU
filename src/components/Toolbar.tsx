@@ -676,7 +676,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           const resIds = await maaService.loadResource(targetId, resourcePaths);
 
           // 注册 res_id 与资源名的映射
-          const resDisplayName = resource.label || resource.name;
+          const resDisplayName = resolveI18nText(resource.label, translations) || resource.name;
           resIds.forEach((resId) => {
             registerResIdName(resId, resDisplayName);
           });

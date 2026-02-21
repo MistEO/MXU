@@ -71,6 +71,10 @@ interface TextInputProps {
   disabled?: boolean;
   hasError?: boolean;
   className?: string;
+  type?: 'text' | 'number';
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  step?: number;
+  integerOnly?: boolean;
 }
 
 export function TextInput({
@@ -80,14 +84,34 @@ export function TextInput({
   disabled,
   hasError,
   className,
+  type = 'text',
+  inputMode,
+  step,
+  integerOnly,
 }: TextInputProps) {
   return (
     <input
-      type="text"
+      type={type}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => {
+        if (!integerOnly) {
+          onChange(e.target.value);
+          return;
+        }
+        const raw = e.target.value;
+        if (raw === '' || raw === '-') {
+          onChange(raw);
+          return;
+        }
+        const cleaned = raw.replace(/[^\d-]/g, '');
+        const hasLeadingMinus = cleaned.startsWith('-');
+        const normalized = `${hasLeadingMinus ? '-' : ''}${cleaned.replace(/-/g, '')}`;
+        onChange(normalized);
+      }}
       placeholder={placeholder}
       disabled={disabled}
+      inputMode={inputMode}
+      step={step}
       className={clsx(
         'px-3 py-1.5 text-sm rounded-md border',
         'bg-bg-secondary text-text-primary',

@@ -1005,14 +1005,17 @@ export function ConnectionPanel() {
   }
 
   return (
-    <div id="connection-panel" className="bg-bg-secondary rounded-lg border border-border">
+    <div id="connection-panel" className="bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden">
       {/* 标题栏（可点击折叠） */}
       <button
         onClick={() => setConnectionPanelExpanded(!connectionPanelExpanded)}
         className={clsx(
-          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover transition-colors',
+          'w-full flex items-center justify-between px-3 py-2 hover:bg-bg-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none',
           connectionPanelExpanded ? 'rounded-t-lg' : 'rounded-lg',
         )}
+        style={{
+          transition: `background-color 150ms, border-radius 0s${connectionPanelExpanded ? '' : ' 150ms'}`,
+        }}
       >
         <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-text-secondary" />

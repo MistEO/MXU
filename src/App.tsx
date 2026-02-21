@@ -1137,7 +1137,7 @@ function App() {
           {/* 右侧信息面板 */}
           {!rightPanelCollapsed && (
             <div
-              className={`flex flex-col p-3 bg-bg-primary overflow-y-auto overflow-x-hidden border-l border-transparent ${sidePanelExpanded ? 'gap-3' : ''}`}
+              className={`flex flex-col p-3 bg-bg-primary overflow-x-hidden border-l border-transparent ${sidePanelExpanded ? 'gap-3 overflow-y-auto' : 'overflow-hidden'}`}
               style={{
                 width: rightPanelWidth,
                 minWidth: 240,

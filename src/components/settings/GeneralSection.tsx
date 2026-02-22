@@ -20,8 +20,6 @@ import { isTauri } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
 import { FrameRateSelector } from '../FrameRateSelector';
 
-const isWindows = navigator.platform.toLowerCase().includes('win');
-
 export function GeneralSection() {
   const { t } = useTranslation();
   const {
@@ -44,6 +42,7 @@ export function GeneralSection() {
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartLoading, setAutoStartLoading] = useState(false);
+  const isWindowsRef = useRef(false);
 
   // 自定义下拉框状态
   const [instanceDropdownOpen, setInstanceDropdownOpen] = useState(false);
@@ -51,13 +50,16 @@ export function GeneralSection() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    if (isWindows) {
-      invoke<boolean>('autostart_is_enabled').then(setAutoStartEnabled).catch(() => {});
-    } else {
-      import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
-        isEnabled().then(setAutoStartEnabled).catch(() => {});
-      });
-    }
+    invoke<string>('get_os').then((os) => {
+      isWindowsRef.current = os === 'windows';
+      if (isWindowsRef.current) {
+        invoke<boolean>('autostart_is_enabled').then(setAutoStartEnabled).catch(() => {});
+      } else {
+        import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+          isEnabled().then(setAutoStartEnabled).catch(() => {});
+        });
+      }
+    }).catch(() => {});
   }, []);
 
   // 点击外部关闭下拉框
@@ -76,7 +78,7 @@ export function GeneralSection() {
     if (!isTauri()) return;
     setAutoStartLoading(true);
     try {
-      if (isWindows) {
+      if (isWindowsRef.current) {
         await invoke(enabled ? 'autostart_enable' : 'autostart_disable');
       } else {
         const { enable, disable } = await import('@tauri-apps/plugin-autostart');

@@ -302,8 +302,9 @@ pub fn is_autostart() -> bool {
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {
     if has_legacy_registry_autostart() {
-        let _ = create_schtask_autostart();
-        remove_legacy_registry_autostart();
+        if create_schtask_autostart().is_ok() {
+            remove_legacy_registry_autostart();
+        }
     }
 }
 
@@ -430,6 +431,12 @@ pub fn autostart_is_enabled() -> bool {
 #[tauri::command]
 pub fn get_arch() -> String {
     std::env::consts::ARCH.to_string()
+}
+
+/// 获取操作系统类型
+#[tauri::command]
+pub fn get_os() -> String {
+    std::env::consts::OS.to_string()
 }
 
 /// 获取系统信息

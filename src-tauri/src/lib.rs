@@ -183,6 +183,7 @@ pub fn run() {
             commands::system::autostart_disable,
             commands::system::autostart_is_enabled,
             commands::system::get_arch,
+            commands::system::get_os,
             commands::system::get_system_info,
             // 托盘相关命令
             commands::tray::set_minimize_to_tray,

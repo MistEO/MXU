@@ -15,6 +15,11 @@ pub fn run() {
     // 确保日志目录存在
     let _ = std::fs::create_dir_all(&logs_dir);
 
+    // 自动迁移旧版注册表自启动到任务计划程序
+    //TODO：26年2月写的，应该过几个月这自动迁移就能去除了，等旧版的都更上来
+    #[cfg(windows)]
+    commands::system::migrate_legacy_autostart();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
@@ -174,6 +179,9 @@ pub fn run() {
             commands::system::run_action,
             commands::system::retry_load_maa_library,
             commands::system::check_vcredist_missing,
+            commands::system::autostart_enable,
+            commands::system::autostart_disable,
+            commands::system::autostart_is_enabled,
             commands::system::get_arch,
             commands::system::get_system_info,
             // 托盘相关命令

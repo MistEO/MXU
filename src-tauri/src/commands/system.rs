@@ -298,6 +298,134 @@ pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
 }
 
+/// 自动迁移旧版注册表自启动到任务计划程序
+#[cfg(windows)]
+pub fn migrate_legacy_autostart() {
+    if has_legacy_registry_autostart() {
+        let _ = create_schtask_autostart();
+        remove_legacy_registry_autostart();
+    }
+}
+
+#[cfg(windows)]
+fn to_wide(s: &str) -> Vec<u16> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    OsStr::new(s).encode_wide().chain(Some(0)).collect()
+}
+
+#[cfg(windows)]
+fn create_schtask_autostart() -> Result<(), String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("获取程序路径失败: {}", e))?;
+    let exe = exe_path.to_string_lossy();
+    let output = std::process::Command::new("schtasks")
+        .args([
+            "/create", "/tn", "MXU", "/tr",
+            &format!("\"{}\" --autostart", exe),
+            "/sc", "onlogon", "/rl", "highest", "/f",
+        ])
+        .output()
+        .map_err(|e| format!("执行 schtasks 失败: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("创建计划任务失败: {}", stderr));
+    }
+    Ok(())
+}
+
+/// 清理旧版注册表自启动条目（tauri-plugin-autostart 遗留）
+#[cfg(windows)]
+fn remove_legacy_registry_autostart() {
+    use windows::Win32::System::Registry::*;
+    use windows::core::PCWSTR;
+
+    unsafe {
+        let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(subkey.as_ptr()), 0, KEY_SET_VALUE | KEY_QUERY_VALUE, &mut hkey).is_ok() {
+            for name in &["mxu", "MXU"] {
+                let wname = to_wide(name);
+                let _ = RegDeleteValueW(hkey, PCWSTR(wname.as_ptr()));
+            }
+            let _ = RegCloseKey(hkey);
+        }
+    }
+}
+
+/// 检查旧版注册表中是否存在自启动条目
+#[cfg(windows)]
+fn has_legacy_registry_autostart() -> bool {
+    use windows::Win32::System::Registry::*;
+    use windows::core::PCWSTR;
+
+    unsafe {
+        let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(subkey.as_ptr()), 0, KEY_QUERY_VALUE, &mut hkey).is_err() {
+            return false;
+        }
+        let found = ["mxu", "MXU"].iter().any(|name| {
+            let wname = to_wide(name);
+            RegQueryValueExW(hkey, PCWSTR(wname.as_ptr()), None, None, None, None).is_ok()
+        });
+        let _ = RegCloseKey(hkey);
+        found
+    }
+}
+
+/// 通过 Windows 任务计划程序启用开机自启动（以最高权限运行，避免 UAC 弹窗）
+#[tauri::command]
+pub fn autostart_enable() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        create_schtask_autostart()?;
+        remove_legacy_registry_autostart();
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("此功能仅在 Windows 上可用".to_string())
+    }
+}
+
+/// 通过 Windows 任务计划程序禁用开机自启动
+#[tauri::command]
+pub fn autostart_disable() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        // 删除计划任务（不存在时忽略错误）
+        let _ = std::process::Command::new("schtasks")
+            .args(["/delete", "/tn", "MXU", "/f"])
+            .output();
+        // 清理旧版注册表条目
+        remove_legacy_registry_autostart();
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("此功能仅在 Windows 上可用".to_string())
+    }
+}
+
+/// 查询是否存在自启动（任务计划程序或旧版注册表）
+#[tauri::command]
+pub fn autostart_is_enabled() -> bool {
+    #[cfg(windows)]
+    {
+        let schtask = std::process::Command::new("schtasks")
+            .args(["/query", "/tn", "MXU"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        schtask || has_legacy_registry_autostart()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 /// 获取系统架构
 #[tauri::command]
 pub fn get_arch() -> String {

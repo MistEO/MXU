@@ -215,7 +215,7 @@ pub fn check_process_running(program: &str) -> bool {
 
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
+        use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
             TH32CS_SNAPPROCESS,
@@ -226,6 +226,33 @@ pub fn check_process_running(program: &str) -> bool {
         };
 
         let file_name_lower = file_name.to_lowercase();
+
+        /// 动态扩容获取进程完整路径，处理长路径（>MAX_PATH）场景
+        unsafe fn query_process_image_path(
+            process: windows::Win32::Foundation::HANDLE,
+        ) -> Option<String> {
+            let mut capacity: u32 = 512;
+            loop {
+                let mut buf = vec![0u16; capacity as usize];
+                let mut size = capacity;
+                let result = QueryFullProcessImageNameW(
+                    process,
+                    PROCESS_NAME_FORMAT(0),
+                    windows::core::PWSTR(buf.as_mut_ptr()),
+                    &mut size,
+                );
+                if result.is_ok() {
+                    return Some(String::from_utf16_lossy(&buf[..size as usize]));
+                }
+                // ERROR_INSUFFICIENT_BUFFER 对应 HRESULT 0x8007007A，仅此错误时扩容重试
+                let err = windows::core::Error::from_win32();
+                if err.code().0 as u32 != 0x8007007A || capacity >= 32768 {
+                    // 非缓冲区不足错误或已达上限，放弃
+                    return None;
+                }
+                capacity *= 2;
+            }
+        }
 
         unsafe {
             let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
@@ -261,18 +288,7 @@ pub fn check_process_running(program: &str) -> bool {
                             false,
                             entry.th32ProcessID,
                         ) {
-                            let mut buf = [0u16; MAX_PATH as usize];
-                            let mut size = buf.len() as u32;
-                            if QueryFullProcessImageNameW(
-                                process,
-                                PROCESS_NAME_FORMAT(0),
-                                windows::core::PWSTR(buf.as_mut_ptr()),
-                                &mut size,
-                            )
-                            .is_ok()
-                            {
-                                let running_path =
-                                    String::from_utf16_lossy(&buf[..size as usize]);
+                            if let Some(running_path) = query_process_image_path(process) {
                                 let running_canonical = PathBuf::from(&running_path)
                                     .canonicalize()
                                     .map(|p| p.to_string_lossy().to_lowercase())

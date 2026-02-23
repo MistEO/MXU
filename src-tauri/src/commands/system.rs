@@ -192,6 +192,154 @@ pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
     }
 }
 
+/// 检查指定程序是否正在运行（通过完整路径比较，避免同名程序误判）
+/// 公共工具函数，可被其他模块调用
+pub fn check_process_running(program: &str) -> bool {
+    use std::path::PathBuf;
+
+    let resolved_path = PathBuf::from(program);
+
+    // 提取文件名用于初步筛选
+    let file_name = match resolved_path.file_name() {
+        Some(name) => name.to_string_lossy().to_string(),
+        None => {
+            log::warn!("check_process_running: cannot extract filename from '{}'", program);
+            return false;
+        }
+    };
+
+    // 尝试规范化路径用于精确比较
+    let canonical_target = resolved_path
+        .canonicalize()
+        .unwrap_or_else(|_| resolved_path.clone());
+
+    #[cfg(windows)]
+    {
+        use std::ffi::OsStr;
+        use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
+        use windows::Win32::System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+            TH32CS_SNAPPROCESS,
+        };
+        use windows::Win32::System::Threading::{
+            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+            PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+
+        let file_name_lower = file_name.to_lowercase();
+
+        unsafe {
+            let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("check_process_running: CreateToolhelp32Snapshot failed: {}", e);
+                    return false;
+                }
+            };
+
+            let mut entry = PROCESSENTRY32W {
+                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
+
+            let target_lower = canonical_target.to_string_lossy().to_lowercase();
+
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    // 从 szExeFile 提取进程名
+                    let exe_name = OsStr::from_encoded_bytes_unchecked(
+                        &entry.szExeFile.iter()
+                            .take_while(|&&c| c != 0)
+                            .flat_map(|c| c.to_le_bytes())
+                            .collect::<Vec<u8>>(),
+                    )
+                    .to_string_lossy()
+                    .to_lowercase();
+
+                    // 先按文件名筛选
+                    if exe_name == file_name_lower {
+                        // 尝试获取完整路径
+                        if let Ok(process) = OpenProcess(
+                            PROCESS_QUERY_LIMITED_INFORMATION,
+                            false,
+                            entry.th32ProcessID,
+                        ) {
+                            let mut buf = [0u16; MAX_PATH as usize];
+                            let mut size = buf.len() as u32;
+                            if QueryFullProcessImageNameW(
+                                process,
+                                PROCESS_NAME_FORMAT(0),
+                                windows::core::PWSTR(buf.as_mut_ptr()),
+                                &mut size,
+                            )
+                            .is_ok()
+                            {
+                                let running_path =
+                                    String::from_utf16_lossy(&buf[..size as usize]);
+                                let running_canonical = PathBuf::from(&running_path)
+                                    .canonicalize()
+                                    .map(|p| p.to_string_lossy().to_lowercase())
+                                    .unwrap_or_else(|_| running_path.to_lowercase());
+
+                                if running_canonical == target_lower {
+                                    let _ = CloseHandle(process);
+                                    let _ = CloseHandle(snapshot);
+                                    info!(
+                                        "check_process_running: '{}' -> true (matched: {})",
+                                        program, running_path
+                                    );
+                                    return true;
+                                }
+                            }
+                            let _ = CloseHandle(process);
+                        }
+                    }
+
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+
+            let _ = CloseHandle(snapshot);
+            info!("check_process_running: '{}' -> false", program);
+            false
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        use std::process::Command;
+        let search_path = canonical_target.to_string_lossy().to_string();
+
+        let output = Command::new("pgrep")
+            .arg("-f")
+            .arg(&search_path)
+            .output();
+        match output {
+            Ok(output) => {
+                let is_running = output.status.success();
+                info!(
+                    "check_process_running: '{}' -> {}",
+                    search_path, is_running
+                );
+                is_running
+            }
+            Err(e) => {
+                log::error!("check_process_running: failed to run pgrep: {}", e);
+                false
+            }
+        }
+    }
+}
+
+/// Tauri 命令：检查指定程序是否正在运行
+/// program: 程序的绝对路径
+#[tauri::command]
+pub fn is_process_running(program: String) -> bool {
+    check_process_running(&program)
+}
+
 /// Run pre-action (launch program and optionally wait for exit)
 /// program: 程序路径
 /// args: 附加参数（空格分隔）

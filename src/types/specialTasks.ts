@@ -152,7 +152,7 @@ const MXU_LAUNCH_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_LAUNCH_TASK_NAME,
   label: 'specialTask.launch.label',
   entry: MXU_LAUNCH_ENTRY,
-  option: ['__MXU_LAUNCH_OPTION__', '__MXU_LAUNCH_WAIT_OPTION__'],
+  option: ['__MXU_LAUNCH_OPTION__', '__MXU_LAUNCH_WAIT_OPTION__', '__MXU_LAUNCH_SKIP_OPTION__'],
   pipeline_override: {
     [MXU_LAUNCH_ENTRY]: {
       action: 'Custom',
@@ -216,6 +216,38 @@ const MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL: SwitchOption = {
         [MXU_LAUNCH_ENTRY]: {
           custom_action_param: {
             wait_for_exit: false,
+          },
+        },
+      },
+    },
+  ],
+  default_case: 'No',
+};
+
+// MXU_LAUNCH 跳过已运行选项定义
+const MXU_LAUNCH_SKIP_OPTION_DEF_INTERNAL: SwitchOption = {
+  type: 'switch',
+  label: 'specialTask.launch.skipLabel',
+  description: 'specialTask.launch.skipDescription',
+  cases: [
+    {
+      name: 'Yes',
+      label: 'specialTask.launch.skipYes',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            skip_if_running: true,
+          },
+        },
+      },
+    },
+    {
+      name: 'No',
+      label: 'specialTask.launch.skipNo',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            skip_if_running: false,
           },
         },
       },
@@ -490,6 +522,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     optionDefs: {
       __MXU_LAUNCH_OPTION__: MXU_LAUNCH_INPUT_OPTION_DEF_INTERNAL,
       __MXU_LAUNCH_WAIT_OPTION__: MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL,
+      __MXU_LAUNCH_SKIP_OPTION__: MXU_LAUNCH_SKIP_OPTION_DEF_INTERNAL,
     },
     iconName: 'Play',
     iconColorClass: 'text-success/80',

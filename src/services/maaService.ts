@@ -677,6 +677,25 @@ export const maaService = {
       throw err;
     }
   },
+
+  /**
+   * 检查指定程序是否正在运行（通过完整路径比较）
+   * @param program 程序的绝对路径
+   * @returns 是否正在运行
+   */
+  async isProcessRunning(program: string): Promise<boolean> {
+    if (!isTauri()) {
+      return false;
+    }
+    try {
+      const running = await invoke<boolean>('is_process_running', { program });
+      log.info('进程检查:', program, '运行中:', running);
+      return running;
+    } catch (err) {
+      log.error('进程检查失败:', err);
+      return false;
+    }
+  },
 };
 
 export default maaService;

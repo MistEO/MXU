@@ -17,6 +17,7 @@ const defaultAction: ActionConfig = {
   program: '',
   args: '',
   waitForExit: false,
+  skipIfRunning: true,
 };
 
 export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
@@ -178,6 +179,15 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               hint={t('action.waitForExitHintPre')}
               value={currentAction.waitForExit}
               onChange={(v) => updateAction({ waitForExit: v })}
+              disabled={disabled}
+            />
+
+            {/* 已运行时跳过执行开关 */}
+            <SwitchField
+              label={t('action.skipIfRunning')}
+              hint={t('action.skipIfRunningHint')}
+              value={currentAction.skipIfRunning}
+              onChange={(v) => updateAction({ skipIfRunning: v })}
               disabled={disabled}
             />
           </div>

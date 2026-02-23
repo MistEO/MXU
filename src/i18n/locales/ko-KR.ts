@@ -132,6 +132,10 @@ export default {
         '활성화하면 프로세스 종료 후 계속합니다. 프로그램 등 동기 완료가 필요한 작업에 적합합니다. 비활성화하면 실행 후 즉시 계속합니다',
       waitYes: '프로그램 종료 후 계속',
       waitNo: '실행 후 즉시 계속',
+      skipLabel: '실행 중이면 건너뛰기',
+      skipDescription: '활성화하면 프로그램이 이미 실행 중일 때 중복 실행을 방지하기 위해 시작을 건너뜁니다',
+      skipYes: '이미 실행 중이면 시작 건너뛰기',
+      skipNo: '항상 새 인스턴스 시작',
     },
     notify: {
       label: '💬 시스템 알림',
@@ -273,6 +277,10 @@ export default {
     waitForExit: '종료 대기',
     waitForExitHintPre:
       '활성화하면 프로세스가 종료될 때까지 대기한 후 계속합니다. 프로그램 실행과 같은 동기 작업에 적합합니다. 비활성화하면 프로세스 시작 후 즉시 계속하고 장치 연결 상태를 폴링합니다. 게임 시작과 같은 비동기 시나리오에 적합합니다',
+    skipIfRunning: '실행 중이면 건너뛰기',
+    skipIfRunningHint:
+      '활성화하면 프로그램이 이미 실행 중인 경우 실행을 건너뛱니다. 게임 등의 재시작을 피하는 데 유용합니다',
+    preActionSkipped: '전처리 프로그램 {{name}} 이(가) 실행 중이므로 건너뛰니다',
     waitingForDevice: '장치 준비 대기 중...',
     waitingForWindow: '윈도우 준비 대기 중...',
     deviceReady: '장치 준비 완료',

@@ -133,6 +133,10 @@ export default {
         'When enabled, waits for the process to exit before continuing, suitable for programs that need to complete synchronously; when disabled, continues immediately after launch',
       waitYes: 'Wait for program to exit before continuing',
       waitNo: 'Continue immediately after launch',
+      skipLabel: 'Skip if Running',
+      skipDescription: 'When enabled, skips launching if the program is already running to avoid duplicates',
+      skipYes: 'Skip launch if already running',
+      skipNo: 'Always launch new instance',
     },
     notify: {
       label: '💬 System Notification',
@@ -275,6 +279,10 @@ export default {
     waitForExit: 'Wait for Exit',
     waitForExitHintPre:
       'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+    skipIfRunning: 'Skip if Running',
+    skipIfRunningHint:
+      'When enabled, skips execution if the program is already running, useful for avoiding restarting games or other applications',
+    preActionSkipped: 'Pre-program {{name}} is already running, skipped',
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',
     deviceReady: 'Device is ready',

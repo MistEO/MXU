@@ -131,6 +131,10 @@ export default {
         '启用时等待进程退出后再继续，适用于执行程序等需要同步完成的操作；禁用时启动进程后立即继续',
       waitYes: '等待程序退出后继续',
       waitNo: '启动后立即继续',
+      skipLabel: '已运行时跳过',
+      skipDescription: '启用时，如果程序已在运行则跳过启动，避免重复运行',
+      skipYes: '已运行时跳过启动',
+      skipNo: '始终启动新实例',
     },
     notify: {
       label: '💬 系统通知',
@@ -269,6 +273,10 @@ export default {
     waitForExit: '等待退出',
     waitForExitHintPre:
       '启用时等待进程退出后再继续，适用于执行程序等需要同步完成的操作；禁用时启动进程后立即继续，并循环轮询设备连接状态，适用于启动游戏等异步场景',
+    skipIfRunning: '已运行时跳过',
+    skipIfRunningHint:
+      '启用时，如果该程序已在运行则跳过执行，适用于避免重复启动游戏等场景',
+    preActionSkipped: '前置程序 {{name}} 已在运行，跳过执行',
     waitingForDevice: '正在等待设备就绪...',
     waitingForWindow: '正在等待窗口就绪...',
     deviceReady: '设备已就绪',

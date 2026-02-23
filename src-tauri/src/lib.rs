@@ -177,6 +177,7 @@ pub fn run() {
             commands::system::open_file,
             commands::system::run_and_wait,
             commands::system::run_action,
+            commands::system::is_process_running,
             commands::system::retry_load_maa_library,
             commands::system::check_vcredist_missing,
             commands::system::autostart_enable,

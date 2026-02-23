@@ -130,6 +130,10 @@ export default {
         '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續',
       waitYes: '等待程式退出後繼續',
       waitNo: '啟動後立即繼續',
+      skipLabel: '已運行時跳過',
+      skipDescription: '啟用時，如果程式已在運行則跳過啟動，避免重複運行',
+      skipYes: '已運行時跳過啟動',
+      skipNo: '始終啟動新實例',
     },
     notify: {
       label: '💬 系統通知',
@@ -268,6 +272,10 @@ export default {
     waitForExit: '等待退出',
     waitForExitHintPre:
       '啟用時等待程序退出後再繼續，適用於執行程式等需要同步完成的操作；禁用時啟動程序後立即繼續，並循環輪詢裝置連線狀態，適用於啟動遊戲等非同步場景',
+    skipIfRunning: '已運行時跳過',
+    skipIfRunningHint:
+      '啟用時，如果該程式已在運行則跳過執行，適用於避免重複啟動遊戲等場景',
+    preActionSkipped: '前置程式 {{name}} 已在運行，跳過執行',
     waitingForDevice: '正在等待裝置就緒...',
     waitingForWindow: '正在等待視窗就緒...',
     deviceReady: '裝置已就緒',

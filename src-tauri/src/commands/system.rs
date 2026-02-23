@@ -215,7 +215,6 @@ pub fn check_process_running(program: &str) -> bool {
 
     #[cfg(windows)]
     {
-        use std::ffi::OsStr;
         use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
         use windows::Win32::System::Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
@@ -246,15 +245,13 @@ pub fn check_process_running(program: &str) -> bool {
 
             if Process32FirstW(snapshot, &mut entry).is_ok() {
                 loop {
-                    // 从 szExeFile 提取进程名
-                    let exe_name = OsStr::from_encoded_bytes_unchecked(
-                        &entry.szExeFile.iter()
-                            .take_while(|&&c| c != 0)
-                            .flat_map(|c| c.to_le_bytes())
-                            .collect::<Vec<u8>>(),
-                    )
-                    .to_string_lossy()
-                    .to_lowercase();
+                    // 从 szExeFile (UTF-16) 提取进程名
+                    let len = entry
+                        .szExeFile
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(entry.szExeFile.len());
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
 
                     // 先按文件名筛选
                     if exe_name == file_name_lower {

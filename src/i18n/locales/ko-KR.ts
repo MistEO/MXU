@@ -280,7 +280,7 @@ export default {
     skipIfRunning: '실행 중이면 건너뛰기',
     skipIfRunningHint:
       '활성화하면 프로그램이 이미 실행 중인 경우 실행을 건너뛱니다. 게임 등의 재시작을 피하는 데 유용합니다',
-    preActionSkipped: '전처리 프로그램 {{name}} 이(가) 실행 중이므로 건너뛰니다',
+    preActionSkipped: '전처리 프로그램 {{name}} 이(가) 실행 중이므로 건너뜁니다',
     waitingForDevice: '장치 준비 대기 중...',
     waitingForWindow: '윈도우 준비 대기 중...',
     deviceReady: '장치 준비 완료',

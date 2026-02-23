@@ -209,7 +209,7 @@ export interface ActionConfig {
   program: string; // 程序路径
   args: string; // 附加参数
   waitForExit: boolean; // 是否等待进程退出（默认 true）
-  skipIfRunning: boolean; // 程序已运行时跳过执行（默认 false）
+  skipIfRunning: boolean; // 程序已运行时跳过执行（默认 true）
 }
 
 // 多开实例状态

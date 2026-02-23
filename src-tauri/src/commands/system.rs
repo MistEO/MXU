@@ -320,29 +320,91 @@ pub fn check_process_running(program: &str) -> bool {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     {
-        use std::process::Command;
-        let search_path = canonical_target.to_string_lossy().to_string();
+        // 遍历 /proc/<pid>/exe 读取真实可执行路径进行比较
+        if let Ok(proc_dir) = std::fs::read_dir("/proc") {
+            for entry in proc_dir.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if !name_str.chars().all(|c| c.is_ascii_digit()) {
+                    continue;
+                }
 
-        let output = Command::new("pgrep")
-            .arg("-f")
-            .arg(&search_path)
-            .output();
-        match output {
-            Ok(output) => {
-                let is_running = output.status.success();
-                info!(
-                    "check_process_running: '{}' -> {}",
-                    search_path, is_running
-                );
-                is_running
-            }
-            Err(e) => {
-                log::error!("check_process_running: failed to run pgrep: {}", e);
-                false
+                let exe_link = entry.path().join("exe");
+                if let Ok(resolved) = std::fs::read_link(&exe_link) {
+                    let canonical = resolved
+                        .canonicalize()
+                        .unwrap_or(resolved);
+                    if canonical == canonical_target {
+                        info!(
+                            "check_process_running: '{}' -> true (pid: {})",
+                            program, name_str
+                        );
+                        return true;
+                    }
+                }
             }
         }
+
+        info!("check_process_running: '{}' -> false", program);
+        false
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS 没有 /proc，通过 libproc API 获取每个进程的可执行路径进行比较
+        extern "C" {
+            fn proc_listallpids(buffer: *mut i32, buffersize: i32) -> i32;
+            fn proc_pidpath(pid: i32, buffer: *mut u8, buffersize: u32) -> i32;
+        }
+
+        unsafe {
+            // 先查询进程总数
+            let count = proc_listallpids(std::ptr::null_mut(), 0);
+            if count <= 0 {
+                info!("check_process_running: '{}' -> false (no pids)", program);
+                return false;
+            }
+
+            let mut pids = vec![0i32; count as usize];
+            let buf_size = (count as usize * std::mem::size_of::<i32>()) as i32;
+            let actual = proc_listallpids(pids.as_mut_ptr(), buf_size);
+            if actual <= 0 {
+                info!("check_process_running: '{}' -> false (list failed)", program);
+                return false;
+            }
+            let num_pids = actual as usize / std::mem::size_of::<i32>();
+
+            // PROC_PIDPATHINFO_MAXSIZE = 4096
+            let mut path_buf = [0u8; 4096];
+
+            for &pid in &pids[..num_pids] {
+                if pid == 0 {
+                    continue;
+                }
+
+                let ret = proc_pidpath(pid, path_buf.as_mut_ptr(), path_buf.len() as u32);
+                if ret <= 0 {
+                    continue;
+                }
+
+                if let Ok(path_str) = std::str::from_utf8(&path_buf[..ret as usize]) {
+                    let pid_path = PathBuf::from(path_str);
+                    let canonical = pid_path.canonicalize().unwrap_or(pid_path);
+                    if canonical == canonical_target {
+                        info!(
+                            "check_process_running: '{}' -> true (pid: {})",
+                            program, pid
+                        );
+                        return true;
+                    }
+                }
+            }
+        }
+
+        info!("check_process_running: '{}' -> false", program);
+        false
     }
 }
 

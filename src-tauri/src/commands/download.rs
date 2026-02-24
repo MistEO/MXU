@@ -36,7 +36,7 @@ pub async fn get_github_release_by_version(
     let mut client_builder = reqwest::Client::builder()
         .user_agent("mxu")
         .timeout(std::time::Duration::from_secs(10))
-        .connect_timeout(std::time::Duration::from_secs(3));
+        .connect_timeout(std::time::Duration::from_secs(3))
         .no_proxy();
 
     if let Some(ref proxy) = proxy_url {

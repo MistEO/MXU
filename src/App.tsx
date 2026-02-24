@@ -1033,7 +1033,7 @@ function App() {
       title = resolveI18nText(projectInterface.title, translations);
     } else {
       const version = projectInterface.version;
-      title = version ? `${projectInterface.name} v${version}` : projectInterface.name;
+      title = version ? `${projectInterface.name} ${version}` : projectInterface.name;
     }
 
     // 副标题：使用 description（支持国际化）或默认

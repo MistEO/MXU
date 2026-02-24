@@ -50,16 +50,22 @@ export function GeneralSection() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    invoke<string>('get_os').then((os) => {
-      isWindowsRef.current = os === 'windows';
-      if (isWindowsRef.current) {
-        invoke<boolean>('autostart_is_enabled').then(setAutoStartEnabled).catch(() => {});
-      } else {
-        import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
-          isEnabled().then(setAutoStartEnabled).catch(() => {});
-        });
-      }
-    }).catch(() => {});
+    invoke<string>('get_os')
+      .then((os) => {
+        isWindowsRef.current = os === 'windows';
+        if (isWindowsRef.current) {
+          invoke<boolean>('autostart_is_enabled')
+            .then(setAutoStartEnabled)
+            .catch(() => {});
+        } else {
+          import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+            isEnabled()
+              .then(setAutoStartEnabled)
+              .catch(() => {});
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // 点击外部关闭下拉框

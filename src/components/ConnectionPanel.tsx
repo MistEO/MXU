@@ -58,6 +58,7 @@ export function ConnectionPanel() {
     setConnectionPanelExpanded,
     registerCtrlIdName,
     registerResIdName,
+    registerResBatch,
   } = useAppStore();
 
   // 获取当前活动实例
@@ -541,6 +542,7 @@ export function ConnectionPanel() {
 
       // 注册 res_id 与资源名的映射，用于日志显示
       const resourceDisplayName = resolveI18nText(resource.label, translations) || resource.name;
+      registerResBatch(resIds);
       resIds.forEach((resId) => {
         registerResIdName(resId, resourceDisplayName);
       });
@@ -1005,7 +1007,10 @@ export function ConnectionPanel() {
   }
 
   return (
-    <div id="connection-panel" className="bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden">
+    <div
+      id="connection-panel"
+      className="bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden"
+    >
       {/* 标题栏（可点击折叠） */}
       <button
         onClick={() => setConnectionPanelExpanded(!connectionPanelExpanded)}

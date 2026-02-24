@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Plus, Sparkles, Loader2, AlertCircle, Play } from 'lucide-react';
+import { Search, Plus, Sparkles, Loader2, AlertCircle, Play, ChevronsDown } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -147,6 +147,8 @@ export function AddTaskPanel() {
     newTaskNames,
     removeNewTaskName,
     setInstancePreAction,
+    // 添加任务面板
+    setShowAddTaskPanel,
   } = useAppStore();
 
   // 获取所有注册的特殊任务
@@ -219,6 +221,9 @@ export function AddTaskPanel() {
   const handleAddSpecialTask = async (specialTask: MxuSpecialTaskDefinition) => {
     if (!instance) return;
 
+    // 收起添加任务面板
+    setShowAddTaskPanel(false);
+
     // 添加特殊任务到列表
     const taskId = addMxuSpecialTask(instance.id, specialTask.taskName);
 
@@ -272,6 +277,9 @@ export function AddTaskPanel() {
 
     const task = projectInterface.task.find((t) => t.name === taskName);
     if (!task) return;
+
+    // 收起添加任务面板
+    setShowAddTaskPanel(false);
 
     // 如果是新增任务，移除 "new" 标记
     if (newTaskNames.includes(taskName)) {
@@ -332,19 +340,28 @@ export function AddTaskPanel() {
     <div id="add-task-panel" className="border-t border-border bg-bg-tertiary">
       {/* 搜索框 */}
       <div className="p-2 border-b border-border">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('addTaskPanel.searchPlaceholder')}
-            className={clsx(
-              'w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border',
-              'bg-bg-secondary text-text-primary placeholder:text-text-muted',
-              'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
-            )}
-          />
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('addTaskPanel.searchPlaceholder')}
+              className={clsx(
+                'w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border',
+                'bg-bg-secondary text-text-primary placeholder:text-text-muted',
+                'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
+              )}
+            />
+          </div>
+          <button
+            onClick={() => setShowAddTaskPanel(false)}
+            className="shrink-0 p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+            title={t('addTaskPanel.collapse')}
+          >
+            <ChevronsDown className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -397,7 +414,10 @@ export function AddTaskPanel() {
                   {/* 前置任务按钮：仅在未添加时显示 */}
                   {!instance.preAction && (
                     <button
-                      onClick={() => setInstancePreAction(instance.id, defaultAction)}
+                      onClick={() => {
+                        setInstancePreAction(instance.id, defaultAction);
+                        setShowAddTaskPanel(false);
+                      }}
                       disabled={instance.isRunning}
                       className={clsx(
                         'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',

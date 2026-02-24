@@ -73,6 +73,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     // 回调 ID 映射
     registerCtrlIdName,
     registerResIdName,
+    registerResBatch,
     registerTaskIdName,
     registerEntryTaskName,
     // 日志
@@ -694,6 +695,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
           // 注册 res_id 与资源名的映射
           const resDisplayName = resolveI18nText(resource.label, translations) || resource.name;
+          registerResBatch(resIds);
           resIds.forEach((resId) => {
             registerResIdName(resId, resDisplayName);
           });

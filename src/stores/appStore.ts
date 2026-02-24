@@ -1583,6 +1583,7 @@ export const useAppStore = create<AppState>()(
     ctrlIdToName: {},
     ctrlIdToType: {},
     resIdToName: {},
+    resBatchInfo: {},
     taskIdToName: {},
     entryToTaskName: {},
 
@@ -1597,6 +1598,18 @@ export const useAppStore = create<AppState>()(
         resIdToName: { ...state.resIdToName, [resId]: name },
       })),
 
+    registerResBatch: (resIds) =>
+      set((state) => {
+        const newBatchInfo = { ...state.resBatchInfo };
+        resIds.forEach((resId, index) => {
+          newBatchInfo[resId] = {
+            isFirst: index === 0,
+            isLast: index === resIds.length - 1,
+          };
+        });
+        return { resBatchInfo: newBatchInfo };
+      }),
+
     registerTaskIdName: (taskId, name) =>
       set((state) => ({
         taskIdToName: { ...state.taskIdToName, [taskId]: name },
@@ -1610,6 +1623,7 @@ export const useAppStore = create<AppState>()(
     getCtrlName: (ctrlId) => get().ctrlIdToName[ctrlId],
     getCtrlType: (ctrlId) => get().ctrlIdToType[ctrlId],
     getResName: (resId) => get().resIdToName[resId],
+    getResBatchInfo: (resId) => get().resBatchInfo[resId],
     getTaskName: (taskId) => get().taskIdToName[taskId],
     getTaskNameByEntry: (entry) => get().entryToTaskName[entry],
   })),

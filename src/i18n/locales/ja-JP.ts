@@ -432,6 +432,7 @@ export default {
     alreadyAdded: '追加済み',
     specialTasks: '特殊タスク',
     allSpecialTasksAdded: 'すべて追加済み',
+    collapse: 'パネルを閉じる',
   },
 
   // このアプリについて

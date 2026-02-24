@@ -21,7 +21,7 @@ export function useResourceLoading({
   currentController,
 }: UseResourceLoadingProps) {
   const { t } = useTranslation();
-  const { setInstanceResourceLoaded, registerResIdName } = useAppStore();
+  const { setInstanceResourceLoaded, registerResIdName, registerResBatch } = useAppStore();
 
   const [isLoadingResource, setIsLoadingResource] = useState(false);
   const [isResourceLoaded, setIsResourceLoaded] = useState(false);
@@ -47,6 +47,7 @@ export function useResourceLoading({
         const resIds = await maaService.loadResource(instanceId, resourcePaths);
 
         const resourceDisplayName = resolveI18nText(resource.label, translations) || resource.name;
+        registerResBatch(resIds);
         resIds.forEach((resId) => {
           registerResIdName(resId, resourceDisplayName);
         });
@@ -92,6 +93,7 @@ export function useResourceLoading({
       currentController,
       setInstanceResourceLoaded,
       registerResIdName,
+      registerResBatch,
       t,
     ],
   );

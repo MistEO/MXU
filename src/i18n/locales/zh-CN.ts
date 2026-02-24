@@ -425,6 +425,7 @@ export default {
     alreadyAdded: '已添加',
     specialTasks: '特殊任务',
     allSpecialTasksAdded: '已全部添加',
+    collapse: '收起面板',
   },
 
   // 关于

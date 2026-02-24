@@ -408,15 +408,18 @@ export interface AppState {
   ctrlIdToName: Record<number, string>;
   ctrlIdToType: Record<number, 'device' | 'window'>;
   resIdToName: Record<number, string>;
+  resBatchInfo: Record<number, { isFirst: boolean; isLast: boolean }>;
   taskIdToName: Record<number, string>;
   entryToTaskName: Record<string, string>;
   registerCtrlIdName: (ctrlId: number, name: string, type: 'device' | 'window') => void;
   registerResIdName: (resId: number, name: string) => void;
+  registerResBatch: (resIds: number[]) => void;
   registerTaskIdName: (taskId: number, name: string) => void;
   registerEntryTaskName: (entry: string, name: string) => void;
   getCtrlName: (ctrlId: number) => string | undefined;
   getCtrlType: (ctrlId: number) => 'device' | 'window' | undefined;
   getResName: (resId: number) => string | undefined;
+  getResBatchInfo: (resId: number) => { isFirst: boolean; isLast: boolean } | undefined;
   getTaskName: (taskId: number) => string | undefined;
   getTaskNameByEntry: (entry: string) => string | undefined;
 }

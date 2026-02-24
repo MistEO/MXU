@@ -144,6 +144,21 @@ function inferCtrlInfoFromInstance(instanceId: string): {
   return { type: 'device', name: undefined };
 }
 
+// 从当前实例配置推断资源显示名称（用于解决回调时序问题，类似 inferCtrlInfoFromInstance）
+function inferResInfoFromInstance(instanceId: string): string | undefined {
+  const state = useAppStore.getState();
+  const resourceName =
+    state.selectedResource[instanceId] || state.projectInterface?.resource?.[0]?.name;
+  if (!resourceName) return undefined;
+
+  const resource = state.projectInterface?.resource?.find((r) => r.name === resourceName);
+  if (!resource) return undefined;
+
+  const langKey = getInterfaceLangKey(state.language);
+  const translations = state.interfaceTranslations[langKey];
+  return resolveI18nText(resource.label, translations) || resource.name;
+}
+
 export function useMaaCallbackLogger() {
   const { t } = useTranslation();
   const { addLog } = useAppStore();
@@ -253,7 +268,7 @@ function handleCallback(
   addLog: (instanceId: string, log: { type: LogType; message: string; html?: string }) => void,
 ) {
   // 获取 ID 名称映射函数
-  const { getCtrlName, getCtrlType, getResName } = useAppStore.getState();
+  const { getCtrlName, getCtrlType, getResName, getResBatchInfo } = useAppStore.getState();
 
   // 首先检查是否有 focus 字段，有则优先处理 focus 消息
   const focus = details.focus as Record<string, string> | undefined;
@@ -355,7 +370,12 @@ function handleCallback(
 
     // ==================== 资源加载消息 ====================
     case 'Resource.Loading.Starting': {
-      const resourceName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const batchInfo = details.res_id !== undefined ? getResBatchInfo(details.res_id) : undefined;
+      // 批量加载时只显示第一个 path 的"开始加载"
+      if (batchInfo && !batchInfo.isFirst) break;
+      const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const inferredName = inferResInfoFromInstance(instanceId);
+      const resourceName = registeredName || inferredName;
       addLog(instanceId, {
         type: 'info',
         message: t('logs.messages.loadingResource', {
@@ -366,7 +386,12 @@ function handleCallback(
     }
 
     case 'Resource.Loading.Succeeded': {
-      const resourceName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const batchInfo = details.res_id !== undefined ? getResBatchInfo(details.res_id) : undefined;
+      // 批量加载时只显示最后一个 path 的"加载成功"
+      if (batchInfo && !batchInfo.isLast) break;
+      const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const inferredName = inferResInfoFromInstance(instanceId);
+      const resourceName = registeredName || inferredName;
       addLog(instanceId, {
         type: 'success',
         message: t('logs.messages.resourceLoaded', { name: resourceName || details.path || '' }),
@@ -375,10 +400,14 @@ function handleCallback(
     }
 
     case 'Resource.Loading.Failed': {
-      const resourceName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
+      const inferredName = inferResInfoFromInstance(instanceId);
+      const resourceName = registeredName || inferredName;
       addLog(instanceId, {
         type: 'error',
-        message: t('logs.messages.resourceFailed', { name: resourceName || details.path || '' }),
+        message: t('logs.messages.resourceFailed', {
+          name: `${resourceName} ${details.path}` || '',
+        }),
       });
       break;
     }

@@ -383,6 +383,7 @@ export function TaskList() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden p-3"
+        onClick={() => showAddTaskPanel && setShowAddTaskPanel(false)}
         onContextMenu={handleListContextMenu}
       >
         <div className="space-y-2">

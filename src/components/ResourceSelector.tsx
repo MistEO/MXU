@@ -29,8 +29,14 @@ export function ResourceSelector({
   isRunning = false,
 }: ResourceSelectorProps) {
   const { t } = useTranslation();
-  const { basePath, language, interfaceTranslations, registerResIdName, projectInterface } =
-    useAppStore();
+  const {
+    basePath,
+    language,
+    interfaceTranslations,
+    registerResIdName,
+    registerResBatch,
+    projectInterface,
+  } = useAppStore();
 
   // 未选择控制器时，使用第一个控制器作为默认值判断兼容性
   const effectiveControllerName = selectedControllerName || projectInterface?.controller[0]?.name;
@@ -167,6 +173,7 @@ export function ResourceSelector({
 
       // 注册 res_id 与资源名的映射用于日志显示
       const resourceDisplayName = resolveI18nText(resource.label, translations) || resource.name;
+      registerResBatch(resIds);
       resIds.forEach((resId) => {
         registerResIdName(resId, resourceDisplayName);
       });

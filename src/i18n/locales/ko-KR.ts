@@ -428,6 +428,7 @@ export default {
     searchPlaceholder: '작업 검색...',
     noResults: '일치하는 작업을 찾을 수 없습니다',
     alreadyAdded: '추가됨',
+    collapse: '패널 접기',
     specialTasks: '특수 작업',
     allSpecialTasksAdded: '모두 추가됨',
   },

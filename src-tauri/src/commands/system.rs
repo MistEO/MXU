@@ -3,18 +3,12 @@
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
 use log::info;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::os::raw::c_void;
+
+use crate::maa_ffi::MAA_LIBRARY;
 
 use super::types::SystemInfo;
 use super::utils::get_maafw_dir;
-
-/// 标记是否检测到可能缺少 VC++ 运行库
-static VCREDIST_MISSING: AtomicBool = AtomicBool::new(false);
-
-/// 设置 VC++ 运行库缺失标记 (供内部调用)
-pub fn set_vcredist_missing(missing: bool) {
-    VCREDIST_MISSING.store(missing, Ordering::SeqCst);
-}
 
 /// 检查当前进程是否以管理员权限运行
 #[tauri::command]
@@ -124,12 +118,30 @@ pub fn restart_as_admin(app_handle: tauri::AppHandle) -> Result<(), String> {
 /// 设置全局选项 - 保存调试图像
 #[tauri::command]
 pub fn maa_set_save_draw(enabled: bool) -> Result<bool, String> {
-    maa_framework::set_save_draw(enabled)
-        .map(|_| {
-            info!("保存调试图像: {}", if enabled { "启用" } else { "禁用" });
-            true
-        })
-        .map_err(|e| format!("设置保存调试图像失败: {}", e))
+    let lib = MAA_LIBRARY
+        .lock()
+        .map_err(|e| format!("Failed to lock library: {}", e))?;
+
+    if lib.is_none() {
+        return Err("MaaFramework not initialized".to_string());
+    }
+
+    let lib = lib.as_ref().unwrap();
+
+    let result = unsafe {
+        (lib.maa_set_global_option)(
+            crate::maa_ffi::MAA_GLOBAL_OPTION_SAVE_DRAW,
+            &enabled as *const bool as *const c_void,
+            std::mem::size_of::<bool>() as u64,
+        )
+    };
+
+    if result != 0 {
+        info!("保存调试图像: {}", if enabled { "启用" } else { "禁用" });
+        Ok(true)
+    } else {
+        Err("设置保存调试图像失败".to_string())
+    }
 }
 
 /// 打开文件（使用系统默认程序）
@@ -489,17 +501,9 @@ pub async fn retry_load_maa_library() -> Result<String, String> {
         return Err("MaaFramework directory not found".to_string());
     }
 
-    // Load library
-    #[cfg(windows)]
-    let dll_path = maafw_dir.join("MaaFramework.dll");
-    #[cfg(target_os = "macos")]
-    let dll_path = maafw_dir.join("libMaaFramework.dylib");
-    #[cfg(target_os = "linux")]
-    let dll_path = maafw_dir.join("libMaaFramework.so");
+    crate::maa_ffi::init_maa_library(&maafw_dir).map_err(|e| e.to_string())?;
 
-    maa_framework::load_library(&dll_path).map_err(|e| e.to_string())?;
-
-    let version = maa_framework::maa_version().to_string();
+    let version = crate::maa_ffi::get_maa_version().unwrap_or_default();
     info!("MaaFramework loaded successfully, version: {}", version);
 
     Ok(version)
@@ -508,7 +512,7 @@ pub async fn retry_load_maa_library() -> Result<String, String> {
 /// 检查是否检测到 VC++ 运行库缺失（检查后自动清除标记）
 #[tauri::command]
 pub fn check_vcredist_missing() -> bool {
-    let missing = VCREDIST_MISSING.swap(false, Ordering::SeqCst);
+    let missing = crate::maa_ffi::check_and_clear_vcredist_missing();
     if missing {
         info!("VC++ runtime missing detected, notifying frontend");
     }
@@ -540,14 +544,20 @@ fn to_wide(s: &str) -> Vec<u16> {
 
 #[cfg(windows)]
 fn create_schtask_autostart() -> Result<(), String> {
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("获取程序路径失败: {}", e))?;
+    let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
     let exe = exe_path.to_string_lossy();
     let output = std::process::Command::new("schtasks")
         .args([
-            "/create", "/tn", "MXU", "/tr",
+            "/create",
+            "/tn",
+            "MXU",
+            "/tr",
             &format!("\"{}\" --autostart", exe),
-            "/sc", "onlogon", "/rl", "highest", "/f",
+            "/sc",
+            "onlogon",
+            "/rl",
+            "highest",
+            "/f",
         ])
         .output()
         .map_err(|e| format!("执行 schtasks 失败: {}", e))?;
@@ -561,13 +571,21 @@ fn create_schtask_autostart() -> Result<(), String> {
 /// 清理旧版注册表自启动条目（tauri-plugin-autostart 遗留）
 #[cfg(windows)]
 fn remove_legacy_registry_autostart() {
-    use windows::Win32::System::Registry::*;
     use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::*;
 
     unsafe {
         let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
         let mut hkey = HKEY::default();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(subkey.as_ptr()), 0, KEY_SET_VALUE | KEY_QUERY_VALUE, &mut hkey).is_ok() {
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            0,
+            KEY_SET_VALUE | KEY_QUERY_VALUE,
+            &mut hkey,
+        )
+        .is_ok()
+        {
             for name in &["mxu", "MXU"] {
                 let wname = to_wide(name);
                 let _ = RegDeleteValueW(hkey, PCWSTR(wname.as_ptr()));
@@ -580,13 +598,21 @@ fn remove_legacy_registry_autostart() {
 /// 检查旧版注册表中是否存在自启动条目
 #[cfg(windows)]
 fn has_legacy_registry_autostart() -> bool {
-    use windows::Win32::System::Registry::*;
     use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::*;
 
     unsafe {
         let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
         let mut hkey = HKEY::default();
-        if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(subkey.as_ptr()), 0, KEY_QUERY_VALUE, &mut hkey).is_err() {
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(subkey.as_ptr()),
+            0,
+            KEY_QUERY_VALUE,
+            &mut hkey,
+        )
+        .is_err()
+        {
             return false;
         }
         let found = ["mxu", "MXU"].iter().any(|name| {

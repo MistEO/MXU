@@ -429,6 +429,7 @@ export default {
     searchPlaceholder: 'Search tasks...',
     noResults: 'No matching tasks found',
     alreadyAdded: 'Already added',
+    collapse: 'Collapse panel',
     specialTasks: 'Special Tasks',
     allSpecialTasksAdded: 'All added',
   },

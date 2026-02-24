@@ -265,7 +265,7 @@ extern "C" fn mxu_launch_action(
                 "[MXU_LAUNCH] Program '{}' is already running, skipping launch",
                 program
             );
-            return true;
+            return 1u8;
         }
     }
 

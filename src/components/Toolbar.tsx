@@ -333,11 +333,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       try {
         // 先执行前置动作（在连接设备之前）
         // 检查是否应跳过已运行的前置程序
-        let shouldRunPreAction =
-          targetInstance.preAction?.enabled && !!targetInstance.preAction.program.trim();
+        const preAction = targetInstance.preAction;
+        let shouldRunPreAction = Boolean(preAction?.enabled && preAction.program.trim());
 
-        if (shouldRunPreAction && targetInstance.preAction!.skipIfRunning) {
-          const programPath = targetInstance.preAction!.program.trim();
+        if (shouldRunPreAction && preAction?.skipIfRunning) {
+          const programPath = preAction.program.trim();
           const processName = programPath.split(/[/\\]/).pop() || programPath;
           if (await maaService.isProcessRunning(programPath)) {
             log.info(`实例 ${targetInstance.name}: 前置程序已在运行，跳过执行:`, processName);
@@ -349,18 +349,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
         }
 
-        if (shouldRunPreAction) {
-          log.info(`实例 ${targetInstance.name}: 执行前置动作:`, targetInstance.preAction!.program);
+        if (shouldRunPreAction && preAction) {
+          log.info(`实例 ${targetInstance.name}: 执行前置动作:`, preAction.program);
           addLog(targetId, {
             type: 'info',
             message: t('action.preActionStarting'),
           });
           try {
             const exitCode = await maaService.runAction(
-              targetInstance.preAction!.program,
-              targetInstance.preAction!.args,
+              preAction.program,
+              preAction.args,
               basePath,
-              targetInstance.preAction!.waitForExit ?? true,
+              preAction.waitForExit ?? true,
             );
             if (exitCode !== 0) {
               log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
@@ -376,7 +376,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             }
 
             // 如果没勾选等待进程退出，则循环查找设备直到找到
-            if (!(targetInstance.preAction!.waitForExit ?? true) && savedDevice && controller) {
+            if (!(preAction.waitForExit ?? true) && savedDevice && controller) {
               const controllerType = controller.type;
               const isWindowType = controllerType === 'Win32' || controllerType === 'Gamepad';
               log.info(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}就绪...`);

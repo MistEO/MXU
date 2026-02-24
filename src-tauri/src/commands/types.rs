@@ -307,3 +307,19 @@ pub struct SystemInfo {
     pub arch: String,
     pub tauri_version: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GitHubAsset {
+    pub name: String,
+    pub browser_download_url: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GitHubRelease {
+    pub tag_name: String,
+    pub name: String,
+    pub body: String,
+    pub prerelease: bool,
+    pub assets: Vec<GitHubAsset>,
+}

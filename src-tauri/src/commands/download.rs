@@ -16,6 +16,78 @@ static DOWNLOAD_CANCELLED: AtomicBool = AtomicBool::new(false);
 /// 当前下载的 session ID，用于区分不同的下载任务
 static CURRENT_DOWNLOAD_SESSION: AtomicU64 = AtomicU64::new(0);
 
+#[tauri::command]
+pub async fn get_github_release_by_version(
+    owner: String,
+    repo: String,
+    target_version: String,
+    github_pat: Option<String>,
+    proxy_url: Option<String>,
+) -> Result<Option<GitHubRelease>, String> {
+
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/releases",
+        owner, repo
+    );
+
+    let mut client_builder = reqwest::Client::builder()
+        .user_agent("mxu")
+        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .no_proxy();
+
+    if let Some(ref proxy) = proxy_url {
+        if !proxy.is_empty() {
+            let reqwest_proxy = reqwest::Proxy::all(proxy)
+                .map_err(|e| format!("代理配置失败: {}", e))?;
+            client_builder = client_builder.proxy(reqwest_proxy);
+        }
+    }
+
+    let client = client_builder
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let mut request = client
+        .get(&url)
+        .header(ACCEPT, "application/vnd.github.v3+json")
+        .header(USER_AGENT, "mxu");
+
+    if let Some(pat) = github_pat {
+        if !pat.trim().is_empty() {
+            request = request.header(
+                AUTHORIZATION,
+                format!("token {}", pat.trim()),
+            );
+        }
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("GitHub API 错误: {}", response.status()));
+    }
+
+    let releases: Vec<GitHubRelease> = response
+        .json()
+        .await
+        .map_err(|e| format!("解析 JSON 失败: {}", e))?;
+
+    let normalize = |v: &str| v.trim_start_matches('v').to_lowercase();
+    let target_normalized = normalize(&target_version);
+
+    for release in releases {
+        if normalize(&release.tag_name) == target_normalized {
+            return Ok(Some(release));
+        }
+    }
+
+    Ok(None)
+}
+
 /// 流式下载文件，支持进度回调和取消
 ///
 /// 使用 reqwest 进行流式下载，直接写入文件而不经过内存缓冲，

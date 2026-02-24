@@ -157,6 +157,7 @@ pub fn run() {
             commands::state::maa_get_cached_adb_devices,
             commands::state::maa_get_cached_win32_windows,
             // 更新安装命令
+            commands::update::get_github_release_by_version,
             commands::update::extract_zip,
             commands::update::check_changes_json,
             commands::update::apply_incremental_update,

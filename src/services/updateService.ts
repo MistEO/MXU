@@ -443,45 +443,16 @@ async function getGitHubReleaseByVersion(
   repo: string,
   targetVersion: string,
   githubPat?: string,
+  //proxyUrl?: string,
 ): Promise<GitHubRelease | null> {
   try {
-    const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/releases`;
-
-    // 构建请求头，如果有 PAT 则添加认证
-    const headers: Record<string, string> = {
-      Accept: 'application/vnd.github.v3+json',
-      'User-Agent': buildUserAgent(),
-    };
-
-    if (githubPat && githubPat.trim()) {
-      headers['Authorization'] = `token ${githubPat.trim()}`;
-      log.info('使用 GitHub PAT 进行认证请求');
-    }
-
-    const response = await tauriFetch(url, { headers });
-
-    if (!response.ok) {
-      log.warn(`GitHub API 返回错误: ${response.status}`);
-      return null;
-    }
-
-    const releases: GitHubRelease[] = await response.json();
-
-    // 标准化版本号进行匹配（忽略 v 前缀）
-    const normalizeVersion = (v: string) => v.replace(/^v/i, '').toLowerCase();
-    const targetNormalized = normalizeVersion(targetVersion);
-
-    const matched = releases.find(
-      (release) => normalizeVersion(release.tag_name) === targetNormalized,
-    );
-
-    if (matched) {
-      log.info(`找到匹配版本的 GitHub Release: ${matched.tag_name}`);
-      return matched;
-    }
-
-    log.warn(`未在 GitHub releases 中找到版本: ${targetVersion}`);
-    return null;
+    return await invoke<GitHubRelease | null>('get_github_release_by_version', {
+      owner,
+      repo,
+      targetVersion,
+      githubPat,
+      proxyUrl: 'http://127.0.0.1:7890',
+    });
   } catch (error) {
     log.error('获取 GitHub Release 失败:', error);
     return null;

@@ -253,21 +253,21 @@ extern "C" fn mxu_launch_action(
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-    let skip_if_running = json
-        .get("skip_if_running")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+        let skip_if_running = json
+            .get("skip_if_running")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
-    // 如果启用了跳过检查且程序已在运行，直接返回成功
-    if skip_if_running {
-        if crate::commands::system::check_process_running(&program) {
-            info!(
-                "[MXU_LAUNCH] Program '{}' is already running, skipping launch",
-                program
-            );
-            return 1u8;
+        // 如果启用了跳过检查且程序已在运行，直接返回成功
+        if skip_if_running {
+            if crate::commands::system::check_process_running(&program) {
+                info!(
+                    "[MXU_LAUNCH] Program '{}' is already running, skipping launch",
+                    program
+                );
+                return 1u8;
+            }
         }
-    }
 
         info!(
             "[MXU_LAUNCH] Launching: program={}, args={}, wait_for_exit={}",

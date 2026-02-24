@@ -132,7 +132,7 @@ export default {
       argsPlaceholder: 'Enter additional arguments (optional)',
       waitLabel: 'Wait for Exit',
       waitDescription:
-        'When enabled, waits for the process to exit before continuing, suitable for programs that need to complete synchronously; when disabled, continues immediately after launch',
+        'When disabled, continues immediately after launch; when enabled, waits for the process to exit before continuing, suitable for scripts that need to complete synchronously',
       waitYes: 'Wait for program to exit before continuing',
       waitNo: 'Continue immediately after launch',
       skipLabel: 'Skip if Running',
@@ -280,7 +280,7 @@ export default {
     browse: 'Browse',
     waitForExit: 'Wait for Exit',
     waitForExitHintPre:
-      'When enabled, blocks until the process exits before continuing, suitable for synchronous operations like program execution; when disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games',
+      'When disabled, continues immediately after launching the process and polls for device connection, suitable for asynchronous scenarios like launching games; when enabled, blocks until the process exits before continuing, suitable for synchronous operations like running scripts',
     skipIfRunning: 'Skip if Running',
     skipIfRunningHint:
       'When enabled, skips execution if the program is already running, useful for avoiding restarting games or other applications',

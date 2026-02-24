@@ -316,6 +316,7 @@ export function UpdateSection() {
         channel: mirrorChyanSettings.channel,
         userAgent: 'MXU',
         githubUrl: projectInterface.github,
+        proxyUrl: proxySettings?.url,
         projectName: projectInterface.name,
       });
 

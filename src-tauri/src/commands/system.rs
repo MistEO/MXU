@@ -372,21 +372,27 @@ pub fn check_process_running(program: &str) -> bool {
         }
 
         unsafe {
-            // 先查询进程总数
-            let count = proc_listallpids(std::ptr::null_mut(), 0);
-            if count <= 0 {
-                info!("check_process_running: '{}' -> false (no pids)", program);
-                return false;
+            // proc_listallpids 返回填入的 PID 数量。
+            // 从合理初始容量开始，若缓冲区不足则扩容重试，避免多余的探测调用。
+            let mut capacity = 1024usize;
+            let num_pids;
+            let mut pids;
+            loop {
+                pids = vec![0i32; capacity];
+                let buf_size = (capacity * std::mem::size_of::<i32>()) as i32;
+                let actual = proc_listallpids(pids.as_mut_ptr(), buf_size);
+                if actual <= 0 {
+                    info!("check_process_running: '{}' -> false (list failed)", program);
+                    return false;
+                }
+                if actual as usize >= capacity {
+                    // 缓冲区已满，可能被截断，扩容后重试
+                    capacity *= 2;
+                    continue;
+                }
+                num_pids = actual as usize;
+                break;
             }
-
-            let mut pids = vec![0i32; count as usize];
-            let buf_size = (count as usize * std::mem::size_of::<i32>()) as i32;
-            let actual = proc_listallpids(pids.as_mut_ptr(), buf_size);
-            if actual <= 0 {
-                info!("check_process_running: '{}' -> false (list failed)", program);
-                return false;
-            }
-            let num_pids = actual as usize / std::mem::size_of::<i32>();
 
             // PROC_PIDPATHINFO_MAXSIZE = 4096
             let mut path_buf = [0u8; 4096];

@@ -94,8 +94,13 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         lib_path.join(name)
     };
 
-    info!("maa_init loading library from {:?}...", dll_path);
-    maa_framework::load_library(&dll_path).map_err(|e| e.to_string())?;
+    match maa_framework::load_library(&dll_path) {
+        Ok(()) => info!("maa_init library loaded successfully"),
+        Err(e) if e.contains("already loaded") => {
+            info!("maa_init library already loaded, skipping");
+        }
+        Err(e) => return Err(e),
+    }
 
     // 初始化 Toolkit
     // 初始化 Toolkit 配置，user_path 指向应用数据目录
@@ -135,7 +140,8 @@ pub fn maa_set_resource_dir(
 #[tauri::command]
 pub fn maa_get_version() -> Result<String, String> {
     debug!("maa_get_version called");
-    let version = maa_framework::maa_version().to_string();
+    let version = std::panic::catch_unwind(|| maa_framework::maa_version().to_string())
+        .map_err(|_| "MaaFramework library not loaded".to_string())?;
     info!("maa_get_version result: {}", version);
     Ok(version)
 }
@@ -156,14 +162,18 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
         let dll_path = dir.join("libMaaFramework.so");
 
         if let Err(e) = maa_framework::load_library(&dll_path) {
-            error!(
-                "Failed to load MaaFramework library from {:?}: {:?}",
-                dll_path, e
-            );
+            if !e.contains("already loaded") {
+                error!(
+                    "Failed to load MaaFramework library from {:?}: {:?}",
+                    dll_path, e
+                );
+                return Err(format!("MaaFramework library failed to load: {}", e));
+            }
         }
     }
 
-    let current_str = maa_framework::maa_version().to_string();
+    let current_str = std::panic::catch_unwind(|| maa_framework::maa_version().to_string())
+        .map_err(|_| "MaaFramework library not loaded (panic in maa_version)".to_string())?;
 
     if current_str == "unknown" || current_str.is_empty() {
         return Err("MaaFramework not initialized".to_string());

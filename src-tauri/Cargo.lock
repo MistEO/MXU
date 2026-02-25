@@ -2383,9 +2383,9 @@ dependencies = [
 
 [[package]]
 name = "maa-framework"
-version = "1.4.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "551c0732a50111f7fe9bb32aaa533757fae1a31ed28abb3b0f3f2a30511bd3d3"
+checksum = "3627130ebcc05ee82c5c2ac2047cbfb9e9b8f82f7b23da0455786255a10df62c"
 dependencies = [
  "bitflags 2.10.0",
  "maa-framework-sys",
@@ -2396,9 +2396,9 @@ dependencies = [
 
 [[package]]
 name = "maa-framework-sys"
-version = "5.6.0"
+version = "5.8.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a815870598e2ef406e6381f99c51ebf90af8e161fd976734945fa1acbe5d3dd3"
+checksum = "621432905445bebbe0a3272c8980cf0423097a8e0e0ffa57c3ad10152785ead4"
 dependencies = [
  "libloading 0.8.9",
  "once_cell",

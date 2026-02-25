@@ -91,7 +91,7 @@ pub async fn get_github_release_by_version(
         .await
         .map_err(|e| format!("解析 JSON 失败: {}", e))?;
 
-    let normalize = |v: &str| v.trim_start_matches('v').to_lowercase();
+    let normalize = |v: &str| v.trim_start_matches(|c| c == 'v' || c == 'V').to_lowercase();
     let target_normalized = normalize(&target_version);
 
     for release in releases {

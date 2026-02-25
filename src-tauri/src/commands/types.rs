@@ -319,7 +319,7 @@ pub struct GitHubAsset {
 pub struct GitHubRelease {
     pub tag_name: String,
     pub name: String,
-    pub body: String,
+    pub body: Option<String>,
     pub prerelease: bool,
     pub assets: Vec<GitHubAsset>,
 }

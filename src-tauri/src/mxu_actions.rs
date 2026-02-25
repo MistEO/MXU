@@ -101,18 +101,22 @@ fn mxu_waituntil_action_fn(
 
     // 计算当前时间与目标时间的差值
     let now = chrono::Local::now();
-    let today_target = now
-        .date_naive()
-        .and_hms_opt(target_hour, target_minute, 0)
-        .unwrap();
+    let Some(today_target) = now.date_naive().and_hms_opt(target_hour, target_minute, 0) else {
+        warn!(
+            "[MXU_WAITUNTIL] Invalid target time {:02}:{:02}",
+            target_hour, target_minute
+        );
+        return false;
+    };
+
     let today_target = match chrono::Local.from_local_datetime(&today_target).single() {
         Some(dt) => dt,
         None => {
             warn!(
-                "[MXU_WAITUNTIL] Ambiguous or invalid local time for target {:02}:{:02}, falling back to current time",
+                "[MXU_WAITUNTIL] Ambiguous or invalid local time for target {:02}:{:02} (e.g. due to DST transition)",
                 target_hour, target_minute
             );
-            now
+            return false;
         }
     };
 
@@ -751,8 +755,24 @@ pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
     // 定义一个局部宏打印日志并统计失败
     macro_rules! reg_action {
         ($name:expr, $fn_name:expr) => {
-            if let Err(e) =
-                resource.register_custom_action($name, Box::new(FnAction::new($fn_name)))
+            let wrapper = move |ctx: &maa_framework::context::Context,
+                                args: &maa_framework::custom::ActionArgs|
+                  -> bool {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $fn_name(ctx, args)))
+                    .unwrap_or_else(|e| {
+                        let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                            s.to_string()
+                        } else if let Some(s) = e.downcast_ref::<String>() {
+                            s.clone()
+                        } else {
+                            "Unknown panic payload".to_string()
+                        };
+                        log::error!("[MXU] Custom action {} panicked: {}", $name, msg);
+                        false
+                    })
+            };
+
+            if let Err(e) = resource.register_custom_action($name, Box::new(FnAction::new(wrapper)))
             {
                 warn!("[MXU] Failed to register {}: {:?}", $name, e);
                 failed_count += 1;
@@ -771,10 +791,10 @@ pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
 
     if failed_count > 0 {
-        return Err(format!(
-            "Failed to register {} custom actions",
+        warn!(
+            "[MXU] Failed to register {} custom actions, continuing anyway",
             failed_count
-        ));
+        );
     }
 
     Ok(())

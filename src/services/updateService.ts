@@ -444,7 +444,6 @@ async function getGitHubReleaseByVersion(
   githubPat?: string,
   proxyUrl?: string,
 ): Promise<GitHubRelease | null> {
-  log.info(`getGitHubReleaseByVersion: owner=${owner}, repo=${repo}, targetVersion=${targetVersion}, proxyUrl=${proxyUrl ? proxyUrl : "无代理"}`);
   try {
     return await invoke<GitHubRelease | null>('get_github_release_by_version', {
       owner,
@@ -622,7 +621,6 @@ export async function getGitHubDownloadUrl(
   options: GetGitHubDownloadUrlOptions,
 ): Promise<{ url: string; size: number; filename: string } | null> {
   const { githubUrl, targetVersion, githubPat, projectName, proxyUrl } = options;
-  log.info(`getGitHubDownloadUrl 使用代理：${proxyUrl ? proxyUrl : "无代理"}`);
   const parsed = parseGitHubUrl(githubUrl);
   if (!parsed) {
     log.warn('无法解析 GitHub URL:', githubUrl);
@@ -821,7 +819,7 @@ export async function checkAndPrepareDownload(
   }
 
   const { githubUrl, cdk, channel, githubPat, projectName, proxyUrl, ...checkOptions } = options;
-  log.info(`checkAndPrepareDownload 使用代理：${proxyUrl ? proxyUrl : "无代理"}`);
+  
   // 始终使用 Mirror酱 检查更新
   const updateInfo = await checkUpdate({ ...checkOptions, cdk, channel });
 

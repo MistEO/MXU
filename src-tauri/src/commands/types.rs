@@ -154,10 +154,22 @@ impl Drop for InstanceRuntime {
         for client in &self.agent_clients {
             let _ = client.disconnect();
         }
+        self.agent_clients.clear();
+
         // 终止并回收所有 agent 子进程
         for mut child in self.agent_children.drain(..) {
             let _ = child.kill();
             let _ = child.wait();
+        }
+
+        if let Some(tasker) = self.tasker.take() {
+            drop(tasker);
+        }
+        if let Some(controller) = self.controller.take() {
+            drop(controller);
+        }
+        if let Some(resource) = self.resource.take() {
+            drop(resource);
         }
     }
 }

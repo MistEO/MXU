@@ -8,19 +8,17 @@ use std::time::{Duration, Instant};
 
 use tauri::State;
 
-use crate::maa_ffi::{
-    from_cstr, get_event_callback, get_maa_version, get_maa_version_standalone, init_maa_library,
-    to_cstring, MaaImageBuffer, MaaLibrary, MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList,
-    MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE, MAA_GAMEPAD_TYPE_DUALSHOCK4,
-    MAA_GAMEPAD_TYPE_XBOX360, MAA_INVALID_ID, MAA_LIBRARY, MAA_STATUS_PENDING, MAA_STATUS_RUNNING,
-    MAA_STATUS_SUCCEEDED, MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
-};
+use maa_framework::controller::{AdbControllerBuilder, Controller};
+use maa_framework::resource::Resource;
+use maa_framework::tasker::Tasker;
+use maa_framework::toolkit::Toolkit;
+use maa_framework::MaaStatus;
 
 use super::types::{
     AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
     Win32Window,
 };
-use super::utils::{get_maafw_dir, normalize_path};
+use super::utils::{emit_callback_event, get_maafw_dir, normalize_path};
 
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
@@ -51,13 +49,67 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         return Err(err);
     }
 
-    // 先设置 lib_dir，即使后续加载失败也能用于版本检查
+    // Windows: 将 lib_dir 添加到 DLL 搜索路径，确保依赖 DLL 能被找到
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetDllDirectoryW(path: *const u16) -> i32;
+        }
+
+        let dll_dir = if lib_path.is_file() {
+            lib_path.parent().unwrap_or(&lib_path)
+        } else {
+            &lib_path
+        };
+
+        let wide_path: Vec<u16> = dll_dir
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let result = unsafe { SetDllDirectoryW(wide_path.as_ptr()) };
+        if result == 0 {
+            warn!("SetDllDirectoryW failed");
+        } else {
+            debug!("SetDllDirectoryW set to {:?}", dll_dir);
+        }
+    }
+
+    // 先设置 lib_dir
     *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(lib_path.clone());
 
-    info!("maa_init loading library...");
-    init_maa_library(&lib_path).map_err(|e| e.to_string())?;
+    // 加载库
+    // 允许用户指定具体的文件路径，或者只指定目录
+    let dll_path = if lib_path.is_file() {
+        lib_path.clone()
+    } else {
+        #[cfg(windows)]
+        let name = "MaaFramework.dll";
+        #[cfg(target_os = "macos")]
+        let name = "libMaaFramework.dylib";
+        #[cfg(target_os = "linux")]
+        let name = "libMaaFramework.so";
+        lib_path.join(name)
+    };
 
-    let version = get_maa_version().unwrap_or_default();
+    info!("maa_init loading library from {:?}...", dll_path);
+    maa_framework::load_library(&dll_path).map_err(|e| e.to_string())?;
+
+    // 初始化 Toolkit
+    // 初始化 Toolkit 配置，user_path 指向应用数据目录
+    let data_dir = crate::commands::utils::get_app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let user_path_str = data_dir.to_string_lossy();
+    // 确保数据目录存在
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    if let Err(e) = Toolkit::init_option(&user_path_str, "{}") {
+        warn!("Failed to init toolkit option: {}", e);
+    }
+
+    let version = maa_framework::maa_version().to_string();
     info!("maa_init success, version: {}", version);
 
     Ok(version)
@@ -83,58 +135,50 @@ pub fn maa_set_resource_dir(
 #[tauri::command]
 pub fn maa_get_version() -> Result<String, String> {
     debug!("maa_get_version called");
-    let version = get_maa_version().ok_or_else(|| "MaaFramework not initialized".to_string())?;
+    let version = maa_framework::maa_version().to_string();
     info!("maa_get_version result: {}", version);
     Ok(version)
 }
 
 /// 检查 MaaFramework 版本是否满足最小要求
-/// 使用独立的版本获取，不依赖完整库加载成功
 #[tauri::command]
 pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResult, String> {
     debug!("maa_check_version called");
 
-    // 获取 lib_dir
-    let lib_dir = state
-        .lib_dir
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone()
-        .ok_or_else(|| "lib_dir not set".to_string())?;
+    let lib_dir = state.lib_dir.lock().map_err(|e| e.to_string())?.clone();
 
-    // 使用独立的版本获取函数，不依赖完整库加载
-    let current_str = get_maa_version_standalone(&lib_dir)
-        .ok_or_else(|| "Failed to get MaaFramework version".to_string())?;
+    if let Some(dir) = lib_dir {
+        #[cfg(windows)]
+        let dll_path = dir.join("MaaFramework.dll");
+        #[cfg(target_os = "macos")]
+        let dll_path = dir.join("libMaaFramework.dylib");
+        #[cfg(target_os = "linux")]
+        let dll_path = dir.join("libMaaFramework.so");
+
+        if let Err(e) = maa_framework::load_library(&dll_path) {
+            error!(
+                "Failed to load MaaFramework library from {:?}: {:?}",
+                dll_path, e
+            );
+        }
+    }
+
+    let current_str = maa_framework::maa_version().to_string();
+
+    if current_str == "unknown" || current_str.is_empty() {
+        return Err("MaaFramework not initialized".to_string());
+    }
 
     // 去掉版本号前缀 'v'（如 "v5.5.0-beta.1" -> "5.5.0-beta.1"）
     let current_clean = current_str.trim_start_matches('v');
     let min_clean = MIN_MAAFW_VERSION.trim_start_matches('v');
 
     // 解析最小版本（这个应该总是成功的）
-    let minimum = semver::Version::parse(min_clean).map_err(|e| {
-        error!("Failed to parse minimum version '{}': {}", min_clean, e);
-        format!("Failed to parse minimum version '{}': {}", min_clean, e)
-    })?;
+    let minimum = semver::Version::parse(min_clean)
+        .map_err(|e| format!("Failed to parse minimum version '{}': {}", min_clean, e))?;
 
     // 尝试解析当前版本，如果解析失败（如 "DEBUG_VERSION"），视为不兼容
-    let is_compatible = match semver::Version::parse(current_clean) {
-        Ok(current) => {
-            let compatible = current >= minimum;
-            info!(
-                "maa_check_version: current={}, minimum={}, compatible={}",
-                current, minimum, compatible
-            );
-            compatible
-        }
-        Err(e) => {
-            // 无法解析的版本号（如 DEBUG_VERSION）视为不兼容
-            warn!(
-                "Failed to parse current version '{}': {} - treating as incompatible",
-                current_clean, e
-            );
-            false
-        }
-    };
+    let is_compatible = semver::Version::parse(current_clean).is_ok_and(|v| v >= minimum);
 
     Ok(VersionCheckResult {
         current: current_str,
@@ -149,103 +193,44 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
 
 /// 查找 ADB 设备（结果会缓存到 MaaState）
 #[tauri::command]
-pub fn maa_find_adb_devices(state: State<Arc<MaaState>>) -> Result<Vec<AdbDevice>, String> {
+pub async fn maa_find_adb_devices(
+    state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<AdbDevice>, String> {
     info!("maa_find_adb_devices called");
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| {
-        error!("Failed to lock MAA_LIBRARY: {}", e);
-        e.to_string()
-    })?;
+    let state_arc = state.inner().clone();
 
-    let lib = guard.as_ref().ok_or_else(|| {
-        error!("MaaFramework not initialized");
-        "MaaFramework not initialized".to_string()
-    })?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let devices = Toolkit::find_adb_devices().map_err(|e| e.to_string())?;
 
-    debug!("MaaFramework library loaded");
+        let result_devices: Vec<AdbDevice> = devices
+            .into_iter()
+            .map(|d| AdbDevice {
+                name: d.name,
+                adb_path: d.adb_path.to_string_lossy().to_string(),
+                address: d.address,
+                screencap_methods: d.screencap_methods,
+                input_methods: d.input_methods,
+                config: d.config.to_string(),
+            })
+            .collect();
 
-    let devices = unsafe {
-        debug!("Creating ADB device list...");
-        let list = (lib.maa_toolkit_adb_device_list_create)();
-        if list.is_null() {
-            error!("Failed to create device list (null pointer)");
-            return Err("Failed to create device list".to_string());
-        }
-        debug!("Device list created successfully");
-
-        // 确保清理
-        struct ListGuard<'a> {
-            list: *mut MaaToolkitAdbDeviceList,
-            lib: &'a MaaLibrary,
-        }
-        impl Drop for ListGuard<'_> {
-            fn drop(&mut self) {
-                log::debug!("Destroying ADB device list...");
-                unsafe {
-                    (self.lib.maa_toolkit_adb_device_list_destroy)(self.list);
-                }
-            }
-        }
-        let _guard = ListGuard { list, lib };
-
-        debug!("Calling MaaToolkitAdbDeviceFind...");
-        let found = (lib.maa_toolkit_adb_device_find)(list);
-        debug!("MaaToolkitAdbDeviceFind returned: {}", found);
-
-        // MaaToolkitAdbDeviceFind 只在 buffer 为 null 时返回 false
-        // 即使没找到设备也会返回 true，所以不应该用返回值判断是否找到设备
-        if found == 0 {
-            warn!("MaaToolkitAdbDeviceFind returned false (unexpected)");
-            // 继续执行而不是直接返回，检查 list size
+        // 缓存搜索结果
+        if let Ok(mut cached) = state_arc.cached_adb_devices.lock() {
+            *cached = result_devices.clone();
         }
 
-        let size = (lib.maa_toolkit_adb_device_list_size)(list);
-        info!("Found {} ADB device(s)", size);
-
-        let mut devices = Vec::with_capacity(size as usize);
-
-        for i in 0..size {
-            let device = (lib.maa_toolkit_adb_device_list_at)(list, i);
-            if device.is_null() {
-                warn!("Device at index {} is null, skipping", i);
-                continue;
-            }
-
-            let name = from_cstr((lib.maa_toolkit_adb_device_get_name)(device));
-            let adb_path = from_cstr((lib.maa_toolkit_adb_device_get_adb_path)(device));
-            let address = from_cstr((lib.maa_toolkit_adb_device_get_address)(device));
-
-            debug!(
-                "Device {}: name='{}', adb_path='{}', address='{}'",
-                i, name, adb_path, address
-            );
-
-            devices.push(AdbDevice {
-                name,
-                adb_path,
-                address,
-                screencap_methods: (lib.maa_toolkit_adb_device_get_screencap_methods)(device),
-                input_methods: (lib.maa_toolkit_adb_device_get_input_methods)(device),
-                config: from_cstr((lib.maa_toolkit_adb_device_get_config)(device)),
-            });
-        }
-
-        devices
-    };
-
-    // 缓存搜索结果
-    if let Ok(mut cached) = state.cached_adb_devices.lock() {
-        *cached = devices.clone();
-    }
-
-    info!("Returning {} device(s)", devices.len());
-    Ok(devices)
+        info!("Returning {} device(s)", result_devices.len());
+        Ok(result_devices)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// 查找 Win32 窗口（结果会缓存到 MaaState）
 #[tauri::command]
-pub fn maa_find_win32_windows(
-    state: State<Arc<MaaState>>,
+pub async fn maa_find_win32_windows(
+    state: State<'_, Arc<MaaState>>,
     class_regex: Option<String>,
     window_regex: Option<String>,
 ) -> Result<Vec<Win32Window>, String> {
@@ -254,103 +239,53 @@ pub fn maa_find_win32_windows(
         class_regex, window_regex
     );
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| {
-        error!("Failed to lock MAA_LIBRARY: {}", e);
-        e.to_string()
-    })?;
-    let lib = guard.as_ref().ok_or_else(|| {
-        error!("MaaFramework not initialized");
-        "MaaFramework not initialized".to_string()
-    })?;
+    let state_arc = state.inner().clone();
+    let class_re_str = class_regex.clone();
+    let window_re_str = window_regex.clone();
 
-    let windows = unsafe {
-        debug!("Creating desktop window list...");
-        let list = (lib.maa_toolkit_desktop_window_list_create)();
-        if list.is_null() {
-            error!("Failed to create window list (null pointer)");
-            return Err("Failed to create window list".to_string());
-        }
+    tauri::async_runtime::spawn_blocking(move || {
+        let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
 
-        struct ListGuard<'a> {
-            list: *mut MaaToolkitDesktopWindowList,
-            lib: &'a MaaLibrary,
-        }
-        impl Drop for ListGuard<'_> {
-            fn drop(&mut self) {
-                log::debug!("Destroying desktop window list...");
-                unsafe {
-                    (self.lib.maa_toolkit_desktop_window_list_destroy)(self.list);
-                }
-            }
-        }
-        let _guard = ListGuard { list, lib };
+        // 编译正则表达式
+        let class_re = class_re_str
+            .as_ref()
+            .and_then(|r| regex::Regex::new(r).ok());
+        let window_re = window_re_str
+            .as_ref()
+            .and_then(|r| regex::Regex::new(r).ok());
 
-        debug!("Calling MaaToolkitDesktopWindowFindAll...");
-        let found = (lib.maa_toolkit_desktop_window_find_all)(list);
-        debug!("MaaToolkitDesktopWindowFindAll returned: {}", found);
+        let mut result_windows = Vec::new();
 
-        if found == 0 {
-            info!("No windows found");
-            Vec::new()
-        } else {
-            let size = (lib.maa_toolkit_desktop_window_list_size)(list);
-            debug!("Found {} total window(s)", size);
-
-            let mut windows = Vec::with_capacity(size as usize);
-
-            // 编译正则表达式
-            let class_re = class_regex.as_ref().and_then(|r| regex::Regex::new(r).ok());
-            let window_re = window_regex
-                .as_ref()
-                .and_then(|r| regex::Regex::new(r).ok());
-
-            for i in 0..size {
-                let window = (lib.maa_toolkit_desktop_window_list_at)(list, i);
-                if window.is_null() {
+        for w in windows {
+            // 过滤
+            if let Some(re) = &class_re {
+                if !re.is_match(&w.class_name) {
                     continue;
                 }
-
-                let class_name = from_cstr((lib.maa_toolkit_desktop_window_get_class_name)(window));
-                let window_name =
-                    from_cstr((lib.maa_toolkit_desktop_window_get_window_name)(window));
-
-                // 过滤
-                if let Some(re) = &class_re {
-                    if !re.is_match(&class_name) {
-                        continue;
-                    }
+            }
+            if let Some(re) = &window_re {
+                if !re.is_match(&w.window_name) {
+                    continue;
                 }
-                if let Some(re) = &window_re {
-                    if !re.is_match(&window_name) {
-                        continue;
-                    }
-                }
-
-                let handle = (lib.maa_toolkit_desktop_window_get_handle)(window);
-
-                debug!(
-                    "Window {}: handle={}, class='{}', name='{}'",
-                    i, handle as u64, class_name, window_name
-                );
-
-                windows.push(Win32Window {
-                    handle: handle as u64,
-                    class_name,
-                    window_name,
-                });
             }
 
-            windows
+            result_windows.push(Win32Window {
+                handle: w.hwnd as u64,
+                class_name: w.class_name,
+                window_name: w.window_name,
+            });
         }
-    };
 
-    // 缓存搜索结果
-    if let Ok(mut cached) = state.cached_win32_windows.lock() {
-        *cached = windows.clone();
-    }
+        // 缓存搜索结果
+        if let Ok(mut cached) = state_arc.cached_win32_windows.lock() {
+            *cached = result_windows.clone();
+        }
 
-    info!("Returning {} filtered window(s)", windows.len());
-    Ok(windows)
+        info!("Returning {} filtered window(s)", result_windows.len());
+        Ok(result_windows)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ============================================================================
@@ -406,28 +341,23 @@ pub fn maa_destroy_instance(
 /// 连接控制器（异步，通过回调通知完成状态）
 /// 返回连接请求 ID，前端通过监听 maa-callback 事件获取完成状态
 #[tauri::command]
-pub fn maa_connect_controller(
-    state: State<Arc<MaaState>>,
+pub async fn maa_connect_controller(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<MaaState>>,
     instance_id: String,
     config: ControllerConfig,
 ) -> Result<i64, String> {
-    info!("maa_connect_controller called");
-    info!("instance_id: {}", instance_id);
-    info!("config: {:?}", config);
+    info!(
+        "maa_connect_controller called, instance_id: {}",
+        instance_id
+    );
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| {
-        error!("Failed to lock MAA_LIBRARY: {}", e);
-        e.to_string()
-    })?;
-    let lib = guard.as_ref().ok_or_else(|| {
-        error!("MaaFramework not initialized");
-        "MaaFramework not initialized".to_string()
-    })?;
+    let state_arc = state.inner().clone();
+    let app_handle = app.clone();
 
-    debug!("MaaFramework library loaded, creating controller...");
-
-    let controller = unsafe {
-        match &config {
+    // Move blocking controller creation and connection to spawn_blocking
+    tauri::async_runtime::spawn_blocking(move || {
+        let controller = match &config {
             ControllerConfig::Adb {
                 adb_path,
                 address,
@@ -436,160 +366,106 @@ pub fn maa_connect_controller(
                 config,
             } => {
                 // 将字符串解析为 u64
-                let screencap_methods_u64 = screencap_methods.parse::<u64>().map_err(|e| {
+                let screencap = screencap_methods.parse::<u64>().map_err(|e| {
                     format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
                 })?;
-                let input_methods_u64 = input_methods
+                let input = input_methods
                     .parse::<u64>()
                     .map_err(|e| format!("Invalid input_methods '{}': {}", input_methods, e))?;
-
-                info!("Creating ADB controller:");
-                info!("  adb_path: {}", adb_path);
-                info!("  address: {}", address);
-                debug!(
-                    "  screencap_methods: {} (parsed: {})",
-                    screencap_methods, screencap_methods_u64
-                );
-                debug!(
-                    "  input_methods: {} (parsed: {})",
-                    input_methods, input_methods_u64
-                );
-                debug!("  config: {}", config);
-
-                let adb_path_c = to_cstring(adb_path);
-                let address_c = to_cstring(address);
-                let config_c = to_cstring(config);
                 let agent_path = get_maafw_dir()
                     .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
-                    .unwrap_or_default();
-                let agent_path_c = to_cstring(&agent_path);
+                    .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
 
-                debug!("Calling MaaAdbControllerCreate...");
-                let ctrl = (lib.maa_adb_controller_create)(
-                    adb_path_c.as_ptr(),
-                    address_c.as_ptr(),
-                    screencap_methods_u64,
-                    input_methods_u64,
-                    config_c.as_ptr(),
-                    agent_path_c.as_ptr(),
-                );
-                debug!("MaaAdbControllerCreate returned: {:?}", ctrl);
-                ctrl
+                AdbControllerBuilder::new(adb_path, address)
+                    .screencap_methods(
+                        maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap)
+                            .bits(),
+                    )
+                    .input_methods(
+                        maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
+                    )
+                    .config(config)
+                    .agent_path(&agent_path)
+                    .build()
+                    .map_err(|e| e.to_string())?
             }
             ControllerConfig::Win32 {
                 handle,
                 screencap_method,
                 mouse_method,
                 keyboard_method,
-            } => (lib.maa_win32_controller_create)(
-                *handle as *mut std::ffi::c_void,
-                *screencap_method,
-                *mouse_method,
-                *keyboard_method,
-            ),
+            } => {
+                let hwnd = *handle as *mut std::ffi::c_void;
+                Controller::new_win32(
+                    hwnd,
+                    maa_framework::common::Win32ScreencapMethod::from_bits_truncate(
+                        *screencap_method,
+                    )
+                    .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method)
+                        .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method)
+                        .bits(),
+                )
+                .map_err(|e| e.to_string())?
+            }
+            ControllerConfig::PlayCover { address, uuid } => {
+                let uuid_str = uuid.as_deref().unwrap_or("");
+                Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
+            }
             ControllerConfig::Gamepad {
                 handle,
                 gamepad_type,
                 screencap_method,
             } => {
-                // 解析 gamepad_type，默认为 Xbox360
+                let hwnd = *handle as *mut std::ffi::c_void;
                 let gp_type = match gamepad_type.as_deref() {
-                    Some("DualShock4") | Some("DS4") => MAA_GAMEPAD_TYPE_DUALSHOCK4,
-                    _ => MAA_GAMEPAD_TYPE_XBOX360,
+                    Some("DualShock4") | Some("DS4") => {
+                        maa_framework::common::GamepadType::DualShock4
+                    }
+                    _ => maa_framework::common::GamepadType::Xbox360,
                 };
-                // 截图方法，默认为 DXGI_DesktopDup
-                let screencap = screencap_method.unwrap_or(MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP);
+                // bitflags
+                let screencap = screencap_method
+                    .map(|v| maa_framework::common::Win32ScreencapMethod::from_bits_truncate(v))
+                    .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
 
-                (lib.maa_gamepad_controller_create)(
-                    *handle as *mut std::ffi::c_void,
-                    gp_type,
-                    screencap,
-                )
+                Controller::new_gamepad(hwnd, gp_type, screencap).map_err(|e| e.to_string())?
             }
-            ControllerConfig::PlayCover { address, uuid } => {
-                info!("Creating PlayCover controller:");
-                info!("  address: {}", address);
-                info!("  uuid: {:?}", uuid);
+        };
 
-                let address_c = to_cstring(address);
-                let uuid_str = uuid.as_deref().unwrap_or("");
-                let uuid_c = to_cstring(uuid_str);
+        // 注册回调
+        let app_handle_clone = app_handle.clone();
+        controller
+            .add_sink(move |msg, detail| {
+                emit_callback_event(&app_handle_clone, msg, detail);
+            })
+            .map_err(|e| e.to_string())?;
 
-                debug!("Calling MaaPlayCoverControllerCreate...");
-                let ctrl =
-                    (lib.maa_playcover_controller_create)(address_c.as_ptr(), uuid_c.as_ptr());
-                debug!("MaaPlayCoverControllerCreate returned: {:?}", ctrl);
-                ctrl
-            }
-        }
-    };
-
-    if controller.is_null() {
-        error!("Controller creation failed (null pointer)");
-        return Err("Failed to create controller".to_string());
-    }
-
-    debug!("Controller created successfully: {:?}", controller);
-
-    // 添加回调 Sink，用于接收连接状态通知
-    debug!("Adding controller sink...");
-    unsafe {
-        (lib.maa_controller_add_sink)(controller, get_event_callback(), std::ptr::null_mut());
-    }
-
-    // 设置默认截图分辨率
-    debug!("Setting screenshot target short side to 720...");
-    unsafe {
-        let short_side: i32 = 720;
-        (lib.maa_controller_set_option)(
-            controller,
-            MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE,
-            &short_side as *const i32 as *const std::ffi::c_void,
-            std::mem::size_of::<i32>() as u64,
-        );
-    }
-
-    // 发起连接（不等待，通过回调通知完成）
-    debug!("Calling MaaControllerPostConnection...");
-    let conn_id = unsafe { (lib.maa_controller_post_connection)(controller) };
-    info!("MaaControllerPostConnection returned conn_id: {}", conn_id);
-
-    if conn_id == MAA_INVALID_ID {
-        error!("Failed to post connection");
-        unsafe {
-            (lib.maa_controller_destroy)(controller);
-        }
-        return Err("Failed to post connection".to_string());
-    }
-
-    // 更新实例状态
-    debug!("Updating instance state...");
-    {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances
-            .get_mut(&instance_id)
-            .ok_or("Instance not found")?;
-
-        // 清理旧的控制器
-        if let Some(old_controller) = instance.controller.take() {
-            debug!("Destroying old controller...");
-            unsafe {
-                (lib.maa_controller_destroy)(old_controller);
-            }
+        // 设置默认参数
+        if let Err(e) = controller.set_screenshot_target_short_side(720) {
+            warn!("Failed to set screenshot target short side to 720: {}", e);
         }
 
-        // 清理旧的 tasker
-        if let Some(old_tasker) = instance.tasker.take() {
-            debug!("Destroying old tasker (bound to old controller)...");
-            unsafe {
-                (lib.maa_tasker_destroy)(old_tasker);
-            }
+        // 发起连接
+        let conn_id = controller.post_connection().map_err(|e| e.to_string())?;
+
+        // 更新实例状态
+        debug!("Updating instance state...");
+        {
+            let mut instances = state_arc.instances.lock().map_err(|e| e.to_string())?;
+            let instance = instances
+                .get_mut(&instance_id)
+                .ok_or("Instance not found")?;
+
+            instance.controller = Some(controller);
+            instance.tasker = None;
         }
 
-        instance.controller = Some(controller);
-    }
-
-    Ok(conn_id)
+        Ok(conn_id)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// 获取连接状态（通过 MaaControllerConnected API 查询）
@@ -598,31 +474,14 @@ pub fn maa_get_connection_status(
     state: State<Arc<MaaState>>,
     instance_id: String,
 ) -> Result<ConnectionStatus, String> {
-    debug!(
-        "maa_get_connection_status called, instance_id: {}",
-        instance_id
-    );
-
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
     let instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances.get(&instance_id).ok_or("Instance not found")?;
 
-    let status = match instance.controller {
-        Some(ctrl) => {
-            let connected = unsafe { (lib.maa_controller_connected)(ctrl) != 0 };
-            if connected {
-                ConnectionStatus::Connected
-            } else {
-                ConnectionStatus::Disconnected
-            }
-        }
-        None => ConnectionStatus::Disconnected,
-    };
-
-    debug!("maa_get_connection_status result: {:?}", status);
-    Ok(status)
+    if instance.controller.as_ref().is_some_and(|c| c.connected()) {
+        Ok(ConnectionStatus::Connected)
+    } else {
+        Ok(ConnectionStatus::Disconnected)
+    }
 }
 
 // ============================================================================
@@ -633,6 +492,7 @@ pub fn maa_get_connection_status(
 /// 返回资源加载请求 ID 列表，前端通过监听 maa-callback 事件获取完成状态
 #[tauri::command]
 pub fn maa_load_resource(
+    app: tauri::AppHandle,
     state: State<Arc<MaaState>>,
     instance_id: String,
     paths: Vec<String>,
@@ -642,57 +502,42 @@ pub fn maa_load_resource(
         instance_id, paths
     );
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances
+        .get_mut(&instance_id)
+        .ok_or("Instance not found")?;
 
     // 创建或获取资源
-    let resource = {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances
-            .get_mut(&instance_id)
-            .ok_or("Instance not found")?;
+    if instance.resource.is_none() {
+        let res = Resource::new().map_err(|e| e.to_string())?;
 
-        if instance.resource.is_none() {
-            let res = unsafe { (lib.maa_resource_create)() };
-            if res.is_null() {
-                return Err("Failed to create resource".to_string());
-            }
+        // 注册回调
+        let app_handle = app.clone();
+        res.add_sink(move |msg, detail| {
+            emit_callback_event(&app_handle, msg, detail);
+        })
+        .map_err(|e| e.to_string())?;
 
-            // 添加回调 Sink，用于接收资源加载状态通知
-            debug!("Adding resource sink...");
-            unsafe {
-                (lib.maa_resource_add_sink)(res, get_event_callback(), std::ptr::null_mut());
-            }
+        // 注册 MXU Custom Actions
+        crate::mxu_actions::register_all_mxu_actions(&res)?;
 
-            // 注册 MXU 内置 custom actions
-            if let Err(e) = crate::mxu_actions::register_all_mxu_actions(lib, res) {
-                warn!("Failed to register MXU custom actions: {}", e);
-            }
+        instance.resource = Some(res);
+    }
 
-            instance.resource = Some(res);
-        }
-
-        instance.resource.unwrap()
-    };
-
-    // 加载资源（不等待，通过回调通知完成）
+    let resource = instance.resource.as_ref().unwrap();
     let mut res_ids = Vec::new();
-    for path in &paths {
-        let normalized = normalize_path(path);
-        let normalized_str = normalized.to_string_lossy();
-        let path_c = to_cstring(&normalized_str);
-        let res_id = unsafe { (lib.maa_resource_post_bundle)(resource, path_c.as_ptr()) };
-        info!(
-            "Posted resource bundle: {} -> id: {}",
-            normalized_str, res_id
-        );
 
-        if res_id == MAA_INVALID_ID {
-            warn!("Failed to post resource bundle: {}", normalized_str);
-            continue;
+    for path in paths {
+        let normalized = normalize_path(&path).to_string_lossy().to_string();
+        match resource.post_bundle(&normalized) {
+            Ok(job) => {
+                info!("Posted resource bundle: {} -> id: {}", normalized, job.id);
+                res_ids.push(job.id);
+            }
+            Err(e) => {
+                warn!("Failed to post resource bundle {}: {}", normalized, e);
+            }
         }
-
-        res_ids.push(res_id);
     }
 
     Ok(res_ids)
@@ -704,23 +549,10 @@ pub fn maa_is_resource_loaded(
     state: State<Arc<MaaState>>,
     instance_id: String,
 ) -> Result<bool, String> {
-    debug!(
-        "maa_is_resource_loaded called, instance_id: {}",
-        instance_id
-    );
-
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
     let instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances.get(&instance_id).ok_or("Instance not found")?;
 
-    let loaded = instance
-        .resource
-        .map_or(false, |res| unsafe { (lib.maa_resource_loaded)(res) != 0 });
-
-    debug!("maa_is_resource_loaded result: {}", loaded);
-    Ok(loaded)
+    Ok(instance.resource.as_ref().is_some_and(|r| r.loaded()))
 }
 
 /// 销毁资源（用于切换资源时重新创建）
@@ -729,33 +561,15 @@ pub fn maa_destroy_resource(
     state: State<Arc<MaaState>>,
     instance_id: String,
 ) -> Result<(), String> {
-    info!("maa_destroy_resource called, instance_id: {}", instance_id);
-
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances
         .get_mut(&instance_id)
         .ok_or("Instance not found")?;
 
     // 销毁旧的资源
-    if let Some(resource) = instance.resource.take() {
-        debug!("Destroying old resource...");
-        unsafe {
-            (lib.maa_resource_destroy)(resource);
-        }
-    }
+    instance.resource = None;
+    instance.tasker = None;
 
-    // 如果有 tasker，也需要销毁（因为 tasker 绑定了旧的 resource）
-    if let Some(tasker) = instance.tasker.take() {
-        debug!("Destroying old tasker (bound to old resource)...");
-        unsafe {
-            (lib.maa_tasker_destroy)(tasker);
-        }
-    }
-
-    info!("maa_destroy_resource success, instance_id: {}", instance_id);
     Ok(())
 }
 
@@ -767,95 +581,66 @@ pub fn maa_destroy_resource(
 /// 返回任务 ID，前端通过监听 maa-callback 事件获取完成状态
 #[tauri::command]
 pub fn maa_run_task(
+    app: tauri::AppHandle,
     state: State<Arc<MaaState>>,
     instance_id: String,
     entry: String,
     pipeline_override: String,
 ) -> Result<i64, String> {
-    info!(
-        "maa_run_task called, instance_id: {}, entry: {}, pipeline_override: {}",
-        instance_id, entry, pipeline_override
-    );
+    info!("maa_run_task called, entry: {}", entry);
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances
+        .get_mut(&instance_id)
+        .ok_or("Instance not found")?;
 
-    let (_resource, _controller, tasker) = {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances
-            .get_mut(&instance_id)
-            .ok_or("Instance not found")?;
+    let resource = instance.resource.as_ref().ok_or("Resource not loaded")?;
+    let controller = instance
+        .controller
+        .as_ref()
+        .ok_or("Controller not connected")?;
 
-        let resource = instance.resource.ok_or("Resource not loaded")?;
-        let controller = instance.controller.ok_or("Controller not connected")?;
+    // 创建或获取 tasker
+    if instance.tasker.is_none() {
+        let tasker = Tasker::new().map_err(|e| e.to_string())?;
 
-        // 创建或获取 tasker
-        if instance.tasker.is_none() {
-            let tasker = unsafe { (lib.maa_tasker_create)() };
-            if tasker.is_null() {
-                return Err("Failed to create tasker".to_string());
-            }
+        // 添加回调 Sink，用于接收任务状态通知
+        let app_handle = app.clone();
+        tasker
+            .add_sink(move |msg, detail| {
+                emit_callback_event(&app_handle, msg, detail);
+            })
+            .map_err(|e| e.to_string())?;
 
-            // 添加回调 Sink，用于接收任务状态通知
-            debug!("Adding tasker sink...");
-            unsafe {
-                (lib.maa_tasker_add_sink)(tasker, get_event_callback(), std::ptr::null_mut());
-            }
+        // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
+        let app_handle = app.clone();
+        tasker
+            .add_context_sink(move |msg, detail| {
+                emit_callback_event(&app_handle, msg, detail);
+            })
+            .map_err(|e| e.to_string())?;
 
-            // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
-            debug!("Adding tasker context sink...");
-            unsafe {
-                (lib.maa_tasker_add_context_sink)(
-                    tasker,
-                    get_event_callback(),
-                    std::ptr::null_mut(),
-                );
-            }
+        // 绑定资源和控制器
+        tasker
+            .bind(resource, controller)
+            .map_err(|e| e.to_string())?;
 
-            // 绑定资源和控制器
-            unsafe {
-                (lib.maa_tasker_bind_resource)(tasker, resource);
-                (lib.maa_tasker_bind_controller)(tasker, controller);
-            }
+        instance.tasker = Some(tasker);
+    }
 
-            instance.tasker = Some(tasker);
-        }
-
-        (resource, controller, instance.tasker.unwrap())
-    };
+    let tasker = instance.tasker.as_ref().unwrap();
 
     // 检查初始化状态
-    let inited = unsafe { (lib.maa_tasker_inited)(tasker) };
-    info!("Tasker inited status: {}", inited);
-    if inited == 0 {
-        error!("Tasker not properly initialized, inited: {}", inited);
-        return Err("Tasker not properly initialized".to_string());
+    if !tasker.inited() {
+        return Err("Tasker not initialized".to_string());
     }
 
-    // 提交任务（不等待，通过回调通知完成）
-    let entry_c = to_cstring(&entry);
-    let override_c = to_cstring(&pipeline_override);
+    let job = tasker
+        .post_task(&entry, &pipeline_override)
+        .map_err(|e| e.to_string())?;
+    let task_id = job.id;
 
-    info!(
-        "Calling MaaTaskerPostTask: entry={}, override={}",
-        entry, pipeline_override
-    );
-    let task_id =
-        unsafe { (lib.maa_tasker_post_task)(tasker, entry_c.as_ptr(), override_c.as_ptr()) };
-
-    info!("MaaTaskerPostTask returned task_id: {}", task_id);
-
-    if task_id == MAA_INVALID_ID {
-        return Err("Failed to post task".to_string());
-    }
-
-    // 缓存 task_id，用于刷新后恢复状态
-    {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-        if let Some(instance) = instances.get_mut(&instance_id) {
-            instance.task_ids.push(task_id);
-        }
-    }
+    instance.task_ids.push(task_id);
 
     Ok(task_id)
 }
@@ -867,83 +652,56 @@ pub fn maa_get_task_status(
     instance_id: String,
     task_id: i64,
 ) -> Result<TaskStatus, String> {
-    debug!(
-        "maa_get_task_status called, instance_id: {}, task_id: {}",
-        instance_id, task_id
-    );
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
-    let tasker = {
-        let instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-        instance.tasker.ok_or("Tasker not created")?
-    };
-
-    let status = unsafe { (lib.maa_tasker_status)(tasker, task_id) };
+    let status = tasker
+        .get_task_detail(task_id)
+        .map_err(|e| e.to_string())?
+        .map(|d| d.status)
+        .unwrap_or(MaaStatus::INVALID);
 
     let result = match status {
-        MAA_STATUS_PENDING => TaskStatus::Pending,
-        MAA_STATUS_RUNNING => TaskStatus::Running,
-        MAA_STATUS_SUCCEEDED => TaskStatus::Succeeded,
+        MaaStatus::PENDING => TaskStatus::Pending,
+        MaaStatus::RUNNING => TaskStatus::Running,
+        MaaStatus::SUCCEEDED => TaskStatus::Succeeded,
         _ => TaskStatus::Failed,
     };
 
-    debug!("maa_get_task_status result: {:?} (raw: {})", result, status);
     Ok(result)
 }
 
 /// 停止任务
 #[tauri::command]
 pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
-    info!("maa_stop_task called, instance_id: {}", instance_id);
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances
+        .get_mut(&instance_id)
+        .ok_or("Instance not found")?;
+    let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
-    let tasker = {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances
-            .get_mut(&instance_id)
-            .ok_or("Instance not found")?;
-        let tasker = instance.tasker.ok_or("Tasker not created")?;
-        let is_running = unsafe { (lib.maa_tasker_running)(tasker) } != 0;
-
-        if instance.stop_in_progress {
-            if !is_running {
-                instance.stop_in_progress = false;
-                instance.stop_started_at = None;
-                return Ok(());
-            }
-            let elapsed = instance
-                .stop_started_at
-                .map(|t| t.elapsed())
-                .unwrap_or(Duration::from_secs(0));
-            if elapsed < Duration::from_millis(500) {
-                debug!(
-                    "maa_stop_task ignored: stop already in progress ({:?})",
-                    elapsed
-                );
-                return Ok(());
-            }
-            debug!(
-                "maa_stop_task re-posting stop after {:?} (still running)",
-                elapsed
-            );
+    if instance.stop_in_progress {
+        if !tasker.running() {
+            instance.stop_in_progress = false;
+            instance.stop_started_at = None;
+            return Ok(());
         }
+        let elapsed = instance
+            .stop_started_at
+            .map(|t| t.elapsed())
+            .unwrap_or(Duration::from_secs(0));
+        if elapsed < Duration::from_millis(500) {
+            return Ok(());
+        }
+    }
 
-        instance.stop_in_progress = true;
-        instance.stop_started_at = Some(Instant::now());
-        // 清空缓存的 task_ids
-        instance.task_ids.clear();
-        tasker
-    };
+    instance.stop_in_progress = true;
+    instance.stop_started_at = Some(Instant::now());
+    // 清空缓存的 task_ids
+    instance.task_ids.clear();
 
-    debug!("Calling MaaTaskerPostStop...");
-    let stop_id = unsafe { (lib.maa_tasker_post_stop)(tasker) };
-    info!("MaaTaskerPostStop returned: {}", stop_id);
-
+    tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -955,51 +713,22 @@ pub fn maa_override_pipeline(
     task_id: i64,
     pipeline_override: String,
 ) -> Result<bool, String> {
-    info!(
-        "maa_override_pipeline called, instance_id: {}, task_id: {}, pipeline_override: {}",
-        instance_id, task_id, pipeline_override
-    );
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
 
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
-
-    let tasker = {
-        let instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-        instance.tasker.ok_or("Tasker not created")?
-    };
-
-    let override_fn = lib
-        .maa_tasker_override_pipeline
-        .ok_or("MaaTaskerOverridePipeline not available in this MaaFramework version")?;
-
-    let override_c = to_cstring(&pipeline_override);
-    let success = unsafe { (override_fn)(tasker, task_id, override_c.as_ptr()) };
-
-    info!("MaaTaskerOverridePipeline returned: {}", success);
-    Ok(success != 0)
+    tasker
+        .override_pipeline(task_id, &pipeline_override)
+        .map_err(|e| e.to_string())
 }
 
 /// 检查是否正在运行
 #[tauri::command]
 pub fn maa_is_running(state: State<Arc<MaaState>>, instance_id: String) -> Result<bool, String> {
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
 
-    let tasker = {
-        let instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-        match instance.tasker {
-            Some(t) => t,
-            None => {
-                return Ok(false);
-            }
-        }
-    };
-
-    let running = unsafe { (lib.maa_tasker_running)(tasker) };
-    let result = running != 0;
-    Ok(result)
+    Ok(instance.tasker.as_ref().is_some_and(|t| t.running()))
 }
 
 // ============================================================================
@@ -1009,22 +738,14 @@ pub fn maa_is_running(state: State<Arc<MaaState>>, instance_id: String) -> Resul
 /// 发起截图请求
 #[tauri::command]
 pub fn maa_post_screencap(state: State<Arc<MaaState>>, instance_id: String) -> Result<i64, String> {
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let controller = instance
+        .controller
+        .as_ref()
+        .ok_or("Controller not connected")?;
 
-    let controller = {
-        let instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-        instance.controller.ok_or("Controller not connected")?
-    };
-
-    let screencap_id = unsafe { (lib.maa_controller_post_screencap)(controller) };
-
-    if screencap_id == MAA_INVALID_ID {
-        return Err("Failed to post screencap".to_string());
-    }
-
-    Ok(screencap_id)
+    controller.post_screencap().map_err(|e| e.to_string())
 }
 
 /// 获取缓存的截图（返回 base64 编码的 PNG 图像）
@@ -1033,59 +754,26 @@ pub fn maa_get_cached_image(
     state: State<Arc<MaaState>>,
     instance_id: String,
 ) -> Result<String, String> {
-    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let controller = instance
+        .controller
+        .as_ref()
+        .ok_or("Controller not connected")?;
 
-    let controller = {
-        let instances = state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-        instance.controller.ok_or("Controller not connected")?
-    };
+    let buffer = controller.cached_image().map_err(|e| e.to_string())?;
+    let data = buffer
+        .to_vec()
+        .ok_or("Failed to convert image buffer".to_string())?;
 
-    unsafe {
-        // 创建图像缓冲区
-        let image_buffer = (lib.maa_image_buffer_create)();
-        if image_buffer.is_null() {
-            return Err("Failed to create image buffer".to_string());
-        }
-
-        // 确保缓冲区被释放
-        struct ImageBufferGuard<'a> {
-            buffer: *mut MaaImageBuffer,
-            lib: &'a MaaLibrary,
-        }
-        impl Drop for ImageBufferGuard<'_> {
-            fn drop(&mut self) {
-                unsafe {
-                    (self.lib.maa_image_buffer_destroy)(self.buffer);
-                }
-            }
-        }
-        let _guard = ImageBufferGuard {
-            buffer: image_buffer,
-            lib,
-        };
-
-        // 获取缓存的图像
-        let success = (lib.maa_controller_cached_image)(controller, image_buffer);
-        if success == 0 {
-            return Err("Failed to get cached image".to_string());
-        }
-
-        // 获取编码后的图像数据
-        let encoded_ptr = (lib.maa_image_buffer_get_encoded)(image_buffer);
-        let encoded_size = (lib.maa_image_buffer_get_encoded_size)(image_buffer);
-
-        if encoded_ptr.is_null() || encoded_size == 0 {
-            return Err("No image data available".to_string());
-        }
-
-        // 复制数据并转换为 base64
-        let data = std::slice::from_raw_parts(encoded_ptr, encoded_size as usize);
-        use base64::{engine::general_purpose::STANDARD, Engine as _};
-        let base64_str = STANDARD.encode(data);
-
-        // 返回带 data URL 前缀的 base64 字符串
-        Ok(format!("data:image/png;base64,{}", base64_str))
+    if data.is_empty() {
+        return Err("No image data available".to_string());
     }
+
+    // 复制数据并转换为 base64
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    let base64_str = STANDARD.encode(&data);
+
+    // 返回带 data URL 前缀的 base64 字符串
+    Ok(format!("data:image/png;base64,{}", base64_str))
 }

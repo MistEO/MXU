@@ -2,7 +2,20 @@
 //!
 //! 提供路径处理和其他通用工具函数
 
+use super::types::MaaCallbackEvent;
 use std::path::PathBuf;
+use tauri::{AppHandle, Emitter};
+
+/// 发送回调事件到前端
+pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details: S) {
+    let event = MaaCallbackEvent {
+        message: message.into(),
+        details: details.into(),
+    };
+    if let Err(e) = app.emit("maa-callback", event) {
+        log::error!("Failed to emit maa-callback: {}", e);
+    }
+}
 
 /// 获取应用数据目录
 /// - macOS: ~/Library/Application Support/MXU/

@@ -78,7 +78,15 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
     }
 
     // 先设置 lib_dir
-    *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(lib_path.clone());
+    let effective_dir = if lib_path.is_file() {
+        lib_path
+            .parent()
+            .unwrap_or(lib_path.as_path())
+            .to_path_buf()
+    } else {
+        lib_path.clone()
+    };
+    *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(effective_dir);
 
     // 加载库
     // 允许用户指定具体的文件路径，或者只指定目录
@@ -529,7 +537,9 @@ pub fn maa_load_resource(
         .map_err(|e| e.to_string())?;
 
         // 注册 MXU Custom Actions
-        crate::mxu_actions::register_all_mxu_actions(&res)?;
+        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res) {
+            warn!("Failed to register MXU custom actions: {}", e);
+        }
 
         instance.resource = Some(res);
     }

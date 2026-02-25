@@ -211,6 +211,7 @@ async fn start_single_agent(
         if let Err(e) = client.connect() {
              error!("[agent#{}] Connection failed: {}", agent_index, e);
              let _ = child.kill();
+             let _ = child.wait();
              return Err(e.to_string());
         }
 
@@ -220,6 +221,7 @@ async fn start_single_agent(
         if let Err(e) = client.register_sinks(resource, controller, tasker) {
             error!("[agent#{}] Failed to register sinks: {}", agent_index, e);
             let _ = child.kill();
+            let _ = child.wait();
             return Err(e.to_string());
         }
 

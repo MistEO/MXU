@@ -265,31 +265,9 @@ function OptionListRenderer({
     });
   };
 
-  // v2.3.0: 过滤掉与当前控制器/资源不兼容的选项（隐藏不显示）
-  const visibleGroups = useMemo(() => {
-    return groups.filter((group) => {
-      if (group.type === 'switchGrid') {
-        // 网格组只过滤内部项，整个组至少有一个可见就保留
-        return group.optionKeys.some((key) => {
-          const def = getOptionDef(key);
-          return !isOptionControllerIncompatible(def, currentControllerName)
-            || !isOptionResourceIncompatible(def, currentResourceName)
-            || (!def?.controller?.length && !def?.resource?.length);
-        });
-      }
-      const def = getOptionDef(group.optionKey);
-      // 只有当选项明确指定了 controller/resource 且不兼容时才隐藏
-      const ctrlHide = def?.controller && def.controller.length > 0
-        && isOptionControllerIncompatible(def, currentControllerName);
-      const resHide = def?.resource && def.resource.length > 0
-        && isOptionResourceIncompatible(def, currentResourceName);
-      return !ctrlHide && !resHide;
-    });
-  }, [groups, currentControllerName, currentResourceName]);
-
   return (
     <div className="space-y-3">
-      {visibleGroups.map((group, index) => {
+      {groups.map((group, index) => {
         if (group.type === 'switchGrid') {
           return (
             <SwitchGrid

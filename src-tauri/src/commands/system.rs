@@ -564,6 +564,8 @@ fn create_schtask_autostart() -> Result<(), String> {
             &format!("\"{}\" --autostart", exe),
             "/sc",
             "onlogon",
+            // 强制交互式运行，确保进程绑定到用户桌面会话，避免登录早期会话未就绪导致 WebView 白屏
+            "/it",
             "/rl",
             "highest",
             "/f",

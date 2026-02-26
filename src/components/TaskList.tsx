@@ -17,16 +17,114 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { ListTodo, Plus, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ListTodo,
+  Plus,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Loader2,
+} from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { TaskItem } from './TaskItem';
 import { ActionItem } from './ActionItem';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
-import type { OptionValue, SelectedTask } from '@/types/interface';
+import type { OptionValue, SelectedTask, PresetItem } from '@/types/interface';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
 import { TaskTransferPreview } from './TaskTransferPreview';
 import { isTauri } from '@/utils/paths';
+import { useResolvedContent } from '@/services/contentResolver';
+import clsx from 'clsx';
+
+/** 单个预设卡片 */
+function PresetCard({
+  preset,
+  onApply,
+}: {
+  preset: PresetItem;
+  onApply: () => void;
+}) {
+  const { resolveI18nText, language, basePath, interfaceTranslations } = useAppStore();
+  const { t } = useTranslation();
+  const langKey = getInterfaceLangKey(language);
+  const translations = interfaceTranslations[langKey];
+
+  const label = resolveI18nText(preset.label, langKey) || preset.name;
+  const resolvedDescription = useResolvedContent(
+    preset.description ? resolveI18nText(preset.description, langKey) : undefined,
+    basePath,
+    translations,
+  );
+
+  const enabledCount = preset.task.filter((t) => t.enabled !== false).length;
+  const totalCount = preset.task.length;
+
+  return (
+    <button
+      onClick={onApply}
+      className={clsx(
+        'w-full text-left p-4 rounded-lg border border-border',
+        'bg-bg-secondary hover:bg-bg-hover hover:border-accent',
+        'transition-colors group',
+      )}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <Sparkles className="w-4 h-4 text-accent flex-shrink-0" />
+        <span className="text-sm font-medium text-text-primary truncate">{label}</span>
+        <span className="text-xs text-text-muted ml-auto flex-shrink-0">
+          {enabledCount}/{totalCount} {t('preset.taskCount')}
+        </span>
+      </div>
+      {resolvedDescription.html ? (
+        <div
+          className="text-xs text-text-secondary line-clamp-2 [&_p]:my-0"
+          dangerouslySetInnerHTML={{ __html: resolvedDescription.html }}
+        />
+      ) : resolvedDescription.loading ? (
+        <div className="flex items-center gap-1 text-xs text-text-muted">
+          <Loader2 className="w-3 h-3 animate-spin" />
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+/** 预设选择器 - 任务列表为空时显示 */
+function PresetSelector({ instanceId }: { instanceId: string }) {
+  const { projectInterface, applyPreset, skipPreset } = useAppStore();
+  const { t } = useTranslation();
+
+  const presets = projectInterface?.preset;
+  if (!presets || presets.length === 0) return null;
+
+  return (
+    <div className="flex flex-col items-center gap-4 p-6">
+      <div className="text-center space-y-1">
+        <Sparkles className="w-8 h-8 text-accent mx-auto opacity-60" />
+        <p className="text-sm text-text-secondary">{t('preset.title')}</p>
+        <p className="text-xs text-text-muted">{t('preset.hint')}</p>
+      </div>
+      <div className="w-full max-w-md space-y-2">
+        {presets.map((preset) => (
+          <PresetCard
+            key={preset.name}
+            preset={preset}
+            onApply={() => applyPreset(instanceId, preset.name)}
+          />
+        ))}
+      </div>
+      <button
+        onClick={() => skipPreset(instanceId)}
+        className="text-xs text-text-muted hover:text-accent transition-colors"
+      >
+        {t('preset.skipToManual')}
+      </button>
+    </div>
+  );
+}
 
 export function TaskList() {
   const { t } = useTranslation();
@@ -44,6 +142,7 @@ export function TaskList() {
     resolveI18nText,
     language,
     interfaceTranslations,
+    skippedPresetInstanceIds,
   } = useAppStore();
 
   const instance = getActiveInstance();
@@ -331,17 +430,26 @@ export function TaskList() {
   const tasks = instance.selectedTasks;
 
   const showPreAction = !!instance.preAction;
+  const hasPresets =
+    (projectInterface?.preset?.length ?? 0) > 0 &&
+    !skippedPresetInstanceIds.has(instance.id);
 
   if (tasks.length === 0 && !showPreAction) {
     return (
       <>
         <div
-          className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3"
+          className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3 overflow-y-auto"
           onContextMenu={handleListContextMenu}
         >
-          <ListTodo className="w-12 h-12 opacity-30" />
-          <p className="text-sm">{t('taskList.noTasks')}</p>
-          <p className="text-xs">{t('taskList.dragToReorder')}</p>
+          {hasPresets ? (
+            <PresetSelector instanceId={instance.id} />
+          ) : (
+            <>
+              <ListTodo className="w-12 h-12 opacity-30" />
+              <p className="text-sm">{t('taskList.noTasks')}</p>
+              <p className="text-xs">{t('taskList.dragToReorder')}</p>
+            </>
+          )}
         </div>
         {menuState.isOpen && (
           <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
@@ -366,9 +474,15 @@ export function TaskList() {
           )}
 
           <div className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3 min-h-[120px]">
-            <ListTodo className="w-12 h-12 opacity-30" />
-            <p className="text-sm">{t('taskList.noTasks')}</p>
-            <p className="text-xs">{t('taskList.dragToReorder')}</p>
+            {hasPresets ? (
+              <PresetSelector instanceId={instance.id} />
+            ) : (
+              <>
+                <ListTodo className="w-12 h-12 opacity-30" />
+                <p className="text-sm">{t('taskList.noTasks')}</p>
+                <p className="text-xs">{t('taskList.dragToReorder')}</p>
+              </>
+            )}
           </div>
         </div>
         {menuState.isOpen && (

@@ -125,7 +125,7 @@ export interface AppState {
   instances: Instance[];
   activeInstanceId: string | null;
   nextInstanceNumber: number;
-  createInstance: (name?: string) => string;
+  createInstance: (name?: string, exactName?: boolean) => string;
   removeInstance: (id: string) => void;
   setActiveInstance: (id: string) => void;
   updateInstance: (id: string, updates: Partial<Instance>) => void;
@@ -140,6 +140,15 @@ export interface AppState {
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
   ) => void;
+  /** v2.3.0: 应用预设配置到实例 */
+  applyPreset: (instanceId: string, presetName: string) => void;
+  /** v2.3.0: 跳过预设选择（本次会话内该实例不再显示预设选择界面） */
+  skipPreset: (instanceId: string) => void;
+  /** v2.3.0: 记录本次会话中已跳过预设选择的实例 ID 集合（不持久化） */
+  skippedPresetInstanceIds: Set<string>;
+  /** v2.3.0: 是否已完成预设初始化（首次启动自动建立预设 tab） */
+  presetInitialized: boolean;
+  setPresetInitialized: (value: boolean) => void;
   /** @deprecated 使用 addMxuSpecialTask 代替 */
   addSleepTaskToInstance: (instanceId: string, sleepTime?: number) => string;
   /** 添加 MXU 特殊任务到实例 */

@@ -20,8 +20,12 @@ export interface ProjectInterface {
   resource: ResourceItem[];
   task: TaskItem[];
   option?: Record<string, OptionDefinition>;
-  /** v2.2.0: 导入其他 PI 文件的路径数组，只导入 task 和 option 字段 */
+  /** v2.3.0: 全局选项配置，参与到所有任务的 pipeline override 中 */
+  global_option?: string[];
+  /** v2.2.0: 导入其他 PI 文件的路径数组 */
   import?: string[];
+  /** v2.3.0: 预设配置 */
+  preset?: PresetItem[];
 }
 
 export interface AgentConfig {
@@ -57,6 +61,8 @@ export interface ControllerItem {
   permission_required?: boolean;
   /** v2.2.0: 额外的资源路径数组，在 resource.path 加载完成后加载 */
   attach_resource_path?: string[];
+  /** v2.3.0: 控制器级的选项配置 */
+  option?: string[];
   adb?: Record<string, unknown>;
   win32?: Win32Config;
   playcover?: PlayCoverConfig;
@@ -105,7 +111,7 @@ export interface TaskItem {
   option?: string[];
 }
 
-export type OptionType = 'select' | 'input' | 'switch';
+export type OptionType = 'select' | 'checkbox' | 'input' | 'switch';
 
 export interface CaseItem {
   name: string;
@@ -137,8 +143,22 @@ export interface SelectOption {
   description?: string;
   icon?: string;
   controller?: string[];
+  /** v2.3.0: 指定适用的资源包列表 */
+  resource?: string[];
   cases: CaseItem[];
   default_case?: string;
+}
+
+/** v2.3.0: 多选框类型 */
+export interface CheckboxOption {
+  type: 'checkbox';
+  label?: string;
+  description?: string;
+  icon?: string;
+  controller?: string[];
+  resource?: string[];
+  cases: CaseItem[];
+  default_case?: string[];
 }
 
 export interface SwitchOption {
@@ -147,6 +167,7 @@ export interface SwitchOption {
   description?: string;
   icon?: string;
   controller?: string[];
+  resource?: string[];
   cases: [CaseItem, CaseItem];
   default_case?: string;
 }
@@ -157,11 +178,12 @@ export interface InputOption {
   description?: string;
   icon?: string;
   controller?: string[];
+  resource?: string[];
   inputs: InputItem[];
   pipeline_override?: Record<string, unknown>;
 }
 
-export type OptionDefinition = SelectOption | SwitchOption | InputOption;
+export type OptionDefinition = SelectOption | CheckboxOption | SwitchOption | InputOption;
 
 // 运行时状态类型
 export interface SelectedTask {
@@ -177,6 +199,10 @@ export type OptionValue =
   | {
       type: 'select';
       caseName: string;
+    }
+  | {
+      type: 'checkbox';
+      caseNames: string[];
     }
   | {
       type: 'switch';
@@ -229,6 +255,38 @@ export interface Instance {
   schedulePolicies?: SchedulePolicy[];
   preAction?: ActionConfig;
 }
+
+/** v2.3.0: 预设中的任务配置 */
+export interface PresetTaskItem {
+  name: string;
+  enabled?: boolean;
+  option?: Record<string, PresetOptionValue>;
+}
+
+/** v2.3.0: 预设中的选项值 */
+export type PresetOptionValue =
+  | string // select / switch
+  | string[] // checkbox
+  | Record<string, string>; // input
+
+/** v2.3.0: 预设配置项 */
+export interface PresetItem {
+  name: string;
+  label?: string;
+  description?: string;
+  icon?: string;
+  task: PresetTaskItem[];
+}
+
+/** v2.3.0: focus 模板，支持字符串简写和对象完整写法 */
+export type FocusDisplayChannel = 'log' | 'toast' | 'notification' | 'dialog' | 'modal';
+
+export interface FocusTemplateObject {
+  content: string;
+  display?: FocusDisplayChannel | FocusDisplayChannel[];
+}
+
+export type FocusTemplate = string | FocusTemplateObject;
 
 // 翻译文件类型
 export type TranslationMap = Record<string, string>;

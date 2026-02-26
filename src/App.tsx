@@ -439,10 +439,32 @@ function App() {
       // 检查是否缺少 VC++ 运行库
       checkVCRedistMissing();
 
-      // 如果没有实例，创建一个默认实例
+      // 预设初始化：首次启动（或老用户升级）时，自动为每个预设创建一个 tab
       setTimeout(() => {
-        const currentInstances = useAppStore.getState().instances;
-        if (currentInstances.length === 0) {
+        const storeState = useAppStore.getState();
+        const currentInstances = storeState.instances;
+        const pi = storeState.projectInterface;
+        const presets = pi?.preset;
+
+        if (presets && presets.length > 0 && !storeState.presetInitialized) {
+          // 有预设且尚未完成预设初始化 → 为每个预设创建一个 tab 并应用
+          const langKey = getInterfaceLangKey(storeState.language);
+          let firstInstanceId: string | null = null;
+          for (const preset of presets) {
+            const label =
+              (typeof preset.label === 'string'
+                ? preset.label
+                : preset.label?.[langKey] ?? preset.label?.['zh-CN'] ?? preset.label?.['en-US']) ||
+              preset.name;
+            const instanceId = storeState.createInstance(label, true);
+            storeState.applyPreset(instanceId, preset.name);
+            if (!firstInstanceId) firstInstanceId = instanceId;
+          }
+          // 创建完成后选中第一个预设 tab
+          if (firstInstanceId) storeState.setActiveInstance(firstInstanceId);
+          storeState.setPresetInitialized(true);
+        } else if (currentInstances.length === 0) {
+          // 无预设或已初始化且无实例 → 创建默认实例
           createInstance(t('instance.defaultName'));
         }
       }, 0);

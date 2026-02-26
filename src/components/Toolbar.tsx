@@ -815,7 +815,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           if (!taskDef) continue;
           taskConfigs.push({
             entry: taskDef.entry,
-            pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
+            pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface, controllerName, resourceName),
           });
           // 预注册 entry -> taskName 映射，确保回调时能找到任务名
           // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译

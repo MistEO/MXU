@@ -399,6 +399,68 @@ export function OptionEditor({
     );
   }
 
+  // Checkbox 类型 (多选)
+  if (optionDef.type === 'checkbox') {
+    const selectedCases = value?.type === 'checkbox' ? value.caseNames : optionDef.default_case || [];
+
+    return (
+      <div
+        className={clsx(
+          'space-y-2',
+          depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
+          controllerIncompatible && 'opacity-60',
+        )}
+      >
+        <OptionLabelWithIncompatible
+          label={optionLabel}
+          icon={optionDef.icon}
+          basePath={basePath}
+          controllerIncompatible={controllerIncompatible}
+        />
+        <OptionDescription
+          description={optionDescription}
+          basePath={basePath}
+          translations={translations}
+        />
+        <div className="grid grid-cols-4 gap-1">
+          {optionDef.cases.map((caseItem) => {
+            const caseLabel = isMxuOption
+              ? t(caseItem.label || caseItem.name)
+              : resolveI18nText(caseItem.label, langKey) || caseItem.name;
+            const isChecked = selectedCases.includes(caseItem.name);
+            return (
+              <button
+                key={caseItem.name}
+                type="button"
+                onClick={() => {
+                  if (disabled) return;
+                  const newCases = isChecked
+                    ? selectedCases.filter((n) => n !== caseItem.name)
+                    : [...selectedCases, caseItem.name];
+                  setTaskOptionValue(instanceId, taskId, optionKey, {
+                    type: 'checkbox',
+                    caseNames: newCases,
+                  });
+                }}
+                disabled={disabled}
+                className={clsx(
+                  'px-2 py-1.5 text-xs rounded border transition-colors truncate',
+                  isChecked
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
+                  disabled && 'opacity-60 cursor-not-allowed',
+                )}
+                title={caseLabel}
+              >
+                {caseLabel}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // Input 类型
   if (optionDef.type === 'input') {
     const inputValues = value?.type === 'input' ? value.values : {};

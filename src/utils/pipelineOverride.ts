@@ -28,8 +28,15 @@ const collectOptionOverrides = (
   if (!optionDef) return;
   const optionValue = optionValues[optionKey] || createDefaultOptionValue(optionDef);
 
-  if ((optionValue.type === 'select' || optionValue.type === 'switch') && 'cases' in optionDef) {
-    // 找到当前选中的 case
+  if (optionValue.type === 'checkbox' && optionDef.type === 'checkbox') {
+    // v2.3.0: checkbox 多选类型，按 cases 定义顺序合并所有选中的 case
+    const selectedNames = new Set(optionValue.caseNames);
+    for (const caseDef of optionDef.cases) {
+      if (selectedNames.has(caseDef.name) && caseDef.pipeline_override) {
+        overrides.push(caseDef.pipeline_override as Record<string, unknown>);
+      }
+    }
+  } else if ((optionValue.type === 'select' || optionValue.type === 'switch') && 'cases' in optionDef) {
     let caseName: string;
     if (optionValue.type === 'switch') {
       const isChecked = optionValue.value;
@@ -90,10 +97,14 @@ const collectOptionOverrides = (
 /**
  * 为单个任务生成 pipeline override JSON
  * 返回数组格式的 JSON 字符串，MaaFramework 会按顺序依次覆盖（同名字段完整替换）
+ *
+ * v2.3.0 覆盖顺序：global_option < resource.option < controller.option < task.option
  */
 export const generateTaskPipelineOverride = (
   selectedTask: SelectedTask,
   projectInterface: ProjectInterface | null,
+  controllerName?: string,
+  resourceName?: string,
 ): string => {
   // 处理 MXU 内置特殊任务
   if (isMxuSpecialTask(selectedTask.taskName)) {
@@ -111,15 +122,40 @@ export const generateTaskPipelineOverride = (
     overrides.push(taskDef.pipeline_override as Record<string, unknown>);
   }
 
-  // 处理顶层选项及其嵌套选项
-  if (taskDef.option && projectInterface.option) {
-    for (const optionKey of taskDef.option) {
-      collectOptionOverrides(
-        optionKey,
-        selectedTask.optionValues,
-        overrides,
-        projectInterface.option,
-      );
+  if (projectInterface.option) {
+    // v2.3.0 覆盖顺序：global_option → resource.option → controller.option → task.option
+    // 1. 全局选项（优先级最低）
+    if (projectInterface.global_option) {
+      for (const optionKey of projectInterface.global_option) {
+        collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
+      }
+    }
+
+    // 2. 资源包级选项
+    if (resourceName) {
+      const resourceDef = projectInterface.resource.find((r) => r.name === resourceName);
+      if (resourceDef?.option) {
+        for (const optionKey of resourceDef.option) {
+          collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
+        }
+      }
+    }
+
+    // 3. 控制器级选项
+    if (controllerName) {
+      const controllerDef = projectInterface.controller.find((c) => c.name === controllerName);
+      if (controllerDef?.option) {
+        for (const optionKey of controllerDef.option) {
+          collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
+        }
+      }
+    }
+
+    // 4. 任务级选项（优先级最高）
+    if (taskDef.option) {
+      for (const optionKey of taskDef.option) {
+        collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
+      }
     }
   }
 

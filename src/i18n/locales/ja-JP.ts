@@ -317,6 +317,15 @@ export default {
     searchPlaceholder: 'オプションを検索...',
     noMatchingOptions: '一致するオプションがありません',
     incompatibleController: '現在のコントローラーに対応していません',
+    incompatibleResource: '現在のリソースパックに対応していません',
+  },
+
+  // プリセット
+  preset: {
+    title: 'プリセットを選択',
+    hint: 'ワンクリックでタスク構成を適用し、すぐに開始できます',
+    taskCount: 'タスク',
+    skipToManual: 'スキップして手動でタスクを追加',
   },
 
   // コントローラー

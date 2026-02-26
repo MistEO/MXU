@@ -42,7 +42,7 @@ function OptionPreviewTag({
 }: {
   label: string;
   value: string;
-  type: 'select' | 'switch' | 'input';
+  type: 'select' | 'checkbox' | 'switch' | 'input';
 }) {
   // 截断过长的显示值
   const truncateText = (text: string, max: number) =>
@@ -154,6 +154,16 @@ function isOptionControllerIncompatible(
   return !optionDef.controller.includes(currentControllerName);
 }
 
+/** v2.3.0: 检查选项是否与当前资源不兼容 */
+function isOptionResourceIncompatible(
+  optionDef: import('@/types/interface').OptionDefinition | null | undefined,
+  currentResourceName: string | undefined,
+): boolean {
+  if (!optionDef?.resource || optionDef.resource.length === 0) return false;
+  if (!currentResourceName) return false;
+  return !optionDef.resource.includes(currentResourceName);
+}
+
 /** 选项列表渲染器：自动将连续的无子选项 switch 分组为网格 */
 function OptionListRenderer({
   instanceId,
@@ -162,6 +172,7 @@ function OptionListRenderer({
   optionValues,
   disabled,
   currentControllerName,
+  currentResourceName,
 }: {
   instanceId: string;
   taskId: string;
@@ -169,6 +180,7 @@ function OptionListRenderer({
   optionValues: Record<string, import('@/types/interface').OptionValue>;
   disabled: boolean;
   currentControllerName: string | undefined;
+  currentResourceName: string | undefined;
 }) {
   const { projectInterface, resolveI18nText, language } = useAppStore();
   const { t } = useTranslation();
@@ -237,25 +249,47 @@ function OptionListRenderer({
           : undefined
         : resolveI18nText(optionDef?.description, langKey);
 
-      // 检查选项是否与当前控制器不兼容
       const controllerIncompatible = isOptionControllerIncompatible(
         optionDef,
         currentControllerName,
       );
+      const resourceIncompatible = isOptionResourceIncompatible(optionDef, currentResourceName);
 
       return {
         optionKey,
         label,
         description,
         isChecked,
-        controllerIncompatible,
+        controllerIncompatible: controllerIncompatible || resourceIncompatible,
       };
     });
   };
 
+  // v2.3.0: 过滤掉与当前控制器/资源不兼容的选项（隐藏不显示）
+  const visibleGroups = useMemo(() => {
+    return groups.filter((group) => {
+      if (group.type === 'switchGrid') {
+        // 网格组只过滤内部项，整个组至少有一个可见就保留
+        return group.optionKeys.some((key) => {
+          const def = getOptionDef(key);
+          return !isOptionControllerIncompatible(def, currentControllerName)
+            || !isOptionResourceIncompatible(def, currentResourceName)
+            || (!def?.controller?.length && !def?.resource?.length);
+        });
+      }
+      const def = getOptionDef(group.optionKey);
+      // 只有当选项明确指定了 controller/resource 且不兼容时才隐藏
+      const ctrlHide = def?.controller && def.controller.length > 0
+        && isOptionControllerIncompatible(def, currentControllerName);
+      const resHide = def?.resource && def.resource.length > 0
+        && isOptionResourceIncompatible(def, currentResourceName);
+      return !ctrlHide && !resHide;
+    });
+  }, [groups, currentControllerName, currentResourceName]);
+
   return (
     <div className="space-y-3">
-      {groups.map((group, index) => {
+      {visibleGroups.map((group, index) => {
         if (group.type === 'switchGrid') {
           return (
             <SwitchGrid
@@ -272,6 +306,11 @@ function OptionListRenderer({
           optionDef,
           currentControllerName,
         );
+        const optionResourceIncompatible = isOptionResourceIncompatible(
+          optionDef,
+          currentResourceName,
+        );
+        const optionIncompatible = optionControllerIncompatible || optionResourceIncompatible;
         return (
           <OptionEditor
             key={group.optionKey}
@@ -279,8 +318,8 @@ function OptionListRenderer({
             taskId={taskId}
             optionKey={group.optionKey}
             value={optionValues[group.optionKey]}
-            disabled={disabled || optionControllerIncompatible}
-            controllerIncompatible={optionControllerIncompatible}
+            disabled={disabled || optionIncompatible}
+            controllerIncompatible={optionIncompatible}
           />
         );
       })}
@@ -413,11 +452,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     }
 
     // 生成新的 pipeline override 并调用后端
-    const pipelineOverride = generateTaskPipelineOverride(task, projectInterface);
+    const pipelineOverride = generateTaskPipelineOverride(task, projectInterface, currentControllerName, currentResourceName);
     maaService.overridePipeline(instanceId, maaTaskId, pipelineOverride).catch((err) => {
       loggers.task.error('Failed to override pipeline:', err);
     });
-  }, [task.optionValues, taskRunStatus, instanceId, task.id, projectInterface]);
+  }, [task.optionValues, taskRunStatus, instanceId, task.id, projectInterface, currentControllerName, currentResourceName]);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
@@ -490,7 +529,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       key: string;
       label: string;
       value: string;
-      type: 'select' | 'switch' | 'input';
+      type: 'select' | 'checkbox' | 'switch' | 'input';
     }[] = [];
     const maxPreviews = 3;
 
@@ -533,6 +572,14 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             });
           }
         }
+      } else if (optionDef.type === 'checkbox') {
+        const caseNames = optionValue?.type === 'checkbox' ? optionValue.caseNames : optionDef.default_case || [];
+        previews.push({
+          key: optionKey,
+          label: optionLabel,
+          value: `${caseNames.length}/${optionDef.cases.length}`,
+          type: 'checkbox',
+        });
       } else {
         // select 类型（默认）
         const caseName =
@@ -1005,6 +1052,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                   optionValues={task.optionValues}
                   disabled={!canEditOptions || isIncompatible}
                   currentControllerName={currentControllerName}
+                  currentResourceName={currentResourceName}
                 />
               )}
             </div>

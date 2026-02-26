@@ -16,8 +16,28 @@ import {
   resolveContent,
   markdownToHtmlWithLocalImages,
 } from '@/services/contentResolver';
+import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
 
 const log = loggers.app;
+
+/** v2.3.0: toast/notification 渠道 - 使用系统通知 */
+function dispatchFocusNotification(message: string) {
+  try {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification('MXU', { body: message });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            new Notification('MXU', { body: message });
+          }
+        });
+      }
+    }
+  } catch {
+    log.warn('Notification not available');
+  }
+}
 
 // Focus 消息的占位符替换（不包含 {image}，由专门函数处理）
 function replaceFocusPlaceholders(
@@ -271,14 +291,25 @@ function handleCallback(
   const { getCtrlName, getCtrlType, getResName, getResBatchInfo } = useAppStore.getState();
 
   // 首先检查是否有 focus 字段，有则优先处理 focus 消息
-  const focus = details.focus as Record<string, string> | undefined;
+  const focus = details.focus as Record<string, FocusTemplate> | undefined;
   if (focus && focus[message]) {
-    const focusTemplate = focus[message];
+    const focusEntry = focus[message];
+
+    // v2.3.0: 解析 focus 模板（支持字符串简写和对象完整写法）
+    let focusTemplate: string;
+    let displayChannels: FocusDisplayChannel[];
+    if (typeof focusEntry === 'string') {
+      focusTemplate = focusEntry;
+      displayChannels = ['log'];
+    } else {
+      focusTemplate = focusEntry.content;
+      const d = focusEntry.display;
+      displayChannels = d ? (Array.isArray(d) ? d : [d]) : ['log'];
+    }
 
     // 如果包含 {image} 占位符，先快速显示不含图片的版本，避免阻塞
     const hasImagePlaceholder = focusTemplate.includes('{image}');
-    if (hasImagePlaceholder) {
-      // 先显示不含图片的临时版本
+    if (hasImagePlaceholder && displayChannels.includes('log')) {
       const tempMessage = replaceFocusPlaceholders(focusTemplate, details).replace(
         /\{image\}/g,
         '[图片加载中...]',
@@ -286,23 +317,31 @@ function handleCallback(
       addLog(instanceId, { type: 'focus', message: tempMessage });
     }
 
-    // 异步解析完整内容（不阻塞回调函数）
-    // 重要：不使用 await，让它在后台执行
     resolveFocusContent(focusTemplate, details, instanceId)
       .then((resolved) => {
-        if (hasImagePlaceholder) {
-          // 如果之前显示了临时版本，现在更新为完整版本
-          // 这里暂不实现日志更新逻辑，只是不重复添加
-          // TODO: 实现日志更新机制
-        } else {
-          // 没有图片占位符，直接添加
-          addLog(instanceId, { type: 'focus', message: resolved.message, html: resolved.html });
+        // 根据 display 渠道分发消息
+        for (const channel of displayChannels) {
+          switch (channel) {
+            case 'log':
+              if (!hasImagePlaceholder) {
+                addLog(instanceId, { type: 'focus', message: resolved.message, html: resolved.html });
+              }
+              break;
+            case 'toast':
+            case 'notification':
+              dispatchFocusNotification(resolved.message);
+              break;
+            case 'dialog':
+            case 'modal':
+              // dialog 和 modal 当前都作为 log 处理，将来可扩展为弹窗
+              addLog(instanceId, { type: 'focus', message: resolved.message, html: resolved.html });
+              break;
+          }
         }
       })
       .catch((err) => {
         log.warn('Failed to resolve focus content:', err);
-        if (!hasImagePlaceholder) {
-          // 降级：直接显示原始模板
+        if (!hasImagePlaceholder && displayChannels.includes('log')) {
           addLog(instanceId, { type: 'focus', message: focusTemplate });
         }
       });

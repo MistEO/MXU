@@ -318,6 +318,15 @@ export default {
     searchPlaceholder: 'Search options...',
     noMatchingOptions: 'No matching options',
     incompatibleController: 'Not supported by current controller',
+    incompatibleResource: 'Not supported by current resource',
+  },
+
+  // Preset
+  preset: {
+    title: 'Choose a Preset',
+    hint: 'Apply a predefined task configuration to get started quickly',
+    taskCount: 'tasks',
+    skipToManual: 'Skip, add tasks manually',
   },
 
   // Controller

@@ -25,6 +25,7 @@ export function OnboardingOverlay() {
   const {
     onboardingCompleted,
     setOnboardingCompleted,
+    setShowAddTaskPanel,
     instanceConnectionStatus,
     instanceResourceLoaded,
     activeInstanceId,
@@ -33,6 +34,8 @@ export function OnboardingOverlay() {
   const driverRef = useRef<Driver | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
+  // 只有用户点击最后一步的"知道了"才视为完成；中途关闭下次启动仍提示
+  const tourFinishedRef = useRef(false);
 
   // 启动 driver.js 引导
   const startTour = useCallback(() => {
@@ -56,17 +59,6 @@ export function OnboardingOverlay() {
         },
       },
       {
-        element: '#add-task-panel',
-        popover: {
-          title: t('onboarding.addTaskTitle'),
-          description: t('onboarding.addTaskMessage'),
-          side: 'top',
-          align: 'center',
-          showButtons: ['next', 'close'],
-          nextBtnText: t('onboarding.next'),
-        },
-      },
-      {
         element: '#tab-bar-area',
         popover: {
           title: t('onboarding.tabBarTitle'),
@@ -74,7 +66,28 @@ export function OnboardingOverlay() {
           side: 'bottom',
           align: 'start',
           showButtons: ['next', 'close'],
+          nextBtnText: t('onboarding.next'),
+          // 进入"添加任务"步骤前，先打开面板再推进
+          onNextClick: (_el, _step, { driver: d }) => {
+            setShowAddTaskPanel(true);
+            setTimeout(() => d.moveNext(), 150);
+          },
+        },
+      },
+      {
+        element: '#add-task-panel',
+        popover: {
+          title: t('onboarding.addTaskTitle'),
+          description: t('onboarding.addTaskMessage'),
+          side: 'top',
+          align: 'center',
+          showButtons: ['next', 'close'],
           doneBtnText: t('onboarding.gotIt'),
+          // 点击"知道了"才标记完成，中途关闭不算
+          onNextClick: (_el, _step, { driver: d }) => {
+            tourFinishedRef.current = true;
+            d.moveNext();
+          },
         },
       },
     ];
@@ -89,13 +102,18 @@ export function OnboardingOverlay() {
       allowClose: true,
       popoverClass: 'mxu-onboarding-popover',
       onDestroyed: () => {
-        setOnboardingCompleted(true);
+        if (tourFinishedRef.current) {
+          setOnboardingCompleted(true);
+        } else {
+          // 用户中途关闭，重置 startedRef 以便下次启动重新触发
+          startedRef.current = false;
+        }
       },
     });
 
     driverRef.current = driverInstance;
     driverInstance.drive();
-  }, [onboardingCompleted, t, setOnboardingCompleted]);
+  }, [onboardingCompleted, t, setOnboardingCompleted, setShowAddTaskPanel]);
 
   // 监听连接状态，一旦用户成功连接设备并加载资源，自动关闭引导
   useEffect(() => {

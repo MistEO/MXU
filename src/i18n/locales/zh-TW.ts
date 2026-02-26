@@ -309,6 +309,15 @@ export default {
     searchPlaceholder: '搜尋選項...',
     noMatchingOptions: '無匹配選項',
     incompatibleController: '不支援目前控制器',
+    incompatibleResource: '不支援目前資源包',
+  },
+
+  // 預設設定
+  preset: {
+    title: '選擇預設方案',
+    hint: '一鍵套用預定義的任務設定，快速開始',
+    taskCount: '個任務',
+    skipToManual: '跳過，手動新增任務',
   },
 
   // 控制器

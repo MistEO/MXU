@@ -148,6 +148,8 @@ export interface MxuConfig {
   customAccents?: CustomAccent[];
   /** 最后激活的实例 ID */
   lastActiveInstanceId?: string;
+  /** 是否已完成预设初始化（首次启动自动创建预设 tab） */
+  presetInitialized?: boolean;
 }
 
 // 默认窗口大小

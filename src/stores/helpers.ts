@@ -1,4 +1,4 @@
-import type { OptionValue, OptionDefinition } from '@/types/interface';
+import type { OptionValue, OptionDefinition, PresetOptionValue } from '@/types/interface';
 import { findSwitchCase } from '@/utils/optionHelpers';
 
 /** 生成唯一 ID */
@@ -18,6 +18,11 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
     const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || 'Yes';
     const isYes = ['Yes', 'yes', 'Y', 'y'].includes(defaultCase);
     return { type: 'switch', value: isYes };
+  }
+
+  if (optionDef.type === 'checkbox') {
+    const defaultCases = optionDef.default_case || [];
+    return { type: 'checkbox', caseNames: [...defaultCases] };
   }
 
   // select type (default)
@@ -68,4 +73,35 @@ export const initializeAllOptionValues = (
   }
 
   return result;
+};
+
+/**
+ * v2.3.0: 将预设的选项值转换为运行时 OptionValue
+ */
+export const convertPresetOptionValue = (
+  optionKey: string,
+  presetValue: PresetOptionValue,
+  allOptions: Record<string, OptionDefinition>,
+): OptionValue | null => {
+  const optDef = allOptions[optionKey];
+  if (!optDef) return null;
+
+  if (optDef.type === 'switch' && typeof presetValue === 'string') {
+    const isYes = ['Yes', 'yes', 'Y', 'y'].includes(presetValue);
+    return { type: 'switch', value: isYes };
+  }
+
+  if (optDef.type === 'checkbox' && Array.isArray(presetValue)) {
+    return { type: 'checkbox', caseNames: presetValue as string[] };
+  }
+
+  if (optDef.type === 'input' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {
+    return { type: 'input', values: presetValue as Record<string, string> };
+  }
+
+  if ((!optDef.type || optDef.type === 'select') && typeof presetValue === 'string') {
+    return { type: 'select', caseName: presetValue };
+  }
+
+  return null;
 };

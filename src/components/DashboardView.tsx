@@ -111,6 +111,10 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
   const enabledTasks = tasks.filter((t) => t.enabled);
   const canRun = isConnected && isResourceLoaded && enabledTasks.length > 0;
 
+  // 获取当前控制器和资源名（用于 pipeline override 生成）
+  const currentControllerName = selectedController[instanceId] || projectInterface?.controller[0]?.name;
+  const currentResourceName = selectedResource[instanceId] || projectInterface?.resource[0]?.name;
+
   // 获取连接状态信息
   const getStatusInfo = useCallback(() => {
     const controllers = projectInterface?.controller || [];
@@ -231,7 +235,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
             taskConfigs.push({
               entry: taskDef.entry,
-              pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
+              pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface, currentControllerName, currentResourceName),
             });
             // MXU 特殊任务的 label 是 MXU i18n key，需要用 t() 翻译
             const taskDisplayName =

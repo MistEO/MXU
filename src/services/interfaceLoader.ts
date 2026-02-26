@@ -4,6 +4,7 @@ import type {
   TaskItem,
   OptionDefinition,
   ControllerType,
+  PresetItem,
 } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
@@ -12,11 +13,13 @@ import { isTauri } from '@/utils/paths';
 const log = loggers.app;
 
 /**
- * 可导入的 PI 文件结构（只包含 task 和 option 字段）
+ * 可导入的 PI 文件结构（支持 task、option 和 preset 字段）
  */
 interface ImportableInterface {
   task?: TaskItem[];
   option?: Record<string, OptionDefinition>;
+  /** v2.3.0: 支持导入 preset */
+  preset?: PresetItem[];
 }
 
 export interface LoadResult {
@@ -217,6 +220,12 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
   if (imported.option && Object.keys(imported.option).length > 0) {
     pi.option = { ...pi.option, ...imported.option };
     log.info(`合并了 ${Object.keys(imported.option).length} 个导入的 option`);
+  }
+
+  // v2.3.0: 合并 preset 数组（追加到末尾）
+  if (imported.preset && imported.preset.length > 0) {
+    pi.preset = [...(pi.preset || []), ...imported.preset];
+    log.info(`合并了 ${imported.preset.length} 个导入的 preset`);
   }
 }
 

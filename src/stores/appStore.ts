@@ -30,7 +30,7 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { generateId, initializeAllOptionValues } from './helpers';
+import { generateId, initializeAllOptionValues, convertPresetOptionValue } from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -184,7 +184,7 @@ export const useAppStore = create<AppState>()(
     activeInstanceId: null,
     nextInstanceNumber: 1,
 
-    createInstance: (name) => {
+    createInstance: (name, exactName) => {
       const id = generateId();
       const instanceNumber = get().nextInstanceNumber;
       const pi = get().projectInterface;
@@ -222,7 +222,7 @@ export const useAppStore = create<AppState>()(
 
       const newInstance: Instance = {
         id,
-        name: name ? `${name} ${instanceNumber}` : `Config ${instanceNumber}`,
+        name: exactName && name ? name : name ? `${name} ${instanceNumber}` : `Config ${instanceNumber}`,
         controllerName: defaultControllerNameValue,
         resourceName: defaultResourceNameValue,
         selectedTasks: defaultTasks,
@@ -243,11 +243,13 @@ export const useAppStore = create<AppState>()(
           newSelectedResource[id] = defaultResourceNameValue;
         }
 
+        const hasPresets = (get().projectInterface?.preset?.length ?? 0) > 0;
         return {
           instances: [...state.instances, newInstance],
           activeInstanceId: id,
           nextInstanceNumber: state.nextInstanceNumber + 1,
-          showAddTaskPanel: true, // 新建配置时自动展开添加任务面板
+          // 有预设时不自动展开添加任务面板，由预设选择器引导用户
+          showAddTaskPanel: !hasPresets,
           animatingTaskIds: [...state.animatingTaskIds, ...newTaskIds],
           animatingTabIds: [...state.animatingTabIds, id], // 添加到标签页进入动画列表
           selectedController: newSelectedController,
@@ -366,6 +368,50 @@ export const useAppStore = create<AppState>()(
       }));
     },
 
+    // v2.3.0: 应用预设配置到实例
+    applyPreset: (instanceId, presetName) => {
+      const pi = get().projectInterface;
+      if (!pi?.preset) return;
+
+      const preset = pi.preset.find((p) => p.name === presetName);
+      if (!preset) return;
+
+      const newTasks: SelectedTask[] = [];
+
+      for (const presetTask of preset.task) {
+        const taskDef = pi.task.find((t) => t.name === presetTask.name);
+        if (!taskDef) continue;
+
+        // 初始化默认选项值
+        const optionValues =
+          taskDef.option && pi.option ? initializeAllOptionValues(taskDef.option, pi.option) : {};
+
+        // 用预设值覆盖
+        if (presetTask.option && pi.option) {
+          for (const [optionKey, presetValue] of Object.entries(presetTask.option)) {
+            const converted = convertPresetOptionValue(optionKey, presetValue, pi.option);
+            if (converted) {
+              optionValues[optionKey] = converted;
+            }
+          }
+        }
+
+        newTasks.push({
+          id: generateId(),
+          taskName: presetTask.name,
+          enabled: presetTask.enabled !== false,
+          optionValues,
+          expanded: true,
+        });
+      }
+
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId ? { ...i, selectedTasks: newTasks } : i,
+        ),
+      }));
+    },
+
     // 添加延迟任务到实例（保留向后兼容，内部调用 addMxuSpecialTask）
     addSleepTaskToInstance: (instanceId: string, sleepTime: number = 5) => {
       return get().addMxuSpecialTask(instanceId, '__MXU_SLEEP__', {
@@ -397,7 +443,6 @@ export const useAppStore = create<AppState>()(
         if (optionDef.type === 'input') {
           const values: Record<string, string> = {};
           for (const input of optionDef.inputs || []) {
-            // 优先使用传入的初始值，否则使用默认值
             values[input.name] = initialValues?.[input.name] ?? input.default ?? '';
           }
           optionValues[optionKey] = { type: 'input', values };
@@ -405,9 +450,12 @@ export const useAppStore = create<AppState>()(
           const defaultCase = optionDef.default_case;
           const isOn = defaultCase === 'Yes' || defaultCase === optionDef.cases[0]?.name;
           optionValues[optionKey] = { type: 'switch', value: isOn };
+        } else if (optionDef.type === 'checkbox') {
+          const defaultCases = optionDef.default_case || [];
+          optionValues[optionKey] = { type: 'checkbox', caseNames: [...defaultCases] };
         } else {
           // select 类型
-          const caseName = optionDef.default_case || optionDef.cases?.[0]?.name || '';
+          const caseName = (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
           optionValues[optionKey] = { type: 'select', caseName };
         }
       }
@@ -731,6 +779,17 @@ export const useAppStore = create<AppState>()(
       return newId;
     },
 
+    // v2.3.0: 跳过预设选择的实例（不持久化，每次启动重置）
+    skippedPresetInstanceIds: new Set<string>(),
+    skipPreset: (instanceId) =>
+      set((state) => ({
+        skippedPresetInstanceIds: new Set([...state.skippedPresetInstanceIds, instanceId]),
+      })),
+
+    // v2.3.0: 预设初始化标记（持久化）
+    presetInitialized: false,
+    setPresetInitialized: (value) => set({ presetInitialized: value }),
+
     // 全局 UI 状态
     showAddTaskPanel: false,
     setShowAddTaskPanel: (show) => set({ showAddTaskPanel: show }),
@@ -982,6 +1041,8 @@ export const useAppStore = create<AppState>()(
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
         showAddTaskPanel: detectedNewTaskNames.length > 0,
+        // v2.3.0: 恢复预设初始化标记
+        presetInitialized: config.presetInitialized ?? false,
       });
 
       // 应用主题（包括强调色）
@@ -1689,6 +1750,8 @@ function generateConfig(): MxuConfig {
     customAccents: state.customAccents,
     // 保存最后激活的实例 ID
     lastActiveInstanceId: state.activeInstanceId || undefined,
+    // 保存预设初始化标记
+    presetInitialized: state.presetInitialized || undefined,
   };
 }
 
@@ -1740,6 +1803,7 @@ useAppStore.subscribe(
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
     customAccents: state.customAccents,
+    presetInitialized: state.presetInitialized,
   }),
   () => {
     debouncedSaveConfig();

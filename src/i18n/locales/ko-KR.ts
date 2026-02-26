@@ -316,6 +316,15 @@ export default {
     searchPlaceholder: '옵션 검색...',
     noMatchingOptions: '일치하는 옵션 없음',
     incompatibleController: '현재 컨트롤러에서 지원되지 않음',
+    incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
+  },
+
+  // 프리셋
+  preset: {
+    title: '프리셋 선택',
+    hint: '미리 정의된 작업 구성을 원클릭으로 적용하여 빠르게 시작하세요',
+    taskCount: '개 작업',
+    skipToManual: '건너뛰고 수동으로 작업 추가',
   },
 
   // 컨트롤러

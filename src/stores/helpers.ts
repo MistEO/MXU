@@ -92,7 +92,9 @@ export const convertPresetOptionValue = (
   }
 
   if (optDef.type === 'checkbox' && Array.isArray(presetValue)) {
-    return { type: 'checkbox', caseNames: presetValue as string[] };
+    const validNames = new Set((optDef.cases || []).map((c) => c.name));
+    const caseNames = (presetValue as string[]).filter((name) => validNames.has(name));
+    return { type: 'checkbox', caseNames };
   }
 
   if (optDef.type === 'input' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {

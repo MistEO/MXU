@@ -16,8 +16,38 @@ const MXU_SLEEP_ACTION: &str = "MXU_SLEEP_ACTION";
 
 /// MXU_SLEEP custom action 回调函数
 /// 从 custom_action_param 中读取 sleep_time（秒），执行等待操作
+fn is_tasker_stopping(ctx: &maa_framework::context::Context) -> bool {
+    let tasker_ptr = ctx.tasker_handle();
+    if tasker_ptr.is_null() {
+        return false;
+    }
+
+    // SAFETY: tasker_ptr 来源于 Context，生命周期由 MaaFramework 管理。
+    // 这里只做短时只读检查，且 owns=false 不会释放底层句柄。
+    unsafe { maa_framework::tasker::Tasker::from_raw(tasker_ptr, false) }
+        .map(|tasker| tasker.stopping())
+        .unwrap_or(false)
+}
+
+fn wait_with_stop_check(ctx: &maa_framework::context::Context, total_secs: u64) -> bool {
+    const STEP: std::time::Duration = std::time::Duration::from_millis(200);
+    let total = std::time::Duration::from_secs(total_secs);
+    let start = std::time::Instant::now();
+
+    while start.elapsed() < total {
+        if is_tasker_stopping(ctx) {
+            info!("[MXU_WAIT] Stop requested, interrupting wait");
+            return false;
+        }
+
+        let remain = total.saturating_sub(start.elapsed());
+        std::thread::sleep(remain.min(STEP));
+    }
+    true
+}
+
 fn mxu_sleep_action_fn(
-    _ctx: &maa_framework::context::Context,
+    ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
 ) -> bool {
     let param_str = args.param;
@@ -37,8 +67,11 @@ fn mxu_sleep_action_fn(
 
     info!("[MXU_SLEEP] Sleeping for {} seconds...", sleep_seconds);
 
-    // 执行睡眠
-    std::thread::sleep(std::time::Duration::from_secs(sleep_seconds));
+    // 执行可中断睡眠（响应 stop）
+    if !wait_with_stop_check(ctx, sleep_seconds) {
+        warn!("[MXU_SLEEP] Interrupted by stop request");
+        return false;
+    }
 
     info!("[MXU_SLEEP] Sleep completed");
     true
@@ -55,7 +88,7 @@ const MXU_WAITUNTIL_ACTION: &str = "MXU_WAITUNTIL_ACTION";
 /// 从 custom_action_param 中读取 target_time（HH:MM 格式），等待到该时间点
 /// 仅支持 24 小时内：若目标时间已过则等待到次日该时间
 fn mxu_waituntil_action_fn(
-    _ctx: &maa_framework::context::Context,
+    ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
 ) -> bool {
     let param_str = args.param;
@@ -134,7 +167,10 @@ fn mxu_waituntil_action_fn(
         target_hour, target_minute, wait_secs
     );
 
-    std::thread::sleep(std::time::Duration::from_secs(wait_secs));
+    if !wait_with_stop_check(ctx, wait_secs) {
+        warn!("[MXU_WAITUNTIL] Interrupted by stop request");
+        return false;
+    }
 
     info!("[MXU_WAITUNTIL] Wait completed, target time reached");
     true

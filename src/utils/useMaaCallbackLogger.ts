@@ -20,22 +20,24 @@ import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
 
 const log = loggers.app;
 
+// 每次会话只请求一次通知权限，避免多条 focus 消息重复弹权限弹窗
+let focusNotificationPermissionRequested = false;
+
 /** v2.3.0: toast/notification 渠道 - 使用系统通知 */
-function dispatchFocusNotification(message: string) {
+async function dispatchFocusNotification(message: string) {
   try {
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification('MXU', { body: message });
+    } else if (Notification.permission !== 'denied' && !focusNotificationPermissionRequested) {
+      focusNotificationPermissionRequested = true;
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
         new Notification('MXU', { body: message });
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then((perm) => {
-          if (perm === 'granted') {
-            new Notification('MXU', { body: message });
-          }
-        });
       }
     }
-  } catch {
-    log.warn('Notification not available');
+  } catch (error) {
+    log.warn('Notification not available', error);
   }
 }
 

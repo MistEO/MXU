@@ -2382,6 +2382,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "maa-framework"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3627130ebcc05ee82c5c2ac2047cbfb9e9b8f82f7b23da0455786255a10df62c"
+dependencies = [
+ "bitflags 2.10.0",
+ "maa-framework-sys",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "maa-framework-sys"
+version = "5.8.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "621432905445bebbe0a3272c8980cf0423097a8e0e0ffa57c3ad10152785ead4"
+dependencies = [
+ "libloading 0.8.9",
+ "once_cell",
+]
+
+[[package]]
 name = "mac"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2512,10 +2535,9 @@ dependencies = [
  "flate2",
  "futures-util",
  "libc",
- "libloading 0.8.9",
  "log",
+ "maa-framework",
  "notify-rust",
- "once_cell",
  "os_info",
  "regex",
  "reqwest",

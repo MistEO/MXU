@@ -381,7 +381,7 @@ export const useAppStore = create<AppState>()(
       for (const presetTask of preset.task) {
         const taskDef = pi.task.find((t) => t.name === presetTask.name);
         if (!taskDef) {
-          loggers.app?.warn?.(
+          loggers.task.warn(
             `[applyPreset] Task "${presetTask.name}" referenced in preset "${presetName}" not found in project interface and will be skipped.`,
           );
           continue;

@@ -37,23 +37,40 @@ fn get_system_wow64_directory() -> Option<PathBuf> {
 }
 
 /// 检测 WebView2 是否已安装（注册表 + DLL 双重检测）
+///
+/// 根据微软官方文档，检查 pv (REG_SZ) 注册表值：
+/// - HKLM 用于 per-machine 安装（管理员权限安装）
+/// - HKCU 用于 per-user 安装（标准用户权限安装）
+/// - pv 值必须存在且不为空、不为 "0.0.0.0"
+///
+/// 参考: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#detect-if-a-suitable-webview2-runtime-is-already-installed
 #[allow(unreachable_code)]
 pub fn is_webview2_installed() -> bool {
     // // 测试：强制视为未安装，以调试下载/安装流程。调试完请删除或注释下面这行。
     // return false;
 
-    let registry_paths = [
-        r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
-        r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+    let registry_locations: &[(HKEY, &str)] = &[
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        ),
     ];
 
     let mut registry_found = false;
-    for path in &registry_paths {
+    for (root, path) in registry_locations {
         let path_wide = to_wide(path);
         let mut hkey: HKEY = HKEY::default();
         let result = unsafe {
             RegOpenKeyExW(
-                HKEY_LOCAL_MACHINE,
+                *root,
                 PCWSTR::from_raw(path_wide.as_ptr()),
                 0,
                 KEY_READ,
@@ -61,11 +78,35 @@ pub fn is_webview2_installed() -> bool {
             )
         };
         if result.is_ok() {
+            // 读取 pv (REG_SZ) 值，验证版本号有效
+            let pv_name = to_wide("pv");
+            let mut buffer = [0u16; 260];
+            let mut size = (buffer.len() * 2) as u32;
+
+            let value_result = unsafe {
+                RegGetValueW(
+                    hkey,
+                    PCWSTR::null(),
+                    PCWSTR::from_raw(pv_name.as_ptr()),
+                    RRF_RT_REG_SZ,
+                    None,
+                    Some(buffer.as_mut_ptr() as *mut _),
+                    Some(&mut size),
+                )
+            };
+
             unsafe {
                 let _ = RegCloseKey(hkey);
             }
-            registry_found = true;
-            break;
+
+            if value_result.is_ok() {
+                let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+                let version = String::from_utf16_lossy(&buffer[..len]);
+                if !version.is_empty() && version != "0.0.0.0" {
+                    registry_found = true;
+                    break;
+                }
+            }
         }
     }
 

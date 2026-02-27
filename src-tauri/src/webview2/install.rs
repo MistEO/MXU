@@ -35,13 +35,13 @@ fn get_arch_info() -> Result<(&'static str, &'static str), String> {
     }
 }
 
-/// 获取 WebView2 固定版本运行时的目录路径（exe 同级目录）
+/// 获取 WebView2 固定版本运行时的目录路径（exe 同级 cache 目录下）
 pub fn get_webview2_runtime_dir() -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
     let exe_dir = exe_path
         .parent()
         .ok_or_else(|| "无法获取程序目录".to_string())?;
-    Ok(exe_dir.join("webview2_runtime"))
+    Ok(exe_dir.join("cache").join("webview2_runtime"))
 }
 
 /// 验证运行时目录包含关键可执行文件
@@ -49,7 +49,7 @@ fn validate_runtime_dir(runtime_dir: &std::path::Path) -> Result<(), String> {
     if !runtime_dir.join("msedgewebview2.exe").exists() {
         return Err(
             "解压后的 WebView2 运行时目录不完整（未找到 msedgewebview2.exe）。\n\
-            请删除 webview2_runtime/ 目录后重启程序重试。".to_string()
+            请删除 cache/webview2_runtime/ 目录后重启程序重试。".to_string()
         );
     }
     Ok(())
@@ -465,7 +465,7 @@ pub fn ensure_webview2() -> bool {
                  方法三：加入我们的 QQ 群，获取帮助和支持\r\n\
                  - 群号可在我们的官网或文档底部找到\r\n\r\n\
                  点击确定后将尝试下载独立 WebView2 运行时以继续运行。\r\n\
-                 若想恢复使用系统 WebView2，请手动删除 exe 目录下的 webview2_runtime 文件夹",
+                 若想恢复使用系统 WebView2，请删除 exe 目录下的 cache/webview2_runtime 文件夹",
                 reason
             ),
         );

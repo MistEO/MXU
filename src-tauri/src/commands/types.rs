@@ -299,3 +299,10 @@ pub struct GitHubRelease {
     pub prerelease: bool,
     pub assets: Vec<GitHubAsset>,
 }
+
+/// WebView2 目录信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebView2DirInfo {
+    pub path: String,
+    pub system: bool,
+}

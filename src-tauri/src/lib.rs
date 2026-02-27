@@ -187,6 +187,7 @@ pub fn run() {
             commands::system::get_arch,
             commands::system::get_os,
             commands::system::get_system_info,
+            commands::system::get_webview2_dir,
             // 托盘相关命令
             commands::tray::set_minimize_to_tray,
             commands::tray::get_minimize_to_tray,

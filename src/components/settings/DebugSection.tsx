@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, FolderOpen, ScrollText, Trash2, Network, Archive } from 'lucide-react';
+import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
-import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
 import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
@@ -28,19 +27,14 @@ export function DebugSection() {
   const [maafwVersion, setMaafwVersion] = useState<string | null>(null);
   const [exeDir, setExeDir] = useState<string | null>(null);
   const [cwd, setCwd] = useState<string | null>(null);
+  const [webview2Dir, setWebview2Dir] = useState<{ path: string; system: boolean } | null>(null);
   const [systemInfo, setSystemInfo] = useState<{
     os: string;
     osVersion: string;
     arch: string;
     tauriVersion: string;
   } | null>(null);
-  const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
-  const [, setDebugLog] = useState<string[]>([]);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
-
-  const addDebugLog = useCallback((msg: string) => {
-    setDebugLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
-  }, []);
 
   const version = projectInterface?.version || '0.1.0';
 
@@ -74,15 +68,17 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo] = await Promise.all([
+          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] = await Promise.all([
             invoke<string>('get_exe_dir'),
             invoke<string>('get_cwd'),
             invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
               'get_system_info',
             ),
+            invoke<{ path: string; system: boolean }>('get_webview2_dir'),
           ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
+          setWebview2Dir(webview2DirResult);
           setSystemInfo({
             os: sysInfo.os,
             osVersion: sysInfo.os_version,
@@ -98,15 +94,6 @@ export function DebugSection() {
     };
 
     loadVersions();
-  }, []);
-
-  // 加载缓存统计
-  useEffect(() => {
-    if (isTauri()) {
-      getCacheStats().then((stats) => {
-        setCacheEntryCount(stats.entryCount);
-      });
-    }
   }, []);
 
   // 调试：打开配置目录
@@ -138,22 +125,6 @@ export function DebugSection() {
       await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
-    }
-  };
-
-  // 调试：清空缓存
-  const handleClearCache = async () => {
-    if (!isTauri() || !dataPath) {
-      addDebugLog('仅 Tauri 环境支持清空缓存');
-      return;
-    }
-
-    try {
-      await clearAllCache();
-      setCacheEntryCount(0);
-      addDebugLog('缓存已清空');
-    } catch (err) {
-      addDebugLog(`清空缓存失败: ${err}`);
     }
   };
 
@@ -228,6 +199,16 @@ export function DebugSection() {
                 <span className="font-mono text-text-primary text-xs">{exeDir}</span>
               </p>
             )}
+            <p className="break-all">
+              {t('debug.webview2Dir')}:{' '}
+              <span className="font-mono text-text-primary text-xs">
+                {webview2Dir
+                  ? webview2Dir.system
+                    ? `(${t('debug.webview2System')})`
+                    : webview2Dir.path
+                  : '-'}
+              </span>
+            </p>
           </div>
         )}
 
@@ -255,21 +236,6 @@ export function DebugSection() {
           >
             <Archive className="w-4 h-4" />
             {t('debug.exportLogs')}
-          </button>
-          <button
-            onClick={handleClearCache}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
-            title={
-              cacheEntryCount !== null
-                ? t('debug.cacheStats', { count: cacheEntryCount })
-                : undefined
-            }
-          >
-            <Trash2 className="w-4 h-4" />
-            {t('debug.clearCache')}
-            {cacheEntryCount !== null && cacheEntryCount > 0 && (
-              <span className="text-xs text-text-muted">({cacheEntryCount})</span>
-            )}
           </button>
         </div>
 

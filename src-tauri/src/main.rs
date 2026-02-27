@@ -18,7 +18,7 @@ fn main() {
 
                 // 检测已缓存的 WebView2 固定版本运行时
                 // 验证目录包含关键文件以确保运行时完整可用
-                let webview2_runtime_dir = exe_dir.join("webview2_runtime");
+                let webview2_runtime_dir = exe_dir.join("cache").join("webview2_runtime");
                 if webview2_runtime_dir.is_dir()
                     && webview2_runtime_dir.join("msedgewebview2.exe").exists()
                 {

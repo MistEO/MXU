@@ -1,7 +1,7 @@
 //! WebView2 下载与本地解压
 //!
 //! 从微软官方 CDN 下载 **Fixed Version Runtime（固定版本运行时）**，
-//! 解压到程序目录的 `webview2_runtime/` 下，通过环境变量
+//! 解压到程序目录下的 `cache/webview2_runtime/` 目录，通过环境变量
 //! `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指定运行时路径，不影响系统。
 
 use log::warn;
@@ -131,13 +131,17 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
     Ok(())
 }
 
-/// 获取 expand.exe 的完整路径（从 System32 目录解析）
+/// 获取 expand.exe 的完整路径（通过 Windows API 获取系统目录，避免依赖可被篡改的环境变量）
 fn get_expand_exe_path() -> Result<std::path::PathBuf, String> {
-    let system_root = std::env::var("SystemRoot")
-        .unwrap_or_else(|_| r"C:\Windows".to_string());
-    let expand_path = std::path::PathBuf::from(&system_root)
-        .join("System32")
-        .join("expand.exe");
+    use windows::Win32::System::SystemInformation::GetSystemDirectoryW;
+
+    let mut buf = [0u16; 260];
+    let len = unsafe { GetSystemDirectoryW(Some(&mut buf)) } as usize;
+    if len == 0 || len > buf.len() {
+        return Err("GetSystemDirectoryW 调用失败，无法获取系统目录".to_string());
+    }
+    let system_dir = String::from_utf16_lossy(&buf[..len]);
+    let expand_path = std::path::PathBuf::from(&system_dir).join("expand.exe");
     if expand_path.exists() {
         Ok(expand_path)
     } else {
@@ -191,11 +195,17 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
         }
     }
 
-    // 准备目标目录：删除前检查是否为符号链接/重解析点，防止通过构造链接删除任意目录
+    // 准备目标目录：删除前检查是否为符号链接/重解析点（含 junction/mount point），
+    // 防止通过构造链接删除任意目录
     if runtime_dir.exists() {
         let meta = std::fs::symlink_metadata(runtime_dir)
             .map_err(|e| format!("读取运行时目录元数据失败: {}", e))?;
-        if meta.file_type().is_symlink() {
+        let is_reparse = {
+            use std::os::windows::fs::MetadataExt;
+            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+            meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        };
+        if meta.file_type().is_symlink() || is_reparse {
             return Err(format!(
                 "运行时目录 [{}] 是符号链接或重解析点，出于安全原因拒绝操作。\n\
                 请手动删除该链接后重试。",

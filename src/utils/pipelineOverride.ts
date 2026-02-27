@@ -63,16 +63,17 @@ const collectOptionOverrides = (
       const inputVal = optionValue.values[inputName] ?? inputDef.default ?? '';
       const pipelineType = inputDef.pipeline_type || 'string';
       const placeholder = `{${inputName}}`;
-      const placeholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const placeholderRegex = new RegExp(escapedPlaceholder, 'g');
 
       if (pipelineType === 'int') {
-        overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), inputVal || '0');
+        overrideStr = overrideStr.replace(new RegExp(`"${escapedPlaceholder}"`, 'g'), inputVal || '0');
         overrideStr = overrideStr.replace(placeholderRegex, inputVal || '0');
       } else if (pipelineType === 'bool') {
         const boolVal = ['true', '1', 'yes', 'y'].includes((inputVal || '').toLowerCase())
           ? 'true'
           : 'false';
-        overrideStr = overrideStr.replace(new RegExp(`"${placeholder}"`, 'g'), boolVal);
+        overrideStr = overrideStr.replace(new RegExp(`"${escapedPlaceholder}"`, 'g'), boolVal);
         overrideStr = overrideStr.replace(placeholderRegex, boolVal);
       } else {
         overrideStr = overrideStr.replace(placeholderRegex, inputVal || '');

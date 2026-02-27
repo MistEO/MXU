@@ -5,6 +5,7 @@ mod dialog;
 mod install;
 
 pub use install::ensure_webview2;
+pub use install::get_webview2_runtime_dir;
 
 use std::os::windows::ffi::OsStrExt;
 

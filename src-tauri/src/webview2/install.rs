@@ -4,6 +4,7 @@
 //! 解压到程序目录的 `webview2_runtime/` 下，通过环境变量
 //! `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指定运行时路径，不影响系统。
 
+use log::warn;
 use std::io::Read;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
@@ -11,13 +12,15 @@ use std::path::PathBuf;
 use super::detection::{is_webview2_disabled, is_webview2_installed};
 use super::dialog::CustomDialog;
 
-/// WebView2 Fixed Version Runtime 版本号。
-/// 更新版本时需同步更新 `GUID_X64` 和 `GUID_ARM64`。
+/// WebView2 Fixed Version Runtime 版本号及对应的下载 GUID。
+/// **三者必须保持一致**——更新版本时需同时更新 `WEBVIEW2_VERSION`、`GUID_X64` 和 `GUID_ARM64`。
 /// GUID 可在 https://developer.microsoft.com/en-us/microsoft-edge/webview2/ 页面
 /// 从 Fixed Version 的下载链接中获取，
 /// 或前往 https://github.com/nicehash/NiceHashQuickMiner/releases 查看
 const WEBVIEW2_VERSION: &str = "145.0.3800.65";
+/// 对应 WEBVIEW2_VERSION 145.0.3800.65 的 x64 下载 GUID
 const GUID_X64: &str = "c411606c-d282-4304-8420-8ae6b1dd3e9a";
+/// 对应 WEBVIEW2_VERSION 145.0.3800.65 的 ARM64 下载 GUID
 const GUID_ARM64: &str = "2d2cf37b-d24c-4c72-b5bc-e8061e7a7583";
 
 /// 隐藏控制台窗口标志
@@ -233,33 +236,57 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
 /// 检测 exe 同目录下是否存在已下载的 cab 文件，供网络不佳的用户手动放置使用。
 /// 优先使用架构匹配的 cab 文件；仅存在不匹配的则弹出警告并返回 None 继续下载。
 fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), String>> {
-    let exe_path = std::env::current_exe().ok()?;
-    let exe_dir = exe_path.parent()?;
-    let (expected_arch, _) = get_arch_info().ok()?;
+    let exe_path = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            warn!("try_extract_local_cab: 获取程序路径失败，跳过本地 cab 检测: {}", e);
+            return None;
+        }
+    };
+    let exe_dir = match exe_path.parent() {
+        Some(d) => d,
+        None => {
+            warn!("try_extract_local_cab: 无法获取程序目录，跳过本地 cab 检测");
+            return None;
+        }
+    };
+    let (expected_arch, _) = match get_arch_info() {
+        Ok(info) => info,
+        Err(e) => {
+            warn!("try_extract_local_cab: 获取架构信息失败，跳过本地 cab 检测: {}", e);
+            return None;
+        }
+    };
 
     // 收集所有 cab 文件，区分架构匹配与不匹配
     let mut matched: Option<std::path::PathBuf> = None;
     let mut mismatched_arch: Option<String> = None;
 
-    if let Ok(entries) = std::fs::read_dir(exe_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if name_str.starts_with("Microsoft.WebView2.FixedVersionRuntime.")
-                && name_str.ends_with(".cab")
-            {
-                let cab_arch = name_str
-                    .trim_end_matches(".cab")
-                    .rsplit('.')
-                    .next()
-                    .unwrap_or("");
-                if cab_arch.eq_ignore_ascii_case(expected_arch) {
-                    matched = Some(entry.path());
-                    break;
-                } else {
-                    mismatched_arch = Some(cab_arch.to_string());
+    match std::fs::read_dir(exe_dir) {
+        Ok(entries) => {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str.starts_with("Microsoft.WebView2.FixedVersionRuntime.")
+                    && name_str.ends_with(".cab")
+                {
+                    let cab_arch = name_str
+                        .trim_end_matches(".cab")
+                        .rsplit('.')
+                        .next()
+                        .unwrap_or("");
+                    if cab_arch.eq_ignore_ascii_case(expected_arch) {
+                        matched = Some(entry.path());
+                        break;
+                    } else {
+                        mismatched_arch = Some(cab_arch.to_string());
+                    }
                 }
             }
+        }
+        Err(e) => {
+            warn!("try_extract_local_cab: 读取程序目录失败，跳过本地 cab 检测: {}", e);
+            return None;
         }
     }
 

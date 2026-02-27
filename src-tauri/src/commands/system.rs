@@ -726,17 +726,17 @@ pub fn get_system_info() -> SystemInfo {
 
 /// 获取当前使用的 WebView2 目录
 #[tauri::command]
-pub fn get_webview2_dir() -> Option<WebView2DirInfo> {
+pub fn get_webview2_dir() -> WebView2DirInfo {
     if let Ok(folder) = std::env::var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER") {
-        Some(WebView2DirInfo {
+        WebView2DirInfo {
             path: folder,
             system: false,
-        })
+        }
     } else {
         // 没有设置自定义目录，使用系统 WebView2
-        Some(WebView2DirInfo {
+        WebView2DirInfo {
             path: String::new(),
             system: true,
-        })
+        }
     }
 }

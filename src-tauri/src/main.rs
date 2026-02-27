@@ -18,14 +18,15 @@ fn main() {
 
                 // 检测已缓存的 WebView2 固定版本运行时
                 // 验证目录包含关键文件以确保运行时完整可用
-                let webview2_runtime_dir = exe_dir.join("cache").join("webview2_runtime");
-                if webview2_runtime_dir.is_dir()
-                    && webview2_runtime_dir.join("msedgewebview2.exe").exists()
-                {
-                    std::env::set_var(
-                        "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
-                        &webview2_runtime_dir,
-                    );
+                if let Ok(webview2_runtime_dir) = webview2::get_webview2_runtime_dir() {
+                    if webview2_runtime_dir.is_dir()
+                        && webview2_runtime_dir.join("msedgewebview2.exe").exists()
+                    {
+                        std::env::set_var(
+                            "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
+                            &webview2_runtime_dir,
+                        );
+                    }
                 }
             }
         }

@@ -4,7 +4,7 @@
 //! 解压到程序目录下的 `cache/webview2_runtime/` 目录，通过环境变量
 //! `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指定运行时路径，不影响系统。
 
-use log::warn;
+use log::{info, warn};
 use std::io::Read;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
@@ -163,16 +163,30 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
     std::fs::create_dir_all(&extract_temp)
         .map_err(|e| format!("创建临时目录失败: {}", e))?;
 
-    let status = std::process::Command::new(&expand_exe)
+    let result = do_extract(&expand_exe, cab_path, &extract_temp, runtime_dir);
+
+    // 无论成功还是失败，始终尝试清理临时目录
+    let _ = std::fs::remove_dir_all(&extract_temp);
+
+    result
+}
+
+/// `extract_cab_to_runtime` 的内部实现，拆分出来以便外层统一清理临时目录
+fn do_extract(
+    expand_exe: &std::path::Path,
+    cab_path: &std::path::Path,
+    extract_temp: &std::path::Path,
+    runtime_dir: &std::path::Path,
+) -> Result<(), String> {
+    let status = std::process::Command::new(expand_exe)
         .arg(cab_path)
         .arg("-F:*")
-        .arg(&extract_temp)
+        .arg(extract_temp)
         .creation_flags(CREATE_NO_WINDOW)
         .status()
         .map_err(|e| format!("运行 expand.exe 失败: {}", e))?;
 
     if !status.success() {
-        let _ = std::fs::remove_dir_all(&extract_temp);
         return Err(format!(
             "解压失败，退出码: {}",
             status.code().unwrap_or(-1)
@@ -180,8 +194,8 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
     }
 
     // cab 解压后文件可能在版本子目录中
-    let mut source_dir = extract_temp.clone();
-    if let Ok(entries) = std::fs::read_dir(&extract_temp) {
+    let mut source_dir = extract_temp.to_path_buf();
+    if let Ok(entries) = std::fs::read_dir(extract_temp) {
         for entry in entries.flatten() {
             if entry.path().is_dir()
                 && entry
@@ -239,7 +253,6 @@ fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::P
 
     copy_dir_recursive(&source_dir, runtime_dir)?;
 
-    let _ = std::fs::remove_dir_all(&extract_temp);
     Ok(())
 }
 
@@ -304,6 +317,7 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
     // 注意：整个操作（解压 + 删除）统一处理 IO 错误，
     // 如果在操作过程中文件被外部删除/修改（TOCTOU），视为 cab 不可用并回退到在线下载
     if let Some(cab_path) = matched {
+        info!("检测到本地 WebView2 cab 文件: {}", cab_path.display());
         let progress_dialog = CustomDialog::new_progress(
             "正在解压 WebView2",
             "检测到本地 WebView2 运行时 cab 文件，正在解压...",
@@ -317,11 +331,13 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
 
         match result {
             Ok(()) => {
+                info!("本地 WebView2 cab 解压成功");
                 let _ = std::fs::remove_file(&cab_path);
                 return Some(Ok(()));
             }
-            Err(_) => {
+            Err(e) => {
                 // 本地 cab 解压失败（可能文件损坏或被移除），删除并回退到在线下载
+                warn!("本地 WebView2 cab 解压失败，将回退到在线下载: {}", e);
                 let _ = std::fs::remove_file(&cab_path);
                 return None;
             }
@@ -362,12 +378,14 @@ pub fn download_and_extract() -> Result<(), String> {
     // 优先检测 exe 同目录下是否存在已下载的 cab 文件
     if let Some(result) = try_extract_local_cab(&runtime_dir) {
         if result.is_ok() {
+            info!("已从本地 cab 安装 WebView2 固定版本运行时");
             validate_runtime_dir(&runtime_dir)?;
             std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime_dir);
         }
         return result;
     }
 
+    info!("本地 cab 不可用，开始从 CDN 下载 WebView2: {}", download_url);
     let progress_dialog = CustomDialog::new_progress(
         "正在下载 WebView2",
         "系统 WebView2 不可用，正在下载独立 WebView2...",
@@ -475,6 +493,7 @@ pub fn download_and_extract() -> Result<(), String> {
     validate_runtime_dir(&runtime_dir)?;
 
     // 设置环境变量供当前进程使用
+    info!("已从 CDN 下载并安装 WebView2 固定版本运行时: {}", runtime_dir.display());
     std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime_dir);
 
     Ok(())
@@ -484,6 +503,7 @@ pub fn download_and_extract() -> Result<(), String> {
 pub fn ensure_webview2() -> bool {
     // 检测 WebView2 是否被禁用，弹窗提示后继续走独立运行时流程
     if let Some(reason) = is_webview2_disabled() {
+        info!("系统 WebView2 已被禁用: {}", reason);
         CustomDialog::show_error(
             "系统 WebView2 已被禁用",
             &format!(
@@ -508,10 +528,12 @@ pub fn ensure_webview2() -> bool {
         );
     } else if is_webview2_installed() {
         // 系统 WebView2 可用且未被禁用，直接使用
+        info!("使用系统 WebView2");
         return true;
     }
 
     // 系统不可用或被禁用，下载独立 WebView2 运行时
+    info!("系统 WebView2 不可用，尝试下载独立运行时");
     match download_and_extract() {
         Ok(()) => true,
         Err(e) => {

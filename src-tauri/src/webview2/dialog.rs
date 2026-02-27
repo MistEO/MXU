@@ -236,9 +236,12 @@ impl CustomDialog {
                 right: width,
                 bottom: height,
             };
-            let _ = AdjustWindowRect(&mut rc, wnd_style, false);
-            let wnd_w = rc.right - rc.left;
-            let wnd_h = rc.bottom - rc.top;
+            let success = AdjustWindowRect(&mut rc, wnd_style, false).is_ok();
+            let (wnd_w, wnd_h) = if success {
+                (rc.right - rc.left, rc.bottom - rc.top)
+            } else {
+                (width, height)
+            };
 
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),

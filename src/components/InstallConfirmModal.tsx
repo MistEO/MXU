@@ -213,7 +213,13 @@ export function InstallConfirmModal() {
       setAutoInstallPending(false);
       handleInstall();
     }
-  }, [showInstallConfirmModal, autoInstallPending, installStatus, setAutoInstallPending, handleInstall]);
+  }, [
+    showInstallConfirmModal,
+    autoInstallPending,
+    installStatus,
+    setAutoInstallPending,
+    handleInstall,
+  ]);
 
   // 判断当前是否为可执行安装程序（exe/dmg）
   const isExeInstaller = downloadSavePath && isExecutableInstaller(downloadSavePath);

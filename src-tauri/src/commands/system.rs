@@ -452,8 +452,7 @@ pub async fn run_action(
     let args_vec: Vec<String> = if args.trim().is_empty() {
         vec![]
     } else {
-        shell_words::split(&args)
-            .map_err(|e| format!("Failed to parse args: {}", e))?
+        shell_words::split(&args).map_err(|e| format!("Failed to parse args: {}", e))?
     };
 
     let mut cmd = Command::new(&program);

@@ -52,7 +52,8 @@ fn validate_runtime_dir(runtime_dir: &std::path::Path) -> Result<(), String> {
     if !runtime_dir.join("msedgewebview2.exe").exists() {
         return Err(
             "解压后的 WebView2 运行时目录不完整（未找到 msedgewebview2.exe）。\n\
-            请删除 cache/webview2_runtime/ 目录后重启程序重试。".to_string()
+            请删除 cache/webview2_runtime/ 目录后重启程序重试。"
+                .to_string(),
         );
     }
     Ok(())
@@ -99,17 +100,18 @@ fn show_download_failed_dialog(error: &str) {
 
 /// 递归复制目录内容
 fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    std::fs::create_dir_all(dst)
-        .map_err(|e| format!("无法创建目录 [{}]: {}", dst.display(), e))?;
+    std::fs::create_dir_all(dst).map_err(|e| format!("无法创建目录 [{}]: {}", dst.display(), e))?;
 
-    for entry in std::fs::read_dir(src)
-        .map_err(|e| format!("无法读取目录 [{}]: {}", src.display(), e))?
+    for entry in
+        std::fs::read_dir(src).map_err(|e| format!("无法读取目录 [{}]: {}", src.display(), e))?
     {
         let entry = entry.map_err(|e| format!("无法读取目录条目: {}", e))?;
         let src_item = entry.path();
         let dst_item = dst.join(entry.file_name());
 
-        let file_type = entry.file_type().map_err(|e| format!("无法获取文件类型: {}", e))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("无法获取文件类型: {}", e))?;
         if file_type.is_symlink() {
             // WebView2 cab 中不应包含符号链接，跳过以避免安全风险
             continue;
@@ -153,15 +155,17 @@ fn get_expand_exe_path() -> Result<std::path::PathBuf, String> {
 }
 
 /// 解压 cab 文件到 WebView2 运行时目录
-fn extract_cab_to_runtime(cab_path: &std::path::Path, runtime_dir: &std::path::Path) -> Result<(), String> {
+fn extract_cab_to_runtime(
+    cab_path: &std::path::Path,
+    runtime_dir: &std::path::Path,
+) -> Result<(), String> {
     let expand_exe = get_expand_exe_path()?;
 
     let temp_dir = std::env::temp_dir();
     let extract_temp = temp_dir.join(format!("mxu_webview2_extract_{}", std::process::id()));
 
     let _ = std::fs::remove_dir_all(&extract_temp);
-    std::fs::create_dir_all(&extract_temp)
-        .map_err(|e| format!("创建临时目录失败: {}", e))?;
+    std::fs::create_dir_all(&extract_temp).map_err(|e| format!("创建临时目录失败: {}", e))?;
 
     let result = do_extract(&expand_exe, cab_path, &extract_temp, runtime_dir);
 
@@ -187,10 +191,7 @@ fn do_extract(
         .map_err(|e| format!("运行 expand.exe 失败: {}", e))?;
 
     if !status.success() {
-        return Err(format!(
-            "解压失败，退出码: {}",
-            status.code().unwrap_or(-1)
-        ));
+        return Err(format!("解压失败，退出码: {}", status.code().unwrap_or(-1)));
     }
 
     // cab 解压后文件可能在版本子目录中
@@ -262,7 +263,10 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
     let exe_path = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            warn!("try_extract_local_cab: 获取程序路径失败，跳过本地 cab 检测: {}", e);
+            warn!(
+                "try_extract_local_cab: 获取程序路径失败，跳过本地 cab 检测: {}",
+                e
+            );
             return None;
         }
     };
@@ -276,7 +280,10 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
     let (expected_arch, _) = match get_arch_info() {
         Ok(info) => info,
         Err(e) => {
-            warn!("try_extract_local_cab: 获取架构信息失败，跳过本地 cab 检测: {}", e);
+            warn!(
+                "try_extract_local_cab: 获取架构信息失败，跳过本地 cab 检测: {}",
+                e
+            );
             return None;
         }
     };
@@ -308,7 +315,10 @@ fn try_extract_local_cab(runtime_dir: &std::path::Path) -> Option<Result<(), Str
             }
         }
         Err(e) => {
-            warn!("try_extract_local_cab: 读取程序目录失败，跳过本地 cab 检测: {}", e);
+            warn!(
+                "try_extract_local_cab: 读取程序目录失败，跳过本地 cab 检测: {}",
+                e
+            );
             return None;
         }
     }
@@ -385,7 +395,10 @@ pub fn download_and_extract() -> Result<(), String> {
         return result;
     }
 
-    info!("本地 cab 不可用，开始从 CDN 下载 WebView2: {}", download_url);
+    info!(
+        "本地 cab 不可用，开始从 CDN 下载 WebView2: {}",
+        download_url
+    );
     let progress_dialog = CustomDialog::new_progress(
         "正在下载 WebView2",
         "系统 WebView2 不可用，正在下载独立 WebView2...",
@@ -416,8 +429,8 @@ pub fn download_and_extract() -> Result<(), String> {
         let total_size = response.content_length().unwrap_or(0);
         let mut downloaded: u64 = 0;
         let mut reader = std::io::BufReader::with_capacity(256 * 1024, response);
-        let mut file = std::fs::File::create(&cab_path)
-            .map_err(|e| format!("创建下载文件失败: {}", e))?;
+        let mut file =
+            std::fs::File::create(&cab_path).map_err(|e| format!("创建下载文件失败: {}", e))?;
         let mut chunk = [0u8; 256 * 1024];
         let mut last_ui_update = std::time::Instant::now();
 
@@ -456,8 +469,7 @@ pub fn download_and_extract() -> Result<(), String> {
             }
         }
 
-        std::io::Write::flush(&mut file)
-            .map_err(|e| format!("刷新文件缓冲失败: {}", e))?;
+        std::io::Write::flush(&mut file).map_err(|e| format!("刷新文件缓冲失败: {}", e))?;
 
         Ok(())
     })();
@@ -493,7 +505,10 @@ pub fn download_and_extract() -> Result<(), String> {
     validate_runtime_dir(&runtime_dir)?;
 
     // 设置环境变量供当前进程使用
-    info!("已从 CDN 下载并安装 WebView2 固定版本运行时: {}", runtime_dir.display());
+    info!(
+        "已从 CDN 下载并安装 WebView2 固定版本运行时: {}",
+        runtime_dir.display()
+    );
     std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime_dir);
 
     Ok(())

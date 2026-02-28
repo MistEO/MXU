@@ -447,11 +447,12 @@ pub async fn run_action(
         program, args, wait_for_exit
     );
 
-    // 解析参数字符串为参数数组（简单按空格分割，不处理引号）
-    let args_vec: Vec<&str> = if args.trim().is_empty() {
+    // 使用 shell 语义解析参数至数组（支持引号）
+    let args_vec: Vec<String> = if args.trim().is_empty() {
         vec![]
     } else {
-        args.split_whitespace().collect()
+        shell_words::split(&args)
+            .map_err(|e| format!("Failed to parse args: {}", e))?
     };
 
     let mut cmd = Command::new(&program);

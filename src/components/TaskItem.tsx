@@ -354,6 +354,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   // 未选择时，使用第一个控制器/资源作为默认值判断兼容性
   const currentControllerName = instance?.controllerName || projectInterface?.controller[0]?.name;
   const currentResourceName = instance?.resourceName || projectInterface?.resource[0]?.name;
+  const langKey = getInterfaceLangKey(language);
 
   const isControllerIncompatible = useMemo(() => {
     if (!taskDef?.controller || taskDef.controller.length === 0) return false;
@@ -458,8 +459,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   ]);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
-
-  const langKey = getInterfaceLangKey(language);
 
   // 获取翻译表
   const translations = interfaceTranslations[langKey];

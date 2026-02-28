@@ -1323,6 +1323,10 @@ export const useAppStore = create<AppState>()(
     tcpCompatMode: false,
     setTcpCompatMode: (enabled) => set({ tcpCompatMode: enabled }),
 
+    // 是否为开机自启动模式
+    isAutoStartMode: false,
+    setIsAutoStartMode: (mode) => set({ isAutoStartMode: mode }),
+
     // 启动后自动执行的实例 ID
     autoStartInstanceId: undefined,
     setAutoStartInstanceId: (id) =>

@@ -199,6 +199,35 @@ function App() {
 
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
+  const autoInstallTriggeredRef = useRef(false);
+
+  // 尝试自动安装更新（非自启动模式 且 无任务运行中）
+  const tryAutoInstallUpdate = useCallback(() => {
+    if (autoInstallTriggeredRef.current) return;
+    const state = useAppStore.getState();
+    if (state.isAutoStartMode) return;
+    if (state.downloadStatus !== 'completed') return;
+    if (state.installStatus !== 'idle') return;
+    if (state.instances.some((i) => i.isRunning)) return;
+
+    autoInstallTriggeredRef.current = true;
+    log.info('自动安装更新：条件满足，开始安装');
+    state.setShowInstallConfirmModal(true);
+    state.setInstallStatus('installing');
+  }, []);
+
+  // 监听任务结束 或 下载完成 后自动安装更新
+  useEffect(() => {
+    return useAppStore.subscribe((state, prev) => {
+      const wasRunning = prev.instances.some((i) => i.isRunning);
+      const nowRunning = state.instances.some((i) => i.isRunning);
+      const downloadJustCompleted =
+        prev.downloadStatus !== 'completed' && state.downloadStatus === 'completed';
+      if ((wasRunning && !nowRunning) || downloadJustCompleted) {
+        tryAutoInstallUpdate();
+      }
+    });
+  }, [tryAutoInstallUpdate]);
 
   // 自动下载函数
   const startAutoDownload = useCallback(
@@ -251,6 +280,9 @@ function App() {
             downloadSource: updateResult.downloadSource,
             timestamp: Date.now(),
           });
+
+          // 尝试自动安装更新
+          tryAutoInstallUpdate();
         } else {
           setDownloadStatus('failed');
           // 下载失败时重置标志，允许后续重新下载（如填入 CDK 后切换下载源）
@@ -470,6 +502,9 @@ function App() {
       if (isTauri()) {
         try {
           const isAutoStart = await invoke<boolean>('is_autostart');
+          if (isAutoStart) {
+            useAppStore.getState().setIsAutoStartMode(true);
+          }
           const { autoStartInstanceId, autoRunOnLaunch } = useAppStore.getState();
           // 开机自启动 或 手动启动且勾选了"手动启动时也自动执行"
           const shouldAutoRun = isAutoStart || autoRunOnLaunch;

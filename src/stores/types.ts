@@ -331,6 +331,10 @@ export interface AppState {
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;
 
+  // 是否为开机自启动模式（无人值守，不自动安装更新）
+  isAutoStartMode: boolean;
+  setIsAutoStartMode: (mode: boolean) => void;
+
   // 启动后自动执行的实例 ID
   autoStartInstanceId: string | undefined;
   setAutoStartInstanceId: (id: string | undefined) => void;

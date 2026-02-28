@@ -6,6 +6,7 @@ use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::types::SystemInfo;
+use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 
 /// 标记是否检测到可能缺少 VC++ 运行库
@@ -721,5 +722,22 @@ pub fn get_system_info() -> SystemInfo {
         os_version,
         arch,
         tauri_version,
+    }
+}
+
+/// 获取当前使用的 WebView2 目录
+#[tauri::command]
+pub fn get_webview2_dir() -> WebView2DirInfo {
+    if let Ok(folder) = std::env::var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER") {
+        WebView2DirInfo {
+            path: folder,
+            system: false,
+        }
+    } else {
+        // 没有设置自定义目录，使用系统 WebView2
+        WebView2DirInfo {
+            path: String::new(),
+            system: true,
+        }
     }
 }

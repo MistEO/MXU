@@ -199,21 +199,18 @@ function App() {
 
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
-  const autoInstallTriggeredRef = useRef(false);
-
   // 尝试自动安装更新（非自启动模式 且 无任务运行中）
   const tryAutoInstallUpdate = useCallback(() => {
-    if (autoInstallTriggeredRef.current) return;
     const state = useAppStore.getState();
     if (state.isAutoStartMode) return;
     if (state.downloadStatus !== 'completed') return;
     if (state.installStatus !== 'idle') return;
+    if (state.autoInstallPending) return;
     if (state.instances.some((i) => i.isRunning)) return;
 
-    autoInstallTriggeredRef.current = true;
-    log.info('自动安装更新：条件满足，开始安装');
+    log.info('自动安装更新：条件满足，弹出安装');
+    state.setAutoInstallPending(true);
     state.setShowInstallConfirmModal(true);
-    state.setInstallStatus('installing');
   }, []);
 
   // 监听任务结束 或 下载完成 后自动安装更新

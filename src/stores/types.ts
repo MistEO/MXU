@@ -331,6 +331,10 @@ export interface AppState {
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;
 
+  // 是否为开机自启动模式（无人值守，不自动安装更新）
+  isAutoStartMode: boolean;
+  setIsAutoStartMode: (mode: boolean) => void;
+
   // 启动后自动执行的实例 ID
   autoStartInstanceId: string | undefined;
   setAutoStartInstanceId: (id: string | undefined) => void;
@@ -372,10 +376,13 @@ export interface AppState {
   installStatus: InstallStatus;
   installError: string | null;
   justUpdatedInfo: JustUpdatedInfo | null;
+  /** 自动安装待执行标记（由 tryAutoInstallUpdate 设置，InstallConfirmModal 消费） */
+  autoInstallPending: boolean;
   setShowInstallConfirmModal: (show: boolean) => void;
   setInstallStatus: (status: InstallStatus) => void;
   setInstallError: (error: string | null) => void;
   setJustUpdatedInfo: (info: JustUpdatedInfo | null) => void;
+  setAutoInstallPending: (pending: boolean) => void;
   resetInstallState: () => void;
 
   // 最近关闭的实例

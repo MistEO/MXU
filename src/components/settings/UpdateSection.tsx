@@ -80,9 +80,9 @@ export function UpdateSection() {
     return mirrorChyanSettings.cdk && mirrorChyanSettings.cdk.trim() !== '';
   }, [mirrorChyanSettings.cdk]);
 
-  // 判断是否为调试版本
+  // 判断是否为调试版本（interface 调试版本，或 MXU 自身开发模式）
   const isDebugMode = useMemo(() => {
-    return isDebugVersion(projectInterface?.version);
+    return import.meta.env.DEV || isDebugVersion(projectInterface?.version);
   }, [projectInterface?.version]);
 
   // 处理代理输入框失焦事件
@@ -302,6 +302,11 @@ export function UpdateSection() {
   const handleCheckUpdate = async () => {
     if (!projectInterface?.mirrorchyan_rid || !projectInterface?.version) {
       addDebugLog('未配置 mirrorchyan_rid 或 version，无法检查更新');
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      addDebugLog('MXU 开发模式，跳过检查更新');
       return;
     }
 

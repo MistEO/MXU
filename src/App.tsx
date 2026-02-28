@@ -602,9 +602,11 @@ function App() {
         }
       }
 
-      // 自动检查更新并下载（调试版本跳过）
+      // 自动检查更新并下载（调试版本跳过，MXU 开发模式跳过）
       if (result.interface.mirrorchyan_rid && result.interface.version) {
-        if (isDebugVersion(result.interface.version)) {
+        if (import.meta.env.DEV) {
+          log.info('MXU 开发模式，跳过自动更新检查');
+        } else if (isDebugVersion(result.interface.version)) {
           log.info(`调试版本 (${result.interface.version})，跳过自动更新检查`);
         } else {
           const appState = useAppStore.getState();

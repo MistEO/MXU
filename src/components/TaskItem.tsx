@@ -27,6 +27,7 @@ import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { SelectedTask } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
@@ -375,21 +376,24 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     if (!isIncompatible) return '';
     const reasons: string[] = [];
     if (isControllerIncompatible) {
-      let msg = t('taskItem.incompatibleController');
-      if (taskDef?.controller && taskDef.controller.length > 0) {
-        const labels = taskDef.controller.map((name) => {
-          const ctrl = projectInterface?.controller.find((c) => c.name === name);
-          return ctrl ? resolveI18nText(ctrl.label, langKey) || ctrl.name : name;
-        });
-        msg += `\n${t('taskItem.supportedControllers', { controllers: labels.join(', ') })}`;
-      }
-      reasons.push(msg);
+      reasons.push(t('taskItem.incompatibleController'));
     }
     if (isResourceIncompatible) {
       reasons.push(t('taskItem.incompatibleResource'));
     }
     return reasons.join(', ');
-  }, [isIncompatible, isControllerIncompatible, isResourceIncompatible, t, taskDef?.controller, projectInterface?.controller, resolveI18nText, langKey]);
+  }, [isIncompatible, isControllerIncompatible, isResourceIncompatible, t]);
+
+  // 生成支持的控制器提示（用于 Tooltip hover 显示）
+  const supportedControllerHint = useMemo(() => {
+    if (!isControllerIncompatible || !taskDef?.controller || taskDef.controller.length === 0)
+      return '';
+    const labels = taskDef.controller.map((name) => {
+      const ctrl = projectInterface?.controller.find((c) => c.name === name);
+      return ctrl ? resolveI18nText(ctrl.label, langKey) || ctrl.name : name;
+    });
+    return t('taskItem.supportedControllers', { controllers: labels.join(', ') });
+  }, [isControllerIncompatible, taskDef?.controller, projectInterface?.controller, resolveI18nText, langKey, t]);
 
   // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
   const isCompact = isInstanceRunning && !task.enabled;
@@ -938,10 +942,12 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               {/* 不带选项的任务：直接显示不兼容警告 */}
               {!canExpand && isIncompatible && (
                 <div className="flex-1 flex items-center gap-1.5 mx-2 overflow-hidden">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-warning">
-                    <AlertCircle className="w-3 h-3" />
-                    {incompatibleReason}
-                  </span>
+                  <Tooltip content={supportedControllerHint || undefined}>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-warning">
+                      <AlertCircle className="w-3 h-3" />
+                      {incompatibleReason}
+                    </span>
+                  </Tooltip>
                 </div>
               )}
 
@@ -956,10 +962,12 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                   {!task.expanded && (
                     <div className="flex-1 flex items-center gap-1.5 mx-2 overflow-hidden">
                       {isIncompatible ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-warning">
-                          <AlertCircle className="w-3 h-3" />
-                          {incompatibleReason}
-                        </span>
+                        <Tooltip content={supportedControllerHint || undefined}>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-warning">
+                            <AlertCircle className="w-3 h-3" />
+                            {incompatibleReason}
+                          </span>
+                        </Tooltip>
                       ) : (
                         showOptionPreview &&
                         optionPreviews.length > 0 &&
@@ -1032,15 +1040,17 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               )}
               {/* 不兼容提示 - 独立于选项列表显示 */}
               {isIncompatible && (
-                <div
-                  className={clsx(
-                    'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning text-xs',
-                    hasOptions && 'mb-3',
-                  )}
-                >
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{incompatibleReason}</span>
-                </div>
+                <Tooltip content={supportedControllerHint || undefined}>
+                  <div
+                    className={clsx(
+                      'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning text-xs',
+                      hasOptions && 'mb-3',
+                    )}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{incompatibleReason}</span>
+                  </div>
+                </Tooltip>
               )}
               {/* 选项列表 - 仅在有选项时显示 */}
               {hasOptions && (

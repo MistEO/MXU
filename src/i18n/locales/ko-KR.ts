@@ -263,6 +263,7 @@ export default {
     // 작업 호환성
     incompatibleController: '현재 컨트롤러에서 지원되지 않음',
     incompatibleResource: '현재 리소스에서 지원되지 않음',
+    supportedControllers: '지원 컨트롤러: {{controllers}}',
   },
 
   // 옵션

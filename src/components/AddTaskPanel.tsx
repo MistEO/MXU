@@ -24,6 +24,7 @@ function TaskButton({
   basePath,
   disabled,
   incompatibleReason,
+  supportedControllerHint,
   onClick,
 }: {
   task: TaskItem;
@@ -34,6 +35,7 @@ function TaskButton({
   basePath: string;
   disabled?: boolean;
   incompatibleReason?: string;
+  supportedControllerHint?: string;
   onClick: () => void;
 }) {
   const { t } = useTranslation();
@@ -69,9 +71,14 @@ function TaskButton({
         ) : null}
         {/* 不兼容提示 */}
         {disabled && incompatibleReason && (
-          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning">
-            <AlertCircle className="w-3 h-3 shrink-0" />
-            <span>{incompatibleReason}</span>
+          <div className="px-2 py-1.5 rounded-md bg-warning/10 text-warning space-y-1">
+            <div className="flex items-center gap-1.5">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              <span>{incompatibleReason}</span>
+            </div>
+            {supportedControllerHint && (
+              <div className="text-xs opacity-80 pl-[18px]">{supportedControllerHint}</div>
+            )}
           </div>
         )}
       </div>
@@ -200,10 +207,20 @@ export function AddTaskPanel() {
     const isIncompatible = isControllerIncompatible || isResourceIncompatible;
 
     let reason = '';
+    let supportedControllerHint = '';
     if (isIncompatible) {
       const reasons: string[] = [];
       if (isControllerIncompatible) {
         reasons.push(t('taskItem.incompatibleController'));
+        if (task.controller && task.controller.length > 0) {
+          const labels = task.controller.map((name) => {
+            const ctrl = projectInterface?.controller.find((c) => c.name === name);
+            return ctrl ? resolveI18nText(ctrl.label, langKey) || ctrl.name : name;
+          });
+          supportedControllerHint = t('taskItem.supportedControllers', {
+            controllers: labels.join(', '),
+          });
+        }
       }
       if (isResourceIncompatible) {
         reasons.push(t('taskItem.incompatibleResource'));
@@ -211,7 +228,7 @@ export function AddTaskPanel() {
       reason = reasons.join(', ');
     }
 
-    return { isIncompatible, reason };
+    return { isIncompatible, reason, supportedControllerHint };
   };
 
   /**
@@ -390,7 +407,8 @@ export function AddTaskPanel() {
                   const count = taskCounts[task.name] || 0;
                   const label = resolveI18nText(task.label, langKey) || task.name;
                   const isNew = newTaskNames.includes(task.name);
-                  const { isIncompatible, reason } = getTaskCompatibility(task);
+                  const { isIncompatible, reason, supportedControllerHint } =
+                    getTaskCompatibility(task);
 
                   return (
                     <TaskButton
@@ -403,6 +421,7 @@ export function AddTaskPanel() {
                       basePath={basePath}
                       disabled={isIncompatible}
                       incompatibleReason={reason}
+                      supportedControllerHint={supportedControllerHint}
                       onClick={() => handleAddTask(task.name)}
                     />
                   );

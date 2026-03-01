@@ -264,6 +264,7 @@ export default {
     // タスクの互換性
     incompatibleController: '現在のコントローラーに対応していません',
     incompatibleResource: '現在のリソースに対応していません',
+    supportedControllers: '対応コントローラー: {{controllers}}',
   },
 
   // オプション

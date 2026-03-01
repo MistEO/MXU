@@ -265,6 +265,7 @@ export default {
     // Task compatibility
     incompatibleController: 'Not supported by current controller',
     incompatibleResource: 'Not supported by current resource',
+    supportedControllers: 'Supported: {{controllers}}',
   },
 
   // Options

@@ -257,6 +257,7 @@ export default {
     // 任務相容性
     incompatibleController: '不支援目前控制器',
     incompatibleResource: '不支援目前資源',
+    supportedControllers: '支援的控制器: {{controllers}}',
   },
 
   // 選項

@@ -393,7 +393,14 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       return ctrl ? resolveI18nText(ctrl.label, langKey) || ctrl.name : name;
     });
     return t('taskItem.supportedControllers', { controllers: labels.join(', ') });
-  }, [isControllerIncompatible, taskDef?.controller, projectInterface?.controller, resolveI18nText, langKey, t]);
+  }, [
+    isControllerIncompatible,
+    taskDef?.controller,
+    projectInterface?.controller,
+    resolveI18nText,
+    langKey,
+    t,
+  ]);
 
   // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
   const isCompact = isInstanceRunning && !task.enabled;

@@ -59,6 +59,8 @@ export const useAppStore = create<AppState>()(
     theme: 'light',
     accentColor: 'emerald',
     language: 'system',
+    backgroundImage: undefined,
+    backgroundOpacity: 50,
     confirmBeforeDelete: false,
     maxLogsPerInstance: 2000,
     customAccents: [],
@@ -77,6 +79,8 @@ export const useAppStore = create<AppState>()(
       set({ language: lang });
       setI18nLanguage(lang);
     },
+    setBackgroundImage: (path) => set({ backgroundImage: path }),
+    setBackgroundOpacity: (opacity) => set({ backgroundOpacity: Math.max(0, Math.min(100, opacity)) }),
     setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
     setMaxLogsPerInstance: (value) =>
       set({
@@ -1017,6 +1021,8 @@ export const useAppStore = create<AppState>()(
         theme: config.settings.theme,
         accentColor,
         language: config.settings.language,
+        backgroundImage: config.settings.backgroundImage,
+        backgroundOpacity: config.settings.backgroundOpacity ?? 50,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
         customAccents,
@@ -1735,6 +1741,8 @@ function generateConfig(): MxuConfig {
       theme: state.theme,
       accentColor: state.accentColor,
       language: state.language,
+      backgroundImage: state.backgroundImage,
+      backgroundOpacity: state.backgroundOpacity,
       confirmBeforeDelete: state.confirmBeforeDelete,
       maxLogsPerInstance: state.maxLogsPerInstance,
       windowSize: state.windowSize,

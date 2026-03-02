@@ -489,3 +489,20 @@ body {
 .mxu-onboarding-popover .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--color-accent);
 }
+
+/* 背景图片模式下让UI元素背景半透明 */
+.has-background-image .bg-bg-secondary {
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent) !important;
+}
+
+.has-background-image .bg-bg-tertiary {
+  background-color: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent) !important;
+}
+
+.has-background-image .bg-bg-hover:hover {
+  background-color: color-mix(in srgb, var(--color-bg-hover) 40%, transparent) !important;
+}
+
+.has-background-image .bg-bg-primary {
+  background-color: color-mix(in srgb, var(--color-bg-primary) 45%, transparent) !important;
+}

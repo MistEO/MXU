@@ -88,6 +88,8 @@ export interface AppState {
   theme: Theme;
   accentColor: AccentColor;
   language: Language;
+  backgroundImage?: string;
+  backgroundOpacity: number;
   /** 删除等危险操作是否需要二次确认 */
   confirmBeforeDelete: boolean;
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
@@ -96,6 +98,8 @@ export interface AppState {
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
   setLanguage: (lang: Language) => void;
+  setBackgroundImage: (path?: string) => void;
+  setBackgroundOpacity: (opacity: number) => void;
   setConfirmBeforeDelete: (enabled: boolean) => void;
   setMaxLogsPerInstance: (value: number) => void;
   addCustomAccent: (accent: CustomAccent) => void;

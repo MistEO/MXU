@@ -108,6 +108,8 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   accentColor?: AccentColor; // 强调色
   language: 'system' | 'zh-CN' | 'zh-TW' | 'en-US' | 'ja-JP' | 'ko-KR';
+  backgroundImage?: string; // 背景图片路径
+  backgroundOpacity?: number; // 背景图片不透明度 (0-100)
   /** 删除等危险操作是否需要二次确认 */
   confirmBeforeDelete?: boolean;
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */

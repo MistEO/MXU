@@ -39,6 +39,8 @@ export default {
     maximize: 'Maximize',
     restore: 'Restore',
     close: 'Close',
+    pin: 'Pin',
+    unpin: 'Unpin',
   },
 
   // Settings

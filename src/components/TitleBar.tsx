@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Minus, Square, X, Copy, Box } from 'lucide-react';
+import { Minus, Square, X, Copy, Box, Pin } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { getInterfaceLangKey } from '@/i18n';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
@@ -13,6 +13,7 @@ type Platform = 'windows' | 'macos' | 'linux' | 'unknown';
 export function TitleBar() {
   const { t } = useTranslation();
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [platform, setPlatform] = useState<Platform>('unknown');
   const [iconUrl, setIconUrl] = useState<string | undefined>(undefined);
 
@@ -52,6 +53,7 @@ export function TitleBar() {
 
         // 获取初始状态
         setIsMaximized(await appWindow.isMaximized());
+        setIsAlwaysOnTop(await appWindow.isAlwaysOnTop());
 
         // 监听窗口状态变化
         unlisten = await appWindow.onResized(async () => {
@@ -76,6 +78,18 @@ export function TitleBar() {
       await getCurrentWindow().minimize();
     } catch (err) {
       loggers.ui.warn('Failed to minimize window:', err);
+    }
+  };
+
+  const handleToggleAlwaysOnTop = async () => {
+    if (!isTauri()) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const newState = !isAlwaysOnTop;
+      await getCurrentWindow().setAlwaysOnTop(newState);
+      setIsAlwaysOnTop(newState);
+    } catch (err) {
+      loggers.ui.warn('Failed to toggle always on top:', err);
     }
   };
 
@@ -142,6 +156,17 @@ export function TitleBar() {
       {/* 右侧：窗口控制按钮（仅 Windows/Linux 显示） */}
       {isTauri() && (
         <div className="flex h-full">
+          <button
+            onClick={handleToggleAlwaysOnTop}
+            className={`w-12 h-full flex items-center justify-center transition-colors ${
+              isAlwaysOnTop
+                ? 'text-accent bg-accent/10 hover:bg-accent/20'
+                : 'text-text-secondary hover:bg-bg-hover'
+            }`}
+            title={isAlwaysOnTop ? t('windowControls.unpin') : t('windowControls.pin')}
+          >
+            <Pin className={`w-4 h-4 transition-transform ${isAlwaysOnTop ? '' : 'rotate-45'}`} />
+          </button>
           <button
             onClick={handleMinimize}
             className="w-12 h-full flex items-center justify-center text-text-secondary hover:bg-bg-hover transition-colors"

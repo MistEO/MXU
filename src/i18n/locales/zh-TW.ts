@@ -38,6 +38,8 @@ export default {
     maximize: '最大化',
     restore: '還原',
     close: '關閉',
+    pin: '置頂',
+    unpin: '取消置頂',
   },
 
   // 設定

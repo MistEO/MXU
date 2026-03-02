@@ -38,6 +38,8 @@ export default {
     maximize: '최대화',
     restore: '복원',
     close: '닫기',
+    pin: '항상 위',
+    unpin: '항상 위 해제',
   },
 
   // 설정

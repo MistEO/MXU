@@ -38,6 +38,8 @@ export default {
     maximize: '最大化',
     restore: '元に戻す',
     close: '閉じる',
+    pin: '常に手前に表示',
+    unpin: '常に手前に表示を解除',
   },
 
   // 設定

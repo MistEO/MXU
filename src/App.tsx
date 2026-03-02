@@ -74,6 +74,7 @@ function App() {
   const [showBadPathModal, setShowBadPathModal] = useState(false);
   const [badPathType, setBadPathType] = useState<BadPathType>('root');
   const [backgroundImageDataUrl, setBackgroundImageDataUrl] = useState<string | undefined>(undefined);
+  const blobUrlRef = useRef<string | undefined>(undefined);
 
   // 页面过渡状态
   const [isSettingsExiting, setIsSettingsExiting] = useState(false);
@@ -124,9 +125,14 @@ function App() {
     backgroundOpacity,
   } = useAppStore();
 
-  // 转换背景图片为 data URL
+  // 转换背景图片为 Blob URL
   useEffect(() => {
     if (!backgroundImage || !isTauri()) {
+      // 清理旧的 blob URL
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = undefined;
+      }
       setBackgroundImageDataUrl(backgroundImage);
       return;
     }
@@ -136,15 +142,7 @@ function App() {
         const { readFile } = await import('@tauri-apps/plugin-fs');
         const fileData = await readFile(backgroundImage);
 
-        // 将 Uint8Array 转换为 base64（分块处理避免栈溢出）
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < fileData.length; i += chunkSize) {
-          const chunk = fileData.slice(i, i + chunkSize);
-          binary += String.fromCharCode(...chunk);
-        }
-        const base64 = btoa(binary);
-
+        // 获取 MIME 类型
         const ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
         const mimeMap: Record<string, string> = {
           png: 'image/png',
@@ -153,7 +151,18 @@ function App() {
           webp: 'image/webp',
         };
         const mimeType = mimeMap[ext] || 'image/png';
-        setBackgroundImageDataUrl(`data:${mimeType};base64,${base64}`);
+
+        // 创建 Blob 和 URL
+        const blob = new Blob([fileData], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+
+        // 清理旧的 blob URL
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+        }
+
+        blobUrlRef.current = blobUrl;
+        setBackgroundImageDataUrl(blobUrl);
       } catch (err) {
         log.warn('Failed to load background image:', err);
         setBackgroundImageDataUrl(undefined);
@@ -161,6 +170,14 @@ function App() {
     };
 
     loadBackgroundImage();
+
+    // 清理函数：组件卸载时释放 blob URL
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = undefined;
+      }
+    };
   }, [backgroundImage]);
 
   // 带退出动画的设置页面关闭

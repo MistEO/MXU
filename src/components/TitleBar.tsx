@@ -62,6 +62,16 @@ export function TitleBar() {
     return false;
   }, [projectInterface, instances, activeInstanceId]);
 
+  // 当置顶被禁用时，自动取消置顶
+  useEffect(() => {
+    if (isPinDisabled && isAlwaysOnTop && windowRef.current) {
+      setIsAlwaysOnTop(false);
+      windowRef.current.setAlwaysOnTop(false).catch((err: unknown) => {
+        loggers.ui.warn('Failed to disable always on top:', err);
+      });
+    }
+  }, [isPinDisabled, isAlwaysOnTop]);
+
   // 监听窗口最大化状态变化（仅 Windows，用于切换最大化/还原按钮图标）
   useEffect(() => {
     if (!isTauri() || platform !== 'windows') return;

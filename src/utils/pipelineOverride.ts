@@ -16,6 +16,30 @@ import { findSwitchCase } from './optionHelpers';
 import { createDefaultOptionValue } from '@/stores/helpers';
 
 /**
+ * 检查选项是否与当前控制器/资源不兼容
+ * 返回 true 表示不兼容，应跳过该选项
+ */
+const isOptionIncompatible = (
+  optionDef: OptionDefinition,
+  controllerName?: string,
+  resourceName?: string,
+): boolean => {
+  // 检查控制器兼容性
+  if (optionDef.controller && optionDef.controller.length > 0) {
+    if (!controllerName || !optionDef.controller.includes(controllerName)) {
+      return true;
+    }
+  }
+  // 检查资源兼容性
+  if (optionDef.resource && optionDef.resource.length > 0) {
+    if (!resourceName || !optionDef.resource.includes(resourceName)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
  * 递归处理选项的 pipeline_override，收集到数组中
  */
 const collectOptionOverrides = (
@@ -23,9 +47,17 @@ const collectOptionOverrides = (
   optionValues: Record<string, OptionValue>,
   overrides: Record<string, unknown>[],
   allOptions: Record<string, OptionDefinition>,
+  controllerName?: string,
+  resourceName?: string,
 ) => {
   const optionDef = allOptions[optionKey];
   if (!optionDef) return;
+
+  // 检查选项是否与当前控制器/资源兼容，不兼容则跳过
+  if (isOptionIncompatible(optionDef, controllerName, resourceName)) {
+    return;
+  }
+
   const optionValue = optionValues[optionKey] || createDefaultOptionValue(optionDef);
 
   if (optionValue.type === 'checkbox' && optionDef.type === 'checkbox') {
@@ -57,7 +89,7 @@ const collectOptionOverrides = (
 
     if (caseDef?.option) {
       for (const nestedKey of caseDef.option) {
-        collectOptionOverrides(nestedKey, optionValues, overrides, allOptions);
+        collectOptionOverrides(nestedKey, optionValues, overrides, allOptions, controllerName, resourceName);
       }
     }
   } else if (
@@ -139,6 +171,8 @@ export const generateTaskPipelineOverride = (
           selectedTask.optionValues,
           overrides,
           projectInterface.option,
+          controllerName,
+          resourceName,
         );
       }
     }
@@ -153,6 +187,8 @@ export const generateTaskPipelineOverride = (
             selectedTask.optionValues,
             overrides,
             projectInterface.option,
+            controllerName,
+            resourceName,
           );
         }
       }
@@ -168,6 +204,8 @@ export const generateTaskPipelineOverride = (
             selectedTask.optionValues,
             overrides,
             projectInterface.option,
+            controllerName,
+            resourceName,
           );
         }
       }
@@ -181,6 +219,8 @@ export const generateTaskPipelineOverride = (
           selectedTask.optionValues,
           overrides,
           projectInterface.option,
+          controllerName,
+          resourceName,
         );
       }
     }

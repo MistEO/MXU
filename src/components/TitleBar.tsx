@@ -10,6 +10,9 @@ import { isTauri } from '@/utils/paths';
 // 平台类型
 type Platform = 'windows' | 'macos' | 'linux' | 'unknown';
 
+// Win32 前台截图方法（需要禁用置顶）
+const FOREGROUND_SCREENCAP_METHODS = new Set(['GDI', '1', 'DXGI_DesktopDup', '4', 'DXGI_DesktopDup_Window', '8', 'ScreenDC', '32']);
+
 export function TitleBar() {
   const { t } = useTranslation();
   const [isMaximized, setIsMaximized] = useState(false);
@@ -54,8 +57,7 @@ export function TitleBar() {
     // 仅 Win32 的特定前台截图方法需要禁用置顶
     if (controller.type === 'Win32' && controller.win32?.screencap) {
       const screencap = controller.win32.screencap;
-      const foregroundMethods = new Set(['GDI', '1', 'DXGI_DesktopDup', '4', 'DXGI_DesktopDup_Window', '8', 'ScreenDC', '32']);
-      return foregroundMethods.has(screencap);
+      return FOREGROUND_SCREENCAP_METHODS.has(screencap);
     }
 
     // 其他情况（ADB、PlayCover、Gamepad 或 Win32 后台截图）均支持置顶
@@ -72,9 +74,9 @@ export function TitleBar() {
     }
   }, [isPinDisabled, isAlwaysOnTop]);
 
-  // 监听窗口最大化状态变化（仅 Windows，用于切换最大化/还原按钮图标）
+  // 初始化 Tauri 窗口引用，并在 Windows 上监听最大化状态变化
   useEffect(() => {
-    if (!isTauri() || platform !== 'windows') return;
+    if (!isTauri()) return;
 
     let unlisten: (() => void) | null = null;
 
@@ -85,13 +87,16 @@ export function TitleBar() {
         windowRef.current = appWindow;
 
         // 获取初始状态
-        setIsMaximized(await appWindow.isMaximized());
         setIsAlwaysOnTop(await appWindow.isAlwaysOnTop());
 
-        // 监听窗口状态变化
-        unlisten = await appWindow.onResized(async () => {
+        // 仅 Windows 需要追踪最大化状态（macOS/Linux 使用原生标题栏）
+        if (platform === 'windows') {
           setIsMaximized(await appWindow.isMaximized());
-        });
+
+          unlisten = await appWindow.onResized(async () => {
+            setIsMaximized(await appWindow.isMaximized());
+          });
+        }
       } catch (err) {
         loggers.ui.warn('Failed to setup window state listener:', err);
       }

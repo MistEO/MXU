@@ -61,7 +61,7 @@ pub struct Win32Window {
 }
 
 /// 控制器类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "type")]
 pub enum ControllerConfig {
     Adb {
@@ -137,6 +137,8 @@ pub struct AllInstanceStates {
 pub struct InstanceRuntime {
     pub resource: Option<Resource>,
     pub controller: Option<Controller>,
+    /// 当前控制器的配置（用于 ControllerPool 引用管理）
+    pub controller_config: Option<ControllerConfig>,
     pub tasker: Option<Tasker>,
     pub agent_clients: Vec<AgentClient>,
     pub agent_children: Vec<Child>,
@@ -180,6 +182,8 @@ pub struct MaaState {
     pub lib_dir: Mutex<Option<PathBuf>>,
     pub resource_dir: Mutex<Option<PathBuf>>,
     pub instances: Mutex<HashMap<String, InstanceRuntime>>,
+    /// Controller 连接池：相同配置的 Controller 复用同一个 MaaControllerHandle
+    pub controller_pool: Mutex<HashMap<ControllerConfig, Controller>>,
     /// 缓存的 ADB 设备列表（全局共享，避免重复搜索）
     pub cached_adb_devices: Mutex<Vec<AdbDevice>>,
     /// 缓存的 Win32 窗口列表（全局共享）

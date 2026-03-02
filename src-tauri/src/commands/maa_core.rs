@@ -3,6 +3,7 @@
 //! 提供 MaaFramework 初始化、版本检查、设备搜索、控制器、资源和任务管理
 
 use log::{debug, error, info, warn};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -22,6 +23,49 @@ use super::utils::{emit_callback_event, get_maafw_dir, normalize_path};
 
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
+
+/// ControllerPool 复用时的合成 conn_id（负数，避免与 MaaFramework 正数 ID 冲突）
+static SYNTHETIC_CONN_ID: AtomicI64 = AtomicI64::new(-1);
+
+fn next_synthetic_conn_id() -> i64 {
+    SYNTHETIC_CONN_ID.fetch_sub(1, Ordering::Relaxed)
+}
+
+/// 更新实例的 Controller 并清理不再使用的旧 Pool 条目
+fn update_instance_controller(
+    state: &super::types::MaaState,
+    instance_id: &str,
+    controller: maa_framework::controller::Controller,
+    new_config: super::types::ControllerConfig,
+) -> Result<(), String> {
+    let cleanup_config = {
+        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances
+            .get_mut(instance_id)
+            .ok_or("Instance not found")?;
+
+        let old_config = instance.controller_config.clone();
+        instance.controller = Some(controller);
+        instance.controller_config = Some(new_config.clone());
+        instance.tasker = None;
+
+        old_config.filter(|old| {
+            *old != new_config
+                && !instances
+                    .values()
+                    .any(|inst| inst.controller_config.as_ref() == Some(old))
+        })
+    };
+
+    if let Some(old_cfg) = cleanup_config {
+        if let Ok(mut pool) = state.controller_pool.lock() {
+            pool.remove(&old_cfg);
+            info!("ControllerPool: removed unused entry for old config");
+        }
+    }
+
+    Ok(())
+}
 
 // ============================================================================
 // 初始化和版本命令
@@ -338,17 +382,37 @@ pub fn maa_destroy_instance(
 ) -> Result<(), String> {
     info!("maa_destroy_instance called, instance_id: {}", instance_id);
 
-    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let removed = instances.remove(&instance_id).is_some();
+    let cleanup_config = {
+        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let old_config = instances
+            .get(&instance_id)
+            .and_then(|inst| inst.controller_config.clone());
+        let removed = instances.remove(&instance_id).is_some();
 
-    if removed {
-        info!("maa_destroy_instance success, instance_id: {}", instance_id);
-    } else {
-        warn!(
-            "maa_destroy_instance: instance not found, instance_id: {}",
-            instance_id
-        );
+        if removed {
+            info!("maa_destroy_instance success, instance_id: {}", instance_id);
+            old_config.filter(|cfg| {
+                !instances
+                    .values()
+                    .any(|inst| inst.controller_config.as_ref() == Some(cfg))
+            })
+        } else {
+            warn!(
+                "maa_destroy_instance: instance not found, instance_id: {}",
+                instance_id
+            );
+            None
+        }
+    };
+
+    // ControllerPool: 清理不再被任何实例使用的条目
+    if let Some(cfg) = cleanup_config {
+        if let Ok(mut pool) = state.controller_pool.lock() {
+            pool.remove(&cfg);
+            info!("ControllerPool: cleaned up entry after instance destroy");
+        }
     }
+
     Ok(())
 }
 
@@ -375,6 +439,41 @@ pub async fn maa_connect_controller(
 
     // Move blocking controller creation and connection to spawn_blocking
     tauri::async_runtime::spawn_blocking(move || {
+        // ControllerPool: 检查是否有可复用的已连接控制器
+        let pooled = {
+            let pool = state_arc.controller_pool.lock().map_err(|e| e.to_string())?;
+            pool.get(&config).filter(|c| c.connected()).cloned()
+        };
+
+        if let Some(pooled_ctrl) = pooled {
+            info!(
+                "ControllerPool hit: reusing connected controller for {:?}",
+                config
+            );
+
+            let conn_id = next_synthetic_conn_id();
+
+            update_instance_controller(&state_arc, &instance_id, pooled_ctrl, config)?;
+
+            // 发送合成回调事件，前端无感知
+            let details = format!(r#"{{"ctrl_id":{},"action":"Connect"}}"#, conn_id);
+            emit_callback_event(&app_handle, "Controller.Action.Starting", &details);
+            emit_callback_event(&app_handle, "Controller.Action.Succeeded", &details);
+
+            return Ok(conn_id);
+        }
+
+        // Pool 中无可用控制器（不存在或已断连），移除过期条目
+        {
+            let mut pool = state_arc.controller_pool.lock().map_err(|e| e.to_string())?;
+            pool.remove(&config);
+        }
+
+        info!(
+            "ControllerPool miss: creating new controller for {:?}",
+            config
+        );
+
         let controller = match &config {
             ControllerConfig::Adb {
                 adb_path,
@@ -383,7 +482,6 @@ pub async fn maa_connect_controller(
                 input_methods,
                 config,
             } => {
-                // 将字符串解析为 u64
                 let screencap = screencap_methods.parse::<u64>().map_err(|e| {
                     format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
                 })?;
@@ -443,7 +541,6 @@ pub async fn maa_connect_controller(
                     }
                     _ => maa_framework::common::GamepadType::Xbox360,
                 };
-                // bitflags
                 let screencap = screencap_method
                     .map(|v| maa_framework::common::Win32ScreencapMethod::from_bits_truncate(v))
                     .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
@@ -468,17 +565,15 @@ pub async fn maa_connect_controller(
         // 发起连接
         let conn_id = controller.post_connection().map_err(|e| e.to_string())?;
 
+        // 存入 ControllerPool
+        {
+            let mut pool = state_arc.controller_pool.lock().map_err(|e| e.to_string())?;
+            pool.insert(config.clone(), controller.clone());
+        }
+
         // 更新实例状态
         debug!("Updating instance state...");
-        {
-            let mut instances = state_arc.instances.lock().map_err(|e| e.to_string())?;
-            let instance = instances
-                .get_mut(&instance_id)
-                .ok_or("Instance not found")?;
-
-            instance.controller = Some(controller);
-            instance.tasker = None;
-        }
+        update_instance_controller(&state_arc, &instance_id, controller, config)?;
 
         Ok(conn_id)
     })

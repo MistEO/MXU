@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Minus, Square, X, Copy, Box, Pin } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
@@ -16,6 +16,7 @@ export function TitleBar() {
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [platform, setPlatform] = useState<Platform>('unknown');
   const [iconUrl, setIconUrl] = useState<string | undefined>(undefined);
+  const windowRef = useRef<Awaited<ReturnType<typeof import('@tauri-apps/api/window').getCurrentWindow>> | null>(null);
 
   const { projectInterface, language, resolveI18nText, basePath, interfaceTranslations } =
     useAppStore();
@@ -50,6 +51,7 @@ export function TitleBar() {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const appWindow = getCurrentWindow();
+        windowRef.current = appWindow;
 
         // 获取初始状态
         setIsMaximized(await appWindow.isMaximized());
@@ -68,46 +70,44 @@ export function TitleBar() {
 
     return () => {
       if (unlisten) unlisten();
+      windowRef.current = null;
     };
   }, [platform]);
 
   const handleMinimize = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().minimize();
+      await windowRef.current.minimize();
     } catch (err) {
       loggers.ui.warn('Failed to minimize window:', err);
     }
   };
 
   const handleToggleAlwaysOnTop = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
+    const newState = !isAlwaysOnTop;
+    setIsAlwaysOnTop(newState); // Optimistic update
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      const newState = !isAlwaysOnTop;
-      await getCurrentWindow().setAlwaysOnTop(newState);
-      setIsAlwaysOnTop(newState);
+      await windowRef.current.setAlwaysOnTop(newState);
     } catch (err) {
+      setIsAlwaysOnTop(!newState); // Revert on error
       loggers.ui.warn('Failed to toggle always on top:', err);
     }
   };
 
   const handleToggleMaximize = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().toggleMaximize();
+      await windowRef.current.toggleMaximize();
     } catch (err) {
       loggers.ui.warn('Failed to toggle maximize:', err);
     }
   };
 
   const handleClose = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().close();
+      await windowRef.current.close();
     } catch (err) {
       loggers.ui.warn('Failed to close window:', err);
     }

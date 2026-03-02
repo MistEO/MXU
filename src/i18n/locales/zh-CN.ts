@@ -41,6 +41,7 @@ export default {
     close: '关闭',
     pin: '置顶',
     unpin: '取消置顶',
+    pinDisabled: '当前控制器使用前台截图，无法置顶',
   },
 
   // 设置

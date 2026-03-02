@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Minus, Square, X, Copy, Box, Pin } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
@@ -18,7 +18,7 @@ export function TitleBar() {
   const [iconUrl, setIconUrl] = useState<string | undefined>(undefined);
   const windowRef = useRef<Awaited<ReturnType<typeof import('@tauri-apps/api/window').getCurrentWindow>> | null>(null);
 
-  const { projectInterface, language, resolveI18nText, basePath, interfaceTranslations } =
+  const { projectInterface, language, resolveI18nText, basePath, interfaceTranslations, instances, activeInstanceId } =
     useAppStore();
 
   const langKey = getInterfaceLangKey(language);
@@ -40,6 +40,27 @@ export function TitleBar() {
     }
     loadIconAsDataUrl(projectInterface.icon, basePath, translations).then(setIconUrl);
   }, [projectInterface?.icon, basePath, translations]);
+
+  // 检测是否使用前台截图（前台截图时禁用置顶）
+  const isPinDisabled = useMemo(() => {
+    if (!projectInterface || !activeInstanceId) return false;
+
+    const activeInstance = instances.find((i) => i.id === activeInstanceId);
+    if (!activeInstance?.controllerName) return false;
+
+    const controller = projectInterface.controller.find((c) => c.name === activeInstance.controllerName);
+    if (!controller) return false;
+
+    // 仅 Win32 的特定前台截图方法需要禁用置顶
+    if (controller.type === 'Win32' && controller.win32?.screencap) {
+      const screencap = controller.win32.screencap;
+      const foregroundMethods = new Set(['GDI', '1', 'DXGI_DesktopDup', '4', 'DXGI_DesktopDup_Window', '8', 'ScreenDC', '32']);
+      return foregroundMethods.has(screencap);
+    }
+
+    // 其他情况（ADB、PlayCover、Gamepad 或 Win32 后台截图）均支持置顶
+    return false;
+  }, [projectInterface, instances, activeInstanceId]);
 
   // 监听窗口最大化状态变化（仅 Windows，用于切换最大化/还原按钮图标）
   useEffect(() => {
@@ -158,12 +179,21 @@ export function TitleBar() {
         <div className="flex h-full">
           <button
             onClick={handleToggleAlwaysOnTop}
+            disabled={isPinDisabled}
             className={`w-12 h-full flex items-center justify-center transition-colors ${
-              isAlwaysOnTop
-                ? 'text-accent bg-accent/10 hover:bg-accent/20'
-                : 'text-text-secondary hover:bg-bg-hover'
+              isPinDisabled
+                ? 'text-text-tertiary cursor-not-allowed'
+                : isAlwaysOnTop
+                  ? 'text-accent bg-accent/10 hover:bg-accent/20'
+                  : 'text-text-secondary hover:bg-bg-hover'
             }`}
-            title={isAlwaysOnTop ? t('windowControls.unpin') : t('windowControls.pin')}
+            title={
+              isPinDisabled
+                ? t('windowControls.pinDisabled')
+                : isAlwaysOnTop
+                  ? t('windowControls.unpin')
+                  : t('windowControls.pin')
+            }
           >
             <Pin className={`w-4 h-4 transition-transform ${isAlwaysOnTop ? '' : 'rotate-45'}`} />
           </button>

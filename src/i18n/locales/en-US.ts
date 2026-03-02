@@ -41,6 +41,7 @@ export default {
     close: 'Close',
     pin: 'Pin',
     unpin: 'Unpin',
+    pinDisabled: 'Pin disabled (foreground screenshot)',
   },
 
   // Settings

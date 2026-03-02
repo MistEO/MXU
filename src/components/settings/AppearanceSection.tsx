@@ -15,6 +15,7 @@ import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { useAppStore } from '@/stores/appStore';
 import { getAccentInfoList, type AccentColor, type CustomAccent } from '@/themes';
 import { SortableAccentTile } from './SortableAccentTile';
+import { isTauri } from '@/utils/windowUtils';
 
 interface AppearanceSectionProps {
   onOpenCreateAccentModal: () => void;
@@ -216,18 +217,24 @@ export function AppearanceSection({
           <div className="flex gap-2">
             <button
               onClick={async () => {
+                if (!isTauri()) return;
                 try {
                   const { open } = await import('@tauri-apps/plugin-dialog');
                   const file = await open({
                     multiple: false,
                     filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
                   });
-                  if (file) setBackgroundImage(file);
+                  if (Array.isArray(file)) {
+                    if (file[0]) setBackgroundImage(file[0]);
+                  } else if (file) {
+                    setBackgroundImage(file);
+                  }
                 } catch (err) {
                   console.error('Failed to select background image:', err);
                 }
               }}
-              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors"
+              disabled={!isTauri()}
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('settings.selectBackgroundImage')}
             </button>

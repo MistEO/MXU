@@ -17,6 +17,7 @@ import {
   OnboardingOverlay,
   BadPathModal,
 } from '@/components';
+import { BackgroundOverlay } from '@/components/BackgroundOverlay';
 import type { BadPathType } from '@/components';
 import {
   autoLoadInterface,
@@ -1090,18 +1091,7 @@ function App() {
   if (currentPage === 'settings') {
     return (
       <div className={`h-full flex flex-col bg-bg-primary relative ${backgroundImageDataUrl ? 'has-background-image' : ''}`}>
-        {backgroundImageDataUrl && (
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `url("${backgroundImageDataUrl}")`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              opacity: backgroundOpacity / 100,
-            }}
-          />
-        )}
+        <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
         <div className="relative z-10 h-full flex flex-col">
         <TitleBar />
         {/* 安装确认模态框 - 在设置页面也需要能弹出 */}
@@ -1173,18 +1163,7 @@ function App() {
   // 主页面
   return (
     <div className={`h-full flex flex-col bg-bg-primary relative ${backgroundImageDataUrl ? 'has-background-image' : ''}`}>
-      {backgroundImageDataUrl && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage: `url("${backgroundImageDataUrl}")`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            opacity: backgroundOpacity / 100,
-          }}
-        />
-      )}
+      <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
       <div className="relative z-10 h-full flex flex-col">
       {/* 自定义标题栏 */}
       <TitleBar />

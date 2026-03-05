@@ -2,45 +2,11 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
-
-interface DriverInstance {
-  drive: () => void;
-  destroy: () => void;
-  isActive: () => boolean;
-  moveNext: () => void;
-}
-
-interface DriveStep {
-  element: string;
-  popover: {
-    title: string;
-    description: string;
-    side: 'left' | 'right' | 'top' | 'bottom';
-    align: 'start' | 'center' | 'end';
-    showButtons: Array<'next' | 'close'>;
-    nextBtnText?: string;
-    doneBtnText?: string;
-    onNextClick?: (
-      _el: unknown,
-      _step: unknown,
-      context: {
-        driver: DriverInstance;
-      },
-    ) => void;
-  };
-}
-
-interface DriverFactoryOptions {
-  steps: DriveStep[];
-  animate: boolean;
-  overlayColor: string;
-  overlayOpacity: number;
-  stagePadding: number;
-  stageRadius: number;
-  allowClose: boolean;
-  popoverClass: string;
-  onDestroyed: () => void;
-}
+import type {
+  Driver as DriverInstance,
+  DriverConfig as DriverFactoryOptions,
+  DriverStep as DriveStep,
+} from 'driver.js';
 
 type DriverFactory = (options: DriverFactoryOptions) => DriverInstance;
 
@@ -50,9 +16,15 @@ const log = loggers.app;
 async function loadDriverFactory(): Promise<DriverFactory> {
   if (!driverFactoryPromise) {
     driverFactoryPromise = (async () => {
-      await import('driver.js/dist/driver.css');
-      const module = (await import('driver.js')) as { driver: DriverFactory };
-      return module.driver;
+      try {
+        await import('driver.js/dist/driver.css');
+        const module = await import('driver.js');
+        return module.driver;
+      } catch (error) {
+        // 动态导入临时失败时允许后续重试
+        driverFactoryPromise = null;
+        throw error;
+      }
     })();
   }
   return driverFactoryPromise;

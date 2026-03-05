@@ -800,6 +800,7 @@ export const useAppStore = create<AppState>()(
     skipPreset: (instanceId) =>
       set((state) => ({
         skippedPresetInstanceIds: new Set([...state.skippedPresetInstanceIds, instanceId]),
+        showAddTaskPanel: true,
       })),
 
     // v2.3.0: 预设初始化标记（持久化）
@@ -808,7 +809,12 @@ export const useAppStore = create<AppState>()(
 
     // 全局 UI 状态
     showAddTaskPanel: false,
-    setShowAddTaskPanel: (show) => set({ showAddTaskPanel: show }),
+    setShowAddTaskPanel: (show) =>
+      set((state) => ({
+        showAddTaskPanel: show,
+        // 手动收起面板时清除所有 "new" 标记
+        newTaskNames: show ? state.newTaskNames : [],
+      })),
 
     // 最近添加的任务 ID
     lastAddedTaskId: null,

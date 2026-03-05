@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useAppStore, type DownloadProgress } from '@/stores/appStore';
 import {
   TitleBar,
@@ -8,14 +8,7 @@ import {
   Toolbar,
   ScreenshotPanel,
   LogsPanel,
-  SettingsPage,
-  WelcomeDialog,
   ConnectionPanel,
-  DashboardView,
-  InstallConfirmModal,
-  VCRedistModal,
-  OnboardingOverlay,
-  BadPathModal,
 } from '@/components';
 import { BackgroundOverlay } from '@/components/BackgroundOverlay';
 import type { BadPathType } from '@/components';
@@ -55,7 +48,7 @@ import {
   focusWindow,
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
-import { VersionWarningModal, LoadingScreen } from './components/app';
+import { LoadingScreen } from './components/app';
 
 const log = loggers.app;
 
@@ -63,6 +56,46 @@ type LoadingState = 'loading' | 'success' | 'error';
 
 // 页面过渡动画时长（ms）
 const PAGE_TRANSITION_DURATION = 120;
+
+const LazySettingsPage = lazy(async () => {
+  const module = await import('@/components/SettingsPage');
+  return { default: module.SettingsPage };
+});
+
+const LazyWelcomeDialog = lazy(async () => {
+  const module = await import('@/components/WelcomeDialog');
+  return { default: module.WelcomeDialog };
+});
+
+const LazyDashboardView = lazy(async () => {
+  const module = await import('@/components/DashboardView');
+  return { default: module.DashboardView };
+});
+
+const LazyInstallConfirmModal = lazy(async () => {
+  const module = await import('@/components/InstallConfirmModal');
+  return { default: module.InstallConfirmModal };
+});
+
+const LazyVCRedistModal = lazy(async () => {
+  const module = await import('@/components/VCRedistModal');
+  return { default: module.VCRedistModal };
+});
+
+const LazyOnboardingOverlay = lazy(async () => {
+  const module = await import('@/components/OnboardingOverlay');
+  return { default: module.OnboardingOverlay };
+});
+
+const LazyBadPathModal = lazy(async () => {
+  const module = await import('@/components/BadPathModal');
+  return { default: module.BadPathModal };
+});
+
+const LazyVersionWarningModal = lazy(async () => {
+  const module = await import('./components/app/VersionWarningModal');
+  return { default: module.VersionWarningModal };
+});
 
 function App() {
   const [loadingState, setLoadingState] = useState<LoadingState>('loading');
@@ -114,6 +147,7 @@ function App() {
     setDownloadSavePath,
     setJustUpdatedInfo,
     setShowInstallConfirmModal,
+    showInstallConfirmModal,
     updateInfo,
     downloadStatus,
     setShowUpdateDialog,
@@ -123,6 +157,7 @@ function App() {
     rightPanelCollapsed,
     setRightPanelWidth: _setRightPanelWidth,
     setRightPanelCollapsed: _setRightPanelCollapsed,
+    onboardingCompleted,
     backgroundImage,
     backgroundOpacity,
   } = useAppStore();
@@ -1117,12 +1152,18 @@ function App() {
         <div className="relative z-10 h-full flex flex-col">
           <TitleBar />
           {/* 安装确认模态框 - 在设置页面也需要能弹出 */}
-          <InstallConfirmModal />
+          {showInstallConfirmModal && (
+            <Suspense fallback={null}>
+              <LazyInstallConfirmModal />
+            </Suspense>
+          )}
           <div
             key="settings-page"
             className={`flex-1 min-h-0 flex flex-col ${isSettingsExiting ? 'page-slide-right-exit' : 'page-slide-right-enter'}`}
           >
-            <SettingsPage onClose={closeSettingsWithAnimation} />
+            <Suspense fallback={null}>
+              <LazySettingsPage onClose={closeSettingsWithAnimation} />
+            </Suspense>
           </div>
           {/*
           让全局快捷键（开始/结束任务）在设置页也能触发：
@@ -1193,27 +1234,52 @@ function App() {
         <TitleBar />
 
         {/* 欢迎弹窗 */}
-        <WelcomeDialog />
+        {projectInterface.welcome && (
+          <Suspense fallback={null}>
+            <LazyWelcomeDialog />
+          </Suspense>
+        )}
 
         {/* 新用户引导覆盖层 - 仅在右侧面板可见时显示 */}
-        {!rightPanelCollapsed && !dashboardView && <OnboardingOverlay />}
+        {!onboardingCompleted && !rightPanelCollapsed && !dashboardView && (
+          <Suspense fallback={null}>
+            <LazyOnboardingOverlay />
+          </Suspense>
+        )}
 
         {/* 安装确认模态框 */}
-        <InstallConfirmModal />
+        {showInstallConfirmModal && (
+          <Suspense fallback={null}>
+            <LazyInstallConfirmModal />
+          </Suspense>
+        )}
 
         {/* VC++ 运行库缺失提示模态框 */}
-        <VCRedistModal show={showVCRedistModal} onClose={() => setShowVCRedistModal(false)} />
+        {showVCRedistModal && (
+          <Suspense fallback={null}>
+            <LazyVCRedistModal
+              show={showVCRedistModal}
+              onClose={() => setShowVCRedistModal(false)}
+            />
+          </Suspense>
+        )}
 
         {/* 程序路径问题提示模态框 */}
-        <BadPathModal show={showBadPathModal} type={badPathType} />
+        {showBadPathModal && (
+          <Suspense fallback={null}>
+            <LazyBadPathModal show={showBadPathModal} type={badPathType} />
+          </Suspense>
+        )}
 
         {/* MaaFramework 版本警告弹窗 */}
         {versionWarning && (
-          <VersionWarningModal
-            current={versionWarning.current}
-            minimum={versionWarning.minimum}
-            onClose={() => setVersionWarning(null)}
-          />
+          <Suspense fallback={null}>
+            <LazyVersionWarningModal
+              current={versionWarning.current}
+              minimum={versionWarning.minimum}
+              onClose={() => setVersionWarning(null)}
+            />
+          </Suspense>
         )}
 
         {/* 顶部标签栏 */}
@@ -1225,7 +1291,9 @@ function App() {
             key="dashboard-view"
             className={`flex-1 min-h-0 ${isDashboardExiting ? 'page-slide-top-exit' : 'page-slide-top-enter'}`}
           >
-            <DashboardView onClose={closeDashboardWithAnimation} />
+            <Suspense fallback={null}>
+              <LazyDashboardView onClose={closeDashboardWithAnimation} />
+            </Suspense>
           </div>
         ) : (
           /* 主内容区 */

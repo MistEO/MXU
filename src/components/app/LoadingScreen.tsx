@@ -1,7 +1,13 @@
+import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { TitleBar, BadPathModal } from '@/components';
+import { TitleBar } from '@/components';
 import type { BadPathType } from '@/components';
+
+const LazyBadPathModal = lazy(async () => {
+  const module = await import('@/components/BadPathModal');
+  return { default: module.BadPathModal };
+});
 
 type LoadingState = 'loading' | 'success' | 'error';
 
@@ -31,7 +37,11 @@ export function LoadingScreen({
       <TitleBar />
 
       {/* 程序路径问题提示模态框 - 在加载阶段也需要能弹出 */}
-      <BadPathModal show={showBadPathModal} type={badPathType} />
+      {showBadPathModal && (
+        <Suspense fallback={null}>
+          <LazyBadPathModal show={showBadPathModal} type={badPathType} />
+        </Suspense>
+      )}
 
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <div className="max-w-md w-full space-y-6 text-center">

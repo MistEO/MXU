@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveThemeMode } from '@/themes';
 import {
@@ -23,11 +23,19 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
-import { UpdatePanel } from './UpdatePanel';
-import { RecentlyClosedPanel } from './RecentlyClosedPanel';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
+
+const LazyUpdatePanel = lazy(async () => {
+  const module = await import('./UpdatePanel');
+  return { default: module.UpdatePanel };
+});
+
+const LazyRecentlyClosedPanel = lazy(async () => {
+  const module = await import('./RecentlyClosedPanel');
+  return { default: module.RecentlyClosedPanel };
+});
 
 export function TabBar() {
   const { t } = useTranslation();
@@ -537,15 +545,19 @@ export function TabBar() {
 
       {/* 更新面板 */}
       {showUpdatePanel && (
-        <UpdatePanel onClose={() => setShowUpdatePanel(false)} anchorRef={bellButtonRef} />
+        <Suspense fallback={null}>
+          <LazyUpdatePanel onClose={() => setShowUpdatePanel(false)} anchorRef={bellButtonRef} />
+        </Suspense>
       )}
 
       {/* 最近关闭面板 */}
       {showRecentlyClosedPanel && (
-        <RecentlyClosedPanel
-          onClose={() => setShowRecentlyClosedPanel(false)}
-          anchorRef={recentlyClosedButtonRef}
-        />
+        <Suspense fallback={null}>
+          <LazyRecentlyClosedPanel
+            onClose={() => setShowRecentlyClosedPanel(false)}
+            anchorRef={recentlyClosedButtonRef}
+          />
+        </Suspense>
       )}
 
       {/* 关闭标签确认弹窗 */}

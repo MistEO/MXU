@@ -200,7 +200,13 @@ pub fn check_process_running(program: &str) -> bool {
 
     let resolved_path = PathBuf::from(program);
 
-    // 提取文件名用于初步筛选
+    // 尝试规范化路径用于精确比较
+    let canonical_target = resolved_path
+        .canonicalize()
+        .unwrap_or_else(|_| resolved_path.clone());
+
+    // 提取文件名用于 Windows 下的初步筛选
+    #[cfg(windows)]
     let file_name = match resolved_path.file_name() {
         Some(name) => name.to_string_lossy().to_string(),
         None => {
@@ -211,11 +217,6 @@ pub fn check_process_running(program: &str) -> bool {
             return false;
         }
     };
-
-    // 尝试规范化路径用于精确比较
-    let canonical_target = resolved_path
-        .canonicalize()
-        .unwrap_or_else(|_| resolved_path.clone());
 
     #[cfg(windows)]
     {

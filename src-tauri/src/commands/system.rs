@@ -544,6 +544,10 @@ pub fn migrate_legacy_autostart() {
             remove_legacy_registry_autostart();
         }
     }
+    // 兼容迁移：老版本已创建的计划任务可能缺少交互式运行或启动延迟，自动重建为新配置
+    if schtask_autostart_needs_refresh() {
+        let _ = create_schtask_autostart();
+    }
 }
 
 #[cfg(windows)]
@@ -566,6 +570,9 @@ fn create_schtask_autostart() -> Result<(), String> {
             &format!("\"{}\" --autostart", exe),
             "/sc",
             "onlogon",
+            // 登录后延迟 30 秒再启动，降低桌面会话尚未完全就绪时的白屏/卡死概率
+            "/delay",
+            "0000:30",
             // 强制交互式运行，确保进程绑定到用户桌面会话，避免登录早期会话未就绪导致 WebView 白屏
             "/it",
             "/rl",
@@ -579,6 +586,30 @@ fn create_schtask_autostart() -> Result<(), String> {
         return Err(format!("创建计划任务失败: {}", stderr));
     }
     Ok(())
+}
+
+/// 判断现有 MXU 自启动计划任务是否需要刷新参数
+#[cfg(windows)]
+fn schtask_autostart_needs_refresh() -> bool {
+    let output = match std::process::Command::new("schtasks")
+        .args(["/query", "/tn", "MXU", "/xml"])
+        .output()
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return false, // 不存在任务或查询失败，不做迁移
+    };
+
+    let xml = String::from_utf8_lossy(&output.stdout).to_lowercase();
+
+    // 尊重用户手动禁用：禁用状态下不自动重建
+    let enabled = xml.contains("<enabled>true</enabled>");
+    if !enabled {
+        return false;
+    }
+
+    let has_interactive = xml.contains("<logontype>interactivetoken</logontype>");
+    let has_delay_30s = xml.contains("<delay>pt30s</delay>");
+    !(has_interactive && has_delay_30s)
 }
 
 /// 清理旧版注册表自启动条目（tauri-plugin-autostart 遗留）

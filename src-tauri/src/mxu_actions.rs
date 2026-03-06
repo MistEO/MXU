@@ -22,11 +22,7 @@ fn is_tasker_stopping(ctx: &maa_framework::context::Context) -> bool {
         return false;
     }
 
-    // SAFETY: tasker_ptr 来源于 Context，生命周期由 MaaFramework 管理。
-    // 这里只做短时只读检查，且 owns=false 不会释放底层句柄。
-    unsafe { maa_framework::tasker::Tasker::from_raw(tasker_ptr, false) }
-        .map(|tasker| tasker.stopping())
-        .unwrap_or(false)
+    unsafe { maa_framework::sys::MaaTaskerStopping(tasker_ptr) != 0 }
 }
 
 fn wait_with_stop_check(ctx: &maa_framework::context::Context, total_secs: u64) -> bool {

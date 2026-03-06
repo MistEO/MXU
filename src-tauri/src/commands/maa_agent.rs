@@ -428,66 +428,6 @@ pub async fn maa_start_tasks(
     }
     debug!("[start_tasks] Task_ids cached");
 
-    // 保底机制：轮询 MaaTaskerStatus 检测任务完成，主动发送回调事件。
-    // 根因是 maa-framework-rs 的 TaskerInner::drop 在 owns_handle=false 时
-    // 仍会调用 MaaTaskerClearSinks 清空所有 sinks（已提交 PR 修复）。
-    // TODO: 上游 PR 合并后可移除此保底轮询。
-    {
-        let app_handle = app.clone();
-        let tasker_clone = tasker.clone();
-        let task_ids_clone = task_ids.clone();
-        let task_entries: Vec<String> = tasks.iter().map(|t| t.entry.clone()).collect();
-
-        thread::spawn(move || {
-            const STATUS_SUCCEEDED: i32 =
-                maa_framework::sys::MaaStatusEnum_MaaStatus_Succeeded as i32;
-            const STATUS_FAILED: i32 =
-                maa_framework::sys::MaaStatusEnum_MaaStatus_Failed as i32;
-            const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
-
-            for (idx, &task_id) in task_ids_clone.iter().enumerate() {
-                loop {
-                    let status = unsafe {
-                        maa_framework::sys::MaaTaskerStatus(tasker_clone.raw(), task_id)
-                    };
-                    if status == STATUS_SUCCEEDED || status == STATUS_FAILED {
-                        let message = if status == STATUS_SUCCEEDED {
-                            "Tasker.Task.Succeeded"
-                        } else {
-                            "Tasker.Task.Failed"
-                        };
-                        let entry = task_entries
-                            .get(idx)
-                            .map(|s| s.as_str())
-                            .unwrap_or("");
-                        let details = serde_json::json!({
-                            "task_id": task_id,
-                            "entry": entry,
-                            "hash": "",
-                            "uuid": ""
-                        });
-
-                        info!(
-                            "[start_tasks] Task completed (polled): task_id={}, entry={}, result={}",
-                            task_id, entry, message
-                        );
-                        emit_callback_event(&app_handle, message, &details.to_string());
-                        break;
-                    }
-                    if status <= 0 {
-                        debug!(
-                            "[start_tasks] Task status invalid ({}), task may have been cleared: task_id={}",
-                            status, task_id
-                        );
-                        break;
-                    }
-                    thread::sleep(POLL_INTERVAL);
-                }
-            }
-            debug!("[start_tasks] Background task status poller thread finished");
-        });
-    }
-
     info!(
         "[start_tasks] maa_start_tasks completed successfully, returning {} task_ids",
         task_ids.len()

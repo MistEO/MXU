@@ -200,6 +200,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       }
 
       try {
+        // 前置程序重启应用后需要强制重连（旧窗口句柄已失效）
+        let needsReconnect = false;
+
         // 先执行前置动作（在连接设备之前）
         // 检查是否应跳过已运行的前置程序
         const preAction = targetInstance.preAction;
@@ -365,6 +368,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                   });
                   await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
                 }
+
+                // 前置程序（重新）启动了应用，旧窗口句柄已失效，必须重新连接
+                needsReconnect = true;
               } else {
                 log.warn(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}超时`);
                 addLog(targetId, {
@@ -385,8 +391,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
         }
 
-        // 如果未连接，尝试自动连接
-        if (!isTargetConnected && controller) {
+        // 前置程序重启了应用，旧连接已失效，重置连接状态以强制重新连接
+        if (needsReconnect && isTargetConnected) {
+          log.info(`实例 ${targetInstance.name}: 前置程序已重启应用，重置连接状态以重新连接`);
+          setInstanceConnectionStatus(targetId, 'Disconnected');
+        }
+
+        // 如果未连接（或需要重连），尝试自动连接
+        if ((!isTargetConnected || needsReconnect) && controller) {
           const controllerType = controller.type;
 
           await ensureMaaInitialized();

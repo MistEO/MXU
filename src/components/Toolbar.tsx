@@ -24,6 +24,8 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
+import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
+import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 
 const log = loggers.task;
 
@@ -54,17 +56,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     selectedController,
     selectedResource,
     // 任务运行状态管理
-    setTaskRunStatus,
     setAllTasksRunStatus,
     registerMaaTaskMapping,
-    findSelectedTaskIdByMaaTaskId,
     clearTaskRunStatus,
     // 任务队列管理
-    instancePendingTaskIds,
-    instanceCurrentTaskIndex,
     setPendingTaskIds,
-    setCurrentTaskIndex: setCurrentTaskIndexStore,
-    advanceCurrentTaskIndex,
     clearPendingTasks,
     // 定时执行状态
     scheduleExecutions,
@@ -110,11 +106,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
   const instanceId = instance?.id || '';
 
-  // 任务队列状态（从 store 获取）
-  const pendingTaskIds = instancePendingTaskIds[instanceId] || [];
-  const currentTaskIndex = instanceCurrentTaskIndex[instanceId] || 0;
-  const runningInstanceIdRef = useRef<string | null>(null);
-
   // 检查是否有保存的设备和资源配置（用于权限检查等）
   const currentControllerName =
     selectedController[instanceId] || projectInterface?.controller[0]?.name;
@@ -124,128 +115,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
   // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
   const canRun = tasks.some((t) => t.enabled);
-
-  // 监听任务完成回调
-  useEffect(() => {
-    if (pendingTaskIds.length === 0) return;
-
-    const currentTaskId = pendingTaskIds[currentTaskIndex];
-    if (currentTaskId === undefined) return;
-
-    let unlisten: (() => void) | null = null;
-
-    maaService
-      .onCallback((message, details) => {
-        if (details.task_id !== currentTaskId) return;
-
-        const runningInstanceId = runningInstanceIdRef.current;
-        if (!runningInstanceId) return;
-
-        if (message === 'Tasker.Task.Succeeded') {
-          log.info(`任务 ${currentTaskIndex + 1}/${pendingTaskIds.length} 完成`);
-
-          // 更新当前任务状态为成功
-          const selectedTaskId = findSelectedTaskIdByMaaTaskId(runningInstanceId, currentTaskId);
-          if (selectedTaskId) {
-            setTaskRunStatus(runningInstanceId, selectedTaskId, 'succeeded');
-          }
-
-          // 检查是否还有更多任务
-          if (currentTaskIndex + 1 < pendingTaskIds.length) {
-            // 移动到下一个任务
-            advanceCurrentTaskIndex(runningInstanceId);
-            const nextIndex = currentTaskIndex + 1;
-            setInstanceCurrentTaskId(runningInstanceId, pendingTaskIds[nextIndex]);
-
-            // 将下一个任务设为 running
-            const nextSelectedTaskId = findSelectedTaskIdByMaaTaskId(
-              runningInstanceId,
-              pendingTaskIds[nextIndex],
-            );
-            if (nextSelectedTaskId) {
-              setTaskRunStatus(runningInstanceId, nextSelectedTaskId, 'running');
-            }
-          } else {
-            // 所有任务完成
-            log.info('所有任务执行完成');
-
-            // 停止 Agent（如果有）
-            const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
-            if (agentConfigs && agentConfigs.length > 0) {
-              maaService.stopAgent(runningInstanceId).catch((err) => {
-                log.error('停止 Agent 失败:', err);
-              });
-            }
-
-            setInstanceTaskStatus(runningInstanceId, 'Succeeded');
-            updateInstance(runningInstanceId, { isRunning: false });
-            setInstanceCurrentTaskId(runningInstanceId, null);
-            clearPendingTasks(runningInstanceId);
-            runningInstanceIdRef.current = null;
-          }
-        } else if (message === 'Tasker.Task.Failed') {
-          log.error('任务执行失败, task_id:', currentTaskId);
-
-          // 更新当前任务状态为失败
-          const selectedTaskId = findSelectedTaskIdByMaaTaskId(runningInstanceId, currentTaskId);
-          if (selectedTaskId) {
-            setTaskRunStatus(runningInstanceId, selectedTaskId, 'failed');
-          }
-
-          // 检查是否还有更多任务（失败的任务不阻止后续任务执行）
-          if (currentTaskIndex + 1 < pendingTaskIds.length) {
-            // 移动到下一个任务
-            advanceCurrentTaskIndex(runningInstanceId);
-            const nextIndex = currentTaskIndex + 1;
-            setInstanceCurrentTaskId(runningInstanceId, pendingTaskIds[nextIndex]);
-
-            // 将下一个任务设为 running
-            const nextSelectedTaskId = findSelectedTaskIdByMaaTaskId(
-              runningInstanceId,
-              pendingTaskIds[nextIndex],
-            );
-            if (nextSelectedTaskId) {
-              setTaskRunStatus(runningInstanceId, nextSelectedTaskId, 'running');
-            }
-          } else {
-            // 所有任务执行完毕（至少有一个失败）
-            log.info('所有任务执行完毕（有任务失败）');
-
-            // 停止 Agent（如果有）
-            const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
-            if (agentConfigs && agentConfigs.length > 0) {
-              maaService.stopAgent(runningInstanceId).catch((err) => {
-                log.error('停止 Agent 失败:', err);
-              });
-            }
-
-            setInstanceTaskStatus(runningInstanceId, 'Failed');
-            updateInstance(runningInstanceId, { isRunning: false });
-            setInstanceCurrentTaskId(runningInstanceId, null);
-            clearPendingTasks(runningInstanceId);
-            runningInstanceIdRef.current = null;
-          }
-        }
-      })
-      .then((fn) => {
-        unlisten = fn;
-      });
-
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, [
-    pendingTaskIds,
-    currentTaskIndex,
-    projectInterface?.agent,
-    setInstanceCurrentTaskId,
-    setInstanceTaskStatus,
-    updateInstance,
-    findSelectedTaskIdByMaaTaskId,
-    setTaskRunStatus,
-    advanceCurrentTaskIndex,
-    clearPendingTasks,
-  ]);
 
   const handleSelectAll = () => {
     if (!instance) return;
@@ -853,6 +722,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           });
         }
 
+        // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
+        startGlobalCallbackListener();
+
         // 启动任务
         const taskIds = await maaService.startTasks(
           targetId,
@@ -891,16 +763,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
         });
 
-        // 第一个任务设为 running
-        if (enabledTasks.length > 0) {
-          setTaskRunStatus(targetId, enabledTasks[0].id, 'running');
-        }
-
         // 设置任务队列
-        runningInstanceIdRef.current = targetId;
         setPendingTaskIds(targetId, taskIds);
-        setCurrentTaskIndexStore(targetId, 0);
-        setInstanceCurrentTaskId(targetId, taskIds[0]);
+        startTaskQueueMonitor(targetId, taskIds);
 
         return true;
       } catch (err) {
@@ -917,9 +782,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         updateInstance(targetId, { isRunning: false });
         setInstanceTaskStatus(targetId, 'Failed');
+        setInstanceCurrentTaskId(targetId, null);
         clearTaskRunStatus(targetId);
         clearPendingTasks(targetId);
         clearScheduleExecution(targetId);
+        cancelTaskQueueMonitor(targetId);
 
         return false;
       }
@@ -938,9 +805,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       setInstanceCurrentTaskId,
       setAllTasksRunStatus,
       registerMaaTaskMapping,
-      setTaskRunStatus,
       setPendingTaskIds,
-      setCurrentTaskIndexStore,
       clearTaskRunStatus,
       clearPendingTasks,
       setScheduleExecution,
@@ -1111,6 +976,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     setIsStopping(true);
     try {
       log.info('停止任务...', targetInstanceId);
+      cancelTaskQueueMonitor(targetInstanceId);
       await maaService.stopTask(targetInstanceId);
       const stopped = await waitForTaskStop(targetInstanceId);
       if (!stopped) {
@@ -1128,7 +994,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       clearTaskRunStatus(targetInstanceId);
       clearPendingTasks(targetInstanceId);
       clearScheduleExecution(targetInstanceId);
-      runningInstanceIdRef.current = null;
     } finally {
       setIsStopping(false);
     }

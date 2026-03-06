@@ -49,6 +49,7 @@ import {
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { LoadingScreen } from './components/app';
+import { startGlobalCallbackListener } from './components/connection/callbackCache';
 
 const log = loggers.app;
 
@@ -120,6 +121,10 @@ function App() {
   // 启用 MAA 回调日志监听
   useMaaCallbackLogger();
   useMaaAgentLogger();
+
+  useEffect(() => {
+    startGlobalCallbackListener();
+  }, []);
 
   const {
     setProjectInterface,

@@ -144,8 +144,11 @@ const collectOptionOverrides = (
     try {
       overrides.push(JSON.parse(overrideStr));
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      loggers.task.warn(`解析选项覆盖失败: ${message}`);
+      loggers.task.warn('解析选项覆盖失败:', {
+        errorMessage: e instanceof Error ? e.message : String(e),
+        errorStack: e instanceof Error ? e.stack : undefined,
+        overrideStr,
+      });
     }
   }
 };

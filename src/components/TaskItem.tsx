@@ -290,6 +290,11 @@ function OptionListRenderer({
           currentResourceName,
         );
         const optionIncompatible = optionControllerIncompatible || optionResourceIncompatible;
+        const parentIncompatibilityReason = optionControllerIncompatible
+          ? 'controller'
+          : optionResourceIncompatible
+            ? 'resource'
+            : undefined;
         return (
           <OptionEditor
             key={group.optionKey}
@@ -299,6 +304,7 @@ function OptionListRenderer({
             value={optionValues[group.optionKey]}
             disabled={disabled || optionIncompatible}
             controllerIncompatible={optionIncompatible}
+            parentIncompatibilityReason={parentIncompatibilityReason}
           />
         );
       })}

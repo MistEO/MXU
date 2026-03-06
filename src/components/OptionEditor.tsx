@@ -51,9 +51,13 @@ interface OptionEditorProps {
   depth?: number;
   /** 是否禁用编辑（只读模式） */
   disabled?: boolean;
-  /** 是否继承父级不兼容状态（控制器/资源） */
+  /** 是否继承父级不兼容状态 */
   controllerIncompatible?: boolean;
+  /** 父级不兼容原因（用于嵌套提示文案） */
+  parentIncompatibilityReason?: IncompatibilityReason;
 }
+
+type IncompatibilityReason = 'controller' | 'resource';
 
 /** 显示带图标的标签（仅标签本身） */
 function OptionLabel({
@@ -305,6 +309,7 @@ export function OptionEditor({
   depth = 0,
   disabled = false,
   controllerIncompatible = false,
+  parentIncompatibilityReason,
 }: OptionEditorProps) {
   const { t } = useTranslation();
   const {
@@ -352,12 +357,18 @@ export function OptionEditor({
   const selfResourceIncompatible = isOptionResourceIncompatible(optionDef, currentResourceName);
   const isOptionIncompatible =
     controllerIncompatible || selfControllerIncompatible || selfResourceIncompatible;
-  const incompatibleReason = selfControllerIncompatible
-    ? t('optionEditor.incompatibleController')
+  const incompatibleReasonType: IncompatibilityReason | undefined = selfControllerIncompatible
+    ? 'controller'
     : selfResourceIncompatible
-      ? t('optionEditor.incompatibleResource')
+      ? 'resource'
       : controllerIncompatible
-        ? t('optionEditor.incompatibleController')
+        ? parentIncompatibilityReason
+        : undefined;
+  const incompatibleReason =
+    incompatibleReasonType === 'controller'
+      ? t('optionEditor.incompatibleController')
+      : incompatibleReasonType === 'resource'
+        ? t('optionEditor.incompatibleResource')
         : undefined;
   const effectiveDisabled = disabled || isOptionIncompatible;
 
@@ -427,6 +438,7 @@ export function OptionEditor({
                 depth={depth + 1}
                 disabled={effectiveDisabled}
                 controllerIncompatible={isOptionIncompatible}
+                parentIncompatibilityReason={incompatibleReasonType}
               />
             ))}
           </div>
@@ -615,6 +627,7 @@ export function OptionEditor({
               depth={depth + 1}
               disabled={effectiveDisabled}
               controllerIncompatible={isOptionIncompatible}
+              parentIncompatibilityReason={incompatibleReasonType}
             />
           ))}
         </div>

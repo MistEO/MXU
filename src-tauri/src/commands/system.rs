@@ -2,7 +2,7 @@
 //!
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
-use log::info;
+use log::{info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::types::SystemInfo;
@@ -546,7 +546,9 @@ pub fn migrate_legacy_autostart() {
     }
     // 兼容迁移：老版本已创建的计划任务可能缺少交互式运行或启动延迟，自动重建为新配置
     if schtask_autostart_needs_refresh() {
-        let _ = create_schtask_autostart();
+        if let Err(err) = create_schtask_autostart() {
+            warn!("重建自启动计划任务失败: {}", err);
+        }
     }
 }
 
@@ -591,6 +593,8 @@ fn create_schtask_autostart() -> Result<(), String> {
 /// 判断现有 MXU 自启动计划任务是否需要刷新参数
 #[cfg(windows)]
 fn schtask_autostart_needs_refresh() -> bool {
+    use regex::Regex;
+
     let output = match std::process::Command::new("schtasks")
         .args(["/query", "/tn", "MXU", "/xml"])
         .output()
@@ -599,16 +603,27 @@ fn schtask_autostart_needs_refresh() -> bool {
         _ => return false, // 不存在任务或查询失败，不做迁移
     };
 
-    let xml = String::from_utf8_lossy(&output.stdout).to_lowercase();
+    let xml = String::from_utf8_lossy(&output.stdout);
+    let tag_equals = |tag: &str, expected: &str| -> bool {
+        let pattern = format!(
+            r"(?is)<\s*{}\s*>\s*{}\s*<\s*/\s*{}\s*>",
+            regex::escape(tag),
+            regex::escape(expected),
+            regex::escape(tag)
+        );
+        Regex::new(&pattern)
+            .map(|re| re.is_match(&xml))
+            .unwrap_or(false)
+    };
 
     // 尊重用户手动禁用：禁用状态下不自动重建
-    let enabled = xml.contains("<enabled>true</enabled>");
+    let enabled = tag_equals("Enabled", "true");
     if !enabled {
         return false;
     }
 
-    let has_interactive = xml.contains("<logontype>interactivetoken</logontype>");
-    let has_delay_30s = xml.contains("<delay>pt30s</delay>");
+    let has_interactive = tag_equals("LogonType", "InteractiveToken");
+    let has_delay_30s = tag_equals("Delay", "PT30S");
     !(has_interactive && has_delay_30s)
 }
 

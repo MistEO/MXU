@@ -33,6 +33,8 @@ import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
+import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
+import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 
 const log = loggers.ui;
 
@@ -66,11 +68,10 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     setInstanceCurrentTaskId,
     setAllTasksRunStatus,
     registerMaaTaskMapping,
-    setTaskRunStatus,
     clearTaskRunStatus,
     setPendingTaskIds,
-    setCurrentTaskIndex,
     clearPendingTasks,
+    clearScheduleExecution,
     basePath,
     registerTaskIdName,
     registerEntryTaskName,
@@ -91,7 +92,6 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
   const streamingRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
   const frameIntervalRef = useRef(getFrameInterval(screenshotFrameRate));
-  const runningInstanceIdRef = useRef<string | null>(null);
 
   // 帧率配置变化时更新帧间隔
   useEffect(() => {
@@ -199,6 +199,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         try {
           log.info(`[${instanceName}] 停止任务...`);
           setIsStopping(true);
+          cancelTaskQueueMonitor(instanceId);
           await maaService.stopTask(instanceId);
           const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
           if (agentConfigs && agentConfigs.length > 0) {
@@ -209,7 +210,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           setInstanceCurrentTaskId(instanceId, null);
           clearTaskRunStatus(instanceId);
           clearPendingTasks(instanceId);
-          runningInstanceIdRef.current = null;
+          clearScheduleExecution(instanceId);
         } catch (err) {
           log.error(`[${instanceName}] 停止任务失败:`, err);
         } finally {
@@ -266,6 +267,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           setInstanceTaskStatus(instanceId, 'Running');
           setShowAddTaskPanel(false);
 
+          // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
+          await startGlobalCallbackListener();
+
           // 启动任务
           const taskIds = await maaService.startTasks(
             instanceId,
@@ -300,16 +304,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             }
           });
 
-          // 第一个任务设为 running
-          if (enabledTasks.length > 0) {
-            setTaskRunStatus(instanceId, enabledTasks[0].id, 'running');
-          }
-
           // 设置任务队列
-          runningInstanceIdRef.current = instanceId;
           setPendingTaskIds(instanceId, taskIds);
-          setCurrentTaskIndex(instanceId, 0);
-          setInstanceCurrentTaskId(instanceId, taskIds[0]);
+          startTaskQueueMonitor(instanceId);
           setIsStarting(false);
         } catch (err) {
           log.error(`[${instanceName}] 任务启动异常:`, err);
@@ -323,8 +320,11 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           }
           updateInstance(instanceId, { isRunning: false });
           setInstanceTaskStatus(instanceId, 'Failed');
+          setInstanceCurrentTaskId(instanceId, null);
           clearTaskRunStatus(instanceId);
           clearPendingTasks(instanceId);
+          clearScheduleExecution(instanceId);
+          cancelTaskQueueMonitor(instanceId);
           setIsStarting(false);
         }
       }
@@ -343,11 +343,10 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       setInstanceCurrentTaskId,
       clearTaskRunStatus,
       clearPendingTasks,
+      clearScheduleExecution,
       setAllTasksRunStatus,
       registerMaaTaskMapping,
-      setTaskRunStatus,
       setPendingTaskIds,
-      setCurrentTaskIndex,
       registerTaskIdName,
       registerEntryTaskName,
       setShowAddTaskPanel,

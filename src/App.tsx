@@ -123,7 +123,7 @@ function App() {
   useMaaAgentLogger();
 
   useEffect(() => {
-    startGlobalCallbackListener();
+    void startGlobalCallbackListener().catch(() => {});
   }, []);
 
   const {

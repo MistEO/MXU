@@ -136,7 +136,7 @@ export function ConnectionPanel() {
 
   // 启动全局回调监听器（只启动一次）
   useEffect(() => {
-    startGlobalCallbackListener();
+    void startGlobalCallbackListener().catch(() => {});
   }, []);
 
   // 点击外部关闭下拉框
@@ -453,6 +453,7 @@ export function ConnectionPanel() {
     deviceName: string,
     targetType: 'device' | 'window',
   ) => {
+    await startGlobalCallbackListener();
     const ctrlId = await maaService.connectController(instanceId, config);
 
     // 注册 ctrl_id 与设备/窗口名及类型的映射，用于日志显示
@@ -564,6 +565,7 @@ export function ConnectionPanel() {
 
     try {
       await maaService.createInstance(instanceId).catch(() => {});
+      await startGlobalCallbackListener();
       // 计算完整的资源路径（包括 controller.attach_resource_path）
       const resourcePaths = computeResourcePaths(resource, currentController, basePath);
 

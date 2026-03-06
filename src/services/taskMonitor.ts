@@ -1,4 +1,8 @@
-import { waitForTaskResult } from '@/components/connection/callbackCache';
+import {
+  TaskResultWaitAbortedError,
+  TaskResultWaitTimeoutError,
+  waitForTaskResult,
+} from '@/components/connection/callbackCache';
 import { useAppStore } from '@/stores/appStore';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { loggers } from '@/utils/logger';
@@ -10,7 +14,11 @@ const log = loggers.task;
 const taskMonitorControllers = new Map<string, AbortController>();
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
+  return error instanceof TaskResultWaitAbortedError;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof TaskResultWaitTimeoutError;
 }
 
 async function stopAgentIfNeeded(instanceId: string) {
@@ -117,7 +125,13 @@ export function startTaskQueueMonitor(instanceId: string, taskIds: number[]) {
 
     if (taskMonitorControllers.get(instanceId) === controller) {
       taskMonitorControllers.delete(instanceId);
-      log.error(`[task-monitor#${instanceId}] 监视任务队列失败:`, error);
+      if (isTimeoutError(error)) {
+        log.error(
+          `[task-monitor#${instanceId}] 等待任务结果超时: task_id=${error.taskId}, timeout=${error.timeoutMs}ms`,
+        );
+      } else {
+        log.error(`[task-monitor#${instanceId}] 监视任务队列失败:`, error);
+      }
       await finalizeTaskRun(instanceId, 'Failed');
     }
   });

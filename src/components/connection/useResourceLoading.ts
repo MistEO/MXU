@@ -4,7 +4,7 @@ import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
 import type { ResourceItem, ControllerItem } from '@/types/interface';
-import { waitForResResult } from './callbackCache';
+import { startGlobalCallbackListener, waitForResResult } from './callbackCache';
 import { computeResourcePaths } from '@/utils/resourcePath';
 
 interface UseResourceLoadingProps {
@@ -40,6 +40,7 @@ export function useResourceLoading({
 
       try {
         await maaService.createInstance(instanceId).catch(() => {});
+        await startGlobalCallbackListener();
 
         // 计算完整的资源路径（包括 controller.attach_resource_path）
         const resourcePaths = computeResourcePaths(resource, currentController, basePath);

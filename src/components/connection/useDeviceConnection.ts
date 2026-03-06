@@ -5,7 +5,7 @@ import { useAppStore } from '@/stores/appStore';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import type { ControllerItem } from '@/types/interface';
-import { waitForCtrlResult } from './callbackCache';
+import { startGlobalCallbackListener, waitForCtrlResult } from './callbackCache';
 
 interface UseDeviceConnectionProps {
   instanceId: string;
@@ -60,6 +60,7 @@ export function useDeviceConnection({
   // 连接控制器的内部实现
   const connectControllerInternal = useCallback(
     async (config: ControllerConfig, deviceName: string, targetType: 'device' | 'window') => {
+      await startGlobalCallbackListener();
       const ctrlId = await maaService.connectController(instanceId, config);
 
       registerCtrlIdName(ctrlId, deviceName || '', targetType);

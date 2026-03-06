@@ -268,7 +268,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           setShowAddTaskPanel(false);
 
           // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
-          startGlobalCallbackListener();
+          await startGlobalCallbackListener();
 
           // 启动任务
           const taskIds = await maaService.startTasks(

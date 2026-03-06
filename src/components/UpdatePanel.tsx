@@ -15,7 +15,7 @@ import {
   downloadUpdate,
   getUpdateSavePath,
   MIRRORCHYAN_ERROR_CODES,
-  savePendingUpdateInfo,
+  savePendingUpdate,
   findCachedUpdatePackage,
 } from '@/services/updateService';
 import { DownloadProgressBar } from './UpdateInfoCard';
@@ -61,16 +61,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
       if (cachedPackagePath) {
         setDownloadSavePath(cachedPackagePath);
         setDownloadStatus('completed');
-        savePendingUpdateInfo({
-          versionName: updateInfo.versionName,
-          releaseNote: updateInfo.releaseNote,
-          channel: updateInfo.channel,
-          downloadSavePath: cachedPackagePath,
-          fileSize: updateInfo.fileSize,
-          updateType: updateInfo.updateType,
-          downloadSource: updateInfo.downloadSource,
-          timestamp: Date.now(),
-        });
+        savePendingUpdate(updateInfo, cachedPackagePath);
         return;
       }
 
@@ -91,16 +82,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
         setDownloadSavePath(result.actualSavePath);
         setDownloadStatus('completed');
         // 保存待安装更新信息，以便下次启动时自动安装
-        savePendingUpdateInfo({
-          versionName: updateInfo.versionName,
-          releaseNote: updateInfo.releaseNote,
-          channel: updateInfo.channel,
-          downloadSavePath: result.actualSavePath,
-          fileSize: updateInfo.fileSize,
-          updateType: updateInfo.updateType,
-          downloadSource: updateInfo.downloadSource,
-          timestamp: Date.now(),
-        });
+        savePendingUpdate(updateInfo, result.actualSavePath);
       } else {
         setDownloadStatus('failed');
       }

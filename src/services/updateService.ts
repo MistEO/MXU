@@ -677,7 +677,8 @@ interface DownloadUpdateOptions {
 
 /**
  * 查找已存在于 cache 目录中的更新包。
- * 仅接受更新接口返回的文件名，并要求 cache 中存在同名文件。
+ * 从更新接口返回的信息对象中读取 filename 字段，并要求 cache 中存在同名文件。
+ * 缓存命中日志统一在此函数内记录，调用方无需重复记录。
  */
 export async function findCachedUpdatePackage(
   info: Pick<UpdateInfo, 'filename'>,
@@ -1111,6 +1112,40 @@ export interface PendingUpdateInfo {
   updateType?: 'incremental' | 'full';
   downloadSource?: 'mirrorchyan' | 'github';
   timestamp: number;
+}
+
+type PendingUpdateSource = Pick<
+  UpdateInfo,
+  'versionName' | 'releaseNote' | 'channel' | 'fileSize' | 'updateType' | 'downloadSource'
+>;
+
+/**
+ * 根据更新信息和本地包路径构建待安装更新信息。
+ */
+export function buildPendingUpdateInfo(
+  info: PendingUpdateSource,
+  downloadSavePath: string,
+): PendingUpdateInfo {
+  return {
+    versionName: info.versionName,
+    releaseNote: info.releaseNote,
+    channel: info.channel,
+    downloadSavePath,
+    fileSize: info.fileSize,
+    updateType: info.updateType,
+    downloadSource: info.downloadSource,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * 保存待安装更新信息到本地存储（下载完成后调用）
+ */
+export function savePendingUpdate(
+  info: PendingUpdateSource,
+  downloadSavePath: string,
+): void {
+  savePendingUpdateInfo(buildPendingUpdateInfo(info, downloadSavePath));
 }
 
 /**

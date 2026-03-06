@@ -22,6 +22,8 @@ fn is_tasker_stopping(ctx: &maa_framework::context::Context) -> bool {
         return false;
     }
 
+    // SAFETY: tasker_ptr 来自 Context::tasker_handle()，生命周期由 MaaFramework 管理，
+    // 在 custom action 回调期间保证有效。此处仅做只读状态查询。
     unsafe { maa_framework::sys::MaaTaskerStopping(tasker_ptr) != 0 }
 }
 

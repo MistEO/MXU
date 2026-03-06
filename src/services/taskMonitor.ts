@@ -45,12 +45,14 @@ async function finalizeTaskRun(instanceId: string, status: 'Succeeded' | 'Failed
   state.clearScheduleExecution(instanceId);
 }
 
-async function monitorTaskQueue(
-  instanceId: string,
-  taskIds: number[],
-  controller: AbortController,
-) {
-  if (taskIds.length === 0) {
+function getPendingTaskIds(instanceId: string) {
+  return useAppStore.getState().instancePendingTaskIds[instanceId] || [];
+}
+
+async function monitorTaskQueue(instanceId: string, controller: AbortController) {
+  const initialTaskIds = getPendingTaskIds(instanceId);
+  // 运行中可能通过 appendPendingTaskId 动态追加任务，这里只做初始空队列校验。
+  if (initialTaskIds.length === 0) {
     log.error(`[task-monitor#${instanceId}] 后端未返回 task_id，终止本次运行`);
     taskMonitorControllers.delete(instanceId);
     await finalizeTaskRun(instanceId, 'Failed');
@@ -58,10 +60,17 @@ async function monitorTaskQueue(
   }
 
   let hasFailed = false;
+  let index = 0;
 
-  for (const [index, taskId] of taskIds.entries()) {
+  while (true) {
     if (controller.signal.aborted || taskMonitorControllers.get(instanceId) !== controller) {
       return;
+    }
+
+    const taskIds = getPendingTaskIds(instanceId);
+    const taskId = taskIds[index];
+    if (taskId === undefined) {
+      break;
     }
 
     const state = useAppStore.getState();
@@ -92,6 +101,8 @@ async function monitorTaskQueue(
     if (result === 'failed') {
       hasFailed = true;
     }
+
+    index += 1;
   }
 
   if (taskMonitorControllers.get(instanceId) !== controller) {
@@ -112,13 +123,13 @@ export function cancelTaskQueueMonitor(instanceId: string) {
   taskMonitorControllers.delete(instanceId);
 }
 
-export function startTaskQueueMonitor(instanceId: string, taskIds: number[]) {
+export function startTaskQueueMonitor(instanceId: string) {
   cancelTaskQueueMonitor(instanceId);
 
   const controller = new AbortController();
   taskMonitorControllers.set(instanceId, controller);
 
-  void monitorTaskQueue(instanceId, taskIds, controller).catch(async (error) => {
+  void monitorTaskQueue(instanceId, controller).catch(async (error) => {
     if (isAbortError(error)) {
       return;
     }

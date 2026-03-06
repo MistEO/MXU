@@ -765,7 +765,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         // 设置任务队列
         setPendingTaskIds(targetId, taskIds);
-        startTaskQueueMonitor(targetId, taskIds);
+        startTaskQueueMonitor(targetId);
 
         return true;
       } catch (err) {

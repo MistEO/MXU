@@ -306,7 +306,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
           // 设置任务队列
           setPendingTaskIds(instanceId, taskIds);
-          startTaskQueueMonitor(instanceId, taskIds);
+          startTaskQueueMonitor(instanceId);
           setIsStarting(false);
         } catch (err) {
           log.error(`[${instanceName}] 任务启动异常:`, err);

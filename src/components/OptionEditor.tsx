@@ -353,7 +353,10 @@ export function OptionEditor({
   );
   const currentControllerName = instance?.controllerName || projectInterface?.controller[0]?.name;
   const currentResourceName = instance?.resourceName || projectInterface?.resource[0]?.name;
-  const selfControllerIncompatible = isOptionControllerIncompatible(optionDef, currentControllerName);
+  const selfControllerIncompatible = isOptionControllerIncompatible(
+    optionDef,
+    currentControllerName,
+  );
   const selfResourceIncompatible = isOptionResourceIncompatible(optionDef, currentResourceName);
   const isOptionIncompatible =
     controllerIncompatible || selfControllerIncompatible || selfResourceIncompatible;

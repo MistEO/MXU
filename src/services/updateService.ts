@@ -675,6 +675,26 @@ interface DownloadUpdateOptions {
   proxySettings?: ProxySettings; // 代理设置
 }
 
+/**
+ * 查找已存在于 cache 目录中的更新包。
+ * 仅接受更新接口返回的文件名，并要求 cache 中存在同名文件。
+ */
+export async function findCachedUpdatePackage(
+  info: Pick<UpdateInfo, 'filename'>,
+): Promise<string | null> {
+  if (!info.filename) {
+    return null;
+  }
+
+  const path = await getUpdateSavePath(info.filename);
+  if (await exists(path)) {
+    log.info(`检测到已缓存的更新包: ${path}`);
+    return path;
+  }
+
+  return null;
+}
+
 // 当前下载的保存路径，用于取消时清理临时文件
 let currentDownloadPath: string | null = null;
 

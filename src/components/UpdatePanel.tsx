@@ -16,6 +16,7 @@ import {
   getUpdateSavePath,
   MIRRORCHYAN_ERROR_CODES,
   savePendingUpdateInfo,
+  findCachedUpdatePackage,
 } from '@/services/updateService';
 import { DownloadProgressBar } from './UpdateInfoCard';
 import clsx from 'clsx';
@@ -56,6 +57,23 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     });
 
     try {
+      const cachedPackagePath = await findCachedUpdatePackage(updateInfo);
+      if (cachedPackagePath) {
+        setDownloadSavePath(cachedPackagePath);
+        setDownloadStatus('completed');
+        savePendingUpdateInfo({
+          versionName: updateInfo.versionName,
+          releaseNote: updateInfo.releaseNote,
+          channel: updateInfo.channel,
+          downloadSavePath: cachedPackagePath,
+          fileSize: updateInfo.fileSize,
+          updateType: updateInfo.updateType,
+          downloadSource: updateInfo.downloadSource,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
       const savePath = await getUpdateSavePath(updateInfo.filename);
       setDownloadSavePath(savePath);
 

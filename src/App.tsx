@@ -24,6 +24,7 @@ import {
 import {
   downloadUpdate,
   getUpdateSavePath,
+  findCachedUpdatePackage,
   consumeUpdateCompleteInfo,
   savePendingUpdateInfo,
   getPendingUpdateInfo,
@@ -343,6 +344,27 @@ function App() {
       });
 
       try {
+        const cachedPackagePath = await findCachedUpdatePackage(updateResult);
+        if (cachedPackagePath) {
+          setDownloadSavePath(cachedPackagePath);
+          setDownloadStatus('completed');
+          log.info('检测到 cache 中已有更新包，跳过下载');
+
+          savePendingUpdateInfo({
+            versionName: updateResult.versionName,
+            releaseNote: updateResult.releaseNote,
+            channel: updateResult.channel,
+            downloadSavePath: cachedPackagePath,
+            fileSize: updateResult.fileSize,
+            updateType: updateResult.updateType,
+            downloadSource: updateResult.downloadSource,
+            timestamp: Date.now(),
+          });
+
+          tryAutoInstallUpdate();
+          return;
+        }
+
         const savePath = await getUpdateSavePath(updateResult.filename);
         setDownloadSavePath(savePath);
 

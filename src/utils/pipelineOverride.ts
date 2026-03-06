@@ -128,14 +128,24 @@ const collectOptionOverrides = (
         overrideStr = overrideStr.replace(new RegExp(`"${escapedPlaceholder}"`, 'g'), boolVal);
         overrideStr = overrideStr.replace(placeholderRegex, boolVal);
       } else {
-        overrideStr = overrideStr.replace(placeholderRegex, inputVal || '');
+        // 字符串值需要 JSON 转义，避免 Windows 路径中的 '\' 破坏 JSON
+        const stringVal = inputVal || '';
+        const escapedStringVal = JSON.stringify(stringVal).slice(1, -1);
+        // 优先替换被双引号包裹的完整占位符，保持 JSON 字符串结构正确
+        overrideStr = overrideStr.replace(
+          new RegExp(`"${escapedPlaceholder}"`, 'g'),
+          JSON.stringify(stringVal),
+        );
+        // 兜底替换未加引号的占位符（极少数写法）
+        overrideStr = overrideStr.replace(placeholderRegex, escapedStringVal);
       }
     }
 
     try {
       overrides.push(JSON.parse(overrideStr));
     } catch (e) {
-      loggers.task.warn('解析选项覆盖失败:', e);
+      const message = e instanceof Error ? e.message : String(e);
+      loggers.task.warn(`解析选项覆盖失败: ${message}`);
     }
   }
 };

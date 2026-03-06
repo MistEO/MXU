@@ -51,7 +51,7 @@ interface OptionEditorProps {
   depth?: number;
   /** 是否禁用编辑（只读模式） */
   disabled?: boolean;
-  /** 是否因控制器不兼容而禁用 */
+  /** 是否继承父级不兼容状态（控制器/资源） */
   controllerIncompatible?: boolean;
 }
 
@@ -84,24 +84,41 @@ function OptionLabelWithIncompatible({
   label,
   icon,
   basePath,
-  controllerIncompatible,
+  incompatibleReason,
 }: {
   label: string;
   icon?: string;
   basePath: string;
-  controllerIncompatible?: boolean;
+  incompatibleReason?: string;
 }) {
-  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1.5">
       <OptionLabel label={label} icon={icon} basePath={basePath} />
-      {controllerIncompatible && (
-        <Tooltip content={t('optionEditor.incompatibleController')}>
+      {incompatibleReason && (
+        <Tooltip content={incompatibleReason}>
           <AlertCircle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
         </Tooltip>
       )}
     </div>
   );
+}
+
+function isOptionControllerIncompatible(
+  optionDef: OptionDefinition | null | undefined,
+  controllerName: string | undefined,
+): boolean {
+  if (!optionDef?.controller || optionDef.controller.length === 0) return false;
+  if (!controllerName) return false;
+  return !optionDef.controller.includes(controllerName);
+}
+
+function isOptionResourceIncompatible(
+  optionDef: OptionDefinition | null | undefined,
+  resourceName: string | undefined,
+): boolean {
+  if (!optionDef?.resource || optionDef.resource.length === 0) return false;
+  if (!resourceName) return false;
+  return !optionDef.resource.includes(resourceName);
 }
 
 /** 显示选项描述文本（支持文件/URL/直接文本，以及 Markdown/HTML 和本地图片） */
@@ -325,6 +342,24 @@ export function OptionEditor({
     const task = instance?.selectedTasks.find((t) => t.id === taskId);
     return task?.optionValues || {};
   }, [instances, instanceId, taskId]);
+  const instance = useMemo(
+    () => instances.find((item) => item.id === instanceId),
+    [instances, instanceId],
+  );
+  const currentControllerName = instance?.controllerName || projectInterface?.controller[0]?.name;
+  const currentResourceName = instance?.resourceName || projectInterface?.resource[0]?.name;
+  const selfControllerIncompatible = isOptionControllerIncompatible(optionDef, currentControllerName);
+  const selfResourceIncompatible = isOptionResourceIncompatible(optionDef, currentResourceName);
+  const isOptionIncompatible =
+    controllerIncompatible || selfControllerIncompatible || selfResourceIncompatible;
+  const incompatibleReason = selfControllerIncompatible
+    ? t('optionEditor.incompatibleController')
+    : selfResourceIncompatible
+      ? t('optionEditor.incompatibleResource')
+      : controllerIncompatible
+        ? t('optionEditor.incompatibleController')
+        : undefined;
+  const effectiveDisabled = disabled || isOptionIncompatible;
 
   // 获取当前选中的 case（用于渲染嵌套选项）
   const getSelectedCase = (): CaseItem | undefined => {
@@ -354,14 +389,14 @@ export function OptionEditor({
         <div
           className={clsx(
             'flex items-center justify-between',
-            controllerIncompatible && 'opacity-60',
+            isOptionIncompatible && 'opacity-60',
           )}
         >
           <OptionLabelWithIncompatible
             label={optionLabel}
             icon={optionDef.icon}
             basePath={basePath}
-            controllerIncompatible={controllerIncompatible}
+            incompatibleReason={incompatibleReason}
           />
           <SwitchButton
             value={isChecked}
@@ -371,7 +406,7 @@ export function OptionEditor({
                 value: checked,
               });
             }}
-            disabled={disabled}
+            disabled={effectiveDisabled}
           />
         </div>
         <OptionDescription
@@ -390,7 +425,8 @@ export function OptionEditor({
                 optionKey={nestedKey}
                 value={allOptionValues[nestedKey]}
                 depth={depth + 1}
-                disabled={disabled}
+                disabled={effectiveDisabled}
+                controllerIncompatible={isOptionIncompatible}
               />
             ))}
           </div>
@@ -409,14 +445,14 @@ export function OptionEditor({
         className={clsx(
           'space-y-2',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-          controllerIncompatible && 'opacity-60',
+          isOptionIncompatible && 'opacity-60',
         )}
       >
         <OptionLabelWithIncompatible
           label={optionLabel}
           icon={optionDef.icon}
           basePath={basePath}
-          controllerIncompatible={controllerIncompatible}
+          incompatibleReason={incompatibleReason}
         />
         <OptionDescription
           description={optionDescription}
@@ -434,7 +470,7 @@ export function OptionEditor({
                 key={caseItem.name}
                 type="button"
                 onClick={() => {
-                  if (disabled) return;
+                  if (effectiveDisabled) return;
                   const newCases = isChecked
                     ? selectedCases.filter((n) => n !== caseItem.name)
                     : [...selectedCases, caseItem.name];
@@ -443,13 +479,13 @@ export function OptionEditor({
                     caseNames: newCases,
                   });
                 }}
-                disabled={disabled}
+                disabled={effectiveDisabled}
                 className={clsx(
                   'px-2 py-1.5 text-xs rounded border transition-colors truncate',
                   isChecked
                     ? 'bg-accent text-white border-accent'
                     : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
-                  disabled && 'opacity-60 cursor-not-allowed',
+                  effectiveDisabled && 'opacity-60 cursor-not-allowed',
                 )}
                 title={caseLabel}
               >
@@ -471,14 +507,14 @@ export function OptionEditor({
         className={clsx(
           'space-y-2',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-          controllerIncompatible && 'opacity-60',
+          isOptionIncompatible && 'opacity-60',
         )}
       >
         <OptionLabelWithIncompatible
           label={optionLabel}
           icon={optionDef.icon}
           basePath={basePath}
-          controllerIncompatible={controllerIncompatible}
+          incompatibleReason={incompatibleReason}
         />
         <OptionDescription
           description={optionDescription}
@@ -494,7 +530,7 @@ export function OptionEditor({
               input={input}
               value={inputValue}
               onChange={(newVal) => {
-                if (disabled) return;
+                if (effectiveDisabled) return;
                 setTaskOptionValue(instanceId, taskId, optionKey, {
                   type: 'input',
                   values: { ...inputValues, [input.name]: newVal },
@@ -503,7 +539,7 @@ export function OptionEditor({
               langKey={langKey}
               resolveI18nText={resolveI18nText}
               basePath={basePath}
-              disabled={disabled}
+              disabled={effectiveDisabled}
               isMxuOption={isMxuOption}
               t={t}
             />
@@ -526,7 +562,7 @@ export function OptionEditor({
       className={clsx(
         'space-y-2',
         depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-        controllerIncompatible && 'opacity-60',
+        isOptionIncompatible && 'opacity-60',
       )}
     >
       <div className="flex items-center gap-3">
@@ -534,12 +570,12 @@ export function OptionEditor({
           label={optionLabel}
           icon={optionDef.icon}
           basePath={basePath}
-          controllerIncompatible={controllerIncompatible}
+          incompatibleReason={incompatibleReason}
         />
         <SelectComponent
           className="flex-1"
           value={selectedCaseName}
-          disabled={disabled}
+          disabled={effectiveDisabled}
           basePath={basePath}
           options={optionDef.cases.map((caseItem) => {
             // 对于 MXU 内置选项，使用 t() 翻译；否则使用 resolveI18nText
@@ -553,7 +589,7 @@ export function OptionEditor({
             };
           })}
           onChange={(next) => {
-            if (disabled) return;
+            if (effectiveDisabled) return;
             setTaskOptionValue(instanceId, taskId, optionKey, {
               type: 'select',
               caseName: next,
@@ -577,7 +613,8 @@ export function OptionEditor({
               optionKey={nestedKey}
               value={allOptionValues[nestedKey]}
               depth={depth + 1}
-              disabled={disabled}
+              disabled={effectiveDisabled}
+              controllerIncompatible={isOptionIncompatible}
             />
           ))}
         </div>

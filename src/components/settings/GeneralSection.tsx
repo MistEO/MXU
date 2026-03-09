@@ -15,7 +15,7 @@ import {
 
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '@/stores/appStore';
-import { defaultWindowSize } from '@/types/config';
+import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
 import { isTauri } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
 import { FrameRateSelector } from '../FrameRateSelector';
@@ -120,7 +120,7 @@ export function GeneralSection() {
 
       setRightPanelWidth(320);
       setRightPanelCollapsed(false);
-      setAddTaskPanelHeight(192);
+      setAddTaskPanelHeight(defaultAddTaskPanelHeight);
     } catch {
       // ignore
     }

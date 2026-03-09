@@ -12,7 +12,10 @@ import {
 } from '@/themes';
 import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
+  clampAddTaskPanelHeight,
+  defaultAddTaskPanelHeight,
   defaultMirrorChyanSettings,
+  normalizeAddTaskPanelHeight,
   defaultScreenshotFrameRate,
   defaultWindowSize,
 } from '@/types/config';
@@ -1072,13 +1075,7 @@ export const useAppStore = create<AppState>()(
         sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: config.settings.rightPanelWidth ?? 320,
         rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
-        addTaskPanelHeight: (() => {
-          const value = config.settings.addTaskPanelHeight;
-          if (typeof value !== 'number' || !Number.isFinite(value)) {
-            return 192;
-          }
-          return Math.max(100, Math.min(600, value));
-        })(),
+        addTaskPanelHeight: normalizeAddTaskPanelHeight(config.settings.addTaskPanelHeight),
         connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
         screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
         screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
@@ -1318,8 +1315,8 @@ export const useAppStore = create<AppState>()(
     setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
 
     // 添加任务面板高度
-    addTaskPanelHeight: 192,
-    setAddTaskPanelHeight: (height) => set({ addTaskPanelHeight: Math.max(100, Math.min(600, height)) }),
+    addTaskPanelHeight: defaultAddTaskPanelHeight,
+    setAddTaskPanelHeight: (height) => set({ addTaskPanelHeight: clampAddTaskPanelHeight(height) }),
 
     // 卡片展开状态
     connectionPanelExpanded: true,

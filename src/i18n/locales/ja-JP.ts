@@ -463,6 +463,7 @@ export default {
     allSpecialTasksAdded: 'すべて追加済み',
     collapse: 'パネルを閉じる',
     ungroupedTasks: 'その他',
+    resizeHandleAriaLabel: 'タスク追加パネルの高さを調整',
   },
 
   // このアプリについて

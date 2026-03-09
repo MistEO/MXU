@@ -461,6 +461,7 @@ export default {
     specialTasks: '특수 작업',
     allSpecialTasksAdded: '모두 추가됨',
     ungroupedTasks: '기타',
+    resizeHandleAriaLabel: '작업 추가 패널 높이 조정',
   },
 
   // 정보

@@ -237,10 +237,12 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
     const seenNames = new Set(existingGroups.map((g) => g.name));
     const dedupedImported: GroupItem[] = [];
     let skippedDuplicates = 0;
+    const duplicateNames: string[] = [];
 
     for (const group of imported.group) {
       if (seenNames.has(group.name)) {
         skippedDuplicates += 1;
+        duplicateNames.push(group.name);
         continue;
       }
       seenNames.add(group.name);
@@ -252,7 +254,10 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
       log.info(`合并了 ${dedupedImported.length} 个导入的 group`);
     }
     if (skippedDuplicates > 0) {
-      log.warn(`忽略了 ${skippedDuplicates} 个重名 group`);
+      const uniqueDuplicateNames = Array.from(new Set(duplicateNames));
+      log.warn(
+        `忽略了 ${skippedDuplicates} 个重名 group，名称包括: ${uniqueDuplicateNames.join(', ')}`,
+      );
     }
   }
 }

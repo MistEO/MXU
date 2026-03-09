@@ -462,6 +462,7 @@ export default {
     specialTasks: 'Special Tasks',
     allSpecialTasksAdded: 'All added',
     ungroupedTasks: 'Others',
+    resizeHandleAriaLabel: 'Resize add task panel height',
   },
 
   // About

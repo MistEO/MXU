@@ -453,6 +453,7 @@ export default {
     allSpecialTasksAdded: '已全部添加',
     collapse: '收起面板',
     ungroupedTasks: '其他',
+    resizeHandleAriaLabel: '调整添加任务面板高度',
   },
 
   // 关于

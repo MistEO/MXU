@@ -171,6 +171,23 @@ export const defaultMirrorChyanSettings: MirrorChyanSettings = {
 // 默认截图帧率
 export const defaultScreenshotFrameRate: ScreenshotFrameRate = '1';
 
+// 添加任务面板高度约束
+export const addTaskPanelHeightMin = 100;
+export const addTaskPanelHeightMax = 600;
+export const defaultAddTaskPanelHeight = 192;
+export const addTaskPanelResizeStep = 24;
+
+export function clampAddTaskPanelHeight(value: number): number {
+  return Math.max(addTaskPanelHeightMin, Math.min(addTaskPanelHeightMax, value));
+}
+
+export function normalizeAddTaskPanelHeight(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return defaultAddTaskPanelHeight;
+  }
+  return clampAddTaskPanelHeight(value);
+}
+
 // 默认强调色
 export const defaultAccentColor: AccentColor = 'emerald';
 

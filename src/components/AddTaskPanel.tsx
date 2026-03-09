@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -18,6 +18,11 @@ import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import { getInterfaceLangKey } from '@/i18n';
+import {
+  addTaskPanelHeightMax,
+  addTaskPanelHeightMin,
+  addTaskPanelResizeStep,
+} from '@/types/config';
 import { Tooltip } from './ui/Tooltip';
 import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
@@ -375,7 +380,7 @@ export function AddTaskPanel() {
 
   // v2.4.0: 按 group 分组任务
   const groups = projectInterface?.group;
-  const hasGroups = groups && groups.length > 0;
+  const hasGroups = (groups?.length ?? 0) > 0;
 
   // 按 order 排序的分组列表
   const sortedGroups = useMemo(() => {
@@ -384,11 +389,11 @@ export function AddTaskPanel() {
   }, [groups]);
 
   // 分组展开/折叠状态（key: group name, value: 是否展开）
-  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
+  const [groupExpanded, setGroupExpanded] = useState<Map<string, boolean>>(() => {
+    const initial = new Map<string, boolean>();
     if (groups) {
       for (const g of groups) {
-        initial[g.name] = g.default_expand !== false;
+        initial.set(g.name, g.default_expand !== false);
       }
     }
     return initial;
@@ -399,17 +404,22 @@ export function AddTaskPanel() {
   // 当分组定义变化时，移除已失效 key，并为新分组注入 default_expand 默认值
   useEffect(() => {
     setGroupExpanded((prev) => {
-      if (!groups || groups.length === 0) return {};
-      const next: Record<string, boolean> = {};
+      if (!groups || groups.length === 0) return new Map<string, boolean>();
+      const next = new Map<string, boolean>();
       for (const g of groups) {
-        next[g.name] = prev[g.name] ?? g.default_expand !== false;
+        next.set(g.name, prev.has(g.name) ? (prev.get(g.name) ?? true) : g.default_expand !== false);
       }
       return next;
     });
   }, [groups]);
 
   const toggleGroup = useCallback((groupName: string) => {
-    setGroupExpanded((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
+    setGroupExpanded((prev) => {
+      const next = new Map(prev);
+      const expanded = prev.get(groupName) !== false;
+      next.set(groupName, !expanded);
+      return next;
+    });
   }, []);
 
   // 将过滤后的任务按分组归类
@@ -481,10 +491,14 @@ export function AddTaskPanel() {
     expanded: boolean,
     onToggle: () => void,
     count?: number,
+    contentId?: string,
   ) => {
     return (
       <button
+        type="button"
         onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={contentId}
         className="flex items-center gap-1.5 w-full py-1 text-left group"
       >
         {expanded ? (
@@ -505,12 +519,17 @@ export function AddTaskPanel() {
   const renderGroupSection = (group: GroupItem, tasks: TaskItem[]) => {
     if (tasks.length === 0) return null;
     const groupLabel = resolveI18nText(group.label, langKey) || group.name;
-    const expanded = groupExpanded[group.name] !== false;
+    const expanded = groupExpanded.get(group.name) !== false;
+    const contentId = `add-task-panel-section-${encodeURIComponent(group.name)}`;
 
     return (
       <div key={group.name}>
-        {renderSectionHeader(groupLabel, expanded, () => toggleGroup(group.name), tasks.length)}
-        {expanded && <div className="mt-1">{renderTaskGrid(tasks)}</div>}
+        {renderSectionHeader(groupLabel, expanded, () => toggleGroup(group.name), tasks.length, contentId)}
+        {expanded && (
+          <div id={contentId} className="mt-1">
+            {renderTaskGrid(tasks)}
+          </div>
+        )}
       </div>
     );
   };
@@ -542,7 +561,7 @@ export function AddTaskPanel() {
   }, [cleanupResizeListeners]);
 
   const handleResizeStart = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>) => {
+    (e: ReactMouseEvent<HTMLElement>) => {
       e.preventDefault();
       cleanupResizeListeners();
       isDraggingRef.current = true;
@@ -570,6 +589,41 @@ export function AddTaskPanel() {
     [addTaskPanelHeight, cleanupResizeListeners, setAddTaskPanelHeight],
   );
 
+  const handleResizeKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLElement>) => {
+      let nextHeight: number | null = null;
+      switch (e.key) {
+        case 'ArrowUp':
+          nextHeight = addTaskPanelHeight + addTaskPanelResizeStep;
+          break;
+        case 'ArrowDown':
+          nextHeight = addTaskPanelHeight - addTaskPanelResizeStep;
+          break;
+        case 'PageUp':
+          nextHeight = addTaskPanelHeight + addTaskPanelResizeStep * 2;
+          break;
+        case 'PageDown':
+          nextHeight = addTaskPanelHeight - addTaskPanelResizeStep * 2;
+          break;
+        case 'Home':
+          nextHeight = addTaskPanelHeightMin;
+          break;
+        case 'End':
+          nextHeight = addTaskPanelHeightMax;
+          break;
+        default:
+          break;
+      }
+      if (nextHeight === null) return;
+      e.preventDefault();
+      setAddTaskPanelHeight(nextHeight);
+    },
+    [addTaskPanelHeight, setAddTaskPanelHeight],
+  );
+
+  const ungroupedContentId = 'add-task-panel-section-ungrouped';
+  const specialContentId = 'add-task-panel-section-special';
+
   if (!projectInterface) {
     return null;
   }
@@ -578,7 +632,15 @@ export function AddTaskPanel() {
     <div id="add-task-panel" className="border-t border-border bg-bg-tertiary">
       {/* 拖拽调整高度的把手 */}
       <div
+        role="separator"
+        tabIndex={0}
+        aria-orientation="horizontal"
+        aria-valuemin={addTaskPanelHeightMin}
+        aria-valuemax={addTaskPanelHeightMax}
+        aria-valuenow={addTaskPanelHeight}
+        aria-label={t('addTaskPanel.resizeHandleAriaLabel')}
         onMouseDown={handleResizeStart}
+        onKeyDown={handleResizeKeyDown}
         className="flex items-center justify-center h-2 cursor-ns-resize group hover:bg-accent/10 transition-colors"
       >
         <GripHorizontal className="w-4 h-3 text-text-muted/40 group-hover:text-accent/60 transition-colors" />
@@ -635,9 +697,12 @@ export function AddTaskPanel() {
                       ungroupedExpanded,
                       () => setUngroupedExpanded((prev) => !prev),
                       ungroupedTasks.length,
+                      ungroupedContentId,
                     )}
                     {ungroupedExpanded && (
-                      <div className="mt-1">{renderTaskGrid(ungroupedTasks)}</div>
+                      <div id={ungroupedContentId} className="mt-1">
+                        {renderTaskGrid(ungroupedTasks)}
+                      </div>
                     )}
                   </div>
                 )}
@@ -653,9 +718,11 @@ export function AddTaskPanel() {
                   t('addTaskPanel.specialTasks'),
                   specialExpanded,
                   () => setSpecialExpanded((prev) => !prev),
+                  undefined,
+                  specialContentId,
                 )}
                 {specialExpanded && (
-                  <div className="mt-1 flex gap-2 flex-wrap">
+                  <div id={specialContentId} className="mt-1 flex gap-2 flex-wrap">
                     {/* 前置任务按钮：仅在未添加时显示 */}
                     {!instance.preAction && (
                       <button

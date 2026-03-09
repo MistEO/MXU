@@ -403,7 +403,10 @@ export function AddTaskPanel() {
       if (!groups || groups.length === 0) return new Map<string, boolean>();
       const next = new Map<string, boolean>();
       for (const g of groups) {
-        next.set(g.name, prev.has(g.name) ? (prev.get(g.name) ?? true) : g.default_expand !== false);
+        next.set(
+          g.name,
+          prev.has(g.name) ? (prev.get(g.name) ?? true) : g.default_expand !== false,
+        );
       }
       return next;
     });
@@ -420,7 +423,8 @@ export function AddTaskPanel() {
 
   // 将过滤后的任务按分组归类
   const { groupedTasks, ungroupedTasks } = useMemo(() => {
-    if (!hasGroups) return { groupedTasks: new Map<string, TaskItem[]>(), ungroupedTasks: filteredTasks };
+    if (!hasGroups)
+      return { groupedTasks: new Map<string, TaskItem[]>(), ungroupedTasks: filteredTasks };
 
     const grouped = new Map<string, TaskItem[]>();
     for (const g of sortedGroups) {
@@ -520,7 +524,13 @@ export function AddTaskPanel() {
 
     return (
       <div key={group.name}>
-        {renderSectionHeader(groupLabel, expanded, () => toggleGroup(group.name), tasks.length, contentId)}
+        {renderSectionHeader(
+          groupLabel,
+          expanded,
+          () => toggleGroup(group.name),
+          tasks.length,
+          contentId,
+        )}
         {expanded && (
           <div id={contentId} className="mt-1">
             {renderTaskGrid(tasks)}

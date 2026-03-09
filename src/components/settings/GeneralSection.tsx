@@ -31,6 +31,7 @@ export function GeneralSection() {
     setMinimizeToTray,
     setRightPanelWidth,
     setRightPanelCollapsed,
+    setAddTaskPanelHeight,
     instances,
     autoStartInstanceId,
     setAutoStartInstanceId,
@@ -119,10 +120,11 @@ export function GeneralSection() {
 
       setRightPanelWidth(320);
       setRightPanelCollapsed(false);
+      setAddTaskPanelHeight(192);
     } catch {
       // ignore
     }
-  }, [setRightPanelWidth, setRightPanelCollapsed]);
+  }, [setRightPanelWidth, setRightPanelCollapsed, setAddTaskPanelHeight]);
 
   // 构建下拉选项列表
   const dropdownOptions = [

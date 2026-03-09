@@ -1072,6 +1072,7 @@ export const useAppStore = create<AppState>()(
         sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: config.settings.rightPanelWidth ?? 320,
         rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
+        addTaskPanelHeight: config.settings.addTaskPanelHeight ?? 192,
         connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
         screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
         screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
@@ -1309,6 +1310,10 @@ export const useAppStore = create<AppState>()(
     rightPanelCollapsed: false,
     setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
     setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+
+    // 添加任务面板高度
+    addTaskPanelHeight: 192,
+    setAddTaskPanelHeight: (height) => set({ addTaskPanelHeight: Math.max(100, Math.min(600, height)) }),
 
     // 卡片展开状态
     connectionPanelExpanded: true,
@@ -1792,6 +1797,7 @@ function generateConfig(): MxuConfig {
       sidePanelExpanded: state.sidePanelExpanded,
       rightPanelWidth: state.rightPanelWidth,
       rightPanelCollapsed: state.rightPanelCollapsed,
+      addTaskPanelHeight: state.addTaskPanelHeight,
       connectionPanelExpanded: state.connectionPanelExpanded,
       screenshotPanelExpanded: state.screenshotPanelExpanded,
       screenshotFrameRate: state.screenshotFrameRate,
@@ -1853,6 +1859,7 @@ useAppStore.subscribe(
     sidePanelExpanded: state.sidePanelExpanded,
     rightPanelWidth: state.rightPanelWidth,
     rightPanelCollapsed: state.rightPanelCollapsed,
+    addTaskPanelHeight: state.addTaskPanelHeight,
     connectionPanelExpanded: state.connectionPanelExpanded,
     screenshotPanelExpanded: state.screenshotPanelExpanded,
     screenshotFrameRate: state.screenshotFrameRate,

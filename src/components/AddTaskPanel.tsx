@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -10,6 +10,7 @@ import {
   ChevronsDown,
   ChevronDown,
   ChevronRight,
+  GripHorizontal,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -166,6 +167,8 @@ export function AddTaskPanel() {
     setInstancePreAction,
     // 添加任务面板
     setShowAddTaskPanel,
+    addTaskPanelHeight,
+    setAddTaskPanelHeight,
   } = useAppStore();
 
   // 获取所有注册的特殊任务
@@ -425,7 +428,7 @@ export function AddTaskPanel() {
   const renderTaskGrid = (tasks: TaskItem[]) => {
     if (tasks.length === 0) return null;
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
         {tasks.map((task) => {
           const count = taskCounts[task.name] || 0;
           const label = resolveI18nText(task.label, langKey) || task.name;
@@ -487,14 +490,55 @@ export function AddTaskPanel() {
     );
   };
 
+  const isDraggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      isDraggingRef.current = true;
+      startYRef.current = e.clientY;
+      startHeightRef.current = addTaskPanelHeight;
+
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!isDraggingRef.current) return;
+        const delta = startYRef.current - e.clientY;
+        setAddTaskPanelHeight(startHeightRef.current + delta);
+      };
+
+      const handleMouseUp = () => {
+        isDraggingRef.current = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [addTaskPanelHeight, setAddTaskPanelHeight],
+  );
+
   if (!projectInterface) {
     return null;
   }
 
   return (
     <div id="add-task-panel" className="border-t border-border bg-bg-tertiary">
+      {/* 拖拽调整高度的把手 */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="flex items-center justify-center h-2 cursor-ns-resize group hover:bg-accent/10 transition-colors"
+      >
+        <GripHorizontal className="w-4 h-3 text-text-muted/40 group-hover:text-accent/60 transition-colors" />
+      </div>
+
       {/* 搜索框 */}
-      <div className="p-2 border-b border-border">
+      <div className="px-2 pb-2 border-b border-border">
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
@@ -521,7 +565,7 @@ export function AddTaskPanel() {
       </div>
 
       {/* 任务列表（包含特殊任务） */}
-      <div className="max-h-48 overflow-y-auto">
+      <div className="overflow-y-auto" style={{ maxHeight: addTaskPanelHeight }}>
         {filteredTasks.length === 0 && !instance ? (
           <div className="p-4 text-center text-sm text-text-muted">
             {t('addTaskPanel.noResults')}

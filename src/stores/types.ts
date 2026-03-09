@@ -279,6 +279,10 @@ export interface AppState {
   setRightPanelWidth: (width: number) => void;
   setRightPanelCollapsed: (collapsed: boolean) => void;
 
+  // 添加任务面板高度
+  addTaskPanelHeight: number;
+  setAddTaskPanelHeight: (height: number) => void;
+
   // 卡片展开状态
   connectionPanelExpanded: boolean;
   screenshotPanelExpanded: boolean;

@@ -1,13 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Plus, Sparkles, Loader2, AlertCircle, Play, ChevronsDown } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Sparkles,
+  Loader2,
+  AlertCircle,
+  Play,
+  ChevronsDown,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import { getInterfaceLangKey } from '@/i18n';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig } from '@/types/interface';
+import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import { getAllMxuSpecialTasks } from '@/types/specialTasks';
 import clsx from 'clsx';
@@ -359,6 +369,124 @@ export function AddTaskPanel() {
     }
   };
 
+  // v2.4.0: 按 group 分组任务
+  const groups = projectInterface?.group;
+  const hasGroups = groups && groups.length > 0;
+
+  // 按 order 排序的分组列表
+  const sortedGroups = useMemo(() => {
+    if (!groups) return [];
+    return [...groups].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+  }, [groups]);
+
+  // 分组展开/折叠状态（key: group name / '__ungrouped__' / '__special__', value: 是否展开）
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = { __ungrouped__: true, __special__: true };
+    if (groups) {
+      for (const g of groups) {
+        initial[g.name] = g.default_expand !== false;
+      }
+    }
+    return initial;
+  });
+
+  const toggleGroup = useCallback((groupName: string) => {
+    setGroupExpanded((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
+  }, []);
+
+  // 将过滤后的任务按分组归类
+  const { groupedTasks, ungroupedTasks } = useMemo(() => {
+    if (!hasGroups) return { groupedTasks: new Map<string, TaskItem[]>(), ungroupedTasks: filteredTasks };
+
+    const grouped = new Map<string, TaskItem[]>();
+    for (const g of sortedGroups) {
+      grouped.set(g.name, []);
+    }
+
+    const ungrouped: TaskItem[] = [];
+
+    for (const task of filteredTasks) {
+      if (task.group && task.group.length > 0) {
+        for (const gName of task.group) {
+          const list = grouped.get(gName);
+          if (list) {
+            list.push(task);
+          }
+        }
+      } else {
+        ungrouped.push(task);
+      }
+    }
+
+    return { groupedTasks: grouped, ungroupedTasks: ungrouped };
+  }, [hasGroups, sortedGroups, filteredTasks]);
+
+  /** 渲染一组任务按钮网格 */
+  const renderTaskGrid = (tasks: TaskItem[]) => {
+    if (tasks.length === 0) return null;
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        {tasks.map((task) => {
+          const count = taskCounts[task.name] || 0;
+          const label = resolveI18nText(task.label, langKey) || task.name;
+          const isNew = newTaskNames.includes(task.name);
+          const { isIncompatible, reason, supportedControllerHint } = getTaskCompatibility(task);
+
+          return (
+            <TaskButton
+              key={task.name}
+              task={task}
+              count={count}
+              isNew={isNew}
+              label={label}
+              langKey={langKey}
+              basePath={basePath}
+              disabled={isIncompatible}
+              incompatibleReason={reason}
+              supportedControllerHint={supportedControllerHint}
+              onClick={() => handleAddTask(task.name)}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
+  /** 渲染可折叠区块标题 */
+  const renderSectionHeader = (key: string, label: string, count?: number) => {
+    const expanded = groupExpanded[key] !== false;
+    return (
+      <button
+        onClick={() => toggleGroup(key)}
+        className="flex items-center gap-1.5 w-full py-1 text-left group"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-text-muted group-hover:text-text-secondary transition-colors" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-text-muted group-hover:text-text-secondary transition-colors" />
+        )}
+        <span className="text-xs font-medium text-text-secondary group-hover:text-text-primary transition-colors">
+          {label}
+        </span>
+        {count !== undefined && <span className="text-[10px] text-text-muted">({count})</span>}
+        <div className="flex-1 h-px bg-border/30 ml-2" />
+      </button>
+    );
+  };
+
+  /** 渲染分组区块（带可折叠标题） */
+  const renderGroupSection = (group: GroupItem, tasks: TaskItem[]) => {
+    if (tasks.length === 0) return null;
+    const groupLabel = resolveI18nText(group.label, langKey) || group.name;
+
+    return (
+      <div key={group.name}>
+        {renderSectionHeader(group.name, groupLabel, tasks.length)}
+        {groupExpanded[group.name] !== false && <div className="mt-1">{renderTaskGrid(tasks)}</div>}
+      </div>
+    );
+  };
+
   if (!projectInterface) {
     return null;
   }
@@ -400,81 +528,70 @@ export function AddTaskPanel() {
           </div>
         ) : (
           <div className="p-2 space-y-2">
-            {/* 普通任务网格 */}
-            {filteredTasks.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {filteredTasks.map((task) => {
-                  const count = taskCounts[task.name] || 0;
-                  const label = resolveI18nText(task.label, langKey) || task.name;
-                  const isNew = newTaskNames.includes(task.name);
-                  const { isIncompatible, reason, supportedControllerHint } =
-                    getTaskCompatibility(task);
-
-                  return (
-                    <TaskButton
-                      key={task.name}
-                      task={task}
-                      count={count}
-                      isNew={isNew}
-                      label={label}
-                      langKey={langKey}
-                      basePath={basePath}
-                      disabled={isIncompatible}
-                      incompatibleReason={reason}
-                      supportedControllerHint={supportedControllerHint}
-                      onClick={() => handleAddTask(task.name)}
-                    />
-                  );
+            {/* 普通任务 */}
+            {hasGroups ? (
+              <>
+                {/* 按分组渲染任务 */}
+                {sortedGroups.map((group) => {
+                  const tasks = groupedTasks.get(group.name) || [];
+                  return renderGroupSection(group, tasks);
                 })}
-              </div>
+                {/* 未分组的任务 */}
+                {ungroupedTasks.length > 0 && (
+                  <div>
+                    {renderSectionHeader('__ungrouped__', t('addTaskPanel.ungroupedTasks'), ungroupedTasks.length)}
+                    {groupExpanded['__ungrouped__'] !== false && (
+                      <div className="mt-1">{renderTaskGrid(ungroupedTasks)}</div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              /* 无分组：保持原有平铺网格 */
+              filteredTasks.length > 0 && renderTaskGrid(filteredTasks)
             )}
 
             {instance && (
-              <>
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="flex-1 h-px bg-border/50" />
-                  <span className="text-[10px] text-text-muted/60 uppercase tracking-wider">
-                    {t('addTaskPanel.specialTasks')}
-                  </span>
-                  <div className="flex-1 h-px bg-border/50" />
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                  {/* 前置任务按钮：仅在未添加时显示 */}
-                  {!instance.preAction && (
-                    <button
-                      onClick={() => {
-                        setInstancePreAction(instance.id, defaultAction);
-                        setShowAddTaskPanel(false);
-                      }}
-                      disabled={instance.isRunning}
-                      className={clsx(
-                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                        'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
-                        instance.isRunning && 'opacity-50 cursor-not-allowed',
-                      )}
-                    >
-                      <Play className="w-3.5 h-3.5 text-success/80" />
-                      <span>{t('action.preAction')}</span>
-                    </button>
-                  )}
-                  {/* 动态渲染所有注册的特殊任务按钮 */}
-                  {specialTasks.map((specialTask) => {
-                    return (
+              <div>
+                {renderSectionHeader('__special__', t('addTaskPanel.specialTasks'))}
+                {groupExpanded['__special__'] !== false && (
+                  <div className="mt-1 flex gap-2 flex-wrap">
+                    {/* 前置任务按钮：仅在未添加时显示 */}
+                    {!instance.preAction && (
                       <button
-                        key={specialTask.taskName}
-                        onClick={() => handleAddSpecialTask(specialTask)}
+                        onClick={() => {
+                          setInstancePreAction(instance.id, defaultAction);
+                          setShowAddTaskPanel(false);
+                        }}
+                        disabled={instance.isRunning}
                         className={clsx(
                           'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
                           'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                          instance.isRunning && 'opacity-50 cursor-not-allowed',
                         )}
                       >
-                        <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
+                        <Play className="w-3.5 h-3.5 text-success/80" />
+                        <span>{t('action.preAction')}</span>
                       </button>
-                    );
-                  })}
-                </div>
-              </>
+                    )}
+                    {/* 动态渲染所有注册的特殊任务按钮 */}
+                    {specialTasks.map((specialTask) => {
+                      return (
+                        <button
+                          key={specialTask.taskName}
+                          onClick={() => handleAddSpecialTask(specialTask)}
+                          className={clsx(
+                            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                            'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                          )}
+                        >
+                          <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* 无搜索结果提示 */}

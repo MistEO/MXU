@@ -460,6 +460,7 @@ export default {
     collapse: '패널 접기',
     specialTasks: '특수 작업',
     allSpecialTasksAdded: '모두 추가됨',
+    ungroupedTasks: '기타',
   },
 
   // 정보

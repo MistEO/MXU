@@ -452,6 +452,7 @@ export default {
     specialTasks: '特殊任務',
     allSpecialTasksAdded: '已全部新增',
     collapse: '收起面板',
+    ungroupedTasks: '其他',
   },
 
   // 關於

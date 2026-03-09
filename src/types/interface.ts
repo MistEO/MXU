@@ -18,6 +18,8 @@ export interface ProjectInterface {
   agent?: AgentConfig | AgentConfig[];
   controller: ControllerItem[];
   resource: ResourceItem[];
+  /** v2.4.0: 任务分组声明 */
+  group?: GroupItem[];
   task: TaskItem[];
   option?: Record<string, OptionDefinition>;
   /** v2.3.0: 全局选项配置，参与到所有任务的 pipeline override 中 */
@@ -26,6 +28,16 @@ export interface ProjectInterface {
   import?: string[];
   /** v2.3.0: 预设配置 */
   preset?: PresetItem[];
+}
+
+/** v2.4.0: 任务分组声明 */
+export interface GroupItem {
+  name: string;
+  label?: string;
+  description?: string;
+  icon?: string;
+  order?: number;
+  default_expand?: boolean;
 }
 
 export interface AgentConfig {
@@ -105,6 +117,8 @@ export interface TaskItem {
   default_check?: boolean;
   description?: string;
   icon?: string;
+  /** v2.4.0: 任务所属分组列表 */
+  group?: string[];
   resource?: string[];
   controller?: string[];
   pipeline_override?: Record<string, unknown>;

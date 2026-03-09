@@ -1072,7 +1072,13 @@ export const useAppStore = create<AppState>()(
         sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: config.settings.rightPanelWidth ?? 320,
         rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
-        addTaskPanelHeight: config.settings.addTaskPanelHeight ?? 192,
+        addTaskPanelHeight: (() => {
+          const value = config.settings.addTaskPanelHeight;
+          if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return 192;
+          }
+          return Math.max(100, Math.min(600, value));
+        })(),
         connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
         screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
         screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,

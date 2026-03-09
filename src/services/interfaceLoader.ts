@@ -231,10 +231,29 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
     log.info(`合并了 ${imported.preset.length} 个导入的 preset`);
   }
 
-  // v2.4.0: 合并 group 数组（追加到末尾）
+  // v2.4.0: 合并 group 数组（按 name 去重，保持先定义优先）
   if (imported.group && imported.group.length > 0) {
-    pi.group = [...(pi.group || []), ...imported.group];
-    log.info(`合并了 ${imported.group.length} 个导入的 group`);
+    const existingGroups = pi.group || [];
+    const seenNames = new Set(existingGroups.map((g) => g.name));
+    const dedupedImported: GroupItem[] = [];
+    let skippedDuplicates = 0;
+
+    for (const group of imported.group) {
+      if (seenNames.has(group.name)) {
+        skippedDuplicates += 1;
+        continue;
+      }
+      seenNames.add(group.name);
+      dedupedImported.push(group);
+    }
+
+    if (dedupedImported.length > 0) {
+      pi.group = [...existingGroups, ...dedupedImported];
+      log.info(`合并了 ${dedupedImported.length} 个导入的 group`);
+    }
+    if (skippedDuplicates > 0) {
+      log.warn(`忽略了 ${skippedDuplicates} 个重名 group`);
+    }
   }
 }
 

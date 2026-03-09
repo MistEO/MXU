@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Search,
@@ -382,9 +383,9 @@ export function AddTaskPanel() {
     return [...groups].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
   }, [groups]);
 
-  // 分组展开/折叠状态（key: group name / '__ungrouped__' / '__special__', value: 是否展开）
+  // 分组展开/折叠状态（key: group name, value: 是否展开）
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = { __ungrouped__: true, __special__: true };
+    const initial: Record<string, boolean> = {};
     if (groups) {
       for (const g of groups) {
         initial[g.name] = g.default_expand !== false;
@@ -392,6 +393,20 @@ export function AddTaskPanel() {
     }
     return initial;
   });
+  const [ungroupedExpanded, setUngroupedExpanded] = useState(true);
+  const [specialExpanded, setSpecialExpanded] = useState(true);
+
+  // 当分组定义变化时，移除已失效 key，并为新分组注入 default_expand 默认值
+  useEffect(() => {
+    setGroupExpanded((prev) => {
+      if (!groups || groups.length === 0) return {};
+      const next: Record<string, boolean> = {};
+      for (const g of groups) {
+        next[g.name] = prev[g.name] ?? g.default_expand !== false;
+      }
+      return next;
+    });
+  }, [groups]);
 
   const toggleGroup = useCallback((groupName: string) => {
     setGroupExpanded((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
@@ -410,11 +425,16 @@ export function AddTaskPanel() {
 
     for (const task of filteredTasks) {
       if (task.group && task.group.length > 0) {
+        let assignedToKnownGroup = false;
         for (const gName of task.group) {
           const list = grouped.get(gName);
           if (list) {
             list.push(task);
+            assignedToKnownGroup = true;
           }
+        }
+        if (!assignedToKnownGroup) {
+          ungrouped.push(task);
         }
       } else {
         ungrouped.push(task);
@@ -456,11 +476,15 @@ export function AddTaskPanel() {
   };
 
   /** 渲染可折叠区块标题 */
-  const renderSectionHeader = (key: string, label: string, count?: number) => {
-    const expanded = groupExpanded[key] !== false;
+  const renderSectionHeader = (
+    label: string,
+    expanded: boolean,
+    onToggle: () => void,
+    count?: number,
+  ) => {
     return (
       <button
-        onClick={() => toggleGroup(key)}
+        onClick={onToggle}
         className="flex items-center gap-1.5 w-full py-1 text-left group"
       >
         {expanded ? (
@@ -481,11 +505,12 @@ export function AddTaskPanel() {
   const renderGroupSection = (group: GroupItem, tasks: TaskItem[]) => {
     if (tasks.length === 0) return null;
     const groupLabel = resolveI18nText(group.label, langKey) || group.name;
+    const expanded = groupExpanded[group.name] !== false;
 
     return (
       <div key={group.name}>
-        {renderSectionHeader(group.name, groupLabel, tasks.length)}
-        {groupExpanded[group.name] !== false && <div className="mt-1">{renderTaskGrid(tasks)}</div>}
+        {renderSectionHeader(groupLabel, expanded, () => toggleGroup(group.name), tasks.length)}
+        {expanded && <div className="mt-1">{renderTaskGrid(tasks)}</div>}
       </div>
     );
   };
@@ -493,10 +518,33 @@ export function AddTaskPanel() {
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
+  const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
+  const mouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
+
+  const cleanupResizeListeners = useCallback(() => {
+    if (mouseMoveHandlerRef.current) {
+      document.removeEventListener('mousemove', mouseMoveHandlerRef.current);
+      mouseMoveHandlerRef.current = null;
+    }
+    if (mouseUpHandlerRef.current) {
+      document.removeEventListener('mouseup', mouseUpHandlerRef.current);
+      mouseUpHandlerRef.current = null;
+    }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isDraggingRef.current = false;
+      cleanupResizeListeners();
+    };
+  }, [cleanupResizeListeners]);
 
   const handleResizeStart = useCallback(
-    (e: React.MouseEvent) => {
+    (e: ReactMouseEvent<HTMLDivElement>) => {
       e.preventDefault();
+      cleanupResizeListeners();
       isDraggingRef.current = true;
       startYRef.current = e.clientY;
       startHeightRef.current = addTaskPanelHeight;
@@ -507,20 +555,19 @@ export function AddTaskPanel() {
         setAddTaskPanelHeight(startHeightRef.current + delta);
       };
 
-      const handleMouseUp = () => {
+      const handleMouseUp = (_e: MouseEvent) => {
         isDraggingRef.current = false;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+        cleanupResizeListeners();
       };
 
+      mouseMoveHandlerRef.current = handleMouseMove;
+      mouseUpHandlerRef.current = handleMouseUp;
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'ns-resize';
       document.body.style.userSelect = 'none';
     },
-    [addTaskPanelHeight, setAddTaskPanelHeight],
+    [addTaskPanelHeight, cleanupResizeListeners, setAddTaskPanelHeight],
   );
 
   if (!projectInterface) {
@@ -583,8 +630,13 @@ export function AddTaskPanel() {
                 {/* 未分组的任务 */}
                 {ungroupedTasks.length > 0 && (
                   <div>
-                    {renderSectionHeader('__ungrouped__', t('addTaskPanel.ungroupedTasks'), ungroupedTasks.length)}
-                    {groupExpanded['__ungrouped__'] !== false && (
+                    {renderSectionHeader(
+                      t('addTaskPanel.ungroupedTasks'),
+                      ungroupedExpanded,
+                      () => setUngroupedExpanded((prev) => !prev),
+                      ungroupedTasks.length,
+                    )}
+                    {ungroupedExpanded && (
                       <div className="mt-1">{renderTaskGrid(ungroupedTasks)}</div>
                     )}
                   </div>
@@ -597,8 +649,12 @@ export function AddTaskPanel() {
 
             {instance && (
               <div>
-                {renderSectionHeader('__special__', t('addTaskPanel.specialTasks'))}
-                {groupExpanded['__special__'] !== false && (
+                {renderSectionHeader(
+                  t('addTaskPanel.specialTasks'),
+                  specialExpanded,
+                  () => setSpecialExpanded((prev) => !prev),
+                )}
+                {specialExpanded && (
                   <div className="mt-1 flex gap-2 flex-wrap">
                     {/* 前置任务按钮：仅在未添加时显示 */}
                     {!instance.preAction && (

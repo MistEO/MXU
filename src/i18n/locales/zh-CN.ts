@@ -489,7 +489,7 @@ export default {
     openConfigDir: '打开配置目录',
     openLogDir: '打开日志目录',
     exportLogs: '导出日志',
-    exportLogsHint: '打包所有日志文件为 zip 压缩包',
+    exportLogsHint: '打包日志和 config，并按压缩包 24.5 MB 上限自动保留最近调试图片',
     exportingLogs: '正在导出日志...',
     logsExported: '日志已导出',
     exportLogsFailed: '导出日志失败',

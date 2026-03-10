@@ -497,7 +497,8 @@ export default {
     openConfigDir: '설정 폴더 열기',
     openLogDir: '로그 폴더 열기',
     exportLogs: '로그 내보내기',
-    exportLogsHint: '모든 로그 파일을 zip 아카이브로 압축',
+    exportLogsHint:
+      '로그와 config를 zip으로 묶고, 약 24.5 MB까지 최신 디버그 이미지를 자동으로 유지',
     exportingLogs: '로그 내보내는 중...',
     logsExported: '로그를 내보냈습니다',
     exportLogsFailed: '로그 내보내기 실패',

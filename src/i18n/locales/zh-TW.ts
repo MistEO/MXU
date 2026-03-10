@@ -489,7 +489,7 @@ export default {
     openConfigDir: '開啟設定目錄',
     openLogDir: '開啟日誌目錄',
     exportLogs: '匯出日誌',
-    exportLogsHint: '打包所有日誌檔案為 zip 壓縮包',
+    exportLogsHint: '打包日誌與 config，並依 24.5 MB 上限自動保留最近的除錯圖片',
     exportingLogs: '正在匯出日誌...',
     logsExported: '日誌已匯出',
     exportLogsFailed: '匯出日誌失敗',

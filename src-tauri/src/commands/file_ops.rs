@@ -3,9 +3,144 @@
 //! 提供本地文件读取和路径检查功能
 
 use log::debug;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
+
+const MAX_EXPORT_ARCHIVE_BYTES: u64 = 24_500_000;
+
+#[derive(Clone)]
+struct ExportEntry {
+    source_path: PathBuf,
+    archive_name: String,
+}
+
+fn add_file_to_zip<W>(
+    zip: &mut zip::ZipWriter<W>,
+    path: &Path,
+    archive_name: &str,
+    options: zip::write::SimpleFileOptions,
+) -> bool
+where
+    W: std::io::Write + std::io::Seek,
+{
+    use std::fs::File;
+    use std::io::{Read, Write};
+
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            log::warn!("无法打开文件 {:?}: {}", path, e);
+            return false;
+        }
+    };
+
+    let mut content = Vec::new();
+    if let Err(e) = file.read_to_end(&mut content) {
+        log::warn!("读取文件失败 {:?}: {}", path, e);
+        return false;
+    }
+
+    if let Err(e) = zip.start_file(archive_name, options) {
+        log::warn!("创建 zip 条目失败 {}: {}", archive_name, e);
+        return false;
+    }
+
+    if let Err(e) = zip.write_all(&content) {
+        log::warn!("写入 zip 失败 {}: {}", archive_name, e);
+        return false;
+    }
+
+    true
+}
+
+fn add_entries_to_zip<W>(
+    zip: &mut zip::ZipWriter<W>,
+    entries: &[ExportEntry],
+    options: zip::write::SimpleFileOptions,
+) where
+    W: std::io::Write + std::io::Seek,
+{
+    for entry in entries {
+        add_file_to_zip(zip, &entry.source_path, &entry.archive_name, options);
+    }
+}
+
+fn estimate_archive_size(
+    entries: &[ExportEntry],
+    options: zip::write::SimpleFileOptions,
+) -> Result<u64, String> {
+    let cursor = std::io::Cursor::new(Vec::<u8>::new());
+    let mut zip = zip::ZipWriter::new(cursor);
+    add_entries_to_zip(&mut zip, entries, options);
+    let cursor = zip
+        .finish()
+        .map_err(|e| format!("估算压缩包大小失败: {}", e))?;
+    Ok(cursor.into_inner().len() as u64)
+}
+
+fn normalize_archive_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<ExportEntry>, String> {
+    if !dir.exists() || !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut files = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+
+    while let Some(current_dir) = stack.pop() {
+        let entries = std::fs::read_dir(&current_dir)
+            .map_err(|e| format!("读取目录失败 [{}]: {}", current_dir.display(), e))?;
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if !path.is_file() {
+                continue;
+            }
+
+            let relative_path = match path.strip_prefix(dir) {
+                Ok(rel) => rel,
+                Err(_) => continue,
+            };
+            let archive_name = if archive_prefix.is_empty() {
+                normalize_archive_path(relative_path)
+            } else {
+                format!(
+                    "{}/{}",
+                    archive_prefix.trim_end_matches('/'),
+                    normalize_archive_path(relative_path)
+                )
+            };
+
+            files.push(ExportEntry {
+                source_path: path,
+                archive_name,
+            });
+        }
+    }
+
+    files.sort_by(|a, b| a.archive_name.cmp(&b.archive_name));
+    Ok(files)
+}
+
+fn is_image_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    path.extension()
+        .map(|ext| {
+            let ext_lower = ext.to_string_lossy().to_lowercase();
+            ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg"
+        })
+        .unwrap_or(false)
+}
 
 fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
     let exe_dir = get_exe_directory()?;
@@ -173,7 +308,6 @@ pub fn export_logs(
     project_version: Option<String>,
 ) -> Result<String, String> {
     use std::fs::File;
-    use std::io::{Read, Write};
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
 
@@ -197,56 +331,9 @@ pub fn export_logs(
     };
     let zip_path = debug_dir.join(&filename);
 
-    let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;
-    let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-    // 辅助函数：将文件添加到 zip
-    fn add_file_to_zip(
-        zip: &mut ZipWriter<File>,
-        path: &std::path::Path,
-        archive_name: &str,
-        options: SimpleFileOptions,
-    ) -> bool {
-        let mut file = match File::open(path) {
-            Ok(f) => f,
-            Err(e) => {
-                log::warn!("无法打开文件 {:?}: {}", path, e);
-                return false;
-            }
-        };
-
-        let mut content = Vec::new();
-        if let Err(e) = file.read_to_end(&mut content) {
-            log::warn!("读取文件失败 {:?}: {}", path, e);
-            return false;
-        }
-
-        if let Err(e) = zip.start_file(archive_name, options) {
-            log::warn!("创建 zip 条目失败 {}: {}", archive_name, e);
-            return false;
-        }
-
-        if let Err(e) = zip.write_all(&content) {
-            log::warn!("写入 zip 失败 {}: {}", archive_name, e);
-            return false;
-        }
-
-        true
-    }
-
-    // 辅助函数：检查是否为图片文件
-    fn is_image_file(path: &std::path::Path) -> bool {
-        if !path.is_file() {
-            return false;
-        }
-        path.extension()
-            .map(|ext| {
-                let ext_lower = ext.to_string_lossy().to_lowercase();
-                ext_lower == "png" || ext_lower == "jpg" || ext_lower == "jpeg"
-            })
-            .unwrap_or(false)
-    }
+    let empty_archive_size = estimate_archive_size(&[], options)?;
+    let mut regular_entries = Vec::new();
 
     // 遍历 debug 目录下的所有 .log 文件
     let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
@@ -264,39 +351,93 @@ pub fn export_logs(
         let Some(name) = path.file_name() else {
             continue;
         };
+        let archive_name = name.to_string_lossy().to_string();
 
-        let name_str = name.to_string_lossy();
-        add_file_to_zip(&mut zip, &path, &name_str, options);
+        regular_entries.push(ExportEntry {
+            source_path: path,
+            archive_name,
+        });
     }
 
-    // 处理 on_error 文件夹（只包含前50张图片）
+    regular_entries.sort_by(|a, b| a.archive_name.cmp(&b.archive_name));
+
+    let config_dir = data_dir.join("config");
+    regular_entries.extend(collect_files_recursively(&config_dir, "config")?);
+
+    let mut selected_images = Vec::new();
+    let mut estimated_archive_size = estimate_archive_size(&regular_entries, options)?;
+
+    if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
+        log::warn!(
+            "日志与配置压缩后预计已有 {} bytes，已超过 {} bytes 的导出目标，on_error 图片将全部跳过",
+            estimated_archive_size,
+            MAX_EXPORT_ARCHIVE_BYTES
+        );
+    }
+
+    // 处理 on_error 文件夹，按最新优先，直到压缩包接近 24.5 MB
     let on_error_dir = debug_dir.join("on_error");
     if on_error_dir.exists() && on_error_dir.is_dir() {
         if let Ok(rd) = std::fs::read_dir(&on_error_dir) {
             let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
 
-            // 按修改时间排序（最新的在前）
             images.sort_by(|a, b| {
                 let time_a = a.metadata().and_then(|m| m.modified()).ok();
                 let time_b = b.metadata().and_then(|m| m.modified()).ok();
                 time_b.cmp(&time_a)
             });
 
-            // 只取前50张
-            for entry in images.into_iter().take(50) {
+            for entry in images {
                 let path = entry.path();
                 let Some(name) = path.file_name() else {
                     continue;
                 };
                 let archive_name = format!("on_error/{}", name.to_string_lossy());
-                add_file_to_zip(&mut zip, &path, &archive_name, options);
+
+                if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
+                    break;
+                }
+
+                let image_entry = ExportEntry {
+                    source_path: path,
+                    archive_name,
+                };
+                let estimated_delta =
+                    estimate_archive_size(std::slice::from_ref(&image_entry), options)?
+                        .saturating_sub(empty_archive_size);
+
+                if estimated_archive_size + estimated_delta > MAX_EXPORT_ARCHIVE_BYTES {
+                    log::info!(
+                        "on_error 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
+                        estimated_archive_size,
+                        estimated_archive_size + estimated_delta,
+                        MAX_EXPORT_ARCHIVE_BYTES
+                    );
+                    break;
+                }
+
+                estimated_archive_size += estimated_delta;
+                selected_images.push(image_entry);
             }
         } else {
             log::warn!("无法读取 on_error 目录");
         }
     }
 
+    let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;
+    let mut zip = ZipWriter::new(file);
+    add_entries_to_zip(&mut zip, &regular_entries, options);
+    add_entries_to_zip(&mut zip, &selected_images, options);
     zip.finish().map_err(|e| format!("完成压缩失败: {}", e))?;
+
+    if let Ok(metadata) = std::fs::metadata(&zip_path) {
+        log::info!(
+            "日志导出完成：{} 个常规文件，{} 张调试图片，压缩包大小 {} bytes",
+            regular_entries.len(),
+            selected_images.len(),
+            metadata.len()
+        );
+    }
 
     Ok(zip_path.to_string_lossy().to_string())
 }

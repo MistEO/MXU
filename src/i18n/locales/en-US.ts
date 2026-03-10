@@ -498,7 +498,8 @@ export default {
     openConfigDir: 'Open Config Dir',
     openLogDir: 'Open Log Dir',
     exportLogs: 'Export Logs',
-    exportLogsHint: 'Pack all log files into a zip archive',
+    exportLogsHint:
+      'Pack logs and config into a zip archive, keeping newest debug images until it reaches about 24.5 MB',
     exportingLogs: 'Exporting logs...',
     logsExported: 'Logs exported',
     exportLogsFailed: 'Failed to export logs',

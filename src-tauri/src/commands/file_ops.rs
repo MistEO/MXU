@@ -3,16 +3,126 @@
 //! 提供本地文件读取和路径检查功能
 
 use log::debug;
+use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
 
 const MAX_EXPORT_ARCHIVE_BYTES: u64 = 24_500_000;
+const ZIP_ENTRY_OVERHEAD_BYTES: u64 = 128;
+const ZIP_END_OF_CENTRAL_DIRECTORY_BYTES: u64 = 22;
 
 #[derive(Clone)]
 struct ExportEntry {
     source_path: PathBuf,
     archive_name: String,
+}
+
+#[derive(Default)]
+struct CountingWriterState {
+    position: u64,
+    len: u64,
+}
+
+#[derive(Clone)]
+struct CountingWriter {
+    state: Arc<Mutex<CountingWriterState>>,
+}
+
+impl CountingWriter {
+    fn new(state: Arc<Mutex<CountingWriterState>>) -> Self {
+        Self { state }
+    }
+
+    fn len(&self) -> u64 {
+        self.state.lock().map(|state| state.len).unwrap_or(0)
+    }
+}
+
+impl Write for CountingWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("counting writer lock poisoned"))?;
+        let written = buf.len() as u64;
+        state.position = state.position.saturating_add(written);
+        state.len = state.len.max(state.position);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Seek for CountingWriter {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("counting writer lock poisoned"))?;
+        let next = match pos {
+            SeekFrom::Start(offset) => offset as i128,
+            SeekFrom::Current(offset) => state.position as i128 + offset as i128,
+            SeekFrom::End(offset) => state.len as i128 + offset as i128,
+        };
+
+        if next < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid seek to a negative position",
+            ));
+        }
+
+        state.position = next as u64;
+        state.len = state.len.max(state.position);
+        Ok(state.position)
+    }
+}
+
+struct ArchiveMeasurer {
+    zip: zip::ZipWriter<CountingWriter>,
+    writer: CountingWriter,
+    central_directory_bytes: u64,
+}
+
+impl ArchiveMeasurer {
+    fn new() -> Self {
+        let state = Arc::new(Mutex::new(CountingWriterState::default()));
+        let writer = CountingWriter::new(state);
+        Self {
+            zip: zip::ZipWriter::new(writer.clone()),
+            writer,
+            central_directory_bytes: 0,
+        }
+    }
+
+    fn try_add_entry(
+        &mut self,
+        entry: &ExportEntry,
+        options: zip::write::SimpleFileOptions,
+    ) -> bool {
+        if !add_file_to_zip(
+            &mut self.zip,
+            &entry.source_path,
+            &entry.archive_name,
+            options,
+        ) {
+            return false;
+        }
+
+        let filename_bytes = entry.archive_name.as_bytes().len() as u64;
+        self.central_directory_bytes = self
+            .central_directory_bytes
+            .saturating_add(46 + filename_bytes);
+        true
+    }
+
+    fn projected_size(&self) -> u64 {
+        self.writer.len() + self.central_directory_bytes + ZIP_END_OF_CENTRAL_DIRECTORY_BYTES
+    }
 }
 
 fn add_file_to_zip<W>(
@@ -22,10 +132,9 @@ fn add_file_to_zip<W>(
     options: zip::write::SimpleFileOptions,
 ) -> bool
 where
-    W: std::io::Write + std::io::Seek,
+    W: Write + Seek,
 {
     use std::fs::File;
-    use std::io::{Read, Write};
 
     let mut file = match File::open(path) {
         Ok(f) => f,
@@ -35,18 +144,12 @@ where
         }
     };
 
-    let mut content = Vec::new();
-    if let Err(e) = file.read_to_end(&mut content) {
-        log::warn!("读取文件失败 {:?}: {}", path, e);
-        return false;
-    }
-
     if let Err(e) = zip.start_file(archive_name, options) {
         log::warn!("创建 zip 条目失败 {}: {}", archive_name, e);
         return false;
     }
 
-    if let Err(e) = zip.write_all(&content) {
+    if let Err(e) = io::copy(&mut file, zip) {
         log::warn!("写入 zip 失败 {}: {}", archive_name, e);
         return false;
     }
@@ -59,24 +162,17 @@ fn add_entries_to_zip<W>(
     entries: &[ExportEntry],
     options: zip::write::SimpleFileOptions,
 ) where
-    W: std::io::Write + std::io::Seek,
+    W: Write + Seek,
 {
     for entry in entries {
         add_file_to_zip(zip, &entry.source_path, &entry.archive_name, options);
     }
 }
 
-fn estimate_archive_size(
-    entries: &[ExportEntry],
-    options: zip::write::SimpleFileOptions,
-) -> Result<u64, String> {
-    let cursor = std::io::Cursor::new(Vec::<u8>::new());
-    let mut zip = zip::ZipWriter::new(cursor);
-    add_entries_to_zip(&mut zip, entries, options);
-    let cursor = zip
-        .finish()
-        .map_err(|e| format!("估算压缩包大小失败: {}", e))?;
-    Ok(cursor.into_inner().len() as u64)
+fn estimate_entry_upper_bound(entry: &ExportEntry) -> Option<u64> {
+    let file_size = entry.source_path.metadata().ok()?.len();
+    let name_len = entry.archive_name.as_bytes().len() as u64;
+    Some(file_size + ZIP_ENTRY_OVERHEAD_BYTES + name_len.saturating_mul(2))
 }
 
 fn normalize_archive_path(path: &Path) -> String {
@@ -332,7 +428,6 @@ pub fn export_logs(
     let zip_path = debug_dir.join(&filename);
 
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    let empty_archive_size = estimate_archive_size(&[], options)?;
     let mut regular_entries = Vec::new();
 
     // 遍历 debug 目录下的所有 .log 文件
@@ -365,7 +460,11 @@ pub fn export_logs(
     regular_entries.extend(collect_files_recursively(&config_dir, "config")?);
 
     let mut selected_images = Vec::new();
-    let mut estimated_archive_size = estimate_archive_size(&regular_entries, options)?;
+    let mut archive_measurer = ArchiveMeasurer::new();
+    for entry in &regular_entries {
+        archive_measurer.try_add_entry(entry, options);
+    }
+    let mut estimated_archive_size = archive_measurer.projected_size();
 
     if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
         log::warn!(
@@ -402,21 +501,27 @@ pub fn export_logs(
                     source_path: path,
                     archive_name,
                 };
-                let estimated_delta =
-                    estimate_archive_size(std::slice::from_ref(&image_entry), options)?
-                        .saturating_sub(empty_archive_size);
+                let Some(estimated_delta_upper_bound) = estimate_entry_upper_bound(&image_entry)
+                else {
+                    log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
+                    continue;
+                };
 
-                if estimated_archive_size + estimated_delta > MAX_EXPORT_ARCHIVE_BYTES {
+                if estimated_archive_size + estimated_delta_upper_bound > MAX_EXPORT_ARCHIVE_BYTES {
                     log::info!(
                         "on_error 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
                         estimated_archive_size,
-                        estimated_archive_size + estimated_delta,
+                        estimated_archive_size + estimated_delta_upper_bound,
                         MAX_EXPORT_ARCHIVE_BYTES
                     );
                     break;
                 }
 
-                estimated_archive_size += estimated_delta;
+                if !archive_measurer.try_add_entry(&image_entry, options) {
+                    continue;
+                }
+
+                estimated_archive_size = archive_measurer.projected_size();
                 selected_images.push(image_entry);
             }
         } else {

@@ -115,6 +115,27 @@ export async function getWindowSize(): Promise<{ width: number; height: number }
 }
 
 /**
+ * 显示窗口（配合 tauri.conf.json 中 visible: false 使用）
+ * 窗口初始隐藏，在主题应用和窗口定位完成后调用此函数显示
+ */
+let windowShown = false;
+export async function showWindow(): Promise<void> {
+  if (windowShown) return;
+  windowShown = true;
+
+  if (isTauri()) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const currentWindow = getCurrentWindow();
+      await currentWindow.show();
+      log.info('窗口已显示');
+    } catch (err) {
+      log.warn('显示窗口失败:', err);
+    }
+  }
+}
+
+/**
  * 将窗口带到前台并获取焦点
  * 用于更新重启后确保窗口在前台显示
  */

@@ -46,6 +46,7 @@ import {
   getWindowSize,
   getWindowPosition,
   focusWindow,
+  showWindow,
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { LoadingScreen } from './components/app';
@@ -526,6 +527,9 @@ function App() {
         }
       }
 
+      // 主题已应用、窗口已定位，显示窗口
+      showWindow();
+
       // 从后端恢复 MAA 运行时状态（连接状态、资源加载状态、设备缓存等）
       try {
         const backendStates = await maaService.getAllStates();
@@ -751,6 +755,8 @@ function App() {
       log.error('加载 interface.json 失败:', err);
       setErrorMessage(err instanceof Error ? err.message : '加载失败');
       setLoadingState('error');
+      // 加载失败也要显示窗口（展示错误界面）
+      showWindow();
     }
   };
 
@@ -773,7 +779,8 @@ function App() {
             log.warn('检测到程序路径问题:', pathIssue);
             setBadPathType(pathIssue as BadPathType);
             setShowBadPathModal(true);
-            // 路径有问题就不继续加载了
+            // 路径有问题就不继续加载了，但仍需显示窗口
+            showWindow();
             return;
           }
         } catch (err) {

@@ -121,17 +121,19 @@ export async function getWindowSize(): Promise<{ width: number; height: number }
 let windowShown = false;
 export async function showWindow(): Promise<void> {
   if (windowShown) return;
-  windowShown = true;
 
   if (isTauri()) {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const currentWindow = getCurrentWindow();
       await currentWindow.show();
+      windowShown = true;
       log.info('窗口已显示');
     } catch (err) {
       log.warn('显示窗口失败:', err);
     }
+  } else {
+    windowShown = true;
   }
 }
 

@@ -492,8 +492,16 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     disabled: !canReorder,
   });
 
-  // 禁止 X 方向位移，仅允许垂直拖动
-  const constrainedTransform = transform ? { ...transform, x: 0 } : null;
+  // 禁止 X 方向位移，仅允许垂直拖动；同时忽略 dnd-kit 的缩放分量，
+  // 避免拖拽中的半透明项在高度变化时把文本一起纵向拉伸。
+  const constrainedTransform = transform
+    ? {
+        ...transform,
+        x: 0,
+        scaleX: 1,
+        scaleY: 1,
+      }
+    : null;
 
   const style = {
     transform: CSS.Transform.toString(constrainedTransform),

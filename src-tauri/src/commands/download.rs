@@ -4,6 +4,7 @@
 
 use log::{error, info, warn};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 
 use tauri::Emitter;
 
@@ -121,7 +122,8 @@ pub async fn download_file(
     proxy_url: Option<String>,
 ) -> Result<DownloadResult, String> {
     use futures_util::StreamExt;
-    use std::io::Write;
+    use tokio::io::AsyncWriteExt;
+    use tokio::time::{sleep, Duration};
 
     info!("download_file: {} -> {}", url, save_path);
 
@@ -206,17 +208,68 @@ pub async fn download_file(
     let content_length = response.content_length();
     let total = total_size.or(content_length).unwrap_or(0);
 
-    // 创建临时文件
-    let mut file = std::fs::File::create(&temp_path).map_err(|e| format!("无法创建文件: {}", e))?;
+    // 创建临时文件（使用异步文件写入，避免阻塞 Tokio 事件循环）
+    let mut file = tokio::fs::File::create(&temp_path)
+        .await
+        .map_err(|e| format!("无法创建文件: {}", e))?;
+
+    // 共享下载字节计数，用于独立的进度上报任务
+    let downloaded_shared = Arc::new(AtomicU64::new(0));
+    let downloaded_for_emitter = downloaded_shared.clone();
+
+    // 启动独立任务定期上报进度，避免在下载循环中因 emit 阻塞导致“卡卡停停”
+    let app_for_emitter = app.clone();
+    let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        let mut last_downloaded = 0u64;
+        let mut last_instant = std::time::Instant::now();
+        loop {
+            tokio::select! {
+                _ = &mut stop_rx => {
+                    break;
+                }
+                _ = sleep(Duration::from_millis(100)) => {
+                    let downloaded = downloaded_for_emitter.load(Ordering::SeqCst);
+                    let now = std::time::Instant::now();
+                    let elapsed = now.duration_since(last_instant);
+                    if elapsed.as_millis() == 0 {
+                        continue;
+                    }
+
+                    let bytes_in_interval = downloaded.saturating_sub(last_downloaded);
+                    let speed = if elapsed.as_secs_f64() > 0.0 {
+                        (bytes_in_interval as f64 / elapsed.as_secs_f64()) as u64
+                    } else {
+                        0
+                    };
+
+                    let progress = if total > 0 {
+                        (downloaded as f64 / total as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    let _ = app_for_emitter.emit(
+                        "download-progress",
+                        DownloadProgressEvent {
+                            session_id,
+                            downloaded_size: downloaded,
+                            total_size: total,
+                            speed,
+                            progress,
+                        },
+                    );
+
+                    last_downloaded = downloaded;
+                    last_instant = now;
+                }
+            }
+        }
+    });
 
     // 流式下载
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
-    let mut last_progress_time = std::time::Instant::now();
-    let mut last_downloaded: u64 = 0;
-
-    // 使用较大的缓冲区减少写入次数
-    let mut buffer = Vec::with_capacity(256 * 1024); // 256KB 缓冲
 
     while let Some(chunk) = stream.next().await {
         // 检查取消标志或 session 是否已过期
@@ -232,42 +285,12 @@ pub async fn download_file(
 
         let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
 
-        buffer.extend_from_slice(&chunk);
+        // 直接异步写入磁盘，避免同步写盘阻塞事件循环导致下载抖动
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("写入文件失败: {}", e))?;
         downloaded += chunk.len() as u64;
-
-        // 当缓冲区达到一定大小时写入磁盘
-        if buffer.len() >= 256 * 1024 {
-            file.write_all(&buffer)
-                .map_err(|e| format!("写入文件失败: {}", e))?;
-            buffer.clear();
-        }
-
-        // 每 100ms 发送一次进度更新
-        let now = std::time::Instant::now();
-        let elapsed = now.duration_since(last_progress_time);
-        if elapsed.as_millis() >= 100 {
-            let bytes_in_interval = downloaded - last_downloaded;
-            let speed = (bytes_in_interval as f64 / elapsed.as_secs_f64()) as u64;
-            let progress = if total > 0 {
-                (downloaded as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            let _ = app.emit(
-                "download-progress",
-                DownloadProgressEvent {
-                    session_id,
-                    downloaded_size: downloaded,
-                    total_size: total,
-                    speed,
-                    progress,
-                },
-            );
-
-            last_progress_time = now;
-            last_downloaded = downloaded;
-        }
+        downloaded_shared.store(downloaded, Ordering::SeqCst);
     }
 
     // 最后再检查一次取消标志
@@ -278,19 +301,18 @@ pub async fn download_file(
             "download_file cancelled before finalization (session {})",
             session_id
         );
+        // 尽量确保取消时释放句柄并清理临时文件
         drop(file);
         let _ = std::fs::remove_file(&temp_path);
         return Err("下载已取消".to_string());
     }
 
-    // 写入剩余缓冲区
-    if !buffer.is_empty() {
-        file.write_all(&buffer)
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-    }
+    // 通知进度上报任务结束
+    let _ = stop_tx.send(());
 
     // 确保数据写入磁盘
     file.sync_all()
+        .await
         .map_err(|e| format!("同步文件失败: {}", e))?;
     drop(file);
 

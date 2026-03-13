@@ -47,7 +47,14 @@ impl TempFileGuard {
 impl Drop for TempFileGuard {
     fn drop(&mut self) {
         if let Some(p) = self.path.take() {
-            let _ = std::fs::remove_file(&p);
+            // 优先在异步运行时的专用阻塞线程中删除，避免阻塞当前 async 线程。
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn_blocking(move || {
+                    let _ = std::fs::remove_file(&p);
+                });
+            } else {
+                let _ = std::fs::remove_file(&p);
+            }
         }
     }
 }
@@ -307,6 +314,9 @@ pub async fn download_file(
         }
     });
 
+    // 说明：downloaded_shared 仅用于进度上报的近实时采样，对 UI 来说允许“最终一致”，
+    // 因此这里使用 Relaxed 内存序即可，避免在热路径上引入不必要的全序栅栏。
+
     // 流式下载
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
@@ -373,8 +383,10 @@ pub async fn download_file(
         let _ = move_to_old_folder(actual_save_path_obj);
     }
 
-    // 重命名临时文件
-    std::fs::rename(&temp_path, &actual_save_path).map_err(|e| format!("重命名文件失败: {}", e))?;
+    // 重命名临时文件（使用异步版本避免阻塞 runtime 线程）
+    tokio::fs::rename(&temp_path, &actual_save_path)
+        .await
+        .map_err(|e| format!("重命名文件失败: {}", e))?;
     temp_guard.disarm();
 
     info!(

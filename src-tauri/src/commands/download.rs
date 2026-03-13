@@ -27,15 +27,28 @@ impl Drop for ProgressEmitterGuard {
     }
 }
 
-/// 临时文件清理守卫，在函数异常退出时自动删除 .downloading 半成品
+/// 临时文件清理守卫，在函数异常退出时自动删除 .downloading 半成品。
+/// 成功重命名后需调用 `disarm()`，避免 drop 时冗余的 `remove_file`。
 struct TempFileGuard {
-    path: PathBuf,
+    path: Option<PathBuf>,
+}
+
+impl TempFileGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path: Some(path) }
+    }
+
+    /// 成功重命名后调用，使 drop 时不再尝试删除（文件已移至目标路径）。
+    fn disarm(&mut self) {
+        self.path = None;
+    }
 }
 
 impl Drop for TempFileGuard {
     fn drop(&mut self) {
-        // 忽略删除失败的情况（文件可能已被重命名或手动删除）
-        let _ = std::fs::remove_file(&self.path);
+        if let Some(p) = self.path.take() {
+            let _ = std::fs::remove_file(&p);
+        }
     }
 }
 
@@ -227,9 +240,7 @@ pub async fn download_file(
 
     // 使用临时文件名下载
     let temp_path = format!("{}.downloading", actual_save_path);
-    let _temp_guard = TempFileGuard {
-        path: PathBuf::from(&temp_path),
-    };
+    let mut temp_guard = TempFileGuard::new(PathBuf::from(&temp_path));
 
     // 获取文件大小
     let content_length = response.content_length();
@@ -307,8 +318,6 @@ pub async fn download_file(
         {
             info!("download_file cancelled (session {})", session_id);
             drop(writer);
-            // 清理临时文件
-            let _ = std::fs::remove_file(&temp_path);
             return Err("下载已取消".to_string());
         }
 
@@ -331,9 +340,7 @@ pub async fn download_file(
             "download_file cancelled before finalization (session {})",
             session_id
         );
-        // 尽量确保取消时释放句柄并清理临时文件
         drop(writer);
-        let _ = std::fs::remove_file(&temp_path);
         return Err("下载已取消".to_string());
     }
 
@@ -368,6 +375,7 @@ pub async fn download_file(
 
     // 重命名临时文件
     std::fs::rename(&temp_path, &actual_save_path).map_err(|e| format!("重命名文件失败: {}", e))?;
+    temp_guard.disarm();
 
     info!(
         "download_file completed: {} bytes -> {} (session {})",

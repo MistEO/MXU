@@ -263,13 +263,13 @@ pub async fn download_file(
     let downloaded_shared = Arc::new(AtomicU64::new(0));
     let downloaded_for_emitter = downloaded_shared.clone();
 
-    // 启动独立任务定期上报进度，避免在下载循环中因 emit 阻塞导致“卡卡停停”
+    // 启动独立任务定期上报进度，避免在下载循环中因 emit 阻塞导致”卡卡停停”
     let app_for_emitter = app.clone();
     let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
-    let _progress_guard = ProgressEmitterGuard(Some(stop_tx));
+    let progress_guard = ProgressEmitterGuard(Some(stop_tx));
     tokio::spawn(async move {
         let mut last_downloaded = 0u64;
-        let mut last_instant = std::time::Instant::now();
+        let mut last_instant = tokio::time::Instant::now();
         loop {
             tokio::select! {
                 _ = &mut stop_rx => {
@@ -277,7 +277,7 @@ pub async fn download_file(
                 }
                 _ = sleep(Duration::from_millis(100)) => {
                     let downloaded = downloaded_for_emitter.load(Ordering::Relaxed);
-                    let now = std::time::Instant::now();
+                    let now = tokio::time::Instant::now();
                     let elapsed = now.duration_since(last_instant);
                     if elapsed.as_millis() == 0 {
                         continue;
@@ -393,6 +393,9 @@ pub async fn download_file(
         "download_file completed: {} bytes -> {} (session {})",
         downloaded, actual_save_path, session_id
     );
+
+    // 显式 drop progress_guard 以停止进度上报任务
+    drop(progress_guard);
 
     Ok(DownloadResult {
         session_id,

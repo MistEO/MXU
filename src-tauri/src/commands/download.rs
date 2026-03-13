@@ -3,6 +3,7 @@
 //! 提供流式文件下载功能，支持进度回调和取消
 
 use log::{error, info, warn};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -23,6 +24,18 @@ impl Drop for ProgressEmitterGuard {
         if let Some(tx) = self.0.take() {
             let _ = tx.send(());
         }
+    }
+}
+
+/// 临时文件清理守卫，在函数异常退出时自动删除 .downloading 半成品
+struct TempFileGuard {
+    path: PathBuf,
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        // 忽略删除失败的情况（文件可能已被重命名或手动删除）
+        let _ = std::fs::remove_file(&self.path);
     }
 }
 
@@ -214,6 +227,9 @@ pub async fn download_file(
 
     // 使用临时文件名下载
     let temp_path = format!("{}.downloading", actual_save_path);
+    let _temp_guard = TempFileGuard {
+        path: PathBuf::from(&temp_path),
+    };
 
     // 获取文件大小
     let content_length = response.content_length();

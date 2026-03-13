@@ -15,6 +15,17 @@ use super::types::{DownloadProgressEvent, DownloadResult};
 use super::update::move_to_old_folder;
 use super::utils::build_user_agent;
 
+/// 进度上报任务的守卫，在函数任意返回路径上都能确保发送停止信号
+struct ProgressEmitterGuard(Option<tokio::sync::oneshot::Sender<()>>);
+
+impl Drop for ProgressEmitterGuard {
+    fn drop(&mut self) {
+        if let Some(tx) = self.0.take() {
+            let _ = tx.send(());
+        }
+    }
+}
+
 /// 全局下载取消标志
 static DOWNLOAD_CANCELLED: AtomicBool = AtomicBool::new(false);
 /// 当前下载的 session ID，用于区分不同的下载任务
@@ -122,7 +133,7 @@ pub async fn download_file(
     proxy_url: Option<String>,
 ) -> Result<DownloadResult, String> {
     use futures_util::StreamExt;
-    use tokio::io::AsyncWriteExt;
+    use tokio::io::{AsyncWriteExt, BufWriter};
     use tokio::time::{sleep, Duration};
 
     info!("download_file: {} -> {}", url, save_path);
@@ -208,10 +219,11 @@ pub async fn download_file(
     let content_length = response.content_length();
     let total = total_size.or(content_length).unwrap_or(0);
 
-    // 创建临时文件（使用异步文件写入，避免阻塞 Tokio 事件循环）
-    let mut file = tokio::fs::File::create(&temp_path)
+    // 创建临时文件（使用带缓冲的异步写入，避免频繁小块 I/O 抖动）
+    let file = tokio::fs::File::create(&temp_path)
         .await
         .map_err(|e| format!("无法创建文件: {}", e))?;
+    let mut writer = BufWriter::with_capacity(256 * 1024, file);
 
     // 共享下载字节计数，用于独立的进度上报任务
     let downloaded_shared = Arc::new(AtomicU64::new(0));
@@ -220,6 +232,7 @@ pub async fn download_file(
     // 启动独立任务定期上报进度，避免在下载循环中因 emit 阻塞导致“卡卡停停”
     let app_for_emitter = app.clone();
     let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
+    let _progress_guard = ProgressEmitterGuard(Some(stop_tx));
     tokio::spawn(async move {
         let mut last_downloaded = 0u64;
         let mut last_instant = std::time::Instant::now();
@@ -229,7 +242,7 @@ pub async fn download_file(
                     break;
                 }
                 _ = sleep(Duration::from_millis(100)) => {
-                    let downloaded = downloaded_for_emitter.load(Ordering::SeqCst);
+                    let downloaded = downloaded_for_emitter.load(Ordering::Relaxed);
                     let now = std::time::Instant::now();
                     let elapsed = now.duration_since(last_instant);
                     if elapsed.as_millis() == 0 {
@@ -244,7 +257,7 @@ pub async fn download_file(
                     };
 
                     let progress = if total > 0 {
-                        (downloaded as f64 / total as f64) * 100.0
+                        ((downloaded as f64 / total as f64) * 100.0).min(100.0)
                     } else {
                         0.0
                     };
@@ -277,7 +290,7 @@ pub async fn download_file(
             || CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id
         {
             info!("download_file cancelled (session {})", session_id);
-            drop(file);
+            drop(writer);
             // 清理临时文件
             let _ = std::fs::remove_file(&temp_path);
             return Err("下载已取消".to_string());
@@ -285,12 +298,13 @@ pub async fn download_file(
 
         let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
 
-        // 直接异步写入磁盘，避免同步写盘阻塞事件循环导致下载抖动
-        file.write_all(&chunk)
+        // 使用带缓冲的异步写入，避免对每个小 chunk 直接落盘导致频繁 I/O 抖动
+        writer
+            .write_all(&chunk)
             .await
             .map_err(|e| format!("写入文件失败: {}", e))?;
         downloaded += chunk.len() as u64;
-        downloaded_shared.store(downloaded, Ordering::SeqCst);
+        downloaded_shared.store(downloaded, Ordering::Relaxed);
     }
 
     // 最后再检查一次取消标志
@@ -302,19 +316,22 @@ pub async fn download_file(
             session_id
         );
         // 尽量确保取消时释放句柄并清理临时文件
-        drop(file);
+        drop(writer);
         let _ = std::fs::remove_file(&temp_path);
         return Err("下载已取消".to_string());
     }
 
-    // 通知进度上报任务结束
-    let _ = stop_tx.send(());
+    // 刷新缓冲区并确保数据写入磁盘
+    writer
+        .flush()
+        .await
+        .map_err(|e| format!("刷新写入缓冲区失败: {}", e))?;
 
-    // 确保数据写入磁盘
-    file.sync_all()
+    writer
+        .get_ref()
+        .sync_all()
         .await
         .map_err(|e| format!("同步文件失败: {}", e))?;
-    drop(file);
 
     // 发送最终进度
     let _ = app.emit(

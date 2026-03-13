@@ -88,8 +88,10 @@ function PresetCard({ preset, onApply }: { preset: PresetItem; onApply: () => vo
 
 /** 预设选择器 - 任务列表为空时显示 */
 function PresetSelector({ instanceId }: { instanceId: string }) {
-  const { projectInterface, applyPreset, skipPreset } = useAppStore();
+  const { projectInterface, applyPreset, skipPreset, renameInstance, resolveI18nText, language } =
+    useAppStore();
   const { t } = useTranslation();
+  const langKey = getInterfaceLangKey(language);
 
   const presets = projectInterface?.preset;
   if (!presets || presets.length === 0) return null;
@@ -106,7 +108,11 @@ function PresetSelector({ instanceId }: { instanceId: string }) {
           <PresetCard
             key={preset.name}
             preset={preset}
-            onApply={() => applyPreset(instanceId, preset.name)}
+            onApply={() => {
+              applyPreset(instanceId, preset.name);
+              const presetDisplayName = resolveI18nText(preset.label, langKey) || preset.name;
+              renameInstance(instanceId, presetDisplayName);
+            }}
           />
         ))}
       </div>

@@ -59,6 +59,10 @@ const MAX_RECENTLY_CLOSED = 30;
 
 export const useAppStore = create<AppState>()(
   subscribeWithSelector((set, get) => ({
+    // 启动流程完成前禁止落盘，避免空状态覆盖已有配置
+    configPersistenceReady: false,
+    setConfigPersistenceReady: (ready) => set({ configPersistenceReady: ready }),
+
     // 主题和语言
     theme: 'light',
     accentColor: 'emerald',
@@ -1838,6 +1842,11 @@ function debouncedSaveConfig() {
   }
   saveTimeout = setTimeout(() => {
     const state = useAppStore.getState();
+    // 仅在初始化完成后持久化，避免启动早期误覆盖用户配置
+    if (!state.configPersistenceReady) return;
+    // 保护性检查：必须已经识别到项目与数据目录
+    if (!state.projectInterface?.name || !state.dataPath || state.dataPath === '.') return;
+
     const config = generateConfig();
     const projectName = state.projectInterface?.name;
     saveConfig(state.dataPath, config, projectName);

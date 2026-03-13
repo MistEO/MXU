@@ -103,12 +103,31 @@ export async function saveConfig(
   log.debug('保存配置, 路径:', configPath);
 
   try {
-    const { writeTextFile, mkdir, exists } = await import('@tauri-apps/plugin-fs');
+    const { writeTextFile, mkdir, exists, readTextFile } = await import('@tauri-apps/plugin-fs');
 
     // 确保 config 目录存在
     if (!(await exists(configDir))) {
       log.debug('创建配置目录:', configDir);
       await mkdir(configDir, { recursive: true });
+    }
+
+    // 保护：拒绝用空实例覆盖已有的非空配置，避免“配置被清空”
+    if (config.instances.length === 0 && (await exists(configPath))) {
+      try {
+        const existingContent = await readTextFile(configPath);
+        const existingConfig = parseJsonc<Partial<MxuConfig>>(existingContent, configPath);
+        const existingInstances = Array.isArray(existingConfig.instances)
+          ? existingConfig.instances
+          : [];
+        if (existingInstances.length > 0) {
+          log.error('检测到空实例覆盖风险，已拒绝保存:', configPath);
+          return false;
+        }
+      } catch (err) {
+        // 读取旧配置失败时，保持保守策略：拒绝覆盖，避免误清空
+        log.error('读取现有配置失败，已拒绝覆盖保存:', err);
+        return false;
+      }
     }
 
     const content = JSON.stringify(config, null, 2);

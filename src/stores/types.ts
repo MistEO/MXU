@@ -84,6 +84,10 @@ export interface JustUpdatedInfo {
 }
 
 export interface AppState {
+  // 配置持久化保护（防止启动早期空状态覆盖用户配置）
+  configPersistenceReady: boolean;
+  setConfigPersistenceReady: (ready: boolean) => void;
+
   // 主题和语言
   theme: Theme;
   accentColor: AccentColor;

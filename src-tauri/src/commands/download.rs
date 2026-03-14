@@ -47,14 +47,9 @@ impl TempFileGuard {
 impl Drop for TempFileGuard {
     fn drop(&mut self) {
         if let Some(p) = self.path.take() {
-            // 优先在异步运行时的专用阻塞线程中删除，避免阻塞当前 async 线程。
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                handle.spawn_blocking(move || {
-                    let _ = std::fs::remove_file(&p);
-                });
-            } else {
-                let _ = std::fs::remove_file(&p);
-            }
+            // 必须同步删除，避免竞态条件：
+            // 如果异步删除，可能在下一次下载创建同名临时文件后才执行，导致误删。
+            let _ = std::fs::remove_file(&p);
         }
     }
 }

@@ -366,6 +366,9 @@ pub async fn download_file(
         .await
         .map_err(|e| format!("同步文件失败: {}", e))?;
 
+    // 显式关闭文件句柄，避免 Windows 上 rename 失败
+    drop(writer);
+
     // 发送最终进度
     let _ = app.emit(
         "download-progress",

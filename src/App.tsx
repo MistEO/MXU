@@ -24,8 +24,9 @@ import {
 import {
   downloadUpdate,
   getUpdateSavePath,
+  findCachedUpdatePackage,
   consumeUpdateCompleteInfo,
-  savePendingUpdateInfo,
+  savePendingUpdate,
   getPendingUpdateInfo,
   clearPendingUpdateInfo,
   isDebugVersion,
@@ -345,6 +346,14 @@ function App() {
       });
 
       try {
+        const cachedPackagePath = await findCachedUpdatePackage(updateResult);
+        if (cachedPackagePath) {
+          setDownloadSavePath(cachedPackagePath);
+          setDownloadStatus('completed');
+          savePendingUpdate(updateResult, cachedPackagePath);
+          return;
+        }
+
         const savePath = await getUpdateSavePath(updateResult.filename);
         setDownloadSavePath(savePath);
 
@@ -371,19 +380,7 @@ function App() {
           log.info('更新下载完成');
 
           // 保存待安装更新信息，以便下次启动时自动安装
-          savePendingUpdateInfo({
-            versionName: updateResult.versionName,
-            releaseNote: updateResult.releaseNote,
-            channel: updateResult.channel,
-            downloadSavePath: result.actualSavePath,
-            fileSize: updateResult.fileSize,
-            updateType: updateResult.updateType,
-            downloadSource: updateResult.downloadSource,
-            timestamp: Date.now(),
-          });
-
-          // 尝试自动安装更新
-          tryAutoInstallUpdate();
+          savePendingUpdate(updateResult, result.actualSavePath);
         } else {
           setDownloadStatus('failed');
           // 下载失败时重置标志，允许后续重新下载（如填入 CDK 后切换下载源）

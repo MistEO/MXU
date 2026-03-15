@@ -39,6 +39,9 @@ export default {
     maximize: 'Maximize',
     restore: 'Restore',
     close: 'Close',
+    pin: 'Pin',
+    unpin: 'Unpin',
+    pinDisabled: 'Pin disabled (foreground screenshot)',
   },
 
   // Settings

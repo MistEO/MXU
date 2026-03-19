@@ -161,7 +161,7 @@ pub async fn download_file(
     proxy_url: Option<String>,
 ) -> Result<DownloadResult, String> {
     use futures_util::StreamExt;
-    use tokio::io::{AsyncWriteExt, BufWriter};
+    use std::io::Write;
     use tokio::time::{sleep, Duration};
 
     info!("download_file: {} -> {}", url, save_path);
@@ -248,11 +248,31 @@ pub async fn download_file(
     let content_length = response.content_length();
     let total = total_size.or(content_length).unwrap_or(0);
 
-    // 创建临时文件（使用带缓冲的异步写入，避免频繁小块 I/O 抖动）
-    let file = tokio::fs::File::create(&temp_path)
-        .await
+    let file = std::fs::File::create(&temp_path)
         .map_err(|e| format!("无法创建文件: {}", e))?;
-    let mut writer = BufWriter::with_capacity(256 * 1024, file);
+
+    // 有界通道将网络读取与磁盘写入解耦：
+    // - 下载循环纯异步，不阻塞 runtime，可全速消费 TCP 流
+    // - 写入线程用同步 BufWriter，单线程从头跑到尾，避免 tokio::fs 逐次 spawn_blocking 的调度开销
+    let (write_tx, write_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+
+    let write_handle = tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let mut writer = std::io::BufWriter::with_capacity(512 * 1024, file);
+        let mut write_rx = write_rx;
+        while let Some(chunk) = write_rx.blocking_recv() {
+            writer
+                .write_all(&chunk)
+                .map_err(|e| format!("写入文件失败: {}", e))?;
+        }
+        writer
+            .flush()
+            .map_err(|e| format!("刷新写入缓冲区失败: {}", e))?;
+        writer
+            .get_ref()
+            .sync_all()
+            .map_err(|e| format!("同步文件失败: {}", e))?;
+        Ok(())
+    });
 
     // 共享下载字节计数，用于独立的进度上报任务
     let downloaded_shared = Arc::new(AtomicU64::new(0));
@@ -315,54 +335,66 @@ pub async fn download_file(
     // 流式下载
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
+    let mut download_err: Option<String> = None;
+    let mut is_cancelled = false;
 
     while let Some(chunk) = stream.next().await {
-        // 检查取消标志或 session 是否已过期
         if DOWNLOAD_CANCELLED.load(Ordering::SeqCst)
             || CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id
         {
             info!("download_file cancelled (session {})", session_id);
-            drop(writer);
-            return Err("下载已取消".to_string());
+            is_cancelled = true;
+            download_err = Some("下载已取消".to_string());
+            break;
         }
 
-        let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
+        let chunk = match chunk {
+            Ok(c) => c,
+            Err(e) => {
+                download_err = Some(format!("下载数据失败: {}", e));
+                break;
+            }
+        };
 
-        // 使用带缓冲的异步写入，避免对每个小 chunk 直接落盘导致频繁 I/O 抖动
-        writer
-            .write_all(&chunk)
-            .await
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-        downloaded += chunk.len() as u64;
+        let len = chunk.len() as u64;
+        if write_tx.send(chunk.to_vec()).await.is_err() {
+            download_err = Some("磁盘写入线程异常退出".to_string());
+            break;
+        }
+        downloaded += len;
         downloaded_shared.store(downloaded, Ordering::Relaxed);
     }
 
     // 最后再检查一次取消标志
-    if DOWNLOAD_CANCELLED.load(Ordering::SeqCst)
-        || CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id
+    if download_err.is_none()
+        && (DOWNLOAD_CANCELLED.load(Ordering::SeqCst)
+            || CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id)
     {
         info!(
             "download_file cancelled before finalization (session {})",
             session_id
         );
-        drop(writer);
-        return Err("下载已取消".to_string());
+        is_cancelled = true;
+        download_err = Some("下载已取消".to_string());
     }
 
-    // 刷新缓冲区并确保数据写入磁盘
-    writer
-        .flush()
-        .await
-        .map_err(|e| format!("刷新写入缓冲区失败: {}", e))?;
+    // 关闭发送端，通知写入线程所有数据已发送完毕
+    drop(write_tx);
 
-    writer
-        .get_ref()
-        .sync_all()
+    // 等待写入线程完成，确保文件句柄关闭后再进行重命名等后续操作
+    let write_thread_result = write_handle
         .await
-        .map_err(|e| format!("同步文件失败: {}", e))?;
+        .map_err(|e| format!("写入任务异常: {}", e))?;
 
-    // 显式关闭文件句柄，避免 Windows 上 rename 失败
-    drop(writer);
+    if let Some(err) = download_err {
+        if is_cancelled {
+            // 取消路径：cancel_download() 已处理临时文件清理，新下载会用 File::create 覆盖。
+            // 此处 disarm 避免 guard 在 write_handle.await 之后才触发，误删新任务的临时文件。
+            temp_guard.disarm();
+        }
+        return Err(err);
+    }
+    write_thread_result?;
 
     // 发送最终进度
     let _ = app.emit(

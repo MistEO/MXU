@@ -36,9 +36,10 @@ base64 = "0.22"
 zip = "7.2.0"
 flate2 = "1.0"
 tar = "0.4"
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "sync"] }
 reqwest = { version = "0.12", features = ["stream", "blocking", "json"] }
 futures-util = "0.3"
+bytes = "1"
 libc = "0.2.180"
 semver = "1.0"
 os_info = "3"

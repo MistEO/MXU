@@ -248,15 +248,15 @@ pub async fn download_file(
     let content_length = response.content_length();
     let total = total_size.or(content_length).unwrap_or(0);
 
-    let file = std::fs::File::create(&temp_path)
-        .map_err(|e| format!("无法创建文件: {}", e))?;
-
     // 有界通道将网络读取与磁盘写入解耦：
     // - 下载循环纯异步，不阻塞 runtime，可全速消费 TCP 流
     // - 写入线程用同步 BufWriter，单线程从头跑到尾，避免 tokio::fs 逐次 spawn_blocking 的调度开销
-    let (write_tx, write_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+    let (write_tx, write_rx) = tokio::sync::mpsc::channel::<bytes::Bytes>(64);
 
+    let temp_path_for_writer = temp_path.clone();
     let write_handle = tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let file = std::fs::File::create(&temp_path_for_writer)
+            .map_err(|e| format!("无法创建文件: {}", e))?;
         let mut writer = std::io::BufWriter::with_capacity(512 * 1024, file);
         let mut write_rx = write_rx;
         while let Some(chunk) = write_rx.blocking_recv() {
@@ -357,7 +357,7 @@ pub async fn download_file(
         };
 
         let len = chunk.len() as u64;
-        if write_tx.send(chunk.to_vec()).await.is_err() {
+        if write_tx.send(chunk).await.is_err() {
             download_err = Some("磁盘写入线程异常退出".to_string());
             break;
         }
@@ -388,9 +388,16 @@ pub async fn download_file(
 
     if let Some(err) = download_err {
         if is_cancelled {
-            // 取消路径：cancel_download() 已处理临时文件清理，新下载会用 File::create 覆盖。
-            // 此处 disarm 避免 guard 在 write_handle.await 之后才触发，误删新任务的临时文件。
-            temp_guard.disarm();
+            // 仅当新下载已接管同一路径时 disarm，防止误删新任务的临时文件；
+            // 纯取消场景保留 guard，由 drop 清理已关闭的临时文件。
+            if CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id {
+                temp_guard.disarm();
+            }
+            return Err(err);
+        }
+        // 非取消错误（如通道关闭）：写入线程通常持有更具体的 I/O 错误信息
+        if let Err(write_err) = write_thread_result {
+            return Err(write_err);
         }
         return Err(err);
     }

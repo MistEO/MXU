@@ -39,6 +39,7 @@ tar = "0.4"
 tokio = { version = "1", features = ["rt"] }
 reqwest = { version = "0.12", features = ["stream", "blocking", "json"] }
 futures-util = "0.3"
+bytes = "1"
 libc = "0.2.180"
 semver = "1.0"
 os_info = "3"

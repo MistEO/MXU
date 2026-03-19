@@ -240,8 +240,8 @@ pub async fn download_file(
 
     let actual_save_path_obj = std::path::Path::new(&actual_save_path);
 
-    // 使用临时文件名下载
-    let temp_path = format!("{}.downloading", actual_save_path);
+    // 使用包含 session_id 的临时文件名，避免取消后立即重试时新旧任务竞争同一临时文件
+    let temp_path = format!("{}.{}.downloading", actual_save_path, session_id);
     let mut temp_guard = TempFileGuard::new(PathBuf::from(&temp_path));
 
     // 获取文件大小
@@ -336,14 +336,12 @@ pub async fn download_file(
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
     let mut download_err: Option<String> = None;
-    let mut is_cancelled = false;
 
     while let Some(chunk) = stream.next().await {
         if DOWNLOAD_CANCELLED.load(Ordering::SeqCst)
             || CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id
         {
             info!("download_file cancelled (session {})", session_id);
-            is_cancelled = true;
             download_err = Some("下载已取消".to_string());
             break;
         }
@@ -374,7 +372,6 @@ pub async fn download_file(
             "download_file cancelled before finalization (session {})",
             session_id
         );
-        is_cancelled = true;
         download_err = Some("下载已取消".to_string());
     }
 
@@ -387,15 +384,7 @@ pub async fn download_file(
         .map_err(|e| format!("写入任务异常: {}", e))?;
 
     if let Some(err) = download_err {
-        if is_cancelled {
-            // 仅当新下载已接管同一路径时 disarm，防止误删新任务的临时文件；
-            // 纯取消场景保留 guard，由 drop 清理已关闭的临时文件。
-            if CURRENT_DOWNLOAD_SESSION.load(Ordering::SeqCst) != session_id {
-                temp_guard.disarm();
-            }
-            return Err(err);
-        }
-        // 非取消错误（如通道关闭）：写入线程通常持有更具体的 I/O 错误信息
+        // 写入线程通常持有更具体的 I/O 错误信息（如磁盘满），优先返回
         if let Err(write_err) = write_thread_result {
             return Err(write_err);
         }

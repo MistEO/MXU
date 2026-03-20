@@ -117,6 +117,21 @@ export function shouldUseProxy(
 }
 
 /**
+ * 更新包下载传给 downloadUpdate 的代理设置（与 App 自动下载路径一致）。
+ * 仅 GitHub 源且满足 shouldUseProxy（已配置有效代理、无 Mirror 酱 CDK）时返回代理；Mirror 酱不走 HTTP 代理。
+ */
+export function proxySettingsForUpdateDownload(
+  downloadSource: 'mirrorchyan' | 'github' | undefined,
+  proxySettings: ProxySettings | undefined,
+  mirrorChyanCdk: string | undefined,
+): ProxySettings | undefined {
+  if (downloadSource !== 'github') {
+    return undefined;
+  }
+  return shouldUseProxy(proxySettings, mirrorChyanCdk || '') ? proxySettings : undefined;
+}
+
+/**
  * 格式化代理 URL 用于显示（隐藏密码）
  * @param url 代理 URL
  * @returns 格式化后的 URL

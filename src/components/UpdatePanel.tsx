@@ -17,6 +17,7 @@ import {
   MIRRORCHYAN_ERROR_CODES,
   savePendingUpdateInfo,
 } from '@/services/updateService';
+import { proxySettingsForUpdateDownload } from '@/services/proxyService';
 import { DownloadProgressBar } from './UpdateInfoCard';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
@@ -33,7 +34,8 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
 
   const {
     updateInfo,
-    dataPath,
+    proxySettings,
+    mirrorChyanSettings,
     downloadStatus,
     downloadProgress,
     setDownloadStatus,
@@ -59,10 +61,17 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
       const savePath = await getUpdateSavePath(updateInfo.filename);
       setDownloadSavePath(savePath);
 
+      const proxyForDownload = proxySettingsForUpdateDownload(
+        updateInfo.downloadSource,
+        proxySettings,
+        mirrorChyanSettings.cdk,
+      );
+
       const result = await downloadUpdate({
         url: updateInfo.downloadUrl,
         savePath,
         totalSize: updateInfo.fileSize,
+        proxySettings: proxyForDownload,
         onProgress: (progress: DownloadProgress) => {
           setDownloadProgress(progress);
         },
@@ -90,7 +99,14 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
       loggers.ui.error('下载失败:', error);
       setDownloadStatus('failed');
     }
-  }, [updateInfo, dataPath, setDownloadStatus, setDownloadProgress, setDownloadSavePath]);
+  }, [
+    updateInfo,
+    proxySettings,
+    mirrorChyanSettings.cdk,
+    setDownloadStatus,
+    setDownloadProgress,
+    setDownloadSavePath,
+  ]);
 
   // 自动下载已由 App.tsx 在检查更新后立即触发，此处不再重复处理
 

@@ -26,6 +26,7 @@ import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
+import { scheduleService } from '@/services/scheduleService';
 
 const log = loggers.task;
 
@@ -40,7 +41,6 @@ type AutoConnectPhase = 'idle' | 'searching' | 'connecting' | 'loading_resource'
 export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const { t } = useTranslation();
   const {
-    instances,
     getActiveInstance,
     selectAllTasks,
     collapseAllTasks,
@@ -847,97 +847,50 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     ],
   );
 
-  /**
-   * 检查并执行定时任务
-   * 遍历所有实例的定时策略，如果当前时间匹配则启动任务
-   */
-  const checkAndExecuteScheduledTasks = useCallback(async () => {
-    const now = new Date();
-    const currentWeekday = now.getDay(); // 0-6, 0=周日
-    const currentHour = now.getHours(); // 0-23
+  // 调度服务：使用 ref 保持回调始终指向最新闭包
+  const scheduleTriggerRef = useRef<typeof startTasksForInstance>(startTasksForInstance);
+  scheduleTriggerRef.current = startTasksForInstance;
 
-    log.info(`定时检查: 周${currentWeekday} ${currentHour}:00`);
+  const addLogRef = useRef(addLog);
+  addLogRef.current = addLog;
 
-    for (const inst of instances) {
-      const policies = inst.schedulePolicies || [];
+  const tRef = useRef(t);
+  tRef.current = t;
 
-      for (const policy of policies) {
-        if (!policy.enabled) continue;
-
-        // 检查是否匹配当前时间
-        const matchesWeekday = policy.weekdays.includes(currentWeekday);
-        const matchesHour = policy.hours.includes(currentHour);
-
-        if (matchesWeekday && matchesHour) {
-          log.info(`定时策略命中: 实例 "${inst.name}", 策略 "${policy.name}"`);
-
-          // 添加定时执行开始日志
-          const timeStr = `${currentHour.toString().padStart(2, '0')}:00`;
-          addLog(inst.id, {
-            type: 'info',
-            message: t('logs.messages.scheduleStarting', {
-              policy: policy.name,
-              time: timeStr,
-            }),
-          });
-
-          // 启动任务（复用统一入口）
-          const started = await startTasksForInstance(inst, {
-            schedulePolicyName: policy.name,
-          });
-          if (started) {
-            log.info(`定时任务启动成功: 实例 "${inst.name}"`);
-          } else {
-            log.warn(`定时任务启动失败或跳过: 实例 "${inst.name}"`);
-          }
-
-          // 一个实例只执行第一个匹配的策略，避免重复启动
-          break;
-        }
-      }
-    }
-  }, [instances, startTasksForInstance, addLog, t]);
-
-  // 定时任务检查：每个整小时检查一次
   useEffect(() => {
-    // 计算距离下一个整小时的时间
-    const now = new Date();
-    const msUntilNextHour =
-      (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+    scheduleService.setTriggerCallback(async (inst, policyName, slotLabel, isCompensation) => {
+      const currentT = tRef.current;
+      const currentAddLog = addLogRef.current;
 
-    // 立即检查一次（仅在整点时）
-    if (now.getMinutes() === 0 && now.getSeconds() < 5) {
-      checkAndExecuteScheduledTasks();
-    }
+      const msgKey = isCompensation
+        ? 'logs.messages.scheduleCompensating'
+        : 'logs.messages.scheduleStarting';
 
-    // 设置定时器，在下一个整小时执行
-    const initialTimeout = setTimeout(() => {
-      checkAndExecuteScheduledTasks();
+      currentAddLog(inst.id, {
+        type: 'info',
+        message: currentT(msgKey, { policy: policyName, time: slotLabel }),
+      });
 
-      // 然后每小时执行一次
-      const hourlyInterval = setInterval(
-        () => {
-          checkAndExecuteScheduledTasks();
-        },
-        60 * 60 * 1000,
-      );
+      const started = await scheduleTriggerRef.current(inst, {
+        schedulePolicyName: policyName,
+      });
 
-      // 保存 interval ID 以便清理
-      (
-        window as unknown as { __scheduleInterval?: ReturnType<typeof setInterval> }
-      ).__scheduleInterval = hourlyInterval;
-    }, msUntilNextHour);
+      if (started) {
+        log.info(`定时任务启动成功: 实例 "${inst.name}"`);
+      } else {
+        log.warn(`定时任务启动失败或跳过: 实例 "${inst.name}"`);
+      }
+
+      return started;
+    });
+
+    scheduleService.start();
 
     return () => {
-      clearTimeout(initialTimeout);
-      const hourlyInterval = (
-        window as unknown as { __scheduleInterval?: ReturnType<typeof setInterval> }
-      ).__scheduleInterval;
-      if (hourlyInterval) {
-        clearInterval(hourlyInterval);
-      }
+      scheduleService.stop();
+      scheduleService.setTriggerCallback(null);
     };
-  }, [checkAndExecuteScheduledTasks]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * 检查当前控制器是否需要管理员权限

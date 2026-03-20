@@ -434,6 +434,7 @@ export default {
       stopTask: '작업 중지',
       // 예약 메시지
       scheduleStarting: '예약 실행 시작 [{{policy}}] {{time}}',
+      scheduleCompensating: '예약 보상 실행 [{{policy}}] {{time}} (절전/복귀 후 보완 실행)',
       // Agent 메시지
       agentStarting: 'Agent 시작 중...',
       agentStarted: 'Agent가 시작되었습니다',

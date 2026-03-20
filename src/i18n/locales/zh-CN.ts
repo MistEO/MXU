@@ -426,6 +426,7 @@ export default {
       stopTask: '停止任务',
       // 定时任务消息
       scheduleStarting: '定时执行开始 [{{policy}}] {{time}}',
+      scheduleCompensating: '定时补偿执行 [{{policy}}] {{time}}（睡眠/恢复后补触发）',
       // Agent 消息
       agentStarting: 'Agent 正在启动...',
       agentStarted: 'Agent 已启动',

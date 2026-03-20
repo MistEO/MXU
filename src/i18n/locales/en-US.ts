@@ -435,6 +435,7 @@ export default {
       stopTask: 'Stop Task',
       // Schedule messages
       scheduleStarting: 'Scheduled execution started [{{policy}}] {{time}}',
+      scheduleCompensating: 'Compensated scheduled execution [{{policy}}] {{time}} (triggered after sleep/wake)',
       // Agent messages
       agentStarting: 'Agent starting...',
       agentStarted: 'Agent started',

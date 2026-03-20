@@ -26,7 +26,7 @@ import {
   MIRRORCHYAN_ERROR_CODES,
   isDebugVersion,
 } from '@/services/updateService';
-import { createProxySettings, shouldUseProxy } from '@/services/proxyService';
+import { createProxySettings, proxySettingsForUpdateDownload } from '@/services/proxyService';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { loggers } from '@/utils/logger';
@@ -132,15 +132,17 @@ export function UpdateSection() {
         const savePath = await getUpdateSavePath(info.filename);
         setDownloadSavePath(savePath);
 
-        const useProxy =
-          info.downloadSource === 'github' &&
-          shouldUseProxy(proxySettings, mirrorChyanSettings.cdk);
+        const proxyForDownload = proxySettingsForUpdateDownload(
+          info.downloadSource,
+          proxySettings,
+          mirrorChyanSettings.cdk,
+        );
 
         const result = await downloadUpdate({
           url: info.downloadUrl,
           savePath,
           totalSize: info.fileSize,
-          proxySettings: useProxy ? proxySettings : undefined,
+          proxySettings: proxyForDownload,
           onProgress: (progress) => {
             setDownloadProgress(progress);
           },

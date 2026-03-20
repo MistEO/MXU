@@ -436,6 +436,7 @@ export default {
       stopTask: 'タスクを停止',
       // スケジュールメッセージ
       scheduleStarting: 'スケジュール実行を開始 [{{policy}}] {{time}}',
+      scheduleCompensating: 'スケジュール補償実行 [{{policy}}] {{time}}（スリープ復帰後の補完）',
       // Agent メッセージ
       agentStarting: 'Agent を起動中...',
       agentStarted: 'Agent が起動しました',

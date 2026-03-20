@@ -11,6 +11,7 @@ const CHECK_INTERVAL_MS = 60_000; // 每 60 秒轮询一次
 const SLOT_TTL_MS = 48 * 60 * 60 * 1000; // 触发记录保留 48 小时
 const MAX_COMPENSATE_MS = 3 * 60 * 60 * 1000; // 最多补偿 3 小时内的遗漏
 const DEBOUNCE_MS = 2_000; // 事件触发后 2 秒内去重
+const CURRENT_SLOT_COMPENSATION_GRACE_MS = 5 * 60 * 1000; // 当前小时超过 5 分钟后补触发也记为补偿
 
 export type ScheduleTriggerCallback = (
   instance: Instance,
@@ -31,6 +32,57 @@ function hourStart(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours());
 }
 
+function buildTriggeredSlotKey(instanceId: string, slotStr: string): string {
+  return `${instanceId}:${slotStr}`;
+}
+
+function normalizeTriggeredSlotKey(key: string): string | null {
+  const lastColon = key.lastIndexOf(':');
+  if (lastColon <= 0) {
+    return null;
+  }
+
+  const slotStr = key.substring(lastColon + 1);
+  if (!/^\d{4}-\d{2}-\d{2}-\d{2}$/.test(slotStr)) {
+    return null;
+  }
+
+  const prefix = key.substring(0, lastColon);
+  const firstColon = prefix.indexOf(':');
+  const instanceId = firstColon === -1 ? prefix : prefix.substring(0, firstColon);
+
+  return instanceId ? buildTriggeredSlotKey(instanceId, slotStr) : null;
+}
+
+function shouldMarkSlotAsCompensation(
+  slotDate: Date,
+  currentHour: Date,
+  nowTs: number,
+  lastCheckAt: number,
+  hadPreviousCheck: boolean,
+): boolean {
+  const slotTs = slotDate.getTime();
+  const currentHourTs = currentHour.getTime();
+
+  if (slotTs < currentHourTs) {
+    return true;
+  }
+
+  if (slotTs !== currentHourTs) {
+    return false;
+  }
+
+  if (!hadPreviousCheck) {
+    return false;
+  }
+
+  if (nowTs - slotTs <= CURRENT_SLOT_COMPENSATION_GRACE_MS) {
+    return false;
+  }
+
+  return lastCheckAt < slotTs;
+}
+
 class ScheduleService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private checking = false;
@@ -49,7 +101,41 @@ class ScheduleService {
   private getTriggeredSlots(): Set<string> {
     try {
       const val = localStorage.getItem(STORAGE_KEY_TRIGGERED);
-      return val ? new Set(JSON.parse(val)) : new Set();
+      if (!val) {
+        return new Set();
+      }
+
+      const rawSlots: unknown = JSON.parse(val);
+      if (!Array.isArray(rawSlots)) {
+        return new Set();
+      }
+
+      const normalized = new Set<string>();
+      let changed = false;
+
+      for (const item of rawSlots) {
+        if (typeof item !== 'string') {
+          changed = true;
+          continue;
+        }
+
+        const normalizedKey = normalizeTriggeredSlotKey(item);
+        if (!normalizedKey) {
+          changed = true;
+          continue;
+        }
+
+        normalized.add(normalizedKey);
+        if (normalizedKey !== item) {
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        this.setTriggeredSlots(normalized);
+      }
+
+      return normalized;
     } catch {
       return new Set();
     }
@@ -67,7 +153,8 @@ class ScheduleService {
     const cleaned = new Set<string>();
 
     for (const key of slots) {
-      // key format: instanceId:policyId:YYYY-MM-DD-HH
+      // 当前格式: instanceId:YYYY-MM-DD-HH
+      // 兼容旧格式: instanceId:policyId:YYYY-MM-DD-HH
       const lastColon = key.lastIndexOf(':');
       const slotStr = key.substring(lastColon + 1);
       const [y, mo, d, h] = slotStr.split('-').map(Number);
@@ -143,7 +230,9 @@ class ScheduleService {
     try {
       const now = new Date();
       const nowTs = now.getTime();
-      let lastCheckAt = this.getLastCheckAt();
+      const storedLastCheckAt = this.getLastCheckAt();
+      const hadPreviousCheck = storedLastCheckAt > 0;
+      let lastCheckAt = storedLastCheckAt;
 
       // 首次运行：以当前整点为起点
       if (lastCheckAt === 0) {
@@ -187,7 +276,13 @@ class ScheduleService {
         const weekday = slotDate.getDay();
         const hour = slotDate.getHours();
         const slotStr = formatSlotKey(slotDate);
-        const isCompensation = slotDate < currentHour;
+        const isCompensation = shouldMarkSlotAsCompensation(
+          slotDate,
+          currentHour,
+          nowTs,
+          lastCheckAt,
+          hadPreviousCheck,
+        );
 
         const { instances } = useAppStore.getState();
 
@@ -199,8 +294,8 @@ class ScheduleService {
             if (!policy.weekdays.includes(weekday)) continue;
             if (!policy.hours.includes(hour)) continue;
 
-            const slotKey = `${inst.id}:${policy.id}:${slotStr}`;
-            if (triggeredSlots.has(slotKey)) continue;
+            const slotKey = buildTriggeredSlotKey(inst.id, slotStr);
+            if (triggeredSlots.has(slotKey)) break;
 
             // 读取最新实例状态
             const freshInst = useAppStore.getState().instances.find((i) => i.id === inst.id);

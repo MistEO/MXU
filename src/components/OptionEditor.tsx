@@ -416,12 +416,7 @@ export function OptionEditor({
     };
 
     return (
-      <div
-        className={clsx(
-          'space-y-3',
-          depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-        )}
-      >
+      <div className={clsx('space-y-3', depth > 0 && 'ml-4 pl-3 border-l-2 border-border')}>
         <div
           className={clsx(
             'flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors',
@@ -429,7 +424,10 @@ export function OptionEditor({
             effectiveDisabled && 'cursor-not-allowed',
             isOptionIncompatible && 'opacity-60',
           )}
-          onClick={handleToggleSwitch}
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('a')) return;
+            handleToggleSwitch();
+          }}
           onKeyDown={handleSwitchRowKeyDown}
           role="switch"
           tabIndex={effectiveDisabled ? -1 : 0}
@@ -449,8 +447,12 @@ export function OptionEditor({
               translations={translations}
             />
           </div>
-          <div className="pointer-events-none flex-shrink-0">
-            <SwitchButton value={isChecked} onChange={handleToggleSwitch} disabled={effectiveDisabled} />
+          <div className="pointer-events-none flex-shrink-0" aria-hidden="true">
+            <SwitchButton
+              value={isChecked}
+              onChange={handleToggleSwitch}
+              disabled={effectiveDisabled}
+            />
           </div>
         </div>
         {/* 渲染嵌套选项 */}

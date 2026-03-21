@@ -269,44 +269,44 @@ function OptionListRenderer({
   return (
     <div className="space-y-4">
       {groups.map((group, index) => {
-          if (group.type === 'switchGrid') {
-            return (
-              <SwitchGrid
-                key={`grid-${index}`}
-                instanceId={instanceId}
-                taskId={taskId}
-                items={buildSwitchGridItems(group.optionKeys)}
-                disabled={disabled}
-              />
-            );
-          }
-          const optionDef = getOptionDef(group.optionKey);
-          const optionControllerIncompatible = isOptionControllerIncompatible(
-            optionDef,
-            currentControllerName,
-          );
-          const optionResourceIncompatible = isOptionResourceIncompatible(
-            optionDef,
-            currentResourceName,
-          );
-          const optionIncompatible = optionControllerIncompatible || optionResourceIncompatible;
-          const parentIncompatibilityReason = optionControllerIncompatible
-            ? 'controller'
-            : optionResourceIncompatible
-              ? 'resource'
-              : undefined;
+        if (group.type === 'switchGrid') {
           return (
-            <OptionEditor
-              key={group.optionKey}
+            <SwitchGrid
+              key={`grid-${index}`}
               instanceId={instanceId}
               taskId={taskId}
-              optionKey={group.optionKey}
-              value={optionValues[group.optionKey]}
-              disabled={disabled || optionIncompatible}
-              controllerIncompatible={optionIncompatible}
-              parentIncompatibilityReason={parentIncompatibilityReason}
+              items={buildSwitchGridItems(group.optionKeys)}
+              disabled={disabled}
             />
           );
+        }
+        const optionDef = getOptionDef(group.optionKey);
+        const optionControllerIncompatible = isOptionControllerIncompatible(
+          optionDef,
+          currentControllerName,
+        );
+        const optionResourceIncompatible = isOptionResourceIncompatible(
+          optionDef,
+          currentResourceName,
+        );
+        const optionIncompatible = optionControllerIncompatible || optionResourceIncompatible;
+        const parentIncompatibilityReason = optionControllerIncompatible
+          ? 'controller'
+          : optionResourceIncompatible
+            ? 'resource'
+            : undefined;
+        return (
+          <OptionEditor
+            key={group.optionKey}
+            instanceId={instanceId}
+            taskId={taskId}
+            optionKey={group.optionKey}
+            value={optionValues[group.optionKey]}
+            disabled={disabled || optionIncompatible}
+            controllerIncompatible={optionIncompatible}
+            parentIncompatibilityReason={parentIncompatibilityReason}
+          />
+        );
       })}
     </div>
   );

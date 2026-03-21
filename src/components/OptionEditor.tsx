@@ -418,7 +418,7 @@ export function OptionEditor({
     return (
       <div
         className={clsx(
-          'space-y-2',
+          'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
           isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
         )}
@@ -456,7 +456,7 @@ export function OptionEditor({
         </div>
         {/* 渲染嵌套选项 */}
         {nestedOptionKeys.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {nestedOptionKeys.map((nestedKey) => (
               <OptionEditor
                 key={nestedKey}
@@ -484,7 +484,7 @@ export function OptionEditor({
     return (
       <div
         className={clsx(
-          'space-y-2',
+          'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
           isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
@@ -547,7 +547,7 @@ export function OptionEditor({
     return (
       <div
         className={clsx(
-          'space-y-2',
+          'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
           isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
@@ -603,7 +603,7 @@ export function OptionEditor({
   return (
     <div
       className={clsx(
-        'space-y-2',
+        'space-y-3',
         depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
         isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
         isOptionIncompatible && 'opacity-60',
@@ -648,7 +648,7 @@ export function OptionEditor({
       />
       {/* 渲染嵌套选项 */}
       {nestedOptionKeys.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {nestedOptionKeys.map((nestedKey) => (
             <OptionEditor
               key={nestedKey}

@@ -1049,7 +1049,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             <div className="border-t border-border bg-bg-tertiary p-3 rounded-b-lg">
               {/* 任务描述 */}
               {hasDescription && (
-                <div className={hasOptions || isIncompatible ? 'mb-3' : ''}>
+                <div className={hasOptions || isIncompatible ? 'mb-5' : ''}>
                   <DescriptionContent
                     html={resolvedDescription.html}
                     loading={resolvedDescription.loading}

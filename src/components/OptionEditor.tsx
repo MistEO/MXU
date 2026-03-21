@@ -251,7 +251,7 @@ function InputField({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 min-w-[80px]">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {input.icon && (
             <AsyncIcon
               icon={input.icon}
@@ -259,7 +259,7 @@ function InputField({
               className="w-4 h-4 object-contain flex-shrink-0"
             />
           )}
-          <span className="text-sm text-text-tertiary">{inputLabel}</span>
+          <span className="text-sm text-text-tertiary truncate">{inputLabel}</span>
           {inputDescription && (
             <Tooltip content={inputDescription} side="top" align="start" maxWidth="max-w-[200px]">
               <Info className="w-3.5 h-3.5 text-text-muted cursor-help flex-shrink-0" />
@@ -272,10 +272,15 @@ function InputField({
             onChange={onChange}
             placeholder={inputPlaceholder}
             disabled={disabled}
-            className="flex-1"
+            className="w-[40%] flex-shrink-0"
           />
         ) : input.input_type === 'time' ? (
-          <TimeInput value={value} onChange={onChange} disabled={disabled} className="flex-1" />
+          <TimeInput
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            className="w-[40%] flex-shrink-0"
+          />
         ) : (
           <TextInput
             value={value}
@@ -283,7 +288,7 @@ function InputField({
             placeholder={inputPlaceholder}
             disabled={disabled}
             hasError={!!validationError}
-            className="flex-1"
+            className="w-[40%] flex-shrink-0"
             type={input.pipeline_type === 'int' ? 'number' : 'text'}
             inputMode={input.pipeline_type === 'int' ? 'numeric' : undefined}
             step={input.pipeline_type === 'int' ? 1 : undefined}
@@ -292,7 +297,7 @@ function InputField({
         )}
       </div>
       {validationError && (
-        <div className="flex items-center gap-1 text-xs text-error ml-[92px]">
+        <div className="flex items-center gap-1 text-xs text-error justify-end">
           <AlertCircle className="w-3 h-3" />
           <span>{validationError}</span>
         </div>
@@ -601,19 +606,25 @@ export function OptionEditor({
       )}
     >
       <div className="flex items-center gap-3">
-        <OptionLabelWithIncompatible
-          label={optionLabel}
-          icon={optionDef.icon}
-          basePath={basePath}
-          incompatibleReason={incompatibleReason}
-        />
+        <div className="min-w-0 flex-1">
+          <OptionLabelWithIncompatible
+            label={optionLabel}
+            icon={optionDef.icon}
+            basePath={basePath}
+            incompatibleReason={incompatibleReason}
+          />
+          <OptionDescription
+            description={optionDescription}
+            basePath={basePath}
+            translations={translations}
+          />
+        </div>
         <SelectComponent
-          className="flex-1"
+          className="w-[40%] flex-shrink-0"
           value={selectedCaseName}
           disabled={effectiveDisabled}
           basePath={basePath}
           options={optionDef.cases.map((caseItem) => {
-            // 对于 MXU 内置选项，使用 t() 翻译；否则使用 resolveI18nText
             const label = isMxuOption
               ? t(caseItem.label || caseItem.name)
               : resolveI18nText(caseItem.label, langKey) || caseItem.name;
@@ -632,11 +643,6 @@ export function OptionEditor({
           }}
         />
       </div>
-      <OptionDescription
-        description={optionDescription}
-        basePath={basePath}
-        translations={translations}
-      />
       {/* 渲染嵌套选项 */}
       {nestedOptionKeys.length > 0 && (
         <div className="space-y-3">

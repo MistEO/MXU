@@ -425,7 +425,7 @@ export function OptionEditor({
       >
         <div
           className={clsx(
-            'rounded-md px-2 py-1.5 -mx-2 transition-colors',
+            'flex items-center justify-between gap-3 rounded-md px-2 py-1.5 -mx-2 transition-colors',
             !effectiveDisabled && 'cursor-pointer hover:bg-bg-hover',
             effectiveDisabled && 'cursor-not-allowed',
             isOptionIncompatible && 'opacity-60',
@@ -437,22 +437,22 @@ export function OptionEditor({
           aria-checked={isChecked}
           aria-disabled={effectiveDisabled}
         >
-          <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
             <OptionLabelWithIncompatible
               label={optionLabel}
               icon={optionDef.icon}
               basePath={basePath}
               incompatibleReason={incompatibleReason}
             />
-            <div className="pointer-events-none">
-              <SwitchButton value={isChecked} onChange={handleToggleSwitch} disabled={effectiveDisabled} />
-            </div>
+            <OptionDescription
+              description={optionDescription}
+              basePath={basePath}
+              translations={translations}
+            />
           </div>
-          <OptionDescription
-            description={optionDescription}
-            basePath={basePath}
-            translations={translations}
-          />
+          <div className="pointer-events-none flex-shrink-0">
+            <SwitchButton value={isChecked} onChange={handleToggleSwitch} disabled={effectiveDisabled} />
+          </div>
         </div>
         {/* 渲染嵌套选项 */}
         {nestedOptionKeys.length > 0 && (

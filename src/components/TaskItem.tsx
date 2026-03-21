@@ -267,10 +267,8 @@ function OptionListRenderer({
   };
 
   return (
-    <div className="space-y-4">
-      {(() => {
-        let visualIndex = 0;
-        return groups.map((group, index) => {
+    <div className="space-y-3">
+      {groups.map((group, index) => {
           if (group.type === 'switchGrid') {
             return (
               <SwitchGrid
@@ -282,8 +280,6 @@ function OptionListRenderer({
               />
             );
           }
-          const rowIndex = visualIndex;
-          visualIndex += 1;
           const optionDef = getOptionDef(group.optionKey);
           const optionControllerIncompatible = isOptionControllerIncompatible(
             optionDef,
@@ -306,14 +302,12 @@ function OptionListRenderer({
               taskId={taskId}
               optionKey={group.optionKey}
               value={optionValues[group.optionKey]}
-              rowIndex={rowIndex}
               disabled={disabled || optionIncompatible}
               controllerIncompatible={optionIncompatible}
               parentIncompatibilityReason={parentIncompatibilityReason}
             />
           );
-        });
-      })()}
+      })}
     </div>
   );
 }

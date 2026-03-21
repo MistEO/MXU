@@ -47,8 +47,6 @@ interface OptionEditorProps {
   taskId: string;
   optionKey: string;
   value?: OptionValue;
-  /** 可视行索引，用于顶层 switch 斑马纹 */
-  rowIndex?: number;
   /** 嵌套层级，用于缩进显示 */
   depth?: number;
   /** 是否禁用编辑（只读模式） */
@@ -308,7 +306,6 @@ export function OptionEditor({
   taskId,
   optionKey,
   value,
-  rowIndex,
   depth = 0,
   disabled = false,
   controllerIncompatible = false,
@@ -397,8 +394,6 @@ export function OptionEditor({
   const selectedCase = getSelectedCase();
   const nestedOptionKeys = selectedCase?.option || [];
 
-  const isLane = depth === 0 && rowIndex !== undefined && rowIndex % 2 === 1;
-
   // Switch 类型
   if (optionDef.type === 'switch') {
     const isChecked = value?.type === 'switch' ? value.value : false;
@@ -420,7 +415,6 @@ export function OptionEditor({
         className={clsx(
           'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
         )}
       >
         <div
@@ -486,7 +480,6 @@ export function OptionEditor({
         className={clsx(
           'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
         )}
       >
@@ -549,7 +542,6 @@ export function OptionEditor({
         className={clsx(
           'space-y-3',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
         )}
       >
@@ -605,7 +597,6 @@ export function OptionEditor({
       className={clsx(
         'space-y-3',
         depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
-        isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
         isOptionIncompatible && 'opacity-60',
       )}
     >

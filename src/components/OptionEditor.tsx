@@ -436,7 +436,7 @@ export function OptionEditor({
           aria-checked={isChecked}
           aria-disabled={effectiveDisabled}
         >
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 max-w-[60%]">
             <OptionLabelWithIncompatible
               label={optionLabel}
               icon={optionDef.icon}
@@ -550,17 +550,19 @@ export function OptionEditor({
           isOptionIncompatible && 'opacity-60',
         )}
       >
-        <OptionLabelWithIncompatible
-          label={optionLabel}
-          icon={optionDef.icon}
-          basePath={basePath}
-          incompatibleReason={incompatibleReason}
-        />
-        <OptionDescription
-          description={optionDescription}
-          basePath={basePath}
-          translations={translations}
-        />
+        <div className="max-w-[60%]">
+          <OptionLabelWithIncompatible
+            label={optionLabel}
+            icon={optionDef.icon}
+            basePath={basePath}
+            incompatibleReason={incompatibleReason}
+          />
+          <OptionDescription
+            description={optionDescription}
+            basePath={basePath}
+            translations={translations}
+          />
+        </div>
         {optionDef.inputs.map((input) => {
           const inputValue = inputValues[input.name] ?? input.default ?? '';
 

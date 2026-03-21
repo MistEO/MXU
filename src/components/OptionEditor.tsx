@@ -47,6 +47,8 @@ interface OptionEditorProps {
   taskId: string;
   optionKey: string;
   value?: OptionValue;
+  /** 可视行索引，用于顶层 switch 斑马纹 */
+  rowIndex?: number;
   /** 嵌套层级，用于缩进显示 */
   depth?: number;
   /** 是否禁用编辑（只读模式） */
@@ -306,6 +308,7 @@ export function OptionEditor({
   taskId,
   optionKey,
   value,
+  rowIndex,
   depth = 0,
   disabled = false,
   controllerIncompatible = false,
@@ -394,40 +397,63 @@ export function OptionEditor({
   const selectedCase = getSelectedCase();
   const nestedOptionKeys = selectedCase?.option || [];
 
+  const isLane = depth === 0 && rowIndex !== undefined && rowIndex % 2 === 1;
+
   // Switch 类型
   if (optionDef.type === 'switch') {
     const isChecked = value?.type === 'switch' ? value.value : false;
+    const handleToggleSwitch = () => {
+      if (effectiveDisabled) return;
+      setTaskOptionValue(instanceId, taskId, optionKey, {
+        type: 'switch',
+        value: !isChecked,
+      });
+    };
+    const handleSwitchRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      handleToggleSwitch();
+    };
 
     return (
-      <div className={clsx('space-y-2', depth > 0 && 'ml-4 pl-3 border-l-2 border-border')}>
+      <div
+        className={clsx(
+          'space-y-2',
+          depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
+          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
+        )}
+      >
         <div
           className={clsx(
-            'flex items-center justify-between',
+            'rounded-md px-2 py-1.5 -mx-2 transition-colors',
+            !effectiveDisabled && 'cursor-pointer hover:bg-bg-hover',
+            effectiveDisabled && 'cursor-not-allowed',
             isOptionIncompatible && 'opacity-60',
           )}
+          onClick={handleToggleSwitch}
+          onKeyDown={handleSwitchRowKeyDown}
+          role="switch"
+          tabIndex={effectiveDisabled ? -1 : 0}
+          aria-checked={isChecked}
+          aria-disabled={effectiveDisabled}
         >
-          <OptionLabelWithIncompatible
-            label={optionLabel}
-            icon={optionDef.icon}
+          <div className="flex items-center justify-between">
+            <OptionLabelWithIncompatible
+              label={optionLabel}
+              icon={optionDef.icon}
+              basePath={basePath}
+              incompatibleReason={incompatibleReason}
+            />
+            <div className="pointer-events-none">
+              <SwitchButton value={isChecked} onChange={handleToggleSwitch} disabled={effectiveDisabled} />
+            </div>
+          </div>
+          <OptionDescription
+            description={optionDescription}
             basePath={basePath}
-            incompatibleReason={incompatibleReason}
-          />
-          <SwitchButton
-            value={isChecked}
-            onChange={(checked) => {
-              setTaskOptionValue(instanceId, taskId, optionKey, {
-                type: 'switch',
-                value: checked,
-              });
-            }}
-            disabled={effectiveDisabled}
+            translations={translations}
           />
         </div>
-        <OptionDescription
-          description={optionDescription}
-          basePath={basePath}
-          translations={translations}
-        />
         {/* 渲染嵌套选项 */}
         {nestedOptionKeys.length > 0 && (
           <div className="space-y-2">
@@ -460,6 +486,7 @@ export function OptionEditor({
         className={clsx(
           'space-y-2',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
+          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
         )}
       >
@@ -522,6 +549,7 @@ export function OptionEditor({
         className={clsx(
           'space-y-2',
           depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
+          isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
           isOptionIncompatible && 'opacity-60',
         )}
       >
@@ -577,6 +605,7 @@ export function OptionEditor({
       className={clsx(
         'space-y-2',
         depth > 0 && 'ml-4 pl-3 border-l-2 border-border',
+        isLane && 'rounded-md px-2 py-1 -mx-2 bg-bg-secondary/50',
         isOptionIncompatible && 'opacity-60',
       )}
     >

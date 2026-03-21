@@ -410,6 +410,8 @@ export function OptionEditor({
       });
     };
     const handleSwitchRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      if (event.repeat) return;
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       handleToggleSwitch();
@@ -452,6 +454,7 @@ export function OptionEditor({
               value={isChecked}
               onChange={handleToggleSwitch}
               disabled={effectiveDisabled}
+              tabIndex={-1}
             />
           </div>
         </div>

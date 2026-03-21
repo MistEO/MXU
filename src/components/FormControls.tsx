@@ -20,13 +20,15 @@ interface SwitchButtonProps {
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  tabIndex?: number;
 }
 
-export function SwitchButton({ value, onChange, disabled }: SwitchButtonProps) {
+export function SwitchButton({ value, onChange, disabled, tabIndex }: SwitchButtonProps) {
   return (
     <button
       onClick={() => !disabled && onChange(!value)}
       disabled={disabled}
+      tabIndex={tabIndex}
       className={clsx(
         'relative w-11 h-6 rounded-full transition-colors flex-shrink-0',
         value ? 'bg-accent' : 'bg-bg-active',

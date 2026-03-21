@@ -272,14 +272,14 @@ function InputField({
             onChange={onChange}
             placeholder={inputPlaceholder}
             disabled={disabled}
-            className="w-[40%] flex-shrink-0"
+            className="w-[30%] flex-shrink-0"
           />
         ) : input.input_type === 'time' ? (
           <TimeInput
             value={value}
             onChange={onChange}
             disabled={disabled}
-            className="w-[40%] flex-shrink-0"
+            className="w-[30%] flex-shrink-0"
           />
         ) : (
           <TextInput
@@ -288,7 +288,7 @@ function InputField({
             placeholder={inputPlaceholder}
             disabled={disabled}
             hasError={!!validationError}
-            className="w-[40%] flex-shrink-0"
+            className="w-[30%] flex-shrink-0"
             type={input.pipeline_type === 'int' ? 'number' : 'text'}
             inputMode={input.pipeline_type === 'int' ? 'numeric' : undefined}
             step={input.pipeline_type === 'int' ? 1 : undefined}
@@ -608,7 +608,7 @@ export function OptionEditor({
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 max-w-[60%]">
           <OptionLabelWithIncompatible
             label={optionLabel}
             icon={optionDef.icon}
@@ -622,7 +622,7 @@ export function OptionEditor({
           />
         </div>
         <SelectComponent
-          className="w-[40%] flex-shrink-0"
+          className="w-[30%] flex-shrink-0 ml-auto"
           value={selectedCaseName}
           disabled={effectiveDisabled}
           basePath={basePath}

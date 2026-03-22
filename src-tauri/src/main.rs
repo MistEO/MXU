@@ -1,6 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use winsafe::co::SW;
+use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
+
 #[cfg(target_os = "windows")]
 mod webview2;
 
@@ -42,13 +45,6 @@ fn main() {
         // 说明：用户取消 UAC 时 ShellExecuteW 会失败，此时继续以普通权限启动。
         // 调试模式下不请求管理员权限，方便开发调试
         if !cfg!(debug_assertions) && !mxu_lib::commands::system::is_elevated() {
-            use std::ffi::OsStr;
-            use std::os::windows::ffi::OsStrExt;
-            use windows::core::PCWSTR;
-            use windows::Win32::Foundation::HWND;
-            use windows::Win32::UI::Shell::ShellExecuteW;
-            use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-
             let exe_path = match std::env::current_exe() {
                 Ok(p) => p,
                 Err(_) => {
@@ -58,27 +54,16 @@ fn main() {
                 }
             };
 
-            fn to_wide(s: &str) -> Vec<u16> {
-                OsStr::new(s).encode_wide().chain(Some(0)).collect()
-            }
+            let result = ShellExecuteEx(&SHELLEXECUTEINFO {
+                file: &exe_path.to_string_lossy(),
+                verb: Option::from("runas"),
+                show: SW::SHOWNORMAL,
+                ..Default::default()
+            });
 
-            let operation = to_wide("runas");
-            let file = to_wide(&exe_path.to_string_lossy());
-
-            unsafe {
-                let result = ShellExecuteW(
-                    HWND::default(),
-                    PCWSTR::from_raw(operation.as_ptr()),
-                    PCWSTR::from_raw(file.as_ptr()),
-                    PCWSTR::null(),
-                    PCWSTR::null(),
-                    SW_SHOWNORMAL,
-                );
-
-                if result.0 as usize > 32 {
-                    // 新的管理员进程已启动，退出当前普通权限进程
-                    std::process::exit(0);
-                }
+            if result.is_ok() {
+                // 新的管理员进程已启动，退出当前普通权限进程
+                std::process::exit(0);
             }
         }
     }

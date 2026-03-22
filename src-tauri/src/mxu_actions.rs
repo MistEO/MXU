@@ -6,7 +6,9 @@ use chrono::TimeZone;
 use log::{info, warn};
 use maa_framework::custom::FnAction;
 use maa_framework::resource::Resource;
-
+use winsafe::co::SC;
+use winsafe::msg::wm;
+use winsafe::{HWND, POINT};
 // ============================================================================
 // MXU_SLEEP Custom Action
 // ============================================================================
@@ -678,20 +680,11 @@ fn execute_power_restart() -> bool {
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
-
-        // WM_SYSCOMMAND = 0x0112, SC_MONITORPOWER = 0xF170, LPARAM(2) = turn off
-        const WM_SYSCOMMAND: u32 = 0x0112;
-        const SC_MONITORPOWER: usize = 0xF170;
-
         unsafe {
-            SendMessageW(
-                HWND(0xFFFF as *mut std::ffi::c_void), // HWND_BROADCAST
-                WM_SYSCOMMAND,
-                windows::Win32::Foundation::WPARAM(SC_MONITORPOWER),
-                windows::Win32::Foundation::LPARAM(2), // 2 = turn off monitor
-            );
+            HWND::BROADCAST.SendMessage(wm::SysCommand {
+                request: SC::MONITORPOWER,
+                position: POINT::from(2),
+            });
         }
         info!("[MXU_POWER] Screen off command issued (Windows)");
         true

@@ -53,16 +53,12 @@ maa-framework = { version = "1", features = ["dynamic"] }
 debug = true
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
-    "Win32_Foundation",
-    "Win32_Graphics_Gdi",
-    "Win32_Security",
-    "Win32_System_Diagnostics_ToolHelp",
-    "Win32_System_LibraryLoader",
-    "Win32_System_Registry",
-    "Win32_System_SystemInformation",
-    "Win32_System_Threading",
-    "Win32_UI_Controls",
-    "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging",
+# FIXME: winsafe new release
+winsafe = { git = "https://github.com/rodrigocfd/winsafe.git", rev = "7e82b1c7082cc24620f5a73c17c7bd8b682d37f3", features = [
+    "advapi",
+    "kernel",
+    "shell",
+    "gui",
+    "gdi",
+    "user"
 ] }

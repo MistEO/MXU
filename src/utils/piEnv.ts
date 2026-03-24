@@ -22,7 +22,7 @@ function resolvePiI18nText(
   }
 
   const key = text.slice(1);
-  return translations?.[key] || key;
+  return translations?.[key] ?? key;
 }
 
 function resolveI18nValue(

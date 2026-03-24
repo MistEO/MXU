@@ -387,7 +387,7 @@ export const maaService = {
     if (!isTauri()) {
       return tasks.map((_, i) => i + 1);
     }
-    const hasAgent = agentConfigs && agentConfigs.length > 0;
+    const hasAgent = (agentConfigs?.length ?? 0) > 0;
     const taskIds = await invoke<number[]>('maa_start_tasks', {
       instanceId,
       tasks,

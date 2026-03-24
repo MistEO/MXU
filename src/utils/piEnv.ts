@@ -1,4 +1,3 @@
-import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import type { ProjectInterface } from '@/types/interface';
 
@@ -12,30 +11,46 @@ export interface PiEnvContext {
 }
 
 /**
- * 递归解析对象中所有 `$` 开头的 i18n 字符串字段。
- * 返回的新对象中 label、description 等字段已替换为最终展示文本。
+ * 仅解析 `$` 开头的 i18n key，保留普通字符串字段原值不变。
  */
+function resolvePiI18nText(
+  text: string,
+  translations?: Record<string, string>,
+): string {
+  if (!text.startsWith('$')) {
+    return text;
+  }
+
+  const key = text.slice(1);
+  return translations?.[key] || key;
+}
+
+function resolveI18nValue(
+  value: unknown,
+  translations?: Record<string, string>,
+): unknown {
+  if (typeof value === 'string') {
+    return resolvePiI18nText(value, translations);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveI18nValue(item, translations));
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return resolveI18nInObject(value as Record<string, unknown>, translations);
+  }
+
+  return value;
+}
+
 function resolveI18nInObject(
   obj: Record<string, unknown>,
   translations?: Record<string, string>,
 ): Record<string, unknown> {
   const resolved: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string') {
-      resolved[key] = resolveI18nText(value, translations);
-    } else if (Array.isArray(value)) {
-      resolved[key] = value.map((item) =>
-        typeof item === 'object' && item !== null
-          ? resolveI18nInObject(item as Record<string, unknown>, translations)
-          : typeof item === 'string'
-            ? resolveI18nText(item, translations)
-            : item,
-      );
-    } else if (typeof value === 'object' && value !== null) {
-      resolved[key] = resolveI18nInObject(value as Record<string, unknown>, translations);
-    } else {
-      resolved[key] = value;
-    }
+    resolved[key] = resolveI18nValue(value, translations);
   }
   return resolved;
 }

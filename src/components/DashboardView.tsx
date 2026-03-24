@@ -266,7 +266,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
 
           // PI v2.5.0: 构建 Agent 子进程环境变量
-          const piEnvs = agentConfigs
+          const piEnvs = agentConfigs?.length
             ? buildPiEnvVars({
                 projectInterface,
                 controllerName: currentControllerName,

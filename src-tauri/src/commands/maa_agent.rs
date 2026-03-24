@@ -62,7 +62,7 @@ async fn start_single_agent(
     resource: Resource,
     controller: Controller,
     tasker: Tasker,
-    pi_envs: HashMap<String, String>,
+    pi_envs: Arc<HashMap<String, String>>,
 ) -> Result<(AgentClient, std::process::Child), String> {
     info!("[agent#{}] Starting agent: {:?}", agent_index, agent);
 
@@ -123,12 +123,33 @@ async fn start_single_agent(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        // PI v2.5.0: 注入 PI_* 环境变量
-        for (key, value) in &pi_envs {
+        // PI v2.5.0: 仅允许注入 PI_* 环境变量，避免覆盖宿主进程关键环境。
+        let mut injected_count = 0usize;
+        for (key, value) in pi_envs.iter() {
+            if !key.starts_with("PI_") {
+                warn!(
+                    "[agent#{}] Skipping non-PI_ env key from pi_envs: {}",
+                    agent_index, key
+                );
+                continue;
+            }
+
             cmd.env(key, value);
+            injected_count += 1;
         }
-        if !pi_envs.is_empty() {
-            info!("[agent#{}] Injected {} PI_* env vars", agent_index, pi_envs.len());
+        if injected_count > 0 {
+            info!(
+                "[agent#{}] Injected {} PI_* env vars (requested: {})",
+                agent_index,
+                injected_count,
+                pi_envs.len()
+            );
+        } else if !pi_envs.is_empty() {
+            warn!(
+                "[agent#{}] No PI_* env vars were injected ({} entries provided)",
+                agent_index,
+                pi_envs.len()
+            );
         }
 
         let mut child = cmd.spawn().map_err(|e| {
@@ -328,7 +349,7 @@ pub async fn maa_start_tasks(
 
     // 启动所有 Agent（如果配置了）
     debug!("[start_tasks] Checking agent configs...");
-    let pi_envs = pi_envs.unwrap_or_default();
+    let pi_envs = Arc::new(pi_envs.unwrap_or_default());
     if let Some(configs) = agent_configs {
         if configs.is_empty() {
             debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
@@ -346,7 +367,7 @@ pub async fn maa_start_tasks(
                 let app_handle = app.clone();
                 let inst_id = instance_id.clone();
                 let cwd_clone = cwd.clone();
-                let pi_envs_clone = pi_envs.clone();
+                let pi_envs_clone = Arc::clone(&pi_envs);
 
                 match start_single_agent(
                     app_handle,

@@ -359,6 +359,7 @@ export const maaService = {
    * @param agentConfigs Agent 配置列表（可选，支持多个 Agent）
    * @param cwd 工作目录（Agent 子进程的 CWD）
    * @param tcpCompatMode 通信兼容模式（强制使用 TCP）
+   * @param piEnvs PI v2.5.0 环境变量（Agent 子进程注入）
    * @returns 任务 ID 列表
    */
   async startTasks(
@@ -367,6 +368,7 @@ export const maaService = {
     agentConfigs?: AgentConfig[],
     cwd?: string,
     tcpCompatMode?: boolean,
+    piEnvs?: Record<string, string>,
   ): Promise<number[]> {
     log.info('启动任务, 实例:', instanceId, ', 任务数:', tasks.length, ', cwd:', cwd || '.');
     tasks.forEach((task, i) => {
@@ -385,12 +387,14 @@ export const maaService = {
     if (!isTauri()) {
       return tasks.map((_, i) => i + 1);
     }
+    const hasAgent = agentConfigs && agentConfigs.length > 0;
     const taskIds = await invoke<number[]>('maa_start_tasks', {
       instanceId,
       tasks,
-      agentConfigs: agentConfigs && agentConfigs.length > 0 ? agentConfigs : null,
+      agentConfigs: hasAgent ? agentConfigs : null,
       cwd: cwd || '.',
       tcpCompatMode: tcpCompatMode || false,
+      piEnvs: hasAgent && piEnvs ? piEnvs : null,
     });
     log.info('任务已提交, taskIds:', taskIds);
     return taskIds;

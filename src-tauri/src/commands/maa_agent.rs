@@ -3,6 +3,7 @@
 //! 提供 MaaFramework Agent 启动和管理功能
 
 use log::{debug, error, info, warn};
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -61,6 +62,7 @@ async fn start_single_agent(
     resource: Resource,
     controller: Controller,
     tasker: Tasker,
+    pi_envs: HashMap<String, String>,
 ) -> Result<(AgentClient, std::process::Child), String> {
     info!("[agent#{}] Starting agent: {:?}", agent_index, agent);
 
@@ -120,6 +122,14 @@ async fn start_single_agent(
             .env("PYTHONUTF8", "1")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // PI v2.5.0: 注入 PI_* 环境变量
+        for (key, value) in &pi_envs {
+            cmd.env(key, value);
+        }
+        if !pi_envs.is_empty() {
+            info!("[agent#{}] Injected {} PI_* env vars", agent_index, pi_envs.len());
+        }
 
         let mut child = cmd.spawn().map_err(|e| {
             format!(
@@ -239,6 +249,7 @@ pub async fn maa_start_tasks(
     agent_configs: Option<Vec<AgentConfig>>,
     cwd: String,
     tcp_compat_mode: bool,
+    pi_envs: Option<HashMap<String, String>>,
 ) -> Result<Vec<i64>, String> {
     info!("maa_start_tasks called");
 
@@ -317,6 +328,7 @@ pub async fn maa_start_tasks(
 
     // 启动所有 Agent（如果配置了）
     debug!("[start_tasks] Checking agent configs...");
+    let pi_envs = pi_envs.unwrap_or_default();
     if let Some(configs) = agent_configs {
         if configs.is_empty() {
             debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
@@ -334,6 +346,7 @@ pub async fn maa_start_tasks(
                 let app_handle = app.clone();
                 let inst_id = instance_id.clone();
                 let cwd_clone = cwd.clone();
+                let pi_envs_clone = pi_envs.clone();
 
                 match start_single_agent(
                     app_handle,
@@ -345,6 +358,7 @@ pub async fn maa_start_tasks(
                     res_clone,
                     ctrl_clone,
                     tasker_clone,
+                    pi_envs_clone,
                 )
                 .await
                 {

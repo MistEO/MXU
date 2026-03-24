@@ -35,6 +35,7 @@ import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
+import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.ui;
 
@@ -78,6 +79,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     screenshotFrameRate,
     setShowAddTaskPanel,
     tcpCompatMode,
+    maaVersion,
   } = useAppStore();
 
   const langKey = getInterfaceLangKey(language);
@@ -263,6 +265,18 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           // 准备 Agent 配置（支持单个或多个 Agent）
           const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
 
+          // PI v2.5.0: 构建 Agent 子进程环境变量
+          const piEnvs = agentConfigs
+            ? buildPiEnvVars({
+                projectInterface,
+                controllerName: currentControllerName,
+                resourceName: currentResourceName,
+                translations,
+                language,
+                maaVersion,
+              })
+            : undefined;
+
           updateInstance(instanceId, { isRunning: true });
           setInstanceTaskStatus(instanceId, 'Running');
           setShowAddTaskPanel(false);
@@ -277,6 +291,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             agentConfigs,
             basePath,
             tcpCompatMode,
+            piEnvs,
           );
 
           log.info(`[${instanceName}] 任务已提交, task_ids:`, taskIds);

@@ -5,3 +5,4 @@ export * from './jsonc';
 export * from './optionHelpers';
 export * from './resourcePath';
 export * from './paths';
+export * from './piEnv';

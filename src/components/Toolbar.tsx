@@ -27,6 +27,7 @@ import { ScheduleButton } from './toolbar/ScheduleButton';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 import { scheduleService } from '@/services/scheduleService';
+import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
 
@@ -81,6 +82,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     language,
     // 调试设置
     tcpCompatMode,
+    // MaaFramework 版本
+    maaVersion,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -722,6 +725,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         // 准备 Agent 配置（支持单个或多个 Agent）
         const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
 
+        // PI v2.5.0: 构建 Agent 子进程环境变量
+        const piEnvs = agentConfigs
+          ? buildPiEnvVars({
+              projectInterface,
+              controllerName,
+              resourceName,
+              translations,
+              language,
+              maaVersion,
+            })
+          : undefined;
+
         updateInstance(targetId, { isRunning: true });
         setInstanceTaskStatus(targetId, 'Running');
         setShowAddTaskPanel(false);
@@ -744,6 +759,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           agentConfigs,
           basePath,
           tcpCompatMode,
+          piEnvs,
         );
 
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);

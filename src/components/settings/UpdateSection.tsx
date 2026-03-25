@@ -31,8 +31,10 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { loggers } from '@/utils/logger';
 import { ReleaseNotes, DownloadProgressBar } from '../UpdateInfoCard';
+import { isDesktop } from '@/utils/paths';
 
 export function UpdateSection() {
+  if (!isDesktop()) return null;
   const { t } = useTranslation();
   const {
     projectInterface,

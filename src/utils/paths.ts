@@ -1,6 +1,6 @@
 /**
  * 路径工具函数
- * 统一管理应用数据目录的获取
+ * 统一管理应用数据目录的获取和平台检测
  */
 
 // 目录常量
@@ -11,6 +11,18 @@ const DIR_CACHE = 'cache';
 // 检测是否在 Tauri 环境中
 export const isTauri = () => {
   return typeof window !== 'undefined' && '__TAURI__' in window;
+};
+
+export const isAndroid = (): boolean => {
+  return typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+};
+
+export const isMobile = (): boolean => {
+  return isAndroid();
+};
+
+export const isDesktop = (): boolean => {
+  return !isMobile();
 };
 
 // 缓存数据目录路径

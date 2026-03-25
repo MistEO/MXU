@@ -295,21 +295,25 @@ async function processImports(
 // 平台过滤
 // ============================================================================
 
-// 检测当前操作系统
 const isWindows = navigator.platform.toLowerCase().includes('win');
 const isMacOS = navigator.platform.toLowerCase().includes('mac');
+const isAndroidPlatform = /android/i.test(navigator.userAgent);
 
-/**
- * 获取当前平台不支持的控制器类型集合
- */
 function getUnsupportedControllerTypes(): Set<ControllerType> {
   const unsupported = new Set<ControllerType>();
-  // 非 Windows 系统不支持 Win32 和 Gamepad
+
+  // Android: 仅支持 Adb 控制器
+  if (isAndroidPlatform) {
+    unsupported.add('Win32');
+    unsupported.add('Gamepad');
+    unsupported.add('PlayCover');
+    return unsupported;
+  }
+
   if (!isWindows) {
     unsupported.add('Win32');
     unsupported.add('Gamepad');
   }
-  // 非 macOS 系统不支持 PlayCover
   if (!isMacOS) {
     unsupported.add('PlayCover');
   }

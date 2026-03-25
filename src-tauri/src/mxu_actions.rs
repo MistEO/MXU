@@ -51,7 +51,6 @@ fn mxu_sleep_action_fn(
     let param_str = args.param;
     info!("[MXU_SLEEP] Received param: {}", param_str);
 
-    // 解析 JSON 获取 sleep_time
     let sleep_seconds: u64 = match serde_json::from_str::<serde_json::Value>(param_str) {
         Ok(json) => json.get("sleep_time").and_then(|v| v.as_u64()).unwrap_or(5),
         Err(e) => {
@@ -65,7 +64,6 @@ fn mxu_sleep_action_fn(
 
     info!("[MXU_SLEEP] Sleeping for {} seconds...", sleep_seconds);
 
-    // 执行可中断睡眠（响应 stop）
     if !wait_with_stop_check(ctx, sleep_seconds) {
         warn!("[MXU_SLEEP] Interrupted by stop request");
         return false;
@@ -79,12 +77,8 @@ fn mxu_sleep_action_fn(
 // MXU_WAITUNTIL Custom Action
 // ============================================================================
 
-/// MXU_WAITUNTIL 动作名称常量
 const MXU_WAITUNTIL_ACTION: &str = "MXU_WAITUNTIL_ACTION";
 
-/// MXU_WAITUNTIL custom action 回调函数
-/// 从 custom_action_param 中读取 target_time（HH:MM 格式），等待到该时间点
-/// 仅支持 24 小时内：若目标时间已过则等待到次日该时间
 fn mxu_waituntil_action_fn(
     ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -107,7 +101,6 @@ fn mxu_waituntil_action_fn(
     };
     let target_time = target_time.to_string();
 
-    // 解析 HH:MM 格式
     let parts: Vec<&str> = target_time.split(':').collect();
     if parts.len() < 2 {
         warn!("[MXU_WAITUNTIL] Invalid time format: {}", target_time);
@@ -130,7 +123,6 @@ fn mxu_waituntil_action_fn(
         }
     };
 
-    // 计算当前时间与目标时间的差值
     let now = chrono::Local::now();
     let Some(today_target) = now.date_naive().and_hms_opt(target_hour, target_minute, 0) else {
         warn!(
@@ -154,7 +146,6 @@ fn mxu_waituntil_action_fn(
     let wait_duration = if today_target > now {
         today_target - now
     } else {
-        // 目标时间已过，等到明天
         let tomorrow_target = today_target + chrono::Duration::days(1);
         tomorrow_target - now
     };
@@ -175,14 +166,11 @@ fn mxu_waituntil_action_fn(
 }
 
 // ============================================================================
-// MXU_LAUNCH Custom Action
+// MXU_LAUNCH Custom Action (desktop only)
 // ============================================================================
 
-/// MXU_LAUNCH 动作名称常量
 const MXU_LAUNCH_ACTION: &str = "MXU_LAUNCH_ACTION";
 
-/// MXU_LAUNCH custom action 回调函数
-/// 从 custom_action_param 中读取 program, args, wait_for_exit，启动外部程序
 fn mxu_launch_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -190,103 +178,110 @@ fn mxu_launch_action_fn(
     let param_str = args.param;
     info!("[MXU_LAUNCH] Received param: {}", param_str);
 
-    let json: serde_json::Value = match serde_json::from_str(param_str) {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("[MXU_LAUNCH] Failed to parse param JSON: {}", e);
-            return false;
-        }
-    };
-
-    let program = match json.get("program").and_then(|v| v.as_str()) {
-        Some(p) if !p.trim().is_empty() => p.to_string(),
-        _ => {
-            warn!("[MXU_LAUNCH] Missing or empty 'program' parameter");
-            return false;
-        }
-    };
-
-    let args_str = json
-        .get("args")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let wait_for_exit = json
-        .get("wait_for_exit")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let skip_if_running = json
-        .get("skip_if_running")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    // 如果启用了跳过检查且程序已在运行，直接返回成功
-    if skip_if_running {
-        if crate::commands::system::check_process_running(&program) {
-            info!(
-                "[MXU_LAUNCH] Program '{}' is already running, skipping launch",
-                program
-            );
-            return true;
-        }
+    #[cfg(mobile)]
+    {
+        warn!("[MXU_LAUNCH] Not supported on mobile platforms");
+        return false;
     }
 
-    info!(
-        "[MXU_LAUNCH] Launching: program={}, args={}, wait_for_exit={}",
-        program, args_str, wait_for_exit
-    );
-
-    let args_vec: Vec<String> = if args_str.trim().is_empty() {
-        Vec::new()
-    } else {
-        match shell_words::split(&args_str) {
-            Ok(parsed) => parsed,
+    #[cfg(desktop)]
+    {
+        let json: serde_json::Value = match serde_json::from_str(param_str) {
+            Ok(v) => v,
             Err(e) => {
-                warn!(
+                warn!("[MXU_LAUNCH] Failed to parse param JSON: {}", e);
+                return false;
+            }
+        };
+
+        let program = match json.get("program").and_then(|v| v.as_str()) {
+            Some(p) if !p.trim().is_empty() => p.to_string(),
+            _ => {
+                warn!("[MXU_LAUNCH] Missing or empty 'program' parameter");
+                return false;
+            }
+        };
+
+        let args_str = json
+            .get("args")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let wait_for_exit = json
+            .get("wait_for_exit")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let skip_if_running = json
+            .get("skip_if_running")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        if skip_if_running {
+            if crate::commands::system::check_process_running(&program) {
+                info!(
+                    "[MXU_LAUNCH] Program '{}' is already running, skipping launch",
+                    program
+                );
+                return true;
+            }
+        }
+
+        info!(
+            "[MXU_LAUNCH] Launching: program={}, args={}, wait_for_exit={}",
+            program, args_str, wait_for_exit
+        );
+
+        let args_vec: Vec<String> = if args_str.trim().is_empty() {
+            Vec::new()
+        } else {
+            match shell_words::split(&args_str) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    warn!(
                     "[MXU_LAUNCH] Failed to parse arguments with shell_words ({}); falling back to whitespace split: {}",
                     e, args_str
                 );
-                args_str.split_whitespace().map(|s| s.to_string()).collect()
+                    args_str.split_whitespace().map(|s| s.to_string()).collect()
+                }
+            }
+        };
+
+        let mut cmd = std::process::Command::new(&program);
+
+        if !args_vec.is_empty() {
+            cmd.args(&args_vec);
+        }
+
+        if let Some(parent) = std::path::Path::new(&program).parent() {
+            if parent.exists() {
+                cmd.current_dir(parent);
             }
         }
-    };
 
-    let mut cmd = std::process::Command::new(&program);
-
-    if !args_vec.is_empty() {
-        cmd.args(&args_vec);
-    }
-
-    // 默认使用程序所在目录作为工作目录
-    if let Some(parent) = std::path::Path::new(&program).parent() {
-        if parent.exists() {
-            cmd.current_dir(parent);
-        }
-    }
-
-    if wait_for_exit {
-        match cmd.status() {
-            Ok(status) => {
-                let exit_code = status.code().unwrap_or(-1);
-                info!("[MXU_LAUNCH] Process exited with code: {}", exit_code);
-                true
+        if wait_for_exit {
+            match cmd.status() {
+                Ok(status) => {
+                    let exit_code = status.code().unwrap_or(-1);
+                    info!("[MXU_LAUNCH] Process exited with code: {}", exit_code);
+                    true
+                }
+                Err(e) => {
+                    log::error!("[MXU_LAUNCH] Failed to run program: {}", e);
+                    false
+                }
             }
-            Err(e) => {
-                log::error!("[MXU_LAUNCH] Failed to run program: {}", e);
-                false
-            }
-        }
-    } else {
-        match cmd.spawn() {
-            Ok(_) => {
-                info!("[MXU_LAUNCH] Process spawned (not waiting)");
-                true
-            }
-            Err(e) => {
-                log::error!("[MXU_LAUNCH] Failed to spawn program: {}", e);
-                false
+        } else {
+            match cmd.spawn() {
+                Ok(_) => {
+                    info!("[MXU_LAUNCH] Process spawned (not waiting)");
+                    true
+                }
+                Err(e) => {
+                    log::error!("[MXU_LAUNCH] Failed to spawn program: {}", e);
+                    false
+                }
             }
         }
     }
@@ -296,11 +291,8 @@ fn mxu_launch_action_fn(
 // MXU_WEBHOOK Custom Action
 // ============================================================================
 
-/// MXU_WEBHOOK 动作名称常量
 const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 
-/// MXU_WEBHOOK custom action 回调函数
-/// 从 custom_action_param 中读取 url，执行 HTTP GET 请求
 fn mxu_webhook_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -341,12 +333,10 @@ fn mxu_webhook_action_fn(
         Ok(resp) => {
             let status = resp.status();
             info!("[MXU_WEBHOOK] Response status: {}", status);
-            if status.is_success() {
-                true
-            } else {
+            if !status.is_success() {
                 warn!("[MXU_WEBHOOK] Non-success status code: {}", status);
-                true // 仍然返回成功，只要请求发出去了
             }
+            true
         }
         Err(e) => {
             log::error!("[MXU_WEBHOOK] Request failed: {}", e);
@@ -359,11 +349,8 @@ fn mxu_webhook_action_fn(
 // MXU_NOTIFY Custom Action
 // ============================================================================
 
-/// MXU_NOTIFY 动作名称常量
 const MXU_NOTIFY_ACTION: &str = "MXU_NOTIFY_ACTION";
 
-/// MXU_NOTIFY custom action 回调函数
-/// 从 custom_action_param 中读取 title, body，发送系统通知
 fn mxu_notify_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -396,19 +383,29 @@ fn mxu_notify_action_fn(
         title, body
     );
 
-    match notify_rust::Notification::new()
-        .summary(&title)
-        .body(&body)
-        .show()
+    #[cfg(desktop)]
     {
-        Ok(_) => {
-            info!("[MXU_NOTIFY] Notification sent successfully");
-            true
+        match notify_rust::Notification::new()
+            .summary(&title)
+            .body(&body)
+            .show()
+        {
+            Ok(_) => {
+                info!("[MXU_NOTIFY] Notification sent successfully");
+                true
+            }
+            Err(e) => {
+                log::error!("[MXU_NOTIFY] Failed to send notification: {}", e);
+                false
+            }
         }
-        Err(e) => {
-            log::error!("[MXU_NOTIFY] Failed to send notification: {}", e);
-            false
-        }
+    }
+
+    #[cfg(mobile)]
+    {
+        // 移动端通知由前端 WebView 的 Notification API 处理
+        info!("[MXU_NOTIFY] Mobile: notification logged (title={}, body={})", title, body);
+        true
     }
 }
 
@@ -416,11 +413,8 @@ fn mxu_notify_action_fn(
 // MXU_KILLPROC Custom Action
 // ============================================================================
 
-/// MXU_KILLPROC 动作名称常量
 const MXU_KILLPROC_ACTION: &str = "MXU_KILLPROC_ACTION";
 
-/// MXU_KILLPROC custom action 回调函数
-/// 从 custom_action_param 中读取 kill_self, process_name，结束进程
 fn mxu_killproc_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -428,48 +422,56 @@ fn mxu_killproc_action_fn(
     let param_str = args.param;
     info!("[MXU_KILLPROC] Received param: {}", param_str);
 
-    let json: serde_json::Value = match serde_json::from_str(param_str) {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("[MXU_KILLPROC] Failed to parse param JSON: {}", e);
-            return false;
-        }
-    };
+    #[cfg(mobile)]
+    {
+        warn!("[MXU_KILLPROC] Not supported on mobile platforms");
+        return false;
+    }
 
-    let kill_self = json
-        .get("kill_self")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    if kill_self {
-        info!("[MXU_KILLPROC] Killing self process");
-        // 获取当前可执行文件名
-        let exe_name = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
-
-        if let Some(name) = exe_name {
-            info!("[MXU_KILLPROC] Current exe: {}", name);
-            kill_process_by_name(&name)
-        } else {
-            warn!("[MXU_KILLPROC] Could not determine current exe name, using process::exit");
-            std::process::exit(0);
-        }
-    } else {
-        let process_name = match json.get("process_name").and_then(|v| v.as_str()) {
-            Some(p) if !p.trim().is_empty() => p.to_string(),
-            _ => {
-                warn!("[MXU_KILLPROC] Missing or empty 'process_name' parameter");
+    #[cfg(desktop)]
+    {
+        let json: serde_json::Value = match serde_json::from_str(param_str) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("[MXU_KILLPROC] Failed to parse param JSON: {}", e);
                 return false;
             }
         };
 
-        info!("[MXU_KILLPROC] Killing process: {}", process_name);
-        kill_process_by_name(&process_name)
+        let kill_self = json
+            .get("kill_self")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        if kill_self {
+            info!("[MXU_KILLPROC] Killing self process");
+            let exe_name = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
+
+            if let Some(name) = exe_name {
+                info!("[MXU_KILLPROC] Current exe: {}", name);
+                kill_process_by_name(&name)
+            } else {
+                warn!("[MXU_KILLPROC] Could not determine current exe name, using process::exit");
+                std::process::exit(0);
+            }
+        } else {
+            let process_name = match json.get("process_name").and_then(|v| v.as_str()) {
+                Some(p) if !p.trim().is_empty() => p.to_string(),
+                _ => {
+                    warn!("[MXU_KILLPROC] Missing or empty 'process_name' parameter");
+                    return false;
+                }
+            };
+
+            info!("[MXU_KILLPROC] Killing process: {}", process_name);
+            kill_process_by_name(&process_name)
+        }
     }
 }
 
-/// 按名称结束进程
+#[cfg(desktop)]
 fn kill_process_by_name(name: &str) -> bool {
     use std::process::Command;
 
@@ -500,7 +502,6 @@ fn kill_process_by_name(name: &str) -> bool {
 
     #[cfg(not(windows))]
     {
-        // macOS / Linux: 使用 killall，失败则 fallback 到 pkill
         match Command::new("killall").arg(name).output() {
             Ok(output) => {
                 if output.status.success() {
@@ -529,14 +530,11 @@ fn kill_process_by_name(name: &str) -> bool {
 }
 
 // ============================================================================
-// MXU_POWER Custom Action
+// MXU_POWER Custom Action (desktop only)
 // ============================================================================
 
-/// MXU_POWER 动作名称常量
 const MXU_POWER_ACTION: &str = "MXU_POWER_ACTION";
 
-/// MXU_POWER custom action 回调函数
-/// 从 custom_action_param 中读取 power_action，执行关机/重启/息屏/睡眠操作
 fn mxu_power_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -544,33 +542,43 @@ fn mxu_power_action_fn(
     let param_str = args.param;
     info!("[MXU_POWER] Received param: {}", param_str);
 
-    let json: serde_json::Value = match serde_json::from_str(param_str) {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("[MXU_POWER] Failed to parse param JSON: {}", e);
-            return false;
-        }
-    };
+    #[cfg(mobile)]
+    {
+        warn!("[MXU_POWER] Not supported on mobile platforms");
+        return false;
+    }
 
-    let action = json
-        .get("power_action")
-        .and_then(|v| v.as_str())
-        .unwrap_or("shutdown");
+    #[cfg(desktop)]
+    {
+        let json: serde_json::Value = match serde_json::from_str(param_str) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("[MXU_POWER] Failed to parse param JSON: {}", e);
+                return false;
+            }
+        };
 
-    info!("[MXU_POWER] Executing power action: {}", action);
+        let action = json
+            .get("power_action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("shutdown");
 
-    match action {
-        "shutdown" => execute_power_shutdown(),
-        "restart" => execute_power_restart(),
-        "screenoff" => execute_power_screenoff(),
-        "sleep" => execute_power_sleep(),
-        _ => {
-            warn!("[MXU_POWER] Unknown power action: {}", action);
-            false
+        info!("[MXU_POWER] Executing power action: {}", action);
+
+        match action {
+            "shutdown" => execute_power_shutdown(),
+            "restart" => execute_power_restart(),
+            "screenoff" => execute_power_screenoff(),
+            "sleep" => execute_power_sleep(),
+            _ => {
+                warn!("[MXU_POWER] Unknown power action: {}", action);
+                false
+            }
         }
     }
 }
 
+#[cfg(desktop)]
 fn execute_power_shutdown() -> bool {
     use std::process::Command;
 
@@ -623,6 +631,7 @@ fn execute_power_shutdown() -> bool {
     }
 }
 
+#[cfg(desktop)]
 fn execute_power_restart() -> bool {
     use std::process::Command;
 
@@ -675,22 +684,22 @@ fn execute_power_restart() -> bool {
     }
 }
 
+#[cfg(desktop)]
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
         use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
 
-        // WM_SYSCOMMAND = 0x0112, SC_MONITORPOWER = 0xF170, LPARAM(2) = turn off
         const WM_SYSCOMMAND: u32 = 0x0112;
         const SC_MONITORPOWER: usize = 0xF170;
 
         unsafe {
             SendMessageW(
-                HWND(0xFFFF as *mut std::ffi::c_void), // HWND_BROADCAST
+                HWND(0xFFFF as *mut std::ffi::c_void),
                 WM_SYSCOMMAND,
                 windows::Win32::Foundation::WPARAM(SC_MONITORPOWER),
-                windows::Win32::Foundation::LPARAM(2), // 2 = turn off monitor
+                windows::Win32::Foundation::LPARAM(2),
             );
         }
         info!("[MXU_POWER] Screen off command issued (Windows)");
@@ -715,7 +724,10 @@ fn execute_power_screenoff() -> bool {
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         use std::process::Command;
-        match Command::new("xset").args(["dpms", "force", "off"]).spawn() {
+        match Command::new("xset")
+            .args(["dpms", "force", "off"])
+            .spawn()
+        {
             Ok(_) => {
                 info!("[MXU_POWER] Screen off command issued (Linux)");
                 true
@@ -728,6 +740,7 @@ fn execute_power_screenoff() -> bool {
     }
 }
 
+#[cfg(desktop)]
 fn execute_power_sleep() -> bool {
     use std::process::Command;
 
@@ -781,12 +794,9 @@ fn execute_power_sleep() -> bool {
 // 注册入口
 // ============================================================================
 
-/// 为资源注册所有 MXU 内置 custom actions
-/// 在资源创建后调用此函数
 pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
     let mut failed_count = 0;
 
-    // 定义一个局部宏打印日志并统计失败
     macro_rules! reg_action {
         ($name:expr, $fn_name:expr) => {
             let wrapper = move |ctx: &maa_framework::context::Context,

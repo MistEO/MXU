@@ -5,7 +5,7 @@ import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { loggers } from '@/utils/logger';
-import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
+import { isTauri, isDesktop, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { SwitchButton } from '@/components/FormControls';
 import { ExportLogsModal } from './ExportLogsModal';
@@ -68,17 +68,21 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] = await Promise.all([
+          const [exeDirResult, cwdResult, sysInfo] = await Promise.all([
             invoke<string>('get_exe_dir'),
             invoke<string>('get_cwd'),
             invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
               'get_system_info',
             ),
-            invoke<{ path: string; system: boolean }>('get_webview2_dir'),
           ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
-          setWebview2Dir(webview2DirResult);
+          if (isDesktop()) {
+            const webview2DirResult = await invoke<{ path: string; system: boolean }>(
+              'get_webview2_dir',
+            );
+            setWebview2Dir(webview2DirResult);
+          }
           setSystemInfo({
             os: sysInfo.os,
             osVersion: sysInfo.os_version,
@@ -199,7 +203,7 @@ export function DebugSection() {
                 <span className="font-mono text-text-primary text-xs">{exeDir}</span>
               </p>
             )}
-            <p className="break-all">
+            {isDesktop() && <p className="break-all">
               {t('debug.webview2Dir')}:{' '}
               <span className="font-mono text-text-primary text-xs">
                 {webview2Dir
@@ -208,7 +212,7 @@ export function DebugSection() {
                     : webview2Dir.path
                   : '-'}
               </span>
-            </p>
+            </p>}
           </div>
         )}
 

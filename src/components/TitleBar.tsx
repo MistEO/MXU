@@ -7,8 +7,7 @@ import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/paths';
 
-// 平台类型
-type Platform = 'windows' | 'macos' | 'linux' | 'unknown';
+type Platform = 'windows' | 'macos' | 'linux' | 'android' | 'unknown';
 
 export function TitleBar() {
   const { t } = useTranslation();
@@ -25,7 +24,8 @@ export function TitleBar() {
   // 检测平台（通过 userAgent）
   useEffect(() => {
     const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes('win')) setPlatform('windows');
+    if (ua.includes('android')) setPlatform('android');
+    else if (ua.includes('win')) setPlatform('windows');
     else if (ua.includes('mac')) setPlatform('macos');
     else if (ua.includes('linux')) setPlatform('linux');
   }, []);
@@ -112,9 +112,7 @@ export function TitleBar() {
     return version ? `${projectInterface.name} ${version}` : projectInterface.name;
   };
 
-  // macOS/Linux 使用原生标题栏，不渲染自定义标题栏
-  // 仅 Windows 使用自定义标题栏
-  if (platform === 'macos' || platform === 'linux') {
+  if (platform === 'macos' || platform === 'linux' || platform === 'android') {
     return null;
   }
 

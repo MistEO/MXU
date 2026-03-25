@@ -506,3 +506,16 @@ body {
 .has-background-image .bg-bg-primary {
   background-color: color-mix(in srgb, var(--color-bg-primary) 45%, transparent) !important;
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  button, [role="button"], select, input[type="checkbox"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .select-none {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+  }
+}

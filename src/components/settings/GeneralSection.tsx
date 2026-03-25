@@ -16,7 +16,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '@/stores/appStore';
 import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
-import { isTauri } from '@/utils/paths';
+import { isTauri, isDesktop } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
 import { FrameRateSelector } from '../FrameRateSelector';
 
@@ -140,8 +140,8 @@ export function GeneralSection() {
         {t('settings.general')}
       </h2>
 
-      {/* ① 开机自启动 */}
-      {isTauri() && (
+      {/* ① 开机自启动 (桌面端) */}
+      {isTauri() && isDesktop() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -253,19 +253,25 @@ export function GeneralSection() {
         </div>
       </div>
 
-      {/* ④ 最小化到托盘 */}
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AppWindowMac className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('settings.minimizeToTray')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.minimizeToTrayHint')}</p>
+      {/* ④ 最小化到托盘 (桌面端) */}
+      {isDesktop() && (
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AppWindowMac className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">
+                  {t('settings.minimizeToTray')}
+                </span>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {t('settings.minimizeToTrayHint')}
+                </p>
+              </div>
             </div>
+            <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
           </div>
-          <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
         </div>
-      </div>
+      )}
 
       {/* ⑤ 显示选项预览 */}
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">
@@ -306,8 +312,8 @@ export function GeneralSection() {
         </div>
       </div>
 
-      {/* ⑧ 重置窗口布局 */}
-      {isTauri() && (
+      {/* ⑧ 重置窗口布局 (桌面端) */}
+      {isTauri() && isDesktop() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

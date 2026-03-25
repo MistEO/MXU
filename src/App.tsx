@@ -32,13 +32,15 @@ import {
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
+import type { unregisterAll as UnregisterAllFn } from '@tauri-apps/plugin-global-shortcut';
 import { loggers } from '@/utils/logger';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode } from '@/themes';
 import {
   isTauri,
+  isMobile,
+  isDesktop,
   isValidWindowSize,
   setWindowTitle,
   setWindowSize,
@@ -420,8 +422,7 @@ function App() {
 
     setWindowTitle(title);
 
-    // 同时更新托盘 tooltip（只显示项目名称）
-    if (isTauri()) {
+    if (isTauri() && isDesktop()) {
       invoke('update_tray_tooltip', { tooltip: projectInterface.name }).catch((err) => {
         log.warn('设置托盘 tooltip 失败:', err);
       });
@@ -452,11 +453,12 @@ function App() {
         log.warn('设置窗口图标失败:', err);
       }
 
-      // 同时更新托盘图标
-      try {
-        await invoke('update_tray_icon', { iconPath: fullIconPath });
-      } catch (err) {
-        log.warn('设置托盘图标失败:', err);
+      if (isDesktop()) {
+        try {
+          await invoke('update_tray_icon', { iconPath: fullIconPath });
+        } catch (err) {
+          log.warn('设置托盘图标失败:', err);
+        }
       }
     };
 
@@ -499,11 +501,10 @@ function App() {
         importConfig(config);
       }
 
-      // 应用保存的窗口大小和位置
-      if (config.settings.windowSize) {
+      if (isDesktop() && config.settings.windowSize) {
         await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
       }
-      if (config.settings.windowPosition) {
+      if (isDesktop() && config.settings.windowPosition) {
         const { x, y } = config.settings.windowPosition;
         // 先检查位置是否在可见显示器范围内
         try {
@@ -778,16 +779,14 @@ function App() {
     const mode = resolveThemeMode(initialTheme);
     applyTheme(mode, initialAccent);
 
-    // 先检查程序路径，有问题就弹窗不继续加载
     const initApp = async () => {
-      if (isTauri()) {
+      if (isTauri() && isDesktop()) {
         try {
           const pathIssue = await invoke<string | null>('check_exe_path');
           if (pathIssue) {
             log.warn('检测到程序路径问题:', pathIssue);
             setBadPathType(pathIssue as BadPathType);
             setShowBadPathModal(true);
-            // 路径有问题就不继续加载了，但仍需显示窗口
             showWindow();
             return;
           }
@@ -803,9 +802,9 @@ function App() {
     initApp();
   }, []);
 
-  // 检查 VC++ 运行库缺失（在加载完成后检查）
+  // 检查 VC++ 运行库缺失（仅桌面端，加载完成后检查）
   const checkVCRedistMissing = useCallback(async () => {
-    if (!isTauri()) return;
+    if (!isTauri() || isMobile()) return;
 
     try {
       const missing = await invoke<boolean>('check_vcredist_missing');
@@ -862,9 +861,9 @@ function App() {
     }
   }, [downloadStatus, setShowInstallConfirmModal]);
 
-  // 监听窗口大小和位置变化
+  // 监听窗口大小和位置变化（仅桌面端）
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri() || isMobile()) return;
 
     let unlistenResize: (() => void) | null = null;
     let unlistenMove: (() => void) | null = null;
@@ -1078,22 +1077,28 @@ function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [devMode]);
 
-  // 全局快捷键（窗口失焦时也生效）
+  // 全局快捷键（窗口失焦时也生效，仅桌面端）
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
-    if (!hotkeys?.globalEnabled) return;
+    if (!hotkeys?.globalEnabled || isMobile()) return;
 
     const startKey = hotkeys.startTasks || 'F10';
     const stopKey = hotkeys.stopTasks || 'F11';
 
-    // Ctrl -> CommandOrControl
     const toTauriKey = (k: string) => k.replace(/^Ctrl\+/i, 'CommandOrControl+');
 
     const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
     let lastStartTime = 0;
+    let unregisterAllFn: typeof UnregisterAllFn | null = null;
+
     const registerKeys = async () => {
       try {
-        await register(toTauriKey(startKey), () => {
+        const { register: registerShortcut, unregisterAll: unregAll } = await import(
+          '@tauri-apps/plugin-global-shortcut'
+        );
+        unregisterAllFn = unregAll;
+
+        await registerShortcut(toTauriKey(startKey), () => {
           const now = Date.now();
           if (now - lastStartTime < GLOBAL_HOTKEY_THROTTLE_MS) return;
           lastStartTime = now;
@@ -1103,9 +1108,8 @@ function App() {
             }),
           );
         });
-        // 避免重复注册相同的键
         if (stopKey !== startKey) {
-          await register(toTauriKey(stopKey), () => {
+          await registerShortcut(toTauriKey(stopKey), () => {
             document.dispatchEvent(
               new CustomEvent('mxu-stop-tasks', {
                 detail: { source: 'global-hotkey', combo: stopKey },
@@ -1121,13 +1125,13 @@ function App() {
 
     registerKeys();
     return () => {
-      unregisterAll().catch(() => {});
+      if (unregisterAllFn) unregisterAllFn().catch(() => {});
     };
   }, [hotkeys?.globalEnabled, hotkeys?.startTasks, hotkeys?.stopTasks]);
 
-  // 监听托盘菜单事件（开始/停止任务）
+  // 监听托盘菜单事件（开始/停止任务，仅桌面端）
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri() || isMobile()) return;
 
     let unlistenStart: (() => void) | null = null;
     let unlistenStop: (() => void) | null = null;
@@ -1316,17 +1320,14 @@ function App() {
             </Suspense>
           </div>
         ) : (
-          /* 主内容区 */
-          <div key="main-view" className="flex-1 flex overflow-hidden">
-            {/* 左侧任务列表区 */}
+          <div key="main-view" className="flex-1 flex md:flex-row flex-col overflow-hidden">
+            {/* 左侧/上方任务列表区 */}
             <div
-              className="flex-1 flex flex-col border-r border-border"
-              style={{ minWidth: MIN_LEFT_PANEL_WIDTH }}
+              className="flex-1 flex flex-col md:border-r border-border min-h-0"
+              style={{ minWidth: isMobile() ? undefined : MIN_LEFT_PANEL_WIDTH }}
             >
-              {/* 任务列表 */}
               <TaskList />
 
-              {/* 添加任务面板 - 使用 grid 动画实现平滑展开/折叠 */}
               <div
                 className="grid transition-[grid-template-rows] duration-150 ease-out"
                 style={{ gridTemplateRows: showAddTaskPanel ? '1fr' : '0fr' }}
@@ -1336,49 +1337,47 @@ function App() {
                 </div>
               </div>
 
-              {/* 底部工具栏 */}
               <Toolbar
                 showAddPanel={showAddTaskPanel}
                 onToggleAddPanel={() => setShowAddTaskPanel(!showAddTaskPanel)}
               />
             </div>
 
-            {/* 分隔条 Resizer */}
-            <div
-              className={`${rightPanelCollapsed ? 'w-4' : 'w-1'} hover:bg-accent/50 cursor-col-resize flex items-center justify-center group shrink-0 transition-all select-none bg-transparent`}
-              onMouseDown={handleResizeStart}
-              title={t('common.resizeOrCollapse', '拖动调整宽度，向右拖动到底可折叠')}
-            >
-              {/* 可视化把手 */}
-              <div className="w-[2px] h-8 rounded-full transition-colors bg-border group-hover:bg-accent" />
-            </div>
-
-            {/* 右侧信息面板 */}
-            {!rightPanelCollapsed && (
+            {/* 分隔条 Resizer (仅桌面端) */}
+            {isDesktop() && (
               <div
-                className={`flex flex-col p-3 bg-bg-primary overflow-x-hidden border-l border-transparent ${sidePanelExpanded ? 'gap-3 overflow-y-auto' : 'overflow-hidden'}`}
-                style={{
-                  width: rightPanelWidth,
-                  minWidth: 240,
-                  // 允许收缩但保持最小宽度，确保窗口缩小时不被裁切
-                  flexShrink: 1,
-                }}
+                className={`${rightPanelCollapsed ? 'w-4' : 'w-1'} hover:bg-accent/50 cursor-col-resize flex items-center justify-center group shrink-0 transition-all select-none bg-transparent`}
+                onMouseDown={handleResizeStart}
+                title={t('common.resizeOrCollapse', '拖动调整宽度，向右拖动到底可折叠')}
               >
-                {/* 连接设置和实时截图（可折叠）- 使用 grid 动画 */}
+                <div className="w-[2px] h-8 rounded-full transition-colors bg-border group-hover:bg-accent" />
+              </div>
+            )}
+
+            {/* 右侧/下方信息面板 */}
+            {(isMobile() || !rightPanelCollapsed) && (
+              <div
+                className={`flex flex-col p-3 bg-bg-primary overflow-x-hidden md:border-l border-t md:border-t-0 border-border ${sidePanelExpanded ? 'gap-3 overflow-y-auto' : 'overflow-hidden'}`}
+                style={
+                  isMobile()
+                    ? { maxHeight: '50vh' }
+                    : {
+                        width: rightPanelWidth,
+                        minWidth: 240,
+                        flexShrink: 1,
+                      }
+                }
+              >
                 <div
                   className="grid transition-[grid-template-rows] duration-150 ease-out"
                   style={{ gridTemplateRows: sidePanelExpanded ? '1fr' : '0fr' }}
                 >
                   <div className="overflow-hidden min-h-0 flex flex-col gap-3">
-                    {/* 连接设置（设备/资源选择） */}
                     <ConnectionPanel />
-
-                    {/* 实时截图 */}
                     <ScreenshotPanel />
                   </div>
                 </div>
 
-                {/* 运行日志 */}
                 <LogsPanel />
               </div>
             )}

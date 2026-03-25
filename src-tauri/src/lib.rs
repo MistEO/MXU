@@ -1,5 +1,6 @@
 pub mod commands;
 mod mxu_actions;
+#[cfg(desktop)]
 mod tray;
 
 use commands::MaaState;
@@ -20,17 +21,13 @@ pub fn run() {
     #[cfg(windows)]
     commands::system::migrate_legacy_autostart();
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--autostart".into()]),
-        ))
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -45,7 +42,19 @@ pub fn run() {
                 .timezone_strategy(TimezoneStrategy::UseLocal)
                 .level(log::LevelFilter::Debug)
                 .build(),
-        )
+        );
+
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec!["--autostart".into()]),
+            ));
+    }
+
+    builder
         .setup(|app| {
             // 创建 MaaState 并注册为 Tauri 管理状态
             let maa_state = Arc::new(MaaState::default());
@@ -82,38 +91,14 @@ pub fn run() {
             }
 
             // 启动时自动加载 MaaFramework DLL
-            if let Ok(maafw_dir) = commands::get_maafw_dir() {
-                if maafw_dir.exists() {
-                    #[cfg(windows)]
-                    let dll_path = maafw_dir.join("MaaFramework.dll");
-                    #[cfg(target_os = "macos")]
-                    let dll_path = maafw_dir.join("libMaaFramework.dylib");
-                    #[cfg(target_os = "linux")]
-                    let dll_path = maafw_dir.join("libMaaFramework.so");
-
-                    match maa_framework::load_library(&dll_path) {
-                        Ok(()) => log::info!("MaaFramework loaded from {:?}", dll_path),
-                        Err(e) => {
-                            log::error!("Failed to load MaaFramework: {}", e);
-                            // 检查是否是 DLL 存在但加载失败的情况（可能是运行库缺失）
-                            if dll_path.exists() {
-                                log::warn!(
-                                    "DLLs exist but failed to load, possibly missing VC++ runtime: {}",
-                                    e
-                                );
-                                // 设置标记，前端加载完成后会查询此标记
-                                commands::system::set_vcredist_missing(true);
-                            }
-                        }
-                    }
-                } else {
-                    log::warn!("MaaFramework directory not found: {:?}", maafw_dir);
-                }
-            }
+            load_maa_framework();
 
             // 初始化系统托盘
-            if let Err(e) = tray::init_tray(app.handle()) {
-                log::error!("Failed to initialize system tray: {}", e);
+            #[cfg(desktop)]
+            {
+                if let Err(e) = tray::init_tray(app.handle()) {
+                    log::error!("Failed to initialize system tray: {}", e);
+                }
             }
 
             Ok(())
@@ -199,9 +184,12 @@ pub fn run() {
             match event {
                 // 窗口关闭请求：检查是否最小化到托盘
                 tauri::WindowEvent::CloseRequested { api, .. } => {
+                    #[cfg(desktop)]
                     if tray::handle_close_requested(window.app_handle()) {
                         api.prevent_close();
                     }
+                    #[cfg(mobile)]
+                    let _ = (window, api);
                 }
                 // 窗口销毁时清理所有 agent 子进程
                 tauri::WindowEvent::Destroyed => {
@@ -214,4 +202,43 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn load_maa_framework() {
+    let maafw_dir = match commands::get_maafw_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            log::warn!("Failed to get MaaFramework dir: {}", e);
+            return;
+        }
+    };
+
+    if !maafw_dir.exists() {
+        log::warn!("MaaFramework directory not found: {:?}", maafw_dir);
+        return;
+    }
+
+    #[cfg(windows)]
+    let dll_path = maafw_dir.join("MaaFramework.dll");
+    #[cfg(target_os = "macos")]
+    let dll_path = maafw_dir.join("libMaaFramework.dylib");
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let dll_path = maafw_dir.join("libMaaFramework.so");
+
+    match maa_framework::load_library(&dll_path) {
+        Ok(()) => log::info!("MaaFramework loaded from {:?}", dll_path),
+        Err(e) => {
+            log::error!("Failed to load MaaFramework: {}", e);
+            // 检查是否是 DLL 存在但加载失败的情况（可能是运行库缺失）
+            #[cfg(desktop)]
+            if dll_path.exists() {
+                log::warn!(
+                    "DLLs exist but failed to load, possibly missing runtime: {}",
+                    e
+                );
+                // 设置标记，前端加载完成后会查询此标记
+                commands::system::set_vcredist_missing(true);
+            }
+        }
+    }
 }

@@ -139,7 +139,7 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         let name = "MaaFramework.dll";
         #[cfg(target_os = "macos")]
         let name = "libMaaFramework.dylib";
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         let name = "libMaaFramework.so";
         lib_path.join(name)
     };
@@ -208,7 +208,7 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
         let dll_path = dir.join("MaaFramework.dll");
         #[cfg(target_os = "macos")]
         let dll_path = dir.join("libMaaFramework.dylib");
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         let dll_path = dir.join("libMaaFramework.so");
 
         if let Err(e) = maa_framework::load_library(&dll_path) {
@@ -288,64 +288,74 @@ pub async fn maa_find_adb_devices(
 }
 
 /// 查找 Win32 窗口（结果会缓存到 MaaState）
+/// 在移动端直接返回空列表
 #[tauri::command]
 pub async fn maa_find_win32_windows(
     state: State<'_, Arc<MaaState>>,
     class_regex: Option<String>,
     window_regex: Option<String>,
 ) -> Result<Vec<Win32Window>, String> {
-    info!(
-        "maa_find_win32_windows called, class_regex: {:?}, window_regex: {:?}",
-        class_regex, window_regex
-    );
+    #[cfg(mobile)]
+    {
+        let _ = (&state, &class_regex, &window_regex);
+        return Ok(Vec::new());
+    }
 
-    let state_arc = state.inner().clone();
-    let class_re_str = class_regex.clone();
-    let window_re_str = window_regex.clone();
+    #[cfg(desktop)]
+    {
+        info!(
+            "maa_find_win32_windows called, class_regex: {:?}, window_regex: {:?}",
+            class_regex, window_regex
+        );
 
-    tauri::async_runtime::spawn_blocking(move || {
-        let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
+        let state_arc = state.inner().clone();
+        let class_re_str = class_regex.clone();
+        let window_re_str = window_regex.clone();
 
-        // 编译正则表达式
-        let class_re = class_re_str
-            .as_ref()
-            .and_then(|r| regex::Regex::new(r).ok());
-        let window_re = window_re_str
-            .as_ref()
-            .and_then(|r| regex::Regex::new(r).ok());
+        tauri::async_runtime::spawn_blocking(move || {
+            let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
 
-        let mut result_windows = Vec::new();
+            // 编译正则表达式
+            let class_re = class_re_str
+                .as_ref()
+                .and_then(|r| regex::Regex::new(r).ok());
+            let window_re = window_re_str
+                .as_ref()
+                .and_then(|r| regex::Regex::new(r).ok());
 
-        for w in windows {
-            // 过滤
-            if let Some(re) = &class_re {
-                if !re.is_match(&w.class_name) {
-                    continue;
+            let mut result_windows = Vec::new();
+
+            for w in windows {
+                // 过滤
+                if let Some(re) = &class_re {
+                    if !re.is_match(&w.class_name) {
+                        continue;
+                    }
                 }
-            }
-            if let Some(re) = &window_re {
-                if !re.is_match(&w.window_name) {
-                    continue;
+                if let Some(re) = &window_re {
+                    if !re.is_match(&w.window_name) {
+                        continue;
+                    }
                 }
+
+                result_windows.push(Win32Window {
+                    handle: w.hwnd as u64,
+                    class_name: w.class_name,
+                    window_name: w.window_name,
+                });
             }
 
-            result_windows.push(Win32Window {
-                handle: w.hwnd as u64,
-                class_name: w.class_name,
-                window_name: w.window_name,
-            });
-        }
+            // 缓存搜索结果
+            if let Ok(mut cached) = state_arc.cached_win32_windows.lock() {
+                *cached = result_windows.clone();
+            }
 
-        // 缓存搜索结果
-        if let Ok(mut cached) = state_arc.cached_win32_windows.lock() {
-            *cached = result_windows.clone();
-        }
-
-        info!("Returning {} filtered window(s)", result_windows.len());
-        Ok(result_windows)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+            info!("Returning {} filtered window(s)", result_windows.len());
+            Ok(result_windows)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
 }
 
 // ============================================================================

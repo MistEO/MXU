@@ -1,8 +1,7 @@
 import { loggers } from './logger';
-import { isTauri } from './paths';
+import { isTauri, isMobile, isDesktop, isAndroid } from './paths';
 
-// 重新导出 isTauri，保持向后兼容
-export { isTauri };
+export { isTauri, isMobile, isDesktop, isAndroid };
 
 const log = loggers.app;
 

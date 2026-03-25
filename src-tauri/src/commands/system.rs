@@ -2,7 +2,9 @@
 //!
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
-use log::{info, warn};
+use log::info;
+#[cfg(desktop)]
+use log::warn;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::types::SystemInfo;
@@ -57,7 +59,12 @@ pub fn is_elevated() -> bool {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "android")]
+    {
+        false
+    }
+
+    #[cfg(not(any(windows, target_os = "android")))]
     {
         // 非 Windows 平台：检查是否为 root
         unsafe { libc::geteuid() == 0 }
@@ -166,6 +173,13 @@ pub async fn open_file(file_path: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to open file: {}", e))?;
     }
 
+    #[cfg(target_os = "android")]
+    {
+        // Android 上通过 Intent 打开文件由前端处理，
+        // Rust 侧仅记录日志
+        info!("open_file on Android: delegating to frontend for {}", file_path);
+    }
+
     Ok(())
 }
 
@@ -196,230 +210,240 @@ pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
 /// 检查指定程序是否正在运行（通过完整路径比较，避免同名程序误判）
 /// 公共工具函数，可被其他模块调用
 pub fn check_process_running(program: &str) -> bool {
-    use std::path::PathBuf;
-
-    let resolved_path = PathBuf::from(program);
-
-    // 尝试规范化路径用于精确比较
-    let canonical_target = resolved_path
-        .canonicalize()
-        .unwrap_or_else(|_| resolved_path.clone());
-
-    // 提取文件名用于 Windows 下的初步筛选
-    #[cfg(windows)]
-    let file_name = match resolved_path.file_name() {
-        Some(name) => name.to_string_lossy().to_string(),
-        None => {
-            log::warn!(
-                "check_process_running: cannot extract filename from '{}'",
-                program
-            );
-            return false;
-        }
-    };
-
-    #[cfg(windows)]
+    #[cfg(target_os = "android")]
     {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-            TH32CS_SNAPPROCESS,
-        };
-        use windows::Win32::System::Threading::{
-            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
-            PROCESS_QUERY_LIMITED_INFORMATION,
-        };
+        let _ = program;
+        false
+    }
 
-        let file_name_lower = file_name.to_lowercase();
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::path::PathBuf;
+        let resolved_path = PathBuf::from(program);
 
-        /// 动态扩容获取进程完整路径，处理长路径（>MAX_PATH）场景
-        unsafe fn query_process_image_path(
-            process: windows::Win32::Foundation::HANDLE,
-        ) -> Option<String> {
-            let mut capacity: u32 = 512;
-            loop {
-                let mut buf = vec![0u16; capacity as usize];
-                let mut size = capacity;
-                let result = QueryFullProcessImageNameW(
-                    process,
-                    PROCESS_NAME_FORMAT(0),
-                    windows::core::PWSTR(buf.as_mut_ptr()),
-                    &mut size,
+        // 尝试规范化路径用于精确比较
+        let canonical_target = resolved_path
+            .canonicalize()
+            .unwrap_or_else(|_| resolved_path.clone());
+
+        // 提取文件名用于 Windows 下的初步筛选
+        #[cfg(windows)]
+        let file_name = match resolved_path.file_name() {
+            Some(name) => name.to_string_lossy().to_string(),
+            None => {
+                log::warn!(
+                    "check_process_running: cannot extract filename from '{}'",
+                    program
                 );
-                if result.is_ok() {
-                    return Some(String::from_utf16_lossy(&buf[..size as usize]));
-                }
-                // ERROR_INSUFFICIENT_BUFFER 对应 HRESULT 0x8007007A，仅此错误时扩容重试
-                let err = windows::core::Error::from_win32();
-                if err.code().0 as u32 != 0x8007007A || capacity >= 32768 {
-                    // 非缓冲区不足错误或已达上限，放弃
-                    return None;
-                }
-                capacity *= 2;
+                return false;
             }
-        }
+        };
 
-        unsafe {
-            let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-                Ok(h) => h,
-                Err(e) => {
-                    log::error!(
-                        "check_process_running: CreateToolhelp32Snapshot failed: {}",
-                        e
-                    );
-                    return false;
-                }
+        #[cfg(windows)]
+        {
+            use windows::Win32::Foundation::CloseHandle;
+            use windows::Win32::System::Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            };
+            use windows::Win32::System::Threading::{
+                OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+                PROCESS_QUERY_LIMITED_INFORMATION,
             };
 
-            let mut entry = PROCESSENTRY32W {
-                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-                ..Default::default()
-            };
+            let file_name_lower = file_name.to_lowercase();
 
-            let target_lower = canonical_target.to_string_lossy().to_lowercase();
-
-            if Process32FirstW(snapshot, &mut entry).is_ok() {
+            /// 动态扩容获取进程完整路径，处理长路径（>MAX_PATH）场景
+            unsafe fn query_process_image_path(
+                process: windows::Win32::Foundation::HANDLE,
+            ) -> Option<String> {
+                let mut capacity: u32 = 512;
                 loop {
-                    // 从 szExeFile (UTF-16) 提取进程名
-                    let len = entry
-                        .szExeFile
-                        .iter()
-                        .position(|&c| c == 0)
-                        .unwrap_or(entry.szExeFile.len());
-                    let exe_name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
+                    let mut buf = vec![0u16; capacity as usize];
+                    let mut size = capacity;
+                    let result = QueryFullProcessImageNameW(
+                        process,
+                        PROCESS_NAME_FORMAT(0),
+                        windows::core::PWSTR(buf.as_mut_ptr()),
+                        &mut size,
+                    );
+                    if result.is_ok() {
+                        return Some(String::from_utf16_lossy(&buf[..size as usize]));
+                    }
+                    // ERROR_INSUFFICIENT_BUFFER 对应 HRESULT 0x8007007A，仅此错误时扩容重试
+                    let err = windows::core::Error::from_win32();
+                    if err.code().0 as u32 != 0x8007007A || capacity >= 32768 {
+                        // 非缓冲区不足错误或已达上限，放弃
+                        return None;
+                    }
+                    capacity *= 2;
+                }
+            }
 
-                    // 先按文件名筛选
-                    if exe_name == file_name_lower {
-                        // 尝试获取完整路径
-                        if let Ok(process) = OpenProcess(
-                            PROCESS_QUERY_LIMITED_INFORMATION,
-                            false,
-                            entry.th32ProcessID,
-                        ) {
-                            if let Some(running_path) = query_process_image_path(process) {
-                                let running_canonical = PathBuf::from(&running_path)
-                                    .canonicalize()
-                                    .map(|p| p.to_string_lossy().to_lowercase())
-                                    .unwrap_or_else(|_| running_path.to_lowercase());
+            unsafe {
+                let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+                    Ok(h) => h,
+                    Err(e) => {
+                        log::error!(
+                            "check_process_running: CreateToolhelp32Snapshot failed: {}",
+                            e
+                        );
+                        return false;
+                    }
+                };
 
-                                if running_canonical == target_lower {
-                                    let _ = CloseHandle(process);
-                                    let _ = CloseHandle(snapshot);
-                                    info!(
-                                        "check_process_running: '{}' -> true (matched: {})",
-                                        program, running_path
-                                    );
-                                    return true;
+                let mut entry = PROCESSENTRY32W {
+                    dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                    ..Default::default()
+                };
+
+                let target_lower = canonical_target.to_string_lossy().to_lowercase();
+
+                if Process32FirstW(snapshot, &mut entry).is_ok() {
+                    loop {
+                        // 从 szExeFile (UTF-16) 提取进程名
+                        let len = entry
+                            .szExeFile
+                            .iter()
+                            .position(|&c| c == 0)
+                            .unwrap_or(entry.szExeFile.len());
+                        let exe_name =
+                            String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
+
+                        // 先按文件名筛选
+                        if exe_name == file_name_lower {
+                            // 尝试获取完整路径
+                            if let Ok(process) = OpenProcess(
+                                PROCESS_QUERY_LIMITED_INFORMATION,
+                                false,
+                                entry.th32ProcessID,
+                            ) {
+                                if let Some(running_path) = query_process_image_path(process) {
+                                    let running_canonical = PathBuf::from(&running_path)
+                                        .canonicalize()
+                                        .map(|p| p.to_string_lossy().to_lowercase())
+                                        .unwrap_or_else(|_| running_path.to_lowercase());
+
+                                    if running_canonical == target_lower {
+                                        let _ = CloseHandle(process);
+                                        let _ = CloseHandle(snapshot);
+                                        info!(
+                                            "check_process_running: '{}' -> true (matched: {})",
+                                            program, running_path
+                                        );
+                                        return true;
+                                    }
                                 }
+                                let _ = CloseHandle(process);
                             }
-                            let _ = CloseHandle(process);
+                        }
+
+                        if Process32NextW(snapshot, &mut entry).is_err() {
+                            break;
                         }
                     }
+                }
 
-                    if Process32NextW(snapshot, &mut entry).is_err() {
-                        break;
+                // 缓存搜索结果
+                let _ = CloseHandle(snapshot);
+                info!("check_process_running: '{}' -> false", program);
+                false
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // 遍历 /proc/<pid>/exe 读取真实可执行路径进行比较
+            if let Ok(proc_dir) = std::fs::read_dir("/proc") {
+                for entry in proc_dir.flatten() {
+                    let name = entry.file_name();
+                    let name_str = name.to_string_lossy();
+                    if !name_str.chars().all(|c| c.is_ascii_digit()) {
+                        continue;
+                    }
+
+                    let exe_link = entry.path().join("exe");
+                    if let Ok(resolved) = std::fs::read_link(&exe_link) {
+                        let canonical = resolved.canonicalize().unwrap_or(resolved);
+                        if canonical == canonical_target {
+                            info!(
+                                "check_process_running: '{}' -> true (pid: {})",
+                                program, name_str
+                            );
+                            return true;
+                        }
                     }
                 }
             }
 
-            let _ = CloseHandle(snapshot);
             info!("check_process_running: '{}' -> false", program);
             false
         }
-    }
 
-    #[cfg(target_os = "linux")]
-    {
-        // 遍历 /proc/<pid>/exe 读取真实可执行路径进行比较
-        if let Ok(proc_dir) = std::fs::read_dir("/proc") {
-            for entry in proc_dir.flatten() {
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy();
-                if !name_str.chars().all(|c| c.is_ascii_digit()) {
-                    continue;
+        #[cfg(target_os = "macos")]
+        {
+            // macOS 没有 /proc，通过 libproc API 获取每个进程的可执行路径进行比较
+            extern "C" {
+                fn proc_listallpids(buffer: *mut i32, buffersize: i32) -> i32;
+                fn proc_pidpath(pid: i32, buffer: *mut u8, buffersize: u32) -> i32;
+            }
+
+            unsafe {
+                // proc_listallpids 返回填入的 PID 数量。
+                // 从合理初始容量开始，若缓冲区不足则扩容重试，避免多余的探测调用。
+                let mut capacity = 1024usize;
+                let num_pids;
+                let mut pids;
+                loop {
+                    pids = vec![0i32; capacity];
+                    let buf_size = (capacity * std::mem::size_of::<i32>()) as i32;
+                    let actual = proc_listallpids(pids.as_mut_ptr(), buf_size);
+                    if actual <= 0 {
+                        info!(
+                            "check_process_running: '{}' -> false (list failed)",
+                            program
+                        );
+                        return false;
+                    }
+                    if actual as usize >= capacity {
+                        // 缓冲区已满，可能被截断，扩容后重试
+                        capacity *= 2;
+                        continue;
+                    }
+                    num_pids = actual as usize;
+                    break;
                 }
 
-                let exe_link = entry.path().join("exe");
-                if let Ok(resolved) = std::fs::read_link(&exe_link) {
-                    let canonical = resolved.canonicalize().unwrap_or(resolved);
-                    if canonical == canonical_target {
-                        info!(
-                            "check_process_running: '{}' -> true (pid: {})",
-                            program, name_str
-                        );
-                        return true;
+                // PROC_PIDPATHINFO_MAXSIZE = 4096
+                let mut path_buf = [0u8; 4096];
+
+                for &pid in &pids[..num_pids] {
+                    if pid == 0 {
+                        continue;
+                    }
+
+                    let ret = proc_pidpath(pid, path_buf.as_mut_ptr(), path_buf.len() as u32);
+                    if ret <= 0 {
+                        continue;
+                    }
+
+                    if let Ok(path_str) = std::str::from_utf8(&path_buf[..ret as usize]) {
+                        let pid_path = PathBuf::from(path_str);
+                        let canonical = pid_path.canonicalize().unwrap_or(pid_path);
+                        if canonical == canonical_target {
+                            info!(
+                                "check_process_running: '{}' -> true (pid: {})",
+                                program, pid
+                            );
+                            return true;
+                        }
                     }
                 }
             }
+
+            info!("check_process_running: '{}' -> false", program);
+            false
         }
-
-        info!("check_process_running: '{}' -> false", program);
-        false
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // macOS 没有 /proc，通过 libproc API 获取每个进程的可执行路径进行比较
-        extern "C" {
-            fn proc_listallpids(buffer: *mut i32, buffersize: i32) -> i32;
-            fn proc_pidpath(pid: i32, buffer: *mut u8, buffersize: u32) -> i32;
-        }
-
-        unsafe {
-            // proc_listallpids 返回填入的 PID 数量。
-            // 从合理初始容量开始，若缓冲区不足则扩容重试，避免多余的探测调用。
-            let mut capacity = 1024usize;
-            let num_pids;
-            let mut pids;
-            loop {
-                pids = vec![0i32; capacity];
-                let buf_size = (capacity * std::mem::size_of::<i32>()) as i32;
-                let actual = proc_listallpids(pids.as_mut_ptr(), buf_size);
-                if actual <= 0 {
-                    info!(
-                        "check_process_running: '{}' -> false (list failed)",
-                        program
-                    );
-                    return false;
-                }
-                if actual as usize >= capacity {
-                    // 缓冲区已满，可能被截断，扩容后重试
-                    capacity *= 2;
-                    continue;
-                }
-                num_pids = actual as usize;
-                break;
-            }
-
-            // PROC_PIDPATHINFO_MAXSIZE = 4096
-            let mut path_buf = [0u8; 4096];
-
-            for &pid in &pids[..num_pids] {
-                if pid == 0 {
-                    continue;
-                }
-
-                let ret = proc_pidpath(pid, path_buf.as_mut_ptr(), path_buf.len() as u32);
-                if ret <= 0 {
-                    continue;
-                }
-
-                if let Ok(path_str) = std::str::from_utf8(&path_buf[..ret as usize]) {
-                    let pid_path = PathBuf::from(path_str);
-                    let canonical = pid_path.canonicalize().unwrap_or(pid_path);
-                    if canonical == canonical_target {
-                        info!(
-                            "check_process_running: '{}' -> true (pid: {})",
-                            program, pid
-                        );
-                        return true;
-                    }
-                }
-            }
-        }
-
-        info!("check_process_running: '{}' -> false", program);
-        false
     }
 }
 
@@ -442,55 +466,64 @@ pub async fn run_action(
     cwd: Option<String>,
     wait_for_exit: bool,
 ) -> Result<i32, String> {
-    use std::process::Command;
-
-    info!(
-        "run_action: program={}, args={}, wait={}",
-        program, args, wait_for_exit
-    );
-
-    // 使用 shell 语义解析参数至数组（支持引号）
-    let args_vec: Vec<String> = if args.trim().is_empty() {
-        vec![]
-    } else {
-        shell_words::split(&args).map_err(|e| format!("Failed to parse args: {}", e))?
-    };
-
-    let mut cmd = Command::new(&program);
-
-    // 添加参数
-    if !args_vec.is_empty() {
-        cmd.args(&args_vec);
+    #[cfg(target_os = "android")]
+    {
+        let _ = (program, args, cwd, wait_for_exit);
+        Err("run_action is not supported on Android".to_string())
     }
 
-    // 设置工作目录
-    if let Some(ref dir) = cwd {
-        cmd.current_dir(dir);
-    } else {
-        // 默认使用程序所在目录作为工作目录
-        if let Some(parent) = std::path::Path::new(&program).parent() {
-            if parent.exists() {
-                cmd.current_dir(parent);
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::process::Command;
+
+        info!(
+            "run_action: program={}, args={}, wait={}",
+            program, args, wait_for_exit
+        );
+
+        // 使用 shell 语义解析参数至数组（支持引号）
+        let args_vec: Vec<String> = if args.trim().is_empty() {
+            vec![]
+        } else {
+            shell_words::split(&args).map_err(|e| format!("Failed to parse args: {}", e))?
+        };
+
+        let mut cmd = Command::new(&program);
+
+        // 添加参数
+        if !args_vec.is_empty() {
+            cmd.args(&args_vec);
+        }
+
+        // 设置工作目录
+        if let Some(ref dir) = cwd {
+            cmd.current_dir(dir);
+        } else {
+            // 默认使用程序所在目录作为工作目录
+            if let Some(parent) = std::path::Path::new(&program).parent() {
+                if parent.exists() {
+                    cmd.current_dir(parent);
+                }
             }
         }
-    }
 
-    if wait_for_exit {
-        // 等待进程退出
-        let status = cmd
-            .status()
-            .map_err(|e| format!("Failed to run action: {} - {}", program, e))?;
+        if wait_for_exit {
+            // 等待进程退出
+            let status = cmd
+                .status()
+                .map_err(|e| format!("Failed to run action: {} - {}", program, e))?;
 
-        let exit_code = status.code().unwrap_or(-1);
-        info!("run_action finished with exit code: {}", exit_code);
-        Ok(exit_code)
-    } else {
-        // 不等待，启动后立即返回
-        cmd.spawn()
-            .map_err(|e| format!("Failed to spawn action: {} - {}", program, e))?;
+            let exit_code = status.code().unwrap_or(-1);
+            info!("run_action finished with exit code: {}", exit_code);
+            Ok(exit_code)
+        } else {
+            // 不等待，启动后立即返回
+            cmd.spawn()
+                .map_err(|e| format!("Failed to spawn action: {} - {}", program, e))?;
 
-        info!("run_action spawned (not waiting)");
-        Ok(0) // 不等待时返回 0
+            info!("run_action spawned (not waiting)");
+            Ok(0) // 不等待时返回 0
+        }
     }
 }
 
@@ -509,7 +542,7 @@ pub async fn retry_load_maa_library() -> Result<String, String> {
     let dll_path = maafw_dir.join("MaaFramework.dll");
     #[cfg(target_os = "macos")]
     let dll_path = maafw_dir.join("libMaaFramework.dylib");
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     let dll_path = maafw_dir.join("libMaaFramework.so");
 
     maa_framework::load_library(&dll_path).map_err(|e| e.to_string())?;
@@ -537,6 +570,7 @@ pub fn is_autostart() -> bool {
 }
 
 /// 自动迁移旧版注册表自启动到任务计划程序
+//TODO：26年2月写的，应该过几个月这自动迁移就能去除了，等旧版的都更上来
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {
     if has_legacy_registry_autostart() {
@@ -572,7 +606,7 @@ fn create_schtask_autostart() -> Result<(), String> {
             &format!("\"{}\" --autostart", exe),
             "/sc",
             "onlogon",
-            // 登录后延迟 30 秒再启动，降低桌面会话尚未完全就绪时的白屏/卡死概率
+            // 登录后延迟 30 秒再启动，降低桌面会话尚未就绪时的白屏/卡死概率
             "/delay",
             "0000:30",
             // 强制交互式运行，确保进程绑定到用户桌面会话，避免登录早期会话未就绪导致 WebView 白屏
@@ -774,16 +808,17 @@ pub fn get_system_info() -> SystemInfo {
 /// 获取当前使用的 WebView2 目录
 #[tauri::command]
 pub fn get_webview2_dir() -> WebView2DirInfo {
-    if let Ok(folder) = std::env::var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER") {
-        WebView2DirInfo {
-            path: folder,
-            system: false,
+    #[cfg(desktop)]
+    {
+        if let Ok(folder) = std::env::var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER") {
+            return WebView2DirInfo {
+                path: folder,
+                system: false,
+            };
         }
-    } else {
-        // 没有设置自定义目录，使用系统 WebView2
-        WebView2DirInfo {
-            path: String::new(),
-            system: true,
-        }
+    }
+    WebView2DirInfo {
+        path: String::new(),
+        system: true,
     }
 }

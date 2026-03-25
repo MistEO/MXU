@@ -2,10 +2,13 @@ import { useTranslation } from 'react-i18next';
 import { Key, Play, StopCircle, AlertCircle, Globe } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { SwitchButton } from '@/components/FormControls';
+import { isDesktop } from '@/utils/paths';
 
 export function HotkeySection() {
   const { t } = useTranslation();
   const { hotkeys, setHotkeys } = useAppStore();
+
+  if (!isDesktop()) return null;
 
   // 生成统一的快捷键组合字符串
   const buildCombo = (e: React.KeyboardEvent): string | null => {

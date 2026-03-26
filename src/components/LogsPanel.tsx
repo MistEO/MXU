@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
@@ -7,6 +7,8 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
+import i18n from '@/i18n';
+import { isAprilFools, getAIText, getTokenCount, formatTokenCount } from '@/utils/aprilFools';
 
 export function LogsPanel() {
   const { t } = useTranslation();
@@ -18,6 +20,7 @@ export function LogsPanel() {
 
   // 获取当前实例的日志
   const logs = activeInstanceId ? instanceLogs[activeInstanceId] || [] : [];
+  const aprilFools = useMemo(() => isAprilFools(), []);
 
   useEffect(() => {
     const el = logsContainerRef.current;
@@ -136,8 +139,15 @@ export function LogsPanel() {
         }}
         className="flex items-center justify-between px-3 py-2 border-b border-border hover:bg-bg-hover transition-colors cursor-pointer shrink-0 rounded-t-lg focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none"
       >
-        <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
+        <span className="text-sm font-medium text-text-primary">
+          {aprilFools ? getAIText('logsTitle', i18n.language) : t('logs.title')}
+        </span>
         <div className="flex items-center gap-2">
+          {aprilFools && logs.length > 0 && (
+            <span className="ai-token-counter text-[10px] text-text-muted font-mono">
+              Tokens: {formatTokenCount(getTokenCount())}
+            </span>
+          )}
           {/* 导出日志 */}
           <button
             onClick={(e) => {
@@ -197,7 +207,7 @@ export function LogsPanel() {
       >
         {logs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-text-muted">
-            {t('logs.noLogs')}
+            {aprilFools ? getAIText('noLogs', i18n.language) : t('logs.noLogs')}
           </div>
         ) : (
           <>

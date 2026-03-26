@@ -25,6 +25,8 @@ import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
+import i18n from '@/i18n';
+import { isAprilFools, getAIStatusText } from '@/utils/aprilFools';
 import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
@@ -854,7 +856,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             'absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg transition-colors',
             getStatusIndicatorClass(),
           )}
-          title={t(`taskItem.status.${taskRunStatus}`)}
+          title={isAprilFools() ? getAIStatusText(taskRunStatus, i18n.language) : t(`taskItem.status.${taskRunStatus}`)}
         />
       )}
 
@@ -955,6 +957,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 >
                   {displayName}
                 </span>
+                {isAprilFools() && taskRunStatus === 'running' && (
+                  <span className="ai-thinking-dots text-xs text-accent flex-shrink-0" />
+                )}
                 {task.customName && (
                   <span className="flex-shrink-0 text-xs text-text-muted">({originalLabel})</span>
                 )}

@@ -512,6 +512,8 @@ export default {
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
+    aprilFools: 'エイプリルフール',
+    aprilFoolsHint: 'すべてのタスク実行をAI推論モードに偽装します（4月1日に自動有効化）',
   },
 
   // ウェルカムダイアログ

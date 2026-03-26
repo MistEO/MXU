@@ -500,6 +500,8 @@ export default {
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
     tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+    aprilFools: '愚人节彩蛋',
+    aprilFoolsHint: '开启后所有任务执行将伪装成 AI 推理模式（4月1日自动激活）',
   },
 
   // 欢迎弹窗

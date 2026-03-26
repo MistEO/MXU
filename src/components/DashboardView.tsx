@@ -31,7 +31,8 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
-import { getInterfaceLangKey } from '@/i18n';
+import i18n, { getInterfaceLangKey } from '@/i18n';
+import { isAprilFools, getAIText } from '@/utils/aprilFools';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
@@ -691,13 +692,13 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             )}
             title={
               isStarting
-                ? t('taskList.startingTasks')
+                ? (isAprilFools() ? getAIText('startingTasks', i18n.language) : t('taskList.startingTasks'))
                 : isStopping
-                  ? t('taskList.stoppingTasks')
+                  ? (isAprilFools() ? getAIText('stoppingTasks', i18n.language) : t('taskList.stoppingTasks'))
                   : isRunning
-                    ? t('taskList.stopTasks')
+                    ? (isAprilFools() ? getAIText('stopTasks', i18n.language) : t('taskList.stopTasks'))
                     : canRun
-                      ? t('taskList.startTasks')
+                      ? (isAprilFools() ? getAIText('startTasks', i18n.language) : t('taskList.startTasks'))
                       : t('dashboard.noEnabledTasks')
             }
           >
@@ -766,8 +767,13 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
               <>
                 <Loader2 className="w-3 h-3 animate-spin" />
                 <span className="truncate max-w-[80px]">
-                  {runningTaskName || t('dashboard.running')}
+                  {isAprilFools()
+                    ? `AI: ${runningTaskName || t('dashboard.running')}`
+                    : runningTaskName || t('dashboard.running')}
                 </span>
+                {isAprilFools() && (
+                  <span className="ai-thinking-dots text-[10px] opacity-70" />
+                )}
               </>
             ) : taskStatus === 'Failed' ? (
               <>

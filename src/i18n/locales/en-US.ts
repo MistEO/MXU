@@ -513,6 +513,8 @@ export default {
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+    aprilFools: 'April Fools Easter Egg',
+    aprilFoolsHint: 'Disguise all task execution as AI reasoning mode (auto-activates on April 1st)',
   },
 
   // Welcome dialog

@@ -59,13 +59,13 @@ fn strip_ansi_escapes(s: &str) -> String {
 /// - 绝对路径或带盘符前缀路径：按原值使用。
 fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
     let path = Path::new(child_exec);
+    let mut components = path.components();
+    let first = components.next();
+    let second = components.next();
 
     // 裸命令名（无目录层级）不应拼接 cwd
-    if path.components().count() == 1 {
-        return matches!(
-            path.components().next(),
-            Some(Component::CurDir | Component::ParentDir)
-        );
+    if first.is_some() && second.is_none() {
+        return matches!(first, Some(Component::CurDir | Component::ParentDir));
     }
 
     if path.is_absolute() {
@@ -73,7 +73,7 @@ fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
     }
 
     // Windows 盘符前缀（如 C:python.exe / C:\Python\python.exe）不拼接 cwd
-    if matches!(path.components().next(), Some(Component::Prefix(_))) {
+    if matches!(first, Some(Component::Prefix(_))) {
         return false;
     }
 
@@ -88,7 +88,16 @@ fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
         let joined = Path::new(cwd).join(child_exec);
         normalize_path(&joined.to_string_lossy())
     } else {
-        normalize_path(child_exec)
+        let mut components = Path::new(child_exec).components();
+        let first = components.next();
+        let second = components.next();
+
+        // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
+        if first.is_some() && second.is_none() && matches!(first, Some(Component::Normal(_))) {
+            PathBuf::from(child_exec)
+        } else {
+            normalize_path(child_exec)
+        }
     }
 }
 

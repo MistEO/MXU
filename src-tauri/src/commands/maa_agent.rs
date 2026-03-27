@@ -52,6 +52,14 @@ fn strip_ansi_escapes(s: &str) -> String {
     ANSI_RE.replace_all(s, "").into_owned()
 }
 
+/// 判断给定路径是否是“裸命令名”（仅包含单个普通组件）。
+///
+/// 例如 `python` / `node` / `git` 返回 true，`./agent.py` / `subdir/tool` 返回 false。
+fn is_bare_command(path: &Path) -> bool {
+    let mut components = path.components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+}
+
 /// 判断 child_exec 是否应当作为相对路径（基于 cwd）解析。
 ///
 /// - `python` / `node` 这类裸命令名：交给系统 PATH 查找，不拼接 cwd。
@@ -59,16 +67,24 @@ fn strip_ansi_escapes(s: &str) -> String {
 /// - 绝对路径或带盘符前缀路径：按原值使用。
 fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
     let path = Path::new(child_exec);
-    let mut components = path.components();
-    let first = components.next();
-    let second = components.next();
+    let first = path.components().next();
 
-    // 裸命令名（无目录层级）不应拼接 cwd
-    if first.is_some() && second.is_none() {
-        return matches!(first, Some(Component::CurDir | Component::ParentDir));
+    // 空字符串由上层校验，这里保守地不拼接 cwd。
+    if child_exec.is_empty() {
+        return false;
+    }
+
+    // 裸命令名交给 PATH 处理，不拼接 cwd
+    if is_bare_command(path) {
+        return false;
     }
 
     if path.is_absolute() {
+        return false;
+    }
+
+    // 根目录路径（如 /usr/bin/python 或 \Windows\System32）不拼接 cwd。
+    if matches!(first, Some(Component::RootDir)) {
         return false;
     }
 
@@ -84,20 +100,18 @@ fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
 /// - 相对路径型 child_exec -> 基于 cwd 计算
 /// - 裸命令名/绝对路径 -> 保持原样
 fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
+    let path = Path::new(child_exec);
+
+    // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
+    if is_bare_command(path) {
+        return PathBuf::from(child_exec);
+    }
+
     if should_resolve_child_exec_from_cwd(child_exec) {
         let joined = Path::new(cwd).join(child_exec);
         normalize_path(&joined.to_string_lossy())
     } else {
-        let mut components = Path::new(child_exec).components();
-        let first = components.next();
-        let second = components.next();
-
-        // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
-        if first.is_some() && second.is_none() && matches!(first, Some(Component::Normal(_))) {
-            PathBuf::from(child_exec)
-        } else {
-            normalize_path(child_exec)
-        }
+        normalize_path(child_exec)
     }
 }
 
@@ -146,7 +160,15 @@ async fn start_single_agent(
         let mut args = agent.child_args.clone().unwrap_or_default();
         args.push(socket_id.clone());
 
-        let exec_path = resolve_child_exec_path(&agent.child_exec, &cwd);
+        let child_exec = agent.child_exec.trim();
+        if child_exec.is_empty() {
+            return Err(format!(
+                "Failed to spawn agent #{}: child_exec is empty",
+                agent_index
+            ));
+        }
+
+        let exec_path = resolve_child_exec_path(child_exec, &cwd);
 
         info!(
             "[agent#{}] Spawning process: {:?} {:?} in {}",

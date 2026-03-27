@@ -60,58 +60,55 @@ fn is_bare_command(path: &Path) -> bool {
     matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
-/// 判断 child_exec 是否应当作为相对路径（基于 cwd）解析。
-///
-/// - `python` / `node` 这类裸命令名：交给系统 PATH 查找，不拼接 cwd。
-/// - `./agent.py` / `../bin/tool` / `subdir/tool`：视为相对路径，拼接 cwd。
-/// - 绝对路径或带盘符前缀路径：按原值使用。
-fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
+/// child_exec 的解析类别。
+enum ChildExecKind {
+    Empty,
+    BareCommand,
+    RelativePath,
+    AbsoluteOrPrefixedPath,
+}
+
+/// 对 child_exec 做一次统一分类，供后续路径解析逻辑复用。
+fn classify_child_exec(child_exec: &str) -> ChildExecKind {
+    if child_exec.is_empty() {
+        return ChildExecKind::Empty;
+    }
+
     let path = Path::new(child_exec);
     let first = path.components().next();
 
-    // 空字符串由上层校验，这里保守地不拼接 cwd。
-    if child_exec.is_empty() {
-        return false;
-    }
-
-    // 裸命令名交给 PATH 处理，不拼接 cwd
     if is_bare_command(path) {
-        return false;
-    }
-
-    if path.is_absolute() {
-        return false;
+        return ChildExecKind::BareCommand;
     }
 
     // 根目录路径（如 /usr/bin/python 或 \Windows\System32）不拼接 cwd。
     if matches!(first, Some(Component::RootDir)) {
-        return false;
+        return ChildExecKind::AbsoluteOrPrefixedPath;
     }
 
     // Windows 盘符前缀（如 C:python.exe / C:\Python\python.exe）不拼接 cwd
     if matches!(first, Some(Component::Prefix(_))) {
-        return false;
+        return ChildExecKind::AbsoluteOrPrefixedPath;
     }
 
-    true
+    // 其余都视作相对路径（如 ./x、../x、subdir/x）。
+    ChildExecKind::RelativePath
 }
 
 /// 解析 agent 可执行入口路径：
 /// - 相对路径型 child_exec -> 基于 cwd 计算
 /// - 裸命令名/绝对路径 -> 保持原样
 fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
-    let path = Path::new(child_exec);
-
-    // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
-    if is_bare_command(path) {
-        return PathBuf::from(child_exec);
-    }
-
-    if should_resolve_child_exec_from_cwd(child_exec) {
-        let joined = Path::new(cwd).join(child_exec);
-        normalize_path(&joined.to_string_lossy())
-    } else {
-        normalize_path(child_exec)
+    match classify_child_exec(child_exec) {
+        // 空字符串由上层提前校验；这里保守返回原值，避免误拼 cwd。
+        ChildExecKind::Empty => PathBuf::from(child_exec),
+        // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
+        ChildExecKind::BareCommand => PathBuf::from(child_exec),
+        ChildExecKind::RelativePath => {
+            let joined = Path::new(cwd).join(child_exec);
+            normalize_path(&joined.to_string_lossy())
+        }
+        ChildExecKind::AbsoluteOrPrefixedPath => normalize_path(child_exec),
     }
 }
 

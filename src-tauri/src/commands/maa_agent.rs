@@ -6,6 +6,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -49,6 +50,46 @@ static ANSI_RE: LazyLock<Regex> =
 
 fn strip_ansi_escapes(s: &str) -> String {
     ANSI_RE.replace_all(s, "").into_owned()
+}
+
+/// 判断 child_exec 是否应当作为相对路径（基于 cwd）解析。
+///
+/// - `python` / `node` 这类裸命令名：交给系统 PATH 查找，不拼接 cwd。
+/// - `./agent.py` / `../bin/tool` / `subdir/tool`：视为相对路径，拼接 cwd。
+/// - 绝对路径或带盘符前缀路径：按原值使用。
+fn should_resolve_child_exec_from_cwd(child_exec: &str) -> bool {
+    let path = Path::new(child_exec);
+
+    // 裸命令名（无目录层级）不应拼接 cwd
+    if path.components().count() == 1 {
+        return matches!(
+            path.components().next(),
+            Some(Component::CurDir | Component::ParentDir)
+        );
+    }
+
+    if path.is_absolute() {
+        return false;
+    }
+
+    // Windows 盘符前缀（如 C:python.exe / C:\Python\python.exe）不拼接 cwd
+    if matches!(path.components().next(), Some(Component::Prefix(_))) {
+        return false;
+    }
+
+    true
+}
+
+/// 解析 agent 可执行入口路径：
+/// - 相对路径型 child_exec -> 基于 cwd 计算
+/// - 裸命令名/绝对路径 -> 保持原样
+fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
+    if should_resolve_child_exec_from_cwd(child_exec) {
+        let joined = Path::new(cwd).join(child_exec);
+        normalize_path(&joined.to_string_lossy())
+    } else {
+        normalize_path(child_exec)
+    }
 }
 
 /// 启动单个 Agent 子进程并完成连接
@@ -96,8 +137,7 @@ async fn start_single_agent(
         let mut args = agent.child_args.clone().unwrap_or_default();
         args.push(socket_id.clone());
 
-        let joined = std::path::Path::new(&cwd).join(&agent.child_exec);
-        let exec_path = normalize_path(&joined.to_string_lossy());
+        let exec_path = resolve_child_exec_path(&agent.child_exec, &cwd);
 
         info!(
             "[agent#{}] Spawning process: {:?} {:?} in {}",

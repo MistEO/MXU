@@ -6,9 +6,7 @@ use chrono::TimeZone;
 use log::{info, warn};
 use maa_framework::custom::FnAction;
 use maa_framework::resource::Resource;
-use winsafe::co::SC;
-use winsafe::msg::wm;
-use winsafe::{HWND, POINT};
+
 // ============================================================================
 // MXU_SLEEP Custom Action
 // ============================================================================
@@ -680,6 +678,9 @@ fn execute_power_restart() -> bool {
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
+        use winsafe::co::SC;
+        use winsafe::msg::wm;
+        use winsafe::{HWND, POINT};
         unsafe {
             HWND::BROADCAST.SendMessage(wm::SysCommand {
                 request: SC::MONITORPOWER,

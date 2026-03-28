@@ -7,10 +7,6 @@ use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 use log::{info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
-use winsafe::co::{
-    KEY, PROCESS, PROCESS_NAME, REG_OPTION, SW, TH32CS, TOKEN, TOKEN_INFORMATION_CLASS,
-};
-use winsafe::{ShellExecuteEx, TokenInfo, HKEY, HPROCESS, HPROCESSLIST, SHELLEXECUTEINFO};
 
 /// 标记是否检测到可能缺少 VC++ 运行库
 static VCREDIST_MISSING: AtomicBool = AtomicBool::new(false);
@@ -25,6 +21,9 @@ pub fn set_vcredist_missing(missing: bool) {
 pub fn is_elevated() -> bool {
     #[cfg(windows)]
     {
+        use winsafe::co::{TOKEN, TOKEN_INFORMATION_CLASS};
+        use winsafe::{TokenInfo, HPROCESS};
+
         if let Ok(token_handle) = HPROCESS::GetCurrentProcess().OpenProcessToken(TOKEN::QUERY) {
             let result = token_handle.GetTokenInformation(TOKEN_INFORMATION_CLASS::Elevation);
             if let Ok(TokenInfo::Elevation(elevation)) = result {
@@ -49,6 +48,9 @@ pub fn is_elevated() -> bool {
 pub fn restart_as_admin(app_handle: tauri::AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     {
+        use winsafe::co::SW;
+        use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
+
         let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
 
         let exe_path_str = exe_path.to_string_lossy().to_string();
@@ -62,7 +64,7 @@ pub fn restart_as_admin(app_handle: tauri::AppHandle) -> Result<(), String> {
             ..Default::default()
         });
 
-        // ShellExecuteW 返回值 > 32 表示成功
+        // ShellExecuteEx 返回 Result：Ok 表示成功，Err 表示失败
         if let Err(e) = result {
             Err(format!("以管理员身份启动失败: 错误码 {}", e.raw()))
         } else {
@@ -178,6 +180,9 @@ pub fn check_process_running(program: &str) -> bool {
 
     #[cfg(windows)]
     {
+        use winsafe::co::{PROCESS, PROCESS_NAME, TH32CS};
+        use winsafe::{HPROCESS, HPROCESSLIST};
+
         let file_name_lower = file_name.to_lowercase();
         let target_lower = canonical_target.to_string_lossy().to_lowercase();
 
@@ -193,7 +198,7 @@ pub fn check_process_running(program: &str) -> bool {
         };
         for process_result in snapshot.iter_processes() {
             if let Ok(entry) = process_result {
-                if entry.szExeFile() == file_name_lower {
+                if entry.szExeFile().to_lowercase() == file_name_lower {
                     if let Ok(process) = HPROCESS::OpenProcess(
                         PROCESS::QUERY_LIMITED_INFORMATION,
                         false,
@@ -521,6 +526,9 @@ fn schtask_autostart_needs_refresh() -> bool {
 /// 清理旧版注册表自启动条目（tauri-plugin-autostart 遗留）
 #[cfg(windows)]
 fn remove_legacy_registry_autostart() {
+    use winsafe::co::{KEY, REG_OPTION};
+    use winsafe::HKEY;
+
     let key_result = HKEY::CURRENT_USER.RegOpenKeyEx(
         Some(r"Software\Microsoft\Windows\CurrentVersion\Run"),
         REG_OPTION::NoValue,
@@ -537,6 +545,9 @@ fn remove_legacy_registry_autostart() {
 /// 检查旧版注册表中是否存在自启动条目
 #[cfg(windows)]
 fn has_legacy_registry_autostart() -> bool {
+    use winsafe::co::{KEY, REG_OPTION};
+    use winsafe::HKEY;
+
     let key_result = HKEY::CURRENT_USER.RegOpenKeyEx(
         Some(r"Software\Microsoft\Windows\CurrentVersion\Run"),
         REG_OPTION::NoValue,

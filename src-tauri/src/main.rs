@@ -1,9 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use winsafe::co::SW;
-use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
-
 #[cfg(target_os = "windows")]
 mod webview2;
 
@@ -53,6 +50,9 @@ fn main() {
                     return;
                 }
             };
+
+            use winsafe::co::SW;
+            use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
 
             let result = ShellExecuteEx(&SHELLEXECUTEINFO {
                 file: &exe_path.to_string_lossy(),

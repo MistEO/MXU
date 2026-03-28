@@ -719,7 +719,7 @@ fn execute_power_screenoff() -> bool {
         if let Ok(value) = env::var("XDG_SESSION_TYPE") {
             if value == "wayland" {
                 log::error!("[MXU_POWER] Screen off on Wayland is not available");
-                false
+                return false;
             }
         }
         match Command::new("xset").args(["dpms", "force", "off"]).spawn() {

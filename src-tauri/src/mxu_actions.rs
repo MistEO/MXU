@@ -714,7 +714,14 @@ fn execute_power_screenoff() -> bool {
 
     #[cfg(not(any(windows, target_os = "macos")))]
     {
+        use std::env;
         use std::process::Command;
+        if let Ok(value) = env::var("XDG_SESSION_TYPE") {
+            if value == "wayland" {
+                log::error!("[MXU_POWER] Screen off on Wayland is not available");
+                false
+            }
+        }
         match Command::new("xset").args(["dpms", "force", "off"]).spawn() {
             Ok(_) => {
                 info!("[MXU_POWER] Screen off command issued (Linux)");

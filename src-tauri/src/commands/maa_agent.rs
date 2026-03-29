@@ -6,6 +6,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -49,6 +50,73 @@ static ANSI_RE: LazyLock<Regex> =
 
 fn strip_ansi_escapes(s: &str) -> String {
     ANSI_RE.replace_all(s, "").into_owned()
+}
+
+/// 判断给定 child_exec 是否是“裸命令名”（仅包含单个普通组件且不含路径分隔符）。
+///
+/// 例如 `python` / `node` / `git` 返回 true，`./agent.py` / `subdir/tool` 返回 false。
+fn is_bare_command(child_exec: &str, path: &Path) -> bool {
+    // `python/`、`python\` 这类带分隔符输入应视为路径而非裸命令。
+    if child_exec.contains('/') || child_exec.contains('\\') {
+        return false;
+    }
+
+    let mut components = path.components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+}
+
+/// child_exec 的解析类别。
+enum ChildExecKind {
+    Empty,
+    BareCommand,
+    RelativePath,
+    AbsoluteOrPrefixedPath,
+}
+
+/// 对 child_exec 做一次统一分类，供后续路径解析逻辑复用。
+fn classify_child_exec(child_exec: &str) -> ChildExecKind {
+    if child_exec.is_empty() {
+        return ChildExecKind::Empty;
+    }
+
+    let path = Path::new(child_exec);
+    let first = path.components().next();
+
+    if is_bare_command(child_exec, path) {
+        return ChildExecKind::BareCommand;
+    }
+
+    // 根目录路径（如 /usr/bin/python 或 \Windows\System32）不拼接 cwd。
+    if matches!(first, Some(Component::RootDir)) {
+        return ChildExecKind::AbsoluteOrPrefixedPath;
+    }
+
+    // Windows 盘符前缀（如 C:python.exe / C:\Python\python.exe）不拼接 cwd
+    if matches!(first, Some(Component::Prefix(_))) {
+        return ChildExecKind::AbsoluteOrPrefixedPath;
+    }
+
+    // 其余都视作相对路径（如 ./x、../x、subdir/x）。
+    ChildExecKind::RelativePath
+}
+
+/// 解析 agent 可执行入口路径：
+/// - 空字符串 child_exec -> 原样返回（不拼接 cwd、不做规范化）
+/// - 裸命令名（如 `python` / `node`）-> 原样返回，由系统 PATH 解析
+/// - 相对路径型 child_exec -> 先基于 cwd 拼接，再通过 `normalize_path` 规范化
+/// - 绝对路径 / 带盘符前缀路径 -> 不拼接 cwd，但会通过 `normalize_path` 规范化
+fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
+    match classify_child_exec(child_exec) {
+        // 空字符串由上层提前校验；这里保守返回原值，避免误拼 cwd。
+        ChildExecKind::Empty => PathBuf::from(child_exec),
+        // 裸命令名（例如 python / node）直接走 PATH，不做路径规范化。
+        ChildExecKind::BareCommand => PathBuf::from(child_exec),
+        ChildExecKind::RelativePath => {
+            let joined = Path::new(cwd).join(child_exec);
+            normalize_path(&joined.to_string_lossy())
+        }
+        ChildExecKind::AbsoluteOrPrefixedPath => normalize_path(child_exec),
+    }
 }
 
 /// 启动单个 Agent 子进程并完成连接
@@ -96,8 +164,15 @@ async fn start_single_agent(
         let mut args = agent.child_args.clone().unwrap_or_default();
         args.push(socket_id.clone());
 
-        let joined = std::path::Path::new(&cwd).join(&agent.child_exec);
-        let exec_path = normalize_path(&joined.to_string_lossy());
+        let child_exec = agent.child_exec.trim();
+        if child_exec.is_empty() {
+            return Err(format!(
+                "Failed to spawn agent #{}: child_exec is empty",
+                agent_index
+            ));
+        }
+
+        let exec_path = resolve_child_exec_path(child_exec, &cwd);
 
         info!(
             "[agent#{}] Spawning process: {:?} {:?} in {}",

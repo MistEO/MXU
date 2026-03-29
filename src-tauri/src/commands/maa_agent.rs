@@ -52,10 +52,15 @@ fn strip_ansi_escapes(s: &str) -> String {
     ANSI_RE.replace_all(s, "").into_owned()
 }
 
-/// 判断给定路径是否是“裸命令名”（仅包含单个普通组件）。
+/// 判断给定 child_exec 是否是“裸命令名”（仅包含单个普通组件且不含路径分隔符）。
 ///
 /// 例如 `python` / `node` / `git` 返回 true，`./agent.py` / `subdir/tool` 返回 false。
-fn is_bare_command(path: &Path) -> bool {
+fn is_bare_command(child_exec: &str, path: &Path) -> bool {
+    // `python/`、`python\` 这类带分隔符输入应视为路径而非裸命令。
+    if child_exec.contains('/') || child_exec.contains('\\') {
+        return false;
+    }
+
     let mut components = path.components();
     matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
@@ -77,7 +82,7 @@ fn classify_child_exec(child_exec: &str) -> ChildExecKind {
     let path = Path::new(child_exec);
     let first = path.components().next();
 
-    if is_bare_command(path) {
+    if is_bare_command(child_exec, path) {
         return ChildExecKind::BareCommand;
     }
 
@@ -96,8 +101,10 @@ fn classify_child_exec(child_exec: &str) -> ChildExecKind {
 }
 
 /// 解析 agent 可执行入口路径：
-/// - 相对路径型 child_exec -> 基于 cwd 计算
-/// - 裸命令名/绝对路径 -> 保持原样
+/// - 空字符串 child_exec -> 原样返回（不拼接 cwd、不做规范化）
+/// - 裸命令名（如 `python` / `node`）-> 原样返回，由系统 PATH 解析
+/// - 相对路径型 child_exec -> 先基于 cwd 拼接，再通过 `normalize_path` 规范化
+/// - 绝对路径 / 带盘符前缀路径 -> 不拼接 cwd，但会通过 `normalize_path` 规范化
 fn resolve_child_exec_path(child_exec: &str, cwd: &str) -> PathBuf {
     match classify_child_exec(child_exec) {
         // 空字符串由上层提前校验；这里保守返回原值，避免误拼 cwd。

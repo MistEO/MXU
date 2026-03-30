@@ -536,6 +536,25 @@ pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
 }
 
+/// 获取命令行 -i/--instance 参数指定的启动实例名称
+#[tauri::command]
+pub fn get_start_instance() -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "-i" || arg == "--instance" {
+            return iter.next().cloned();
+        }
+        if let Some(value) = arg.strip_prefix("-i=") {
+            return Some(value.to_string());
+        }
+        if let Some(value) = arg.strip_prefix("--instance=") {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
 /// 自动迁移旧版注册表自启动到任务计划程序
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {

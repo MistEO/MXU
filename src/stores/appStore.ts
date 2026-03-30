@@ -61,6 +61,7 @@ async function getConsoleInvoke() {
 }
 
 function forwardLogToConsole(message: string) {
+  if (_consoleEnabled === false) return;
   // 剥离所有 HTML 标签（含 <br/>、<span> 等），保留纯文本
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;

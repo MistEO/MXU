@@ -116,6 +116,9 @@ pub fn is_console_enabled() -> bool {
 /// 由前端调用，将已格式化的日志行输出到控制台
 #[tauri::command]
 pub fn console_log(message: String) {
+    if !super::utils::is_console_enabled() {
+        return;
+    }
     let timestamp = chrono::Local::now().format("%H:%M:%S");
     cprintln!("[{timestamp}] {message}");
 }

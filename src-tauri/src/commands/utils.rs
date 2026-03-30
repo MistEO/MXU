@@ -46,8 +46,20 @@ pub fn init_console_output() {
                 if let Ok(nul) = std::fs::OpenOptions::new().write(true).open("NUL") {
                     let nul_handle = HANDLE(nul.as_raw_handle() as *mut std::ffi::c_void);
                     unsafe {
+                        // Win32 层重定向
                         let _ = SetStdHandle(STD_OUTPUT_HANDLE, nul_handle);
                         let _ = SetStdHandle(STD_ERROR_HANDLE, nul_handle);
+
+                        // CRT 层重定向（C/C++ 库通过 fd 1/2 写入）
+                        extern "C" {
+                            fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
+                            fn _dup2(fd1: i32, fd2: i32) -> i32;
+                        }
+                        let nul_fd = _open_osfhandle(nul.as_raw_handle() as isize, 0);
+                        if nul_fd >= 0 {
+                            let _ = _dup2(nul_fd, 1); // CRT stdout
+                            let _ = _dup2(nul_fd, 2); // CRT stderr
+                        }
                     }
                     std::mem::forget(nul); // 保持 NUL 句柄存活
                 }

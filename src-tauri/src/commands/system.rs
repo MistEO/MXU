@@ -441,12 +441,15 @@ pub async fn run_action(
     args: String,
     cwd: Option<String>,
     wait_for_exit: bool,
+    use_cmd: Option<bool>,
 ) -> Result<i32, String> {
     use std::process::Command;
 
+    let use_cmd = use_cmd.unwrap_or(false);
+
     info!(
-        "run_action: program={}, args={}, wait={}",
-        program, args, wait_for_exit
+        "run_action: program={}, args={}, wait={}, use_cmd={}",
+        program, args, wait_for_exit, use_cmd
     );
 
     // 使用 shell 语义解析参数至数组（支持引号）
@@ -456,12 +459,20 @@ pub async fn run_action(
         shell_words::split(&args).map_err(|e| format!("Failed to parse args: {}", e))?
     };
 
-    let mut cmd = Command::new(&program);
-
-    // 添加参数
-    if !args_vec.is_empty() {
-        cmd.args(&args_vec);
-    }
+    let mut cmd = if cfg!(target_os = "windows") && use_cmd {
+        let mut c = Command::new("cmd.exe");
+        c.arg("/c").arg(&program);
+        if !args_vec.is_empty() {
+            c.args(&args_vec);
+        }
+        c
+    } else {
+        let mut c = Command::new(&program);
+        if !args_vec.is_empty() {
+            c.args(&args_vec);
+        }
+        c
+    };
 
     // 设置工作目录
     if let Some(ref dir) = cwd {

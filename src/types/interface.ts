@@ -251,6 +251,7 @@ export interface ActionConfig {
   args: string; // 附加参数
   waitForExit: boolean; // 是否等待进程退出（默认 true）
   skipIfRunning: boolean; // 程序已运行时跳过执行（默认 true）
+  useCmd: boolean; // 通过 cmd /c 启动（仅 Windows，默认 false）
 }
 
 // 多开实例状态

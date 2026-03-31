@@ -236,6 +236,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               preAction.args,
               basePath,
               preAction.waitForExit ?? true,
+              preAction.useCmd ?? false,
             );
             if (exitCode !== 0) {
               log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);

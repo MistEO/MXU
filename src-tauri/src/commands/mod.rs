@@ -5,6 +5,7 @@
 //! 模块结构：
 //! - `types`: 数据类型定义
 //! - `utils`: 辅助函数
+//! - `console`: 控制台输出系统
 //! - `maa_core`: Maa 核心命令（初始化、设备搜索、控制器、资源、任务）
 //! - `maa_agent`: Agent 相关命令
 //! - `state`: 状态查询命令
@@ -14,6 +15,7 @@
 //! - `system`: 系统相关命令
 //! - `tray`: 托盘相关命令
 
+pub mod console;
 pub mod types;
 pub mod utils;
 

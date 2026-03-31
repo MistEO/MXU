@@ -110,22 +110,22 @@ pub fn maa_get_cached_win32_windows(
 /// 查询解析日志标准流输出是否已启用（--log-mode=ui|verbose）
 #[tauri::command]
 pub fn is_console_enabled() -> bool {
-    super::utils::is_console_enabled()
+    super::console::is_console_enabled()
 }
 
 /// 查询解析日志输出模式（ui 或 verbose）
 #[tauri::command]
 pub fn get_console_mode() -> String {
-    match super::utils::get_console_mode() {
-        super::utils::ConsoleMode::Ui => "ui".to_string(),
-        super::utils::ConsoleMode::Verbose => "verbose".to_string(),
+    match super::console::get_console_mode() {
+        super::console::ConsoleMode::Ui => "ui".to_string(),
+        super::console::ConsoleMode::Verbose => "verbose".to_string(),
     }
 }
 
 /// 由前端调用，将已格式化的日志行输出到控制台
 #[tauri::command]
 pub fn console_log(message: String) {
-    if !super::utils::is_console_enabled() {
+    if !super::console::is_console_enabled() {
         return;
     }
     let timestamp = chrono::Local::now().format("%H:%M:%S");

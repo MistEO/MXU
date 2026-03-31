@@ -7,7 +7,7 @@ mod webview2;
 fn main() {
     // 初始化日志打印模式：
     // --log-mode=none|raw|ui|verbose
-    mxu_lib::commands::utils::init_console_output();
+    mxu_lib::commands::console::init_console_output();
 
     #[cfg(target_os = "windows")]
     {

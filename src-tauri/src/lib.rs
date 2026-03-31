@@ -40,7 +40,7 @@ pub fn run() {
                         file_name: Some("mxu-tauri".into()),
                     })];
 
-                    if commands::utils::should_log_to_stdout() {
+                    if commands::console::should_log_to_stdout() {
                         targets.push(Target::new(TargetKind::Stdout));
                     }
 

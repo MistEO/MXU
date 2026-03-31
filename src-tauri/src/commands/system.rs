@@ -555,6 +555,19 @@ pub fn get_start_instance() -> Option<String> {
     None
 }
 
+/// 获取命令行 -c/--controller 参数指定的控制器名称
+#[tauri::command]
+pub fn get_controller_override() -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "-c" || arg == "--controller" {
+            return iter.next().cloned();
+        }
+    }
+    None
+}
+
 /// 检查命令行是否包含 -k/--kill 参数（任务完成后关闭自身）
 #[tauri::command]
 pub fn has_close_flag() -> bool {

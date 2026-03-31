@@ -9,7 +9,7 @@ import { maaService, type MaaCallbackDetails } from '@/services/maaService';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
-import { getMxuSpecialTask } from '@/types/specialTasks';
+import { getMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
 import {
   resolveI18nText,
   detectContentType,
@@ -17,11 +17,214 @@ import {
   markdownToHtmlWithLocalImages,
 } from '@/services/contentResolver';
 import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
+import { isTauri } from '@/utils/paths';
 
 const log = loggers.app;
 
 // 每次会话只请求一次通知权限，避免多条 focus 消息重复弹权限弹窗
 let focusNotificationPermissionRequested = false;
+
+// task 控制台日志延迟回放缓存：instanceId -> taskId -> messages
+const pendingTaskConsoleLogs = new Map<string, Map<number, string[]>>();
+const pendingTaskConsoleReplayTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingTaskConsoleReplayRetries = new Map<string, number>();
+const PENDING_TASK_CONSOLE_REPLAY_DELAY_MS = 200;
+const PENDING_TASK_CONSOLE_MAX_RETRIES = 300;
+type ConsoleOutputMode = 'off' | 'ui' | 'verbose';
+
+// --console 模式：本文件内直接回放控制台日志（不重复写入 UI）
+let _consoleEnabled: boolean | null = null;
+let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+let _consoleOutputMode: ConsoleOutputMode | null = null;
+
+async function getConsoleInvoke() {
+  if (_consoleEnabled === false) return null;
+  if (_invoke && _consoleEnabled === true) return _invoke;
+  if (!isTauri()) {
+    _consoleEnabled = false;
+    return null;
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
+  _invoke = invoke;
+  try {
+    _consoleEnabled = await invoke<boolean>('is_console_enabled');
+  } catch {
+    _consoleEnabled = false;
+  }
+  return _consoleEnabled ? _invoke : null;
+}
+
+function replayConsoleLog(message: string) {
+  if (!message || _consoleEnabled === false) return;
+  getConsoleInvoke().then((inv) => {
+    if (inv) inv('console_log', { message }).catch(() => { });
+  });
+}
+
+async function getConsoleOutputMode(): Promise<ConsoleOutputMode> {
+  if (_consoleOutputMode) return _consoleOutputMode;
+  const inv = await getConsoleInvoke();
+  if (!inv) {
+    _consoleOutputMode = 'off';
+    return _consoleOutputMode;
+  }
+  try {
+    const mode = await inv('get_console_mode');
+    _consoleOutputMode = mode === 'verbose' ? 'verbose' : 'ui';
+  } catch {
+    _consoleOutputMode = 'ui';
+  }
+  return _consoleOutputMode;
+}
+
+function makePendingTaskKey(instanceId: string, taskId: number): string {
+  return `${instanceId}:${taskId}`;
+}
+
+function enqueuePendingTaskConsoleLog(instanceId: string, taskId: number, message: string) {
+  const byTask = pendingTaskConsoleLogs.get(instanceId) || new Map<number, string[]>();
+  const queue = byTask.get(taskId) || [];
+  queue.push(message);
+  byTask.set(taskId, queue);
+  pendingTaskConsoleLogs.set(instanceId, byTask);
+}
+
+function drainPendingTaskConsoleLogs(instanceId: string, taskId: number): string[] {
+  const byTask = pendingTaskConsoleLogs.get(instanceId);
+  if (!byTask) return [];
+  const queue = byTask.get(taskId) || [];
+  byTask.delete(taskId);
+  if (byTask.size === 0) {
+    pendingTaskConsoleLogs.delete(instanceId);
+  }
+  return queue;
+}
+
+function tryReplayPendingTaskConsoleLogs(instanceId: string, taskId: number): boolean {
+  const taskConfigItemId = getTaskConfigItemId(instanceId, taskId);
+  if (!taskConfigItemId) return false;
+
+  const key = makePendingTaskKey(instanceId, taskId);
+  const timer = pendingTaskConsoleReplayTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    pendingTaskConsoleReplayTimers.delete(key);
+  }
+  pendingTaskConsoleReplayRetries.delete(key);
+
+  const queued = drainPendingTaskConsoleLogs(instanceId, taskId);
+  queued.forEach((message) => {
+    replayConsoleLog(withTaskConfigIdPrefix(message, taskConfigItemId));
+  });
+  return true;
+}
+
+function schedulePendingTaskConsoleReplay(instanceId: string, taskId: number) {
+  const key = makePendingTaskKey(instanceId, taskId);
+  if (pendingTaskConsoleReplayTimers.has(key)) return;
+
+  const timer = setTimeout(() => {
+    pendingTaskConsoleReplayTimers.delete(key);
+
+    if (tryReplayPendingTaskConsoleLogs(instanceId, taskId)) {
+      return;
+    }
+
+    const nextRetry = (pendingTaskConsoleReplayRetries.get(key) || 0) + 1;
+    if (nextRetry >= PENDING_TASK_CONSOLE_MAX_RETRIES) {
+      pendingTaskConsoleReplayRetries.delete(key);
+      drainPendingTaskConsoleLogs(instanceId, taskId);
+      return;
+    }
+
+    pendingTaskConsoleReplayRetries.set(key, nextRetry);
+    schedulePendingTaskConsoleReplay(instanceId, taskId);
+  }, PENDING_TASK_CONSOLE_REPLAY_DELAY_MS);
+
+  pendingTaskConsoleReplayTimers.set(key, timer);
+}
+
+function getRawTaskNameForConsole(
+  instanceId: string,
+  taskId: number | undefined,
+  details: MaaCallbackDetails & Record<string, unknown>,
+): string {
+  const state = useAppStore.getState();
+
+  // 1. 优先通过 task_id -> selectedTaskId -> selectedTask.taskName
+  if (taskId !== undefined) {
+    const selectedTaskId = state.maaTaskIdMapping[instanceId]?.[taskId];
+    if (selectedTaskId) {
+      const instance = state.instances.find((i) => i.id === instanceId);
+      const selectedTask = instance?.selectedTasks.find((t) => t.id === selectedTaskId);
+      if (selectedTask?.taskName) return selectedTask.taskName;
+    }
+  }
+
+  const entry = details.entry ? String(details.entry) : undefined;
+  if (!entry) return '-';
+
+  // 2. 通过 interface task 的 entry 反查原始 task name
+  const interfaceTaskName = state.projectInterface?.task.find((t) => t.entry === entry)?.name;
+  if (interfaceTaskName) return interfaceTaskName;
+
+  // 3. 通过 MXU 特殊任务的 entry 反查原始 task name
+  const specialTask = Object.values(MXU_SPECIAL_TASKS).find((t) => t.entry === entry);
+  if (specialTask) return specialTask.taskName;
+
+  // 4. 最后回退为 entry（避免丢信息）
+  return entry;
+}
+
+function buildVerboseTaskRawMessage(
+  instanceId: string,
+  taskId: number | undefined,
+  messageType: string,
+  details: MaaCallbackDetails & Record<string, unknown>,
+): string {
+  const rawTaskName = getRawTaskNameForConsole(instanceId, taskId, details);
+  switch (messageType) {
+    case 'Tasker.Task.Starting':
+      return `任务开始: ${rawTaskName}`;
+    case 'Tasker.Task.Succeeded':
+      return `任务完成: ${rawTaskName}`;
+    case 'Tasker.Task.Failed':
+      return `任务失败: ${rawTaskName}`;
+    default:
+      return `${messageType}: ${rawTaskName}`;
+  }
+}
+
+function buildTaskConsoleMessage(
+  instanceId: string,
+  taskId: number | undefined,
+  messageType: string,
+  details: MaaCallbackDetails & Record<string, unknown>,
+  consoleMode: ConsoleOutputMode,
+): string | null | undefined {
+  if (consoleMode !== 'verbose') {
+    // ui 模式沿用 UI 已展示文本；off 模式由后端自行忽略
+    return undefined;
+  }
+
+  const rawMessage = buildVerboseTaskRawMessage(instanceId, taskId, messageType, details);
+
+  if (taskId === undefined) {
+    return rawMessage;
+  }
+
+  const taskConfigItemId = getTaskConfigItemId(instanceId, taskId);
+  if (!taskConfigItemId) {
+    enqueuePendingTaskConsoleLog(instanceId, taskId, rawMessage);
+    schedulePendingTaskConsoleReplay(instanceId, taskId);
+    // 显式抑制本条终端输出，等待映射后回放
+    return null;
+  }
+
+  // 映射就绪后，先回放此前缓存，再输出当前行
+  tryReplayPendingTaskConsoleLogs(instanceId, taskId);
+  return withTaskConfigIdPrefix(rawMessage, taskConfigItemId);
+}
 
 /** v2.3.0: toast/notification 渠道 - 使用系统通知 */
 async function dispatchFocusNotification(message: string) {
@@ -192,6 +395,7 @@ export function useMaaCallbackLogger() {
     // 设置回调监听
     const setupListener = async () => {
       try {
+        const consoleMode = await getConsoleOutputMode();
         const unlisten = await maaService.onCallback((message, details) => {
           // 组件已卸载则忽略
           if (cancelled) return;
@@ -205,6 +409,7 @@ export function useMaaCallbackLogger() {
             currentActiveId,
             message,
             details as MaaCallbackDetails & Record<string, unknown>,
+            consoleMode,
             t,
             addLog,
           );
@@ -282,12 +487,26 @@ function getTaskDisplayName(
   return undefined;
 }
 
+function getTaskConfigItemId(instanceId: string, taskId: number | undefined): string | undefined {
+  if (taskId === undefined) return undefined;
+  const state = useAppStore.getState();
+  return state.maaTaskIdMapping[instanceId]?.[taskId];
+}
+
+function withTaskConfigIdPrefix(message: string, taskConfigItemId: string): string {
+  return `[${taskConfigItemId}] ${message}`;
+}
+
 function handleCallback(
   instanceId: string,
   message: string,
   details: MaaCallbackDetails & Record<string, unknown>,
+  consoleMode: ConsoleOutputMode,
   t: (key: string, options?: Record<string, unknown>) => string,
-  addLog: (instanceId: string, log: { type: LogType; message: string; html?: string }) => void,
+  addLog: (
+    instanceId: string,
+    log: { type: LogType; message: string; html?: string; consoleMessage?: string | null },
+  ) => void,
 ) {
   // 获取 ID 名称映射函数
   const { getCtrlName, getCtrlType, getResName, getResBatchInfo } = useAppStore.getState();
@@ -461,19 +680,35 @@ function handleCallback(
     case 'Tasker.Task.Starting': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
+        const uiMessage = t('logs.messages.taskStarting', { name: t('logs.messages.stopTask') });
         addLog(instanceId, {
           type: 'info',
-          message: t('logs.messages.taskStarting', { name: t('logs.messages.stopTask') }),
+          message: uiMessage,
+          consoleMessage: buildTaskConsoleMessage(
+            instanceId,
+            details.task_id,
+            message,
+            details,
+            consoleMode,
+          ),
         });
         break;
       }
       // 使用改进的任务名查找逻辑，避免 entry 覆盖和竞态问题
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
+      const uiMessage = t('logs.messages.taskStarting', {
+        name: taskName || details.entry || '',
+      });
       addLog(instanceId, {
         type: 'info',
-        message: t('logs.messages.taskStarting', {
-          name: taskName || details.entry || '',
-        }),
+        message: uiMessage,
+        consoleMessage: buildTaskConsoleMessage(
+          instanceId,
+          details.task_id,
+          message,
+          details,
+          consoleMode,
+        ),
       });
       break;
     }
@@ -481,18 +716,34 @@ function handleCallback(
     case 'Tasker.Task.Succeeded': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
+        const uiMessage = t('logs.messages.taskSucceeded', { name: t('logs.messages.stopTask') });
         addLog(instanceId, {
           type: 'success',
-          message: t('logs.messages.taskSucceeded', { name: t('logs.messages.stopTask') }),
+          message: uiMessage,
+          consoleMessage: buildTaskConsoleMessage(
+            instanceId,
+            details.task_id,
+            message,
+            details,
+            consoleMode,
+          ),
         });
         break;
       }
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
+      const uiMessage = t('logs.messages.taskSucceeded', {
+        name: taskName || details.entry || '',
+      });
       addLog(instanceId, {
         type: 'success',
-        message: t('logs.messages.taskSucceeded', {
-          name: taskName || details.entry || '',
-        }),
+        message: uiMessage,
+        consoleMessage: buildTaskConsoleMessage(
+          instanceId,
+          details.task_id,
+          message,
+          details,
+          consoleMode,
+        ),
       });
       break;
     }
@@ -500,18 +751,34 @@ function handleCallback(
     case 'Tasker.Task.Failed': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
+        const uiMessage = t('logs.messages.taskFailed', { name: t('logs.messages.stopTask') });
         addLog(instanceId, {
           type: 'error',
-          message: t('logs.messages.taskFailed', { name: t('logs.messages.stopTask') }),
+          message: uiMessage,
+          consoleMessage: buildTaskConsoleMessage(
+            instanceId,
+            details.task_id,
+            message,
+            details,
+            consoleMode,
+          ),
         });
         break;
       }
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
+      const uiMessage = t('logs.messages.taskFailed', {
+        name: taskName || details.entry || '',
+      });
       addLog(instanceId, {
         type: 'error',
-        message: t('logs.messages.taskFailed', {
-          name: taskName || details.entry || '',
-        }),
+        message: uiMessage,
+        consoleMessage: buildTaskConsoleMessage(
+          instanceId,
+          details.task_id,
+          message,
+          details,
+          consoleMode,
+        ),
       });
       break;
     }

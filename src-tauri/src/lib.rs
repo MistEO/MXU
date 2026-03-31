@@ -34,16 +34,16 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets({
-                    let targets = vec![
-                        // 输出到 exe/debug/logs 目录（与前端日志同目录，文件名用 mxu-tauri 区分）
-                        Target::new(TargetKind::Folder {
-                            path: logs_dir,
-                            file_name: Some("mxu-tauri".into()),
-                        }),
-                    ];
-                    // debug 模式下额外输出到控制台，便于开发调试
-                    #[cfg(debug_assertions)]
-                    targets.push(Target::new(TargetKind::Stdout));
+                    // 始终写文件；仅 Raw 模式输出到标准流
+                    let mut targets = vec![Target::new(TargetKind::Folder {
+                        path: logs_dir,
+                        file_name: Some("mxu-tauri".into()),
+                    })];
+
+                    if commands::utils::should_log_to_stdout() {
+                        targets.push(Target::new(TargetKind::Stdout));
+                    }
+
                     targets
                 })
                 .timezone_strategy(TimezoneStrategy::UseLocal)
@@ -163,6 +163,7 @@ pub fn run() {
             commands::state::maa_get_cached_adb_devices,
             commands::state::maa_get_cached_win32_windows,
             commands::state::is_console_enabled,
+            commands::state::get_console_mode,
             commands::state::console_log,
             // 更新安装命令
             commands::update::extract_zip,

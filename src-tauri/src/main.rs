@@ -5,7 +5,8 @@
 mod webview2;
 
 fn main() {
-    // 初始化控制台输出：仅当传入 --console 参数时附着父进程终端并启用日志输出
+    // 初始化日志打印模式：
+    // --log-mode=none|raw|ui|verbose
     mxu_lib::commands::utils::init_console_output();
 
     #[cfg(target_os = "windows")]

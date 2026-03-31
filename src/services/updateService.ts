@@ -1149,6 +1149,20 @@ export function saveUpdateCompleteInfo(info: UpdateCompleteInfo): void {
 }
 
 /**
+ * 读取更新完成信息（不清除）
+ */
+export function peekUpdateCompleteInfo(): UpdateCompleteInfo | null {
+  try {
+    const data = localStorage.getItem(UPDATE_COMPLETE_STORAGE_KEY);
+    if (!data) return null;
+    return JSON.parse(data) as UpdateCompleteInfo;
+  } catch (error) {
+    log.warn('读取更新完成信息失败:', error);
+    return null;
+  }
+}
+
+/**
  * 读取并清除更新完成信息
  */
 export function consumeUpdateCompleteInfo(): UpdateCompleteInfo | null {

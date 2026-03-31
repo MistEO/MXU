@@ -25,6 +25,7 @@ import {
   downloadUpdate,
   getUpdateSavePath,
   consumeUpdateCompleteInfo,
+  peekUpdateCompleteInfo,
   savePendingUpdateInfo,
   getPendingUpdateInfo,
   clearPendingUpdateInfo,
@@ -642,10 +643,12 @@ function App() {
       }
 
       // 检查是否刚更新完成（重启后）
-      const updateCompleteInfo = consumeUpdateCompleteInfo();
+      // autostart 模式下只读不消费，保留给下次手动启动时弹窗
+      const isAutoStartModeNow = useAppStore.getState().isAutoStartMode;
+      const updateCompleteInfo = isAutoStartModeNow
+        ? peekUpdateCompleteInfo()
+        : consumeUpdateCompleteInfo();
       if (updateCompleteInfo) {
-        // 更新重启后将窗口带到前台
-        focusWindow();
         const currentVersionNow = result.interface.version || '';
 
         // 如果需要验证版本（exe/dmg 安装场景）
@@ -659,7 +662,31 @@ function App() {
           if (
             normalizeVersion(currentVersionNow) === normalizeVersion(updateCompleteInfo.newVersion)
           ) {
-            log.info('版本已更新到目标版本，显示更新完成弹窗');
+            log.info('版本已更新到目标版本');
+            if (!isAutoStartModeNow) {
+              // 更新重启后将窗口带到前台
+              focusWindow();
+              setJustUpdatedInfo({
+                previousVersion: updateCompleteInfo.previousVersion,
+                newVersion: updateCompleteInfo.newVersion,
+                releaseNote: updateCompleteInfo.releaseNote,
+                channel: updateCompleteInfo.channel,
+              });
+              setShowInstallConfirmModal(true);
+              // 更新完成后跳过自动检查更新
+              return;
+            }
+          } else {
+            log.info('版本未更新，继续正常流程');
+            // 版本未更新，继续正常流程（可能用户取消了安装）
+          }
+        } else {
+          // 直接显示更新完成弹窗（zip 等自动安装场景）
+          log.info('检测到刚更新完成:', updateCompleteInfo.newVersion);
+          if (!isAutoStartModeNow) {
+            // 清除待安装更新信息（安装已完成）
+            clearPendingUpdateInfo();
+            focusWindow();
             setJustUpdatedInfo({
               previousVersion: updateCompleteInfo.previousVersion,
               newVersion: updateCompleteInfo.newVersion,
@@ -669,30 +696,14 @@ function App() {
             setShowInstallConfirmModal(true);
             // 更新完成后跳过自动检查更新
             return;
-          } else {
-            log.info('版本未更新，继续正常流程');
-            // 版本未更新，继续正常流程（可能用户取消了安装）
           }
-        } else {
-          // 直接显示更新完成弹窗（zip 等自动安装场景）
-          log.info('检测到刚更新完成:', updateCompleteInfo.newVersion);
-          // 清除待安装更新信息（安装已完成）
-          clearPendingUpdateInfo();
-          setJustUpdatedInfo({
-            previousVersion: updateCompleteInfo.previousVersion,
-            newVersion: updateCompleteInfo.newVersion,
-            releaseNote: updateCompleteInfo.releaseNote,
-            channel: updateCompleteInfo.channel,
-          });
-          setShowInstallConfirmModal(true);
-          // 更新完成后跳过自动检查更新
-          return;
         }
       }
 
       // 检查是否有待安装的更新（上次下载完成但未安装）
       // 调试版本跳过待安装更新检测
-      if (!isDebugVersion(result.interface.version)) {
+      // autostart 模式下跳过，保留给下次手动启动时处理
+      if (!isAutoStartModeNow && !isDebugVersion(result.interface.version)) {
         const pendingUpdate = await getPendingUpdateInfo();
         if (pendingUpdate) {
           log.info('检测到待安装更新:', pendingUpdate.versionName);

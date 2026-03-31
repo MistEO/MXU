@@ -536,36 +536,34 @@ pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
 }
 
-/// 获取命令行 -i/--instance 参数指定的启动实例名称
-#[tauri::command]
-pub fn get_start_instance() -> Option<String> {
+/// 从命令行参数中获取指定选项的值（支持 `-x value` 和 `--name value` 格式）
+/// 返回第一个匹配的值；若值缺失或以 `-` 开头则视为无效并跳过
+fn get_cli_arg_value(short: &str, long: &str) -> Option<String> {
     let args: Vec<String> = std::env::args().collect();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
-        if arg == "-i" || arg == "--instance" {
-            return iter.next().cloned();
-        }
-        if let Some(value) = arg.strip_prefix("-i=") {
-            return Some(value.to_string());
-        }
-        if let Some(value) = arg.strip_prefix("--instance=") {
-            return Some(value.to_string());
+        if arg == short || arg == long {
+            if let Some(value) = iter.next() {
+                if !value.starts_with('-') {
+                    return Some(value.clone());
+                }
+            }
+            return None;
         }
     }
     None
 }
 
+/// 获取命令行 -i/--instance 参数指定的启动实例名称
+#[tauri::command]
+pub fn get_start_instance() -> Option<String> {
+    get_cli_arg_value("-i", "--instance")
+}
+
 /// 获取命令行 -c/--controller 参数指定的控制器名称
 #[tauri::command]
 pub fn get_controller_override() -> Option<String> {
-    let args: Vec<String> = std::env::args().collect();
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if arg == "-c" || arg == "--controller" {
-            return iter.next().cloned();
-        }
-    }
-    None
+    get_cli_arg_value("-c", "--controller")
 }
 
 /// 检查命令行是否包含 -k/--kill 参数（任务完成后关闭自身）

@@ -555,6 +555,12 @@ pub fn get_start_instance() -> Option<String> {
     None
 }
 
+/// 检查命令行是否包含 -k/--kill 参数（任务完成后关闭自身）
+#[tauri::command]
+pub fn has_close_flag() -> bool {
+    std::env::args().any(|arg| arg == "-k" || arg == "--kill")
+}
+
 /// 自动迁移旧版注册表自启动到任务计划程序
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {

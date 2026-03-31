@@ -646,6 +646,23 @@ function App() {
               const source = isAutoStart ? '开机自启动' : '手动启动';
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
               useAppStore.getState().setActiveInstance(targetInstanceId);
+
+              // 检查 -k/--kill 参数：任务完成后关闭自身
+              const hasClose = await invoke<boolean>('has_close_flag');
+              if (hasClose) {
+                log.info('命令行 --close 参数：任务完成后将关闭自身');
+                const unsub = useAppStore.subscribe(
+                  (state) => state.instances.find((i) => i.id === targetInstanceId)?.isRunning,
+                  (isRunning, prevIsRunning) => {
+                    if (prevIsRunning && !isRunning) {
+                      log.info('自动执行任务完成，关闭自身');
+                      unsub();
+                      import('@tauri-apps/plugin-process').then(({ exit }) => exit(0));
+                    }
+                  },
+                );
+              }
+
               // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
               setTimeout(() => {
                 document.dispatchEvent(

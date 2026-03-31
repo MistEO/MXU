@@ -281,6 +281,14 @@ fn mxu_launch_action_fn(
         }
     }
 
+    // Windows + use_cmd: 设置 CREATE_BREAKAWAY_FROM_JOB 标志使子进程脱离父进程的 job 对象
+    #[cfg(target_os = "windows")]
+    if use_cmd {
+        use std::os::windows::process::CommandExt;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+    }
+
     if wait_for_exit {
         match cmd.status() {
             Ok(status) => {

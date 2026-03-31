@@ -612,16 +612,44 @@ export const useAppStore = create<AppState>()(
     },
 
     selectAllTasks: (instanceId, enabled) =>
-      set((state) => ({
-        instances: state.instances.map((i) =>
-          i.id === instanceId
-            ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map((t) => ({ ...t, enabled })),
-              }
-            : i,
-        ),
-      })),
+      set((state) => {
+        const pi = state.projectInterface;
+        const instance = state.instances.find((i) => i.id === instanceId);
+        const currentControllerName =
+          state.selectedController[instanceId] ||
+          instance?.controllerName ||
+          pi?.controller[0]?.name;
+        const currentResourceName =
+          state.selectedResource[instanceId] ||
+          instance?.resourceName ||
+          pi?.resource[0]?.name;
+
+        return {
+          instances: state.instances.map((i) => {
+            if (i.id !== instanceId) return i;
+            return {
+              ...i,
+              selectedTasks: i.selectedTasks.map((t) => {
+                if (!enabled) return { ...t, enabled: false };
+                // 全选时跳过不兼容当前控制器/资源的任务
+                const taskDef = pi?.task.find((td) => td.name === t.taskName);
+                const controllerIncompat =
+                  taskDef?.controller &&
+                  taskDef.controller.length > 0 &&
+                  currentControllerName &&
+                  !taskDef.controller.includes(currentControllerName);
+                const resourceIncompat =
+                  taskDef?.resource &&
+                  taskDef.resource.length > 0 &&
+                  currentResourceName &&
+                  !taskDef.resource.includes(currentResourceName);
+                if (controllerIncompat || resourceIncompat) return t;
+                return { ...t, enabled: true };
+              }),
+            };
+          }),
+        };
+      }),
 
     collapseAllTasks: (instanceId, expanded) =>
       set((state) => ({

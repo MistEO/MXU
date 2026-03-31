@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckSquare,
@@ -100,7 +100,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
   const instance = getActiveInstance();
   const tasks = instance?.selectedTasks || [];
-  const allEnabled = tasks.length > 0 && tasks.every((t) => t.enabled);
   const anyExpanded = tasks.some((t) => t.expanded);
 
   // 获取当前语言的翻译
@@ -112,9 +111,31 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   // 检查是否有保存的设备和资源配置（用于权限检查等）
   const currentControllerName =
     selectedController[instanceId] || projectInterface?.controller[0]?.name;
+  const currentResourceName =
+    selectedResource[instanceId] || instance?.resourceName || projectInterface?.resource[0]?.name;
   const currentController = projectInterface?.controller.find(
     (c) => c.name === currentControllerName,
   );
+
+  // 全选状态仅考虑兼容当前控制器/资源的任务
+  const allEnabled = useMemo(() => {
+    if (tasks.length === 0) return false;
+    const compatibleTasks = tasks.filter((t) => {
+      const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
+      const controllerIncompat =
+        taskDef?.controller &&
+        taskDef.controller.length > 0 &&
+        currentControllerName &&
+        !taskDef.controller.includes(currentControllerName);
+      const resourceIncompat =
+        taskDef?.resource &&
+        taskDef.resource.length > 0 &&
+        currentResourceName &&
+        !taskDef.resource.includes(currentResourceName);
+      return !controllerIncompat && !resourceIncompat;
+    });
+    return compatibleTasks.length > 0 && compatibleTasks.every((t) => t.enabled);
+  }, [tasks, projectInterface?.task, currentControllerName, currentResourceName]);
 
   // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
   const canRun = tasks.some((t) => t.enabled);

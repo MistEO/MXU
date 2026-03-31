@@ -4,102 +4,84 @@
 
 use super::types::MaaCallbackEvent;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter};
 
 // ==================== 控制台输出 ====================
 
-static CONSOLE_ENABLED: AtomicBool = AtomicBool::new(false);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogPrintMode {
+    None,
+    Raw,
+    Ui,
+    Verbose,
+}
 
-/// 存储 CONOUT$ 句柄的原始指针值（线程安全：WriteConsoleW 本身是线程安全的）
-#[cfg(windows)]
-static CONSOLE_HANDLE: OnceLock<usize> = OnceLock::new();
+static LOG_PRINT_MODE: OnceLock<LogPrintMode> = OnceLock::new();
 
-/// 初始化控制台输出（在 main 中调用）
-/// 仅当命令行传入 `--console` 参数时启用
-pub fn init_console_output() {
-    if !std::env::args().any(|a| a == "--console") {
-        return;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConsoleMode {
+    Ui,
+    Verbose,
+}
+
+static CONSOLE_MODE: OnceLock<ConsoleMode> = OnceLock::new();
+
+fn default_log_print_mode() -> LogPrintMode {
+    #[cfg(debug_assertions)]
+    {
+        LogPrintMode::Raw
     }
 
-    #[cfg(windows)]
+    #[cfg(not(debug_assertions))]
     {
-        use std::os::windows::io::AsRawHandle;
-        use windows::Win32::Foundation::HANDLE;
-        use windows::Win32::System::Console::{
-            AttachConsole, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
-            STD_OUTPUT_HANDLE,
-        };
-
-        // 附着到父进程终端（从 cmd/powershell 启动时生效）
-        if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) }.is_ok() {
-            // 打开 CONOUT$ 获取控制台输出句柄（不受后续 stdout 重定向影响）
-            if let Ok(f) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
-                let raw = f.as_raw_handle() as usize;
-                let _ = CONSOLE_HANDLE.set(raw);
-                std::mem::forget(f); // 保持句柄存活
-                CONSOLE_ENABLED.store(true, Ordering::Relaxed);
-
-                // 将进程的 stdout/stderr 重定向到 NUL
-                // 防止 MaaFramework C++ 库的内部日志直接输出到终端
-                if let Ok(nul) = std::fs::OpenOptions::new().write(true).open("NUL") {
-                    let nul_handle = HANDLE(nul.as_raw_handle() as *mut std::ffi::c_void);
-                    unsafe {
-                        // Win32 层重定向
-                        let _ = SetStdHandle(STD_OUTPUT_HANDLE, nul_handle);
-                        let _ = SetStdHandle(STD_ERROR_HANDLE, nul_handle);
-
-                        // CRT 层重定向（C/C++ 库通过 fd 1/2 写入）
-                        extern "C" {
-                            fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
-                            fn _dup2(fd1: i32, fd2: i32) -> i32;
-                        }
-                        let nul_fd = _open_osfhandle(nul.as_raw_handle() as isize, 0);
-                        if nul_fd >= 0 {
-                            let _ = _dup2(nul_fd, 1); // CRT stdout
-                            let _ = _dup2(nul_fd, 2); // CRT stderr
-                        }
-                    }
-                    std::mem::forget(nul); // 保持 NUL 句柄存活
-                }
-            }
-        }
-    }
-
-    #[cfg(not(windows))]
-    {
-        CONSOLE_ENABLED.store(true, Ordering::Relaxed);
+        LogPrintMode::None
     }
 }
 
-/// 向控制台输出一行日志（仅在命令行启动时有效）
-/// Windows: 使用 WriteConsoleW 直接写 UTF-16，不依赖 codepage 设置
-pub fn console_println(args: std::fmt::Arguments<'_>) {
-    if !CONSOLE_ENABLED.load(Ordering::Relaxed) {
-        return;
+fn parse_log_print_mode(args: &[String]) -> LogPrintMode {
+    if let Some(mode) = args.iter().find_map(|a| a.strip_prefix("--log-mode=")) {
+        return match mode.to_ascii_lowercase().as_str() {
+            "none" | "off" | "silent" => LogPrintMode::None,
+            "raw" => LogPrintMode::Raw,
+            "ui" => LogPrintMode::Ui,
+            "verbose" => LogPrintMode::Verbose,
+            _ => default_log_print_mode(),
+        };
     }
 
-    #[cfg(windows)]
-    {
-        use windows::Win32::Foundation::HANDLE;
-        use windows::Win32::System::Console::WriteConsoleW;
+    default_log_print_mode()
+}
 
-        if let Some(&raw) = CONSOLE_HANDLE.get() {
-            let handle = HANDLE(raw as *mut std::ffi::c_void);
-            let text = format!("{}\r\n", args);
-            let wide: Vec<u16> = text.encode_utf16().collect();
-            let mut written = 0u32;
-            unsafe {
-                let _ = WriteConsoleW(handle, &wide, Some(&mut written), None);
-            }
+/// 初始化控制台输出（在 main 中调用）
+/// 支持 `--log-mode=<none|raw|ui|verbose>`
+/// - none: 不输出日志到控制台
+/// - raw: 保留标准流原始日志输出
+/// - ui/verbose: 输出解析日志到标准流
+pub fn init_console_output() {
+    let args: Vec<String> = std::env::args().collect();
+    let log_mode = parse_log_print_mode(&args);
+    let _ = LOG_PRINT_MODE.set(log_mode);
+
+    match log_mode {
+        LogPrintMode::Ui => {
+            let _ = CONSOLE_MODE.set(ConsoleMode::Ui);
+        }
+        LogPrintMode::Verbose => {
+            let _ = CONSOLE_MODE.set(ConsoleMode::Verbose);
+        }
+        LogPrintMode::None | LogPrintMode::Raw => {
+            return;
         }
     }
+}
 
-    #[cfg(not(windows))]
-    {
-        println!("{}", args);
+/// 向标准输出打印一行日志
+pub fn console_println(args: std::fmt::Arguments<'_>) {
+    if !is_console_enabled() {
+        return;
     }
+    println!("{}", args);
 }
 
 /// 便捷宏：向控制台输出日志
@@ -112,7 +94,25 @@ macro_rules! cprintln {
 
 /// 返回控制台输出是否已启用
 pub fn is_console_enabled() -> bool {
-    CONSOLE_ENABLED.load(Ordering::Relaxed)
+    matches!(
+        get_log_print_mode(),
+        LogPrintMode::Ui | LogPrintMode::Verbose
+    )
+}
+
+/// 返回控制台输出模式
+pub fn get_console_mode() -> ConsoleMode {
+    *CONSOLE_MODE.get().unwrap_or(&ConsoleMode::Ui)
+}
+
+/// 返回日志打印模式
+pub fn get_log_print_mode() -> LogPrintMode {
+    *LOG_PRINT_MODE.get_or_init(default_log_print_mode)
+}
+
+/// 是否启用标准输出日志（用于 tauri_plugin_log 的 Stdout target）
+pub fn should_log_to_stdout() -> bool {
+    matches!(get_log_print_mode(), LogPrintMode::Raw)
 }
 
 // ==================== 回调事件 ====================

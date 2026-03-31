@@ -91,25 +91,35 @@ pub fn init_console_output() {
             ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
         };
 
+        // 检查父进程是否已传入有效的 stdout 句柄（管道重定向场景）
+        // 必须在 AttachConsole 之前检查，因为 AttachConsole 可能改变句柄状态
+        let inherited_out = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) }.unwrap_or(HANDLE::default());
+        let is_piped = !inherited_out.is_invalid() && inherited_out != HANDLE::default();
+
         // 1. 附着父终端（从 cmd/powershell 启动时生效）
         if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) }.is_err() {
-            log::warn!("AttachConsole failed; --log-mode=ui/verbose 需要从终端启动");
-            return;
+            // AttachConsole 失败但有管道句柄时仍可输出
+            if !is_piped {
+                log::warn!("AttachConsole failed; --log-mode=ui/verbose 需要从终端启动");
+                return;
+            }
         }
 
-        // 设置控制台输出代码页为 UTF-8
+        // 设置控制台输出代码页为 UTF-8（仅对终端直接输出有效，管道场景无影响）
         unsafe { let _ = SetConsoleOutputCP(65001); }
 
-        // 2. 打开 CONOUT$ 设置 Win32 stdout/stderr 句柄
-        //    windows_subsystem="windows" 的 GUI 程序启动时 GetStdHandle 返回 NULL，
-        //    AttachConsole 不会自动设置，需要手动指向 CONOUT$
-        if let Ok(conout) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
-            let conout_handle = HANDLE(conout.as_raw_handle() as *mut std::ffi::c_void);
-            unsafe {
-                let _ = SetStdHandle(STD_OUTPUT_HANDLE, conout_handle);
-                let _ = SetStdHandle(STD_ERROR_HANDLE, conout_handle);
+        // 2. 设置 Win32 stdout/stderr 句柄
+        //    仅在无管道时打开 CONOUT$（GUI 程序默认 stdout 为 NULL）
+        //    有管道时保留父进程传入的管道句柄，确保 println! 输出可被管道捕获
+        if !is_piped {
+            if let Ok(conout) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
+                let conout_handle = HANDLE(conout.as_raw_handle() as *mut std::ffi::c_void);
+                unsafe {
+                    let _ = SetStdHandle(STD_OUTPUT_HANDLE, conout_handle);
+                    let _ = SetStdHandle(STD_ERROR_HANDLE, conout_handle);
+                }
+                std::mem::forget(conout);
             }
-            std::mem::forget(conout);
         }
 
         // 3. ui 模式：CRT fd 1/2 → NUL（丢弃 C++ 库噪音）

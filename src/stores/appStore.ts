@@ -34,40 +34,17 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { isTauri } from '@/utils/paths';
+import { isConsoleDefinitelyOff, consoleLog } from '@/utils/consoleBridge';
 import { generateId, initializeAllOptionValues, convertPresetOptionValue } from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
-// --log-mode 模式：缓存 invoke 函数和启用状态
-let _consoleEnabled: boolean | null = null;
-let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-
-async function getConsoleInvoke() {
-  if (_consoleEnabled === false) return null;
-  if (_invoke && _consoleEnabled === true) return _invoke;
-  if (!isTauri()) {
-    _consoleEnabled = false;
-    return null;
-  }
-  const { invoke } = await import('@tauri-apps/api/core');
-  _invoke = invoke;
-  try {
-    _consoleEnabled = (await invoke('is_log_mode')) as boolean;
-  } catch {
-    _consoleEnabled = false;
-  }
-  return _consoleEnabled ? _invoke : null;
-}
-
 function forwardLogToConsole(message: string) {
-  if (_consoleEnabled === false) return;
+  if (isConsoleDefinitelyOff()) return;
   // 剥离所有 HTML 标签（含 <br/>、<span> 等），保留纯文本
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
-  getConsoleInvoke().then((inv) => {
-    inv?.('log_to_stdout', { message: plain });
-  });
+  consoleLog(plain);
 }
 
 // 重新导出类型供外部使用

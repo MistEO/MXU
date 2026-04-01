@@ -17,7 +17,7 @@ import {
   markdownToHtmlWithLocalImages,
 } from '@/services/contentResolver';
 import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
-import { isTauri } from '@/utils/paths';
+import { isConsoleDefinitelyOff, consoleLog, getConsoleOutputMode, type ConsoleOutputMode } from '@/utils/consoleBridge';
 
 const log = loggers.app;
 
@@ -30,51 +30,10 @@ const pendingTaskConsoleReplayTimers = new Map<string, ReturnType<typeof setTime
 const pendingTaskConsoleReplayRetries = new Map<string, number>();
 const PENDING_TASK_CONSOLE_REPLAY_DELAY_MS = 200;
 const PENDING_TASK_CONSOLE_MAX_RETRIES = 300;
-type ConsoleOutputMode = 'off' | 'ui' | 'verbose';
-
-// --log-mode 模式：本文件内直接回放控制台日志（不重复写入 UI）
-let _consoleEnabled: boolean | null = null;
-let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-let _consoleOutputMode: ConsoleOutputMode | null = null;
-
-async function getConsoleInvoke() {
-  if (_consoleEnabled === false) return null;
-  if (_invoke && _consoleEnabled === true) return _invoke;
-  if (!isTauri()) {
-    _consoleEnabled = false;
-    return null;
-  }
-  const { invoke } = await import('@tauri-apps/api/core');
-  _invoke = invoke;
-  try {
-    _consoleEnabled = await invoke<boolean>('is_console_enabled');
-  } catch {
-    _consoleEnabled = false;
-  }
-  return _consoleEnabled ? _invoke : null;
-}
 
 function replayConsoleLog(message: string) {
-  if (!message || _consoleEnabled === false) return;
-  getConsoleInvoke().then((inv) => {
-    if (inv) inv('console_log', { message }).catch(() => { });
-  });
-}
-
-async function getConsoleOutputMode(): Promise<ConsoleOutputMode> {
-  if (_consoleOutputMode) return _consoleOutputMode;
-  const inv = await getConsoleInvoke();
-  if (!inv) {
-    _consoleOutputMode = 'off';
-    return _consoleOutputMode;
-  }
-  try {
-    const mode = await inv('get_console_mode');
-    _consoleOutputMode = mode === 'verbose' ? 'verbose' : 'ui';
-  } catch {
-    _consoleOutputMode = 'ui';
-  }
-  return _consoleOutputMode;
+  if (!message || isConsoleDefinitelyOff()) return;
+  consoleLog(message);
 }
 
 function makePendingTaskKey(instanceId: string, taskId: number): string {

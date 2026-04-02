@@ -560,12 +560,6 @@ pub fn get_start_instance() -> Option<String> {
     get_cli_arg_value("-i", "--instance")
 }
 
-/// 获取命令行 -c/--controller 参数指定的控制器名称
-#[tauri::command]
-pub fn get_controller_override() -> Option<String> {
-    get_cli_arg_value("-c", "--controller")
-}
-
 /// 检查命令行是否包含 -k/--kill 参数（任务完成后关闭自身）
 #[tauri::command]
 pub fn has_close_flag() -> bool {

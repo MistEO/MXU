@@ -175,7 +175,6 @@ pub fn run() {
             commands::system::is_elevated,
             commands::system::is_autostart,
             commands::system::get_start_instance,
-            commands::system::get_controller_override,
             commands::system::has_close_flag,
             commands::system::restart_as_admin,
             commands::system::maa_set_save_draw,

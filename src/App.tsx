@@ -647,26 +647,6 @@ function App() {
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
               useAppStore.getState().setActiveInstance(targetInstanceId);
 
-              // 检查 -c/--controller 参数：临时覆盖控制器
-              const controllerOverride = await invoke<string | null>('get_controller_override');
-              if (controllerOverride) {
-                const pi = useAppStore.getState().projectInterface;
-                const controllerExists = pi?.controller.some(
-                  (c) => c.name === controllerOverride,
-                );
-                if (controllerExists) {
-                  log.info('命令行 --controller 参数：覆盖控制器为:', controllerOverride);
-                  useAppStore.getState().setSelectedController(targetInstanceId, controllerOverride);
-                } else {
-                  log.warn(
-                    '命令行 --controller 参数：未找到名为',
-                    controllerOverride,
-                    '的控制器',
-                  );
-                }
-              }
-
-
               // 检查 -k/--kill 参数：任务完成后关闭自身
               const hasClose = await invoke<boolean>('has_close_flag');
               if (hasClose) {

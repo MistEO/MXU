@@ -304,10 +304,9 @@ function App() {
 
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
-  // 尝试自动安装更新（非自启动模式 且 无任务运行中）
+  // 尝试自动安装更新（无任务运行中时触发）
   const tryAutoInstallUpdate = useCallback(() => {
     const state = useAppStore.getState();
-    if (state.isAutoStartMode) return;
     if (state.downloadStatus !== 'completed') return;
     if (state.installStatus !== 'idle') return;
     if (state.autoInstallPending) return;

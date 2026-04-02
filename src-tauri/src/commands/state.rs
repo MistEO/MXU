@@ -128,6 +128,6 @@ pub fn console_log(message: String) {
     if !super::console::is_console_enabled() {
         return;
     }
-    let timestamp = chrono::Local::now().format("%H:%M:%S");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f");
     cprintln!("[{timestamp}] {message}");
 }

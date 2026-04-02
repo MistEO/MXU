@@ -64,7 +64,7 @@ fn parse_log_print_mode(args: &[String]) -> LogPrintMode {
 /// - none: 不输出日志到控制台
 /// - raw: 保留标准流原始日志输出（tauri_plugin_log Stdout target）
 /// - ui: 附着父终端，CRT fd → NUL 丢弃 C++ 噪音，println! 输出格式化日志
-/// - verbose: 附着父终端，C++ 原始日志保留，println! 输出格式化日志
+/// - verbose: 附着父终端，println! 输出格式化日志；MaaFramework stdout 在初始化阶段关闭
 pub fn init_console_output() {
     let args: Vec<String> = std::env::args().collect();
     let log_mode = parse_log_print_mode(&args);
@@ -87,8 +87,8 @@ pub fn init_console_output() {
         use std::os::windows::io::AsRawHandle;
         use windows::Win32::Foundation::HANDLE;
         use windows::Win32::System::Console::{
-            AttachConsole, GetStdHandle, SetConsoleOutputCP, SetStdHandle,
-            ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+            AttachConsole, GetStdHandle, SetConsoleOutputCP, SetStdHandle, ATTACH_PARENT_PROCESS,
+            STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
         };
 
         // 检查父进程是否已传入有效的 stdout 句柄（管道重定向场景）
@@ -106,7 +106,9 @@ pub fn init_console_output() {
         }
 
         // 设置控制台输出代码页为 UTF-8（仅对终端直接输出有效，管道场景无影响）
-        unsafe { let _ = SetConsoleOutputCP(65001); }
+        unsafe {
+            let _ = SetConsoleOutputCP(65001);
+        }
 
         // 2. 设置 Win32 stdout/stderr 句柄
         //    仅在无管道时打开 CONOUT$（GUI 程序默认 stdout 为 NULL）
@@ -140,8 +142,28 @@ pub fn init_console_output() {
             // 复制句柄，防止 _dup2 关闭原始句柄后失效
             let mut dup_out = HANDLE::default();
             let mut dup_err = HANDLE::default();
-            let _ = unsafe { DuplicateHandle(cur, raw_out, cur, &mut dup_out, 0, false, DUPLICATE_SAME_ACCESS) };
-            let _ = unsafe { DuplicateHandle(cur, raw_err, cur, &mut dup_err, 0, false, DUPLICATE_SAME_ACCESS) };
+            let _ = unsafe {
+                DuplicateHandle(
+                    cur,
+                    raw_out,
+                    cur,
+                    &mut dup_out,
+                    0,
+                    false,
+                    DUPLICATE_SAME_ACCESS,
+                )
+            };
+            let _ = unsafe {
+                DuplicateHandle(
+                    cur,
+                    raw_err,
+                    cur,
+                    &mut dup_err,
+                    0,
+                    false,
+                    DUPLICATE_SAME_ACCESS,
+                )
+            };
 
             if let Ok(nul) = std::fs::OpenOptions::new().write(true).open("NUL") {
                 unsafe {

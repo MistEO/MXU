@@ -152,19 +152,22 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
         Err(e) => return Err(e),
     }
 
-    // verbose 模式下在 MaaFramework 初始化阶段关闭其 stdout 日志，
+    // ui/verbose 模式下在 MaaFramework 初始化阶段关闭其 stdout 日志，
     // 避免与前端转发的结构化控制台日志重复。
-    if super::console::get_log_print_mode() == super::console::LogPrintMode::Verbose {
+    if matches!(
+        super::console::get_log_print_mode(),
+        super::console::LogPrintMode::Ui | super::console::LogPrintMode::Verbose
+    ) {
         if let Err(e) = maa_framework::set_stdout_level(
             maa_framework::sys::MaaLoggingLevelEnum_MaaLoggingLevel_Off
                 as maa_framework::sys::MaaLoggingLevel,
         ) {
             warn!(
-                "Failed to disable MaaFramework stdout logging in verbose mode: {}",
+                "Failed to disable MaaFramework stdout logging: {}",
                 e
             );
         } else {
-            info!("MaaFramework stdout logging disabled for verbose mode");
+            info!("MaaFramework stdout logging disabled for console output mode");
         }
     }
 

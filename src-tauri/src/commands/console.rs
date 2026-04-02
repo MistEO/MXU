@@ -1,6 +1,7 @@
 //! 控制台输出系统
 //!
-//! 处理 `--log-mode` 参数解析、终端附着、CRT 重定向等
+//! 处理 `--log-mode` 参数解析，仅在管道/重定向场景下输出格式化日志。
+//! 需要通过管道捕获输出（如 `app.exe --log-mode=ui | tee log.txt`）。
 
 use std::sync::OnceLock;
 
@@ -59,12 +60,12 @@ fn parse_log_print_mode(args: &[String]) -> LogPrintMode {
     default_log_print_mode()
 }
 
-/// 初始化控制台输出（在 main 中调用）
+/// 初始化控制台输出模式（在 main 中调用）
 /// 支持 `--log-mode=<none|raw|ui|verbose>`
 /// - none: 不输出日志到控制台
 /// - raw: 保留标准流原始日志输出（tauri_plugin_log Stdout target）
-/// - ui: 附着父终端，CRT fd → NUL 丢弃 C++ 噪音，println! 输出格式化日志
-/// - verbose: 附着父终端，println! 输出格式化日志；MaaFramework stdout 在初始化阶段关闭
+/// - ui: 通过管道输出格式化日志（MaaFramework stdout 在初始化阶段通过 API 关闭）
+/// - verbose: 通过管道输出格式化日志（MaaFramework stdout 在初始化阶段通过 API 关闭）
 pub fn init_console_output() {
     let args: Vec<String> = std::env::args().collect();
     let log_mode = parse_log_print_mode(&args);
@@ -77,133 +78,11 @@ pub fn init_console_output() {
         LogPrintMode::Verbose => {
             let _ = CONSOLE_MODE.set(ConsoleMode::Verbose);
         }
-        LogPrintMode::None | LogPrintMode::Raw => {
-            return;
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::io::AsRawHandle;
-        use windows::Win32::Foundation::HANDLE;
-        use windows::Win32::System::Console::{
-            AttachConsole, GetStdHandle, SetConsoleOutputCP, SetStdHandle, ATTACH_PARENT_PROCESS,
-            STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
-        };
-
-        // 检查父进程是否已传入有效的 stdout 句柄（管道重定向场景）
-        // 必须在 AttachConsole 之前检查，因为 AttachConsole 可能改变句柄状态
-        let inherited_out = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) }.unwrap_or(HANDLE::default());
-        let is_piped = !inherited_out.is_invalid() && inherited_out != HANDLE::default();
-
-        // 1. 附着父终端（从 cmd/powershell 启动时生效）
-        if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) }.is_err() {
-            // AttachConsole 失败但有管道句柄时仍可输出
-            if !is_piped {
-                log::warn!("AttachConsole failed; --log-mode=ui/verbose 需要从终端启动");
-                return;
-            }
-        }
-
-        // 设置控制台输出代码页为 UTF-8（仅对终端直接输出有效，管道场景无影响）
-        unsafe {
-            let _ = SetConsoleOutputCP(65001);
-        }
-
-        // 2. 设置 Win32 stdout/stderr 句柄
-        //    仅在无管道时打开 CONOUT$（GUI 程序默认 stdout 为 NULL）
-        //    有管道时保留父进程传入的管道句柄，确保 println! 输出可被管道捕获
-        if !is_piped {
-            if let Ok(conout) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
-                let conout_handle = HANDLE(conout.as_raw_handle() as *mut std::ffi::c_void);
-                unsafe {
-                    let _ = SetStdHandle(STD_OUTPUT_HANDLE, conout_handle);
-                    let _ = SetStdHandle(STD_ERROR_HANDLE, conout_handle);
-                }
-                std::mem::forget(conout);
-            }
-        }
-
-        // 3. ui 模式：CRT fd 1/2 → NUL（丢弃 C++ 库噪音）
-        //    _dup2 会自动调用 SetStdHandle 覆盖 Win32 句柄，
-        //    所以先保存 → _dup2 → 恢复，确保 println! 仍输出到终端/管道
-        //
-        //    注意：_dup2 关闭旧 fd 时会 CloseHandle 其底层 OS 句柄。
-        //    如果 CRT 启动代码已将管道句柄映射到 fd 1/2，_dup2 会关掉管道句柄，
-        //    导致 saved 的句柄值失效。因此必须用 DuplicateHandle 复制一份。
-        if log_mode == LogPrintMode::Ui {
-            use windows::Win32::Foundation::{DuplicateHandle, DUPLICATE_SAME_ACCESS};
-            use windows::Win32::System::Threading::GetCurrentProcess;
-
-            let cur = unsafe { GetCurrentProcess() };
-            let raw_out = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) }.unwrap_or(HANDLE::default());
-            let raw_err = unsafe { GetStdHandle(STD_ERROR_HANDLE) }.unwrap_or(HANDLE::default());
-
-            // 复制句柄，防止 _dup2 关闭原始句柄后失效
-            let mut dup_out = HANDLE::default();
-            let mut dup_err = HANDLE::default();
-            let _ = unsafe {
-                DuplicateHandle(
-                    cur,
-                    raw_out,
-                    cur,
-                    &mut dup_out,
-                    0,
-                    false,
-                    DUPLICATE_SAME_ACCESS,
-                )
-            };
-            let _ = unsafe {
-                DuplicateHandle(
-                    cur,
-                    raw_err,
-                    cur,
-                    &mut dup_err,
-                    0,
-                    false,
-                    DUPLICATE_SAME_ACCESS,
-                )
-            };
-
-            if let Ok(nul) = std::fs::OpenOptions::new().write(true).open("NUL") {
-                unsafe {
-                    extern "C" {
-                        fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
-                        fn _dup2(fd1: i32, fd2: i32) -> i32;
-                    }
-                    let nul_fd = _open_osfhandle(nul.as_raw_handle() as isize, 0);
-                    if nul_fd >= 0 {
-                        let _ = _dup2(nul_fd, 1); // CRT stdout → NUL（同时覆盖 Win32 句柄）
-                        let _ = _dup2(nul_fd, 2); // CRT stderr → NUL（同时覆盖 Win32 句柄）
-                    }
-
-                    // 用复制的句柄恢复 Win32 stdout/stderr
-                    let _ = SetStdHandle(STD_OUTPUT_HANDLE, dup_out);
-                    let _ = SetStdHandle(STD_ERROR_HANDLE, dup_err);
-                }
-                std::mem::forget(nul);
-            }
-        }
-    }
-
-    // macOS/Linux: ui 模式重定向 fd 1/2 到 /dev/null
-    #[cfg(not(windows))]
-    {
-        if log_mode == LogPrintMode::Ui {
-            if let Ok(nul) = std::fs::OpenOptions::new().write(true).open("/dev/null") {
-                use std::os::unix::io::AsRawFd;
-                let nul_fd = nul.as_raw_fd();
-                unsafe {
-                    let _ = libc::dup2(nul_fd, 1); // stdout → /dev/null
-                    let _ = libc::dup2(nul_fd, 2); // stderr → /dev/null
-                }
-                std::mem::forget(nul);
-            }
-        }
+        LogPrintMode::None | LogPrintMode::Raw => {}
     }
 }
 
-/// 向终端输出一行日志（println! 可被管道捕获）
+/// 向标准输出写一行日志（可被管道捕获）
 pub fn console_println(args: std::fmt::Arguments<'_>) {
     if !is_console_enabled() {
         return;

@@ -443,8 +443,6 @@ pub async fn run_action(
     wait_for_exit: bool,
     use_cmd: Option<bool>,
 ) -> Result<i32, String> {
-    use std::process::Command;
-
     let use_cmd = use_cmd.unwrap_or(false);
 
     info!(
@@ -459,20 +457,7 @@ pub async fn run_action(
         shell_words::split(&args).map_err(|e| format!("Failed to parse args: {}", e))?
     };
 
-    let mut cmd = if cfg!(target_os = "windows") && use_cmd {
-        let mut c = Command::new("cmd.exe");
-        c.arg("/c").arg(&program);
-        if !args_vec.is_empty() {
-            c.args(&args_vec);
-        }
-        c
-    } else {
-        let mut c = Command::new(&program);
-        if !args_vec.is_empty() {
-            c.args(&args_vec);
-        }
-        c
-    };
+    let mut cmd = super::utils::build_launch_command(&program, &args_vec, use_cmd);
 
     // 设置工作目录
     if let Some(ref dir) = cwd {
@@ -484,14 +469,6 @@ pub async fn run_action(
                 cmd.current_dir(parent);
             }
         }
-    }
-
-    // Windows + use_cmd: 设置 CREATE_BREAKAWAY_FROM_JOB 标志使子进程脱离父进程的 job 对象
-    #[cfg(target_os = "windows")]
-    if use_cmd {
-        use std::os::windows::process::CommandExt;
-        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
-        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
     }
 
     if wait_for_exit {

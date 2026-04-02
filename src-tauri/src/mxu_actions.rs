@@ -258,35 +258,13 @@ fn mxu_launch_action_fn(
         }
     };
 
-    let mut cmd = if cfg!(target_os = "windows") && use_cmd {
-        // Windows + use_cmd: 通过 cmd /c 启动，使其脱离当前进程树
-        let mut c = std::process::Command::new("cmd.exe");
-        c.arg("/c").arg(&program);
-        if !args_vec.is_empty() {
-            c.args(&args_vec);
-        }
-        c
-    } else {
-        let mut c = std::process::Command::new(&program);
-        if !args_vec.is_empty() {
-            c.args(&args_vec);
-        }
-        c
-    };
+    let mut cmd = crate::commands::utils::build_launch_command(&program, &args_vec, use_cmd);
 
     // 默认使用程序所在目录作为工作目录
     if let Some(parent) = std::path::Path::new(&program).parent() {
         if parent.exists() {
             cmd.current_dir(parent);
         }
-    }
-
-    // Windows + use_cmd: 设置 CREATE_BREAKAWAY_FROM_JOB 标志使子进程脱离父进程的 job 对象
-    #[cfg(target_os = "windows")]
-    if use_cmd {
-        use std::os::windows::process::CommandExt;
-        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
-        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
     }
 
     if wait_for_exit {

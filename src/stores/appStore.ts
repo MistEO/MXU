@@ -34,7 +34,13 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { generateId, initializeAllOptionValues, convertPresetOptionValue } from './helpers';
+import {
+  generateId,
+  initializeAllOptionValues,
+  convertPresetOptionValue,
+  getCurrentControllerAndResource,
+  isTaskCompatible,
+} from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -613,16 +619,10 @@ export const useAppStore = create<AppState>()(
 
     selectAllTasks: (instanceId, enabled) =>
       set((state) => {
-        const pi = state.projectInterface;
-        const instance = state.instances.find((i) => i.id === instanceId);
-        const currentControllerName =
-          state.selectedController[instanceId] ||
-          instance?.controllerName ||
-          pi?.controller[0]?.name;
-        const currentResourceName =
-          state.selectedResource[instanceId] ||
-          instance?.resourceName ||
-          pi?.resource[0]?.name;
+        const { controllerName, resourceName } = getCurrentControllerAndResource(
+          state,
+          instanceId,
+        );
 
         return {
           instances: state.instances.map((i) => {
@@ -631,19 +631,13 @@ export const useAppStore = create<AppState>()(
               ...i,
               selectedTasks: i.selectedTasks.map((t) => {
                 if (!enabled) return { ...t, enabled: false };
-                // 全选时跳过不兼容当前控制器/资源的任务
-                const taskDef = pi?.task.find((td) => td.name === t.taskName);
-                const controllerIncompat =
-                  taskDef?.controller &&
-                  taskDef.controller.length > 0 &&
-                  currentControllerName &&
-                  !taskDef.controller.includes(currentControllerName);
-                const resourceIncompat =
-                  taskDef?.resource &&
-                  taskDef.resource.length > 0 &&
-                  currentResourceName &&
-                  !taskDef.resource.includes(currentResourceName);
-                if (controllerIncompat || resourceIncompat) return t;
+                // 全选时不兼容的任务显式禁用
+                const taskDef = state.projectInterface?.task.find(
+                  (td) => td.name === t.taskName,
+                );
+                if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
+                  return { ...t, enabled: false };
+                }
                 return { ...t, enabled: true };
               }),
             };

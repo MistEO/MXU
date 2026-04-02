@@ -11,6 +11,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
+import { getCurrentControllerAndResource, isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
@@ -109,10 +110,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const instanceId = instance?.id || '';
 
   // 检查是否有保存的设备和资源配置（用于权限检查等）
-  const currentControllerName =
-    selectedController[instanceId] || projectInterface?.controller[0]?.name;
-  const currentResourceName =
-    selectedResource[instanceId] || instance?.resourceName || projectInterface?.resource[0]?.name;
+  const { controllerName: currentControllerName, resourceName: currentResourceName } =
+    useAppStore((state) => getCurrentControllerAndResource(state, instanceId));
   const currentController = projectInterface?.controller.find(
     (c) => c.name === currentControllerName,
   );
@@ -122,20 +121,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     if (tasks.length === 0) return false;
     const compatibleTasks = tasks.filter((t) => {
       const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
-      const controllerIncompat =
-        taskDef?.controller &&
-        taskDef.controller.length > 0 &&
-        currentControllerName &&
-        !taskDef.controller.includes(currentControllerName);
-      const resourceIncompat =
-        taskDef?.resource &&
-        taskDef.resource.length > 0 &&
-        currentResourceName &&
-        !taskDef.resource.includes(currentResourceName);
-      return !controllerIncompat && !resourceIncompat;
+      return isTaskCompatible(taskDef, currentControllerName, currentResourceName);
     });
     return compatibleTasks.length > 0 && compatibleTasks.every((t) => t.enabled);
-  }, [tasks, projectInterface?.task, currentControllerName, currentResourceName]);
+  }, [tasks, projectInterface, currentControllerName, currentResourceName]);
 
   // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
   const canRun = tasks.some((t) => t.enabled);

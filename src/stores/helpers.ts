@@ -1,5 +1,11 @@
-import type { OptionValue, OptionDefinition, PresetOptionValue } from '@/types/interface';
+import type {
+  OptionValue,
+  OptionDefinition,
+  PresetOptionValue,
+  TaskItem,
+} from '@/types/interface';
 import { findSwitchCase } from '@/utils/optionHelpers';
+import type { AppState } from './types';
 
 /** 生成唯一 ID */
 export const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -106,4 +112,49 @@ export const convertPresetOptionValue = (
   }
 
   return null;
+};
+
+/** 获取实例当前控制器和资源名称（统一 fallback 顺序） */
+export const getCurrentControllerAndResource = (
+  state: Pick<
+    AppState,
+    'projectInterface' | 'instances' | 'selectedController' | 'selectedResource'
+  >,
+  instanceId: string,
+) => {
+  const pi = state.projectInterface;
+  const instance = state.instances.find((i) => i.id === instanceId);
+
+  const controllerName =
+    state.selectedController[instanceId] || instance?.controllerName || pi?.controller[0]?.name;
+
+  const resourceName =
+    state.selectedResource[instanceId] || instance?.resourceName || pi?.resource[0]?.name;
+
+  return { controllerName, resourceName };
+};
+
+/** 检查任务是否与指定控制器/资源兼容 */
+export const isTaskCompatible = (
+  taskDef: TaskItem | undefined | null,
+  controllerName: string | undefined,
+  resourceName: string | undefined,
+): boolean => {
+  if (
+    taskDef?.controller &&
+    taskDef.controller.length > 0 &&
+    controllerName &&
+    !taskDef.controller.includes(controllerName)
+  ) {
+    return false;
+  }
+  if (
+    taskDef?.resource &&
+    taskDef.resource.length > 0 &&
+    resourceName &&
+    !taskDef.resource.includes(resourceName)
+  ) {
+    return false;
+  }
+  return true;
 };

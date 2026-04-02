@@ -11,22 +11,28 @@ export type ConsoleOutputMode = 'off' | 'ui' | 'verbose';
 let _consoleEnabled: boolean | null = null;
 let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
 let _consoleOutputMode: ConsoleOutputMode | null = null;
+type InvokeFn = ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null;
+let _initPromise: Promise<InvokeFn> | null = null;
 
 export async function getConsoleInvoke() {
   if (_consoleEnabled === false) return null;
   if (_invoke && _consoleEnabled === true) return _invoke;
-  if (!isTauri()) {
-    _consoleEnabled = false;
-    return null;
-  }
-  const { invoke } = await import('@tauri-apps/api/core');
-  _invoke = invoke;
-  try {
-    _consoleEnabled = await invoke<boolean>('is_console_enabled');
-  } catch {
-    _consoleEnabled = false;
-  }
-  return _consoleEnabled ? _invoke : null;
+  if (_initPromise) return _initPromise;
+  _initPromise = (async () => {
+    if (!isTauri()) {
+      _consoleEnabled = false;
+      return null;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    _invoke = invoke;
+    try {
+      _consoleEnabled = await invoke<boolean>('is_console_enabled');
+    } catch {
+      _consoleEnabled = false;
+    }
+    return _consoleEnabled ? _invoke : null;
+  })();
+  return _initPromise;
 }
 
 export function isConsoleDefinitelyOff(): boolean {

@@ -11,7 +11,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
-import { getCurrentControllerAndResource, isTaskCompatible } from '@/stores/helpers';
+import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
@@ -110,8 +110,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const instanceId = instance?.id || '';
 
   // 检查是否有保存的设备和资源配置（用于权限检查等）
-  const { controllerName: currentControllerName, resourceName: currentResourceName } =
-    useAppStore((state) => getCurrentControllerAndResource(state, instanceId));
+  const currentControllerName =
+    selectedController[instanceId] || instance?.controllerName || projectInterface?.controller[0]?.name;
+  const currentResourceName =
+    selectedResource[instanceId] || instance?.resourceName || projectInterface?.resource[0]?.name;
   const currentController = projectInterface?.controller.find(
     (c) => c.name === currentControllerName,
   );

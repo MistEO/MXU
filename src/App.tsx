@@ -609,6 +609,8 @@ function App() {
 
       // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
       // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
+      // autostart 模式下，任务分发延迟到更新检查之后（有更新则先更新再跑任务）
+      let autoStartTasksPending = false;
       if (isTauri()) {
         try {
           const isAutoStart = await invoke<boolean>('is_autostart');
@@ -626,12 +628,17 @@ function App() {
               const source = isAutoStart ? '开机自启动' : '手动启动';
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
               useAppStore.getState().setActiveInstance(autoStartInstanceId);
-              // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
-              setTimeout(() => {
-                document.dispatchEvent(
-                  new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
-                );
-              }, 500);
+              if (isAutoStart) {
+                // autostart 模式：等更新检查完再决定是否分发任务
+                autoStartTasksPending = true;
+              } else {
+                // 手动启动：立即延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
+                setTimeout(() => {
+                  document.dispatchEvent(
+                    new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+                  );
+                }, 500);
+              }
             } else {
               log.warn('自动执行：目标实例不存在，跳过自动执行');
             }
@@ -640,6 +647,17 @@ function App() {
           log.warn('检查开机自启动状态失败:', err);
         }
       }
+
+      // autostart 模式下分发挂起的任务启动事件
+      const dispatchPendingAutoStartTasks = () => {
+        if (!autoStartTasksPending) return;
+        autoStartTasksPending = false;
+        setTimeout(() => {
+          document.dispatchEvent(
+            new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+          );
+        }, 500);
+      };
 
       // 检查是否刚更新完成（重启后）
       // autostart 模式下只读不消费，保留给下次手动启动时弹窗
@@ -734,40 +752,44 @@ function App() {
           log.info(`非正式版本 (${result.interface.version})，跳过自动更新检查`);
         } else {
           const appState = useAppStore.getState();
-          checkAndPrepareDownload({
-            resourceId: result.interface.mirrorchyan_rid,
-            currentVersion: result.interface.version,
-            cdk: appState.mirrorChyanSettings.cdk || undefined,
-            channel: appState.mirrorChyanSettings.channel,
-            userAgent: 'MXU',
-            githubUrl: result.interface.github,
-            githubPat: appState.mirrorChyanSettings.githubPat || undefined,
-            proxyUrl: appState.proxySettings?.url,
-            projectName: result.interface.name,
-          })
-            .then((updateResult) => {
-              if (updateResult) {
-                setUpdateInfo(updateResult);
-                if (updateResult.hasUpdate) {
-                  log.info(`发现新版本: ${updateResult.versionName}`);
-                  // 强制弹出更新气泡
-                  useAppStore.getState().setShowUpdateDialog(true);
-                  // 有更新且有下载链接时自动开始下载
-                  if (updateResult.downloadUrl) {
-                    startAutoDownload(updateResult);
-                  }
-                } else if (updateResult.errorCode) {
-                  // API 返回错误（如 CDK 问题），也弹出气泡提示用户
-                  log.warn(`更新检查返回错误: code=${updateResult.errorCode}`);
-                  useAppStore.getState().setShowUpdateDialog(true);
-                }
-              }
-            })
-            .catch((err) => {
-              log.warn('自动检查更新失败:', err);
+          try {
+            const updateResult = await checkAndPrepareDownload({
+              resourceId: result.interface.mirrorchyan_rid,
+              currentVersion: result.interface.version,
+              cdk: appState.mirrorChyanSettings.cdk || undefined,
+              channel: appState.mirrorChyanSettings.channel,
+              userAgent: 'MXU',
+              githubUrl: result.interface.github,
+              githubPat: appState.mirrorChyanSettings.githubPat || undefined,
+              proxyUrl: appState.proxySettings?.url,
+              projectName: result.interface.name,
             });
+            if (updateResult) {
+              setUpdateInfo(updateResult);
+              if (updateResult.hasUpdate) {
+                log.info(`发现新版本: ${updateResult.versionName}`);
+                // 强制弹出更新气泡
+                useAppStore.getState().setShowUpdateDialog(true);
+                // 有更新且有下载链接时自动开始下载
+                if (updateResult.downloadUrl) {
+                  startAutoDownload(updateResult);
+                  // autostart 模式：下载→安装→重启后任务在新版本上执行，取消本次任务分发
+                  autoStartTasksPending = false;
+                }
+              } else if (updateResult.errorCode) {
+                // API 返回错误（如 CDK 问题），也弹出气泡提示用户
+                log.warn(`更新检查返回错误: code=${updateResult.errorCode}`);
+                useAppStore.getState().setShowUpdateDialog(true);
+              }
+            }
+          } catch (err) {
+            log.warn('自动检查更新失败:', err);
+          }
         }
       }
+
+      // autostart 模式：更新检查完毕后分发挂起的任务（下载更新时已取消，此处为 no-op）
+      dispatchPendingAutoStartTasks();
     } catch (err) {
       log.error('加载 interface.json 失败:', err);
       setErrorMessage(err instanceof Error ? err.message : '加载失败');

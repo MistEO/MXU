@@ -18,6 +18,7 @@ const defaultAction: ActionConfig = {
   args: '',
   waitForExit: false,
   skipIfRunning: true,
+  useCmd: false,
 };
 
 export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
@@ -190,6 +191,17 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               onChange={(v) => updateAction({ skipIfRunning: v })}
               disabled={disabled}
             />
+
+            {/* 通过 cmd /c 启动开关（仅 Windows） */}
+            {navigator.userAgent.toLowerCase().includes('win') && (
+              <SwitchField
+                label={t('action.useCmd')}
+                hint={t('action.useCmdHint')}
+                value={currentAction.useCmd}
+                onChange={(v) => updateAction({ useCmd: v })}
+                disabled={disabled}
+              />
+            )}
           </div>
         </div>
       </div>

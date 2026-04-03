@@ -34,7 +34,13 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { generateId, initializeAllOptionValues, convertPresetOptionValue } from './helpers';
+import {
+  generateId,
+  initializeAllOptionValues,
+  convertPresetOptionValue,
+  getCurrentControllerAndResource,
+  isTaskCompatible,
+} from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -612,16 +618,32 @@ export const useAppStore = create<AppState>()(
     },
 
     selectAllTasks: (instanceId, enabled) =>
-      set((state) => ({
-        instances: state.instances.map((i) =>
-          i.id === instanceId
-            ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map((t) => ({ ...t, enabled })),
-              }
-            : i,
-        ),
-      })),
+      set((state) => {
+        const { controllerName, resourceName } = getCurrentControllerAndResource(
+          state,
+          instanceId,
+        );
+
+        return {
+          instances: state.instances.map((i) => {
+            if (i.id !== instanceId) return i;
+            return {
+              ...i,
+              selectedTasks: i.selectedTasks.map((t) => {
+                if (!enabled) return { ...t, enabled: false };
+                // 全选时不兼容的任务显式禁用
+                const taskDef = state.projectInterface?.task.find(
+                  (td) => td.name === t.taskName,
+                );
+                if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
+                  return { ...t, enabled: false };
+                }
+                return { ...t, enabled: true };
+              }),
+            };
+          }),
+        };
+      }),
 
     collapseAllTasks: (instanceId, expanded) =>
       set((state) => ({

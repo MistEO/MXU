@@ -174,6 +174,8 @@ pub fn run() {
             // 系统相关命令
             commands::system::is_elevated,
             commands::system::is_autostart,
+            commands::system::get_start_instance,
+            commands::system::has_quit_after_run_flag,
             commands::system::restart_as_admin,
             commands::system::maa_set_save_draw,
             commands::system::open_file,

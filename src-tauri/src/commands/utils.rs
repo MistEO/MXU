@@ -103,3 +103,37 @@ pub fn build_user_agent() -> String {
     let tauri_version = tauri::VERSION;
     format!("MXU/{} ({}; {}) Tauri/{}", version, os, arch, tauri_version)
 }
+
+/// 构建启动程序的 Command
+///
+/// 当 `use_cmd` 为 true 时（仅 Windows），通过 `cmd /c` 启动并设置
+/// `CREATE_BREAKAWAY_FROM_JOB` 标志使子进程脱离父进程的 job 对象。
+pub fn build_launch_command(
+    program: &str,
+    args: &[String],
+    use_cmd: bool,
+) -> std::process::Command {
+    let mut cmd = if cfg!(target_os = "windows") && use_cmd {
+        let mut c = std::process::Command::new("cmd.exe");
+        c.arg("/c").arg(program);
+        if !args.is_empty() {
+            c.args(args);
+        }
+        c
+    } else {
+        let mut c = std::process::Command::new(program);
+        if !args.is_empty() {
+            c.args(args);
+        }
+        c
+    };
+
+    #[cfg(target_os = "windows")]
+    if use_cmd {
+        use std::os::windows::process::CommandExt;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+    }
+
+    cmd
+}

@@ -149,6 +149,7 @@ const defaultAction: ActionConfig = {
   args: '',
   waitForExit: false,
   skipIfRunning: true,
+  useCmd: false,
 };
 
 export function AddTaskPanel() {

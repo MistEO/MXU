@@ -143,6 +143,10 @@ export default {
         '有効にすると、プログラムが既に実行中の場合は起動をスキップし、重複実行を防ぎます',
       skipYes: '実行中の場合は起動をスキップ',
       skipNo: '常に新しいインスタンスを起動',
+      cmdLabel: 'cmd で起動',
+      cmdDescription: '有効にすると cmd /c でプログラムを起動し、現在のプロセスツリーから切り離します。一部のゲームはプロセスツリーを検出する場合があります（Windows のみ）',
+      cmdYes: 'cmd /c で起動',
+      cmdNo: 'サブプロセスとして直接起動',
     },
     notify: {
       label: '💬 システム通知',
@@ -294,6 +298,8 @@ export default {
     skipIfRunning: '実行中ならスキップ',
     skipIfRunningHint:
       '有効にすると、プログラムがすでに実行中の場合は実行をスキップします。ゲームなどの再起動を避けるのに便利です',
+    useCmd: 'cmd で起動',
+    useCmdHint: '有効にすると cmd /c でプログラムを起動し、現在のプロセスツリーから切り離します。一部のゲームはプロセスツリーを検出する場合があります（Windows のみ）',
     preActionSkipped: '前処理プログラム {{name}} は実行中のためスキップしました',
     waitingForDevice: 'デバイスの準備を待機中...',
     waitingForWindow: 'ウィンドウの準備を待機中...',

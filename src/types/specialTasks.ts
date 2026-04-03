@@ -157,7 +157,7 @@ const MXU_LAUNCH_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_LAUNCH_TASK_NAME,
   label: 'specialTask.launch.label',
   entry: MXU_LAUNCH_ENTRY,
-  option: ['__MXU_LAUNCH_OPTION__', '__MXU_LAUNCH_WAIT_OPTION__', '__MXU_LAUNCH_SKIP_OPTION__'],
+  option: ['__MXU_LAUNCH_OPTION__', '__MXU_LAUNCH_WAIT_OPTION__', '__MXU_LAUNCH_SKIP_OPTION__', '__MXU_LAUNCH_CMD_OPTION__'],
   pipeline_override: {
     [MXU_LAUNCH_ENTRY]: {
       action: 'Custom',
@@ -222,6 +222,38 @@ const MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL: SwitchOption = {
         [MXU_LAUNCH_ENTRY]: {
           custom_action_param: {
             wait_for_exit: false,
+          },
+        },
+      },
+    },
+  ],
+  default_case: 'No',
+};
+
+// MXU_LAUNCH 使用 cmd /c 启动选项定义（仅 Windows 生效）
+const MXU_LAUNCH_CMD_OPTION_DEF_INTERNAL: SwitchOption = {
+  type: 'switch',
+  label: 'specialTask.launch.cmdLabel',
+  description: 'specialTask.launch.cmdDescription',
+  cases: [
+    {
+      name: 'Yes',
+      label: 'specialTask.launch.cmdYes',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            use_cmd: true,
+          },
+        },
+      },
+    },
+    {
+      name: 'No',
+      label: 'specialTask.launch.cmdNo',
+      pipeline_override: {
+        [MXU_LAUNCH_ENTRY]: {
+          custom_action_param: {
+            use_cmd: false,
           },
         },
       },
@@ -533,6 +565,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
       __MXU_LAUNCH_OPTION__: MXU_LAUNCH_INPUT_OPTION_DEF_INTERNAL,
       __MXU_LAUNCH_WAIT_OPTION__: MXU_LAUNCH_WAIT_OPTION_DEF_INTERNAL,
       __MXU_LAUNCH_SKIP_OPTION__: MXU_LAUNCH_SKIP_OPTION_DEF_INTERNAL,
+      __MXU_LAUNCH_CMD_OPTION__: MXU_LAUNCH_CMD_OPTION_DEF_INTERNAL,
     },
     iconName: 'Play',
     iconColorClass: 'text-success/80',

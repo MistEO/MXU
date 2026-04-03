@@ -304,6 +304,8 @@ function App() {
 
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
+  // 跟踪是否有自动任务在等待下载结果（下载失败/取消时需要分发任务）
+  const pendingAutoTasksRef = useRef(false);
   // 尝试自动安装更新（无任务运行中时触发）
   const tryAutoInstallUpdate = useCallback(() => {
     const state = useAppStore.getState();
@@ -665,17 +667,8 @@ function App() {
                 );
               }
 
-              if (isAutoStart) {
-                // autostart 模式：等更新检查完再决定是否分发任务
-                autoStartTasksPending = true;
-              } else {
-                // 手动启动：立即延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
-                setTimeout(() => {
-                  document.dispatchEvent(
-                    new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
-                  );
-                }, 500);
-              }
+              // 等更新检查完再决定是否分发任务（autostart 和 autoRunOnLaunch 均适用）
+              autoStartTasksPending = true;
             } else {
               log.warn('自动执行：目标实例不存在，跳过自动执行');
             }
@@ -810,8 +803,12 @@ function App() {
                 // 有更新且有下载链接时自动开始下载
                 if (updateResult.downloadUrl) {
                   startAutoDownload(updateResult);
-                  // autostart 模式：下载→安装→重启后任务在新版本上执行，取消本次任务分发
-                  autoStartTasksPending = false;
+                  // 下载→安装→重启后任务在新版本上执行，取消本次任务分发
+                  // 但如果下载失败/取消，需要通过 pendingAutoTasksRef 重新触发任务
+                  if (autoStartTasksPending) {
+                    autoStartTasksPending = false;
+                    pendingAutoTasksRef.current = true;
+                  }
                 }
               } else if (updateResult.errorCode) {
                 // API 返回错误（如 CDK 问题），也弹出气泡提示用户
@@ -931,6 +928,19 @@ function App() {
       setShowInstallConfirmModal(true);
     }
   }, [downloadStatus, setShowInstallConfirmModal]);
+
+  // 下载失败或取消时，如果有等待中的自动任务，立即分发
+  useEffect(() => {
+    if (pendingAutoTasksRef.current && downloadStatus === 'failed') {
+      pendingAutoTasksRef.current = false;
+      log.info('下载失败/取消，分发挂起的自动任务');
+      setTimeout(() => {
+        document.dispatchEvent(
+          new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+        );
+      }, 500);
+    }
+  }, [downloadStatus]);
 
   // 监听窗口大小和位置变化
   useEffect(() => {

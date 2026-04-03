@@ -616,9 +616,6 @@ function App() {
       if (isTauri()) {
         try {
           const isAutoStart = await invoke<boolean>('is_autostart');
-          if (isAutoStart) {
-            useAppStore.getState().setIsAutoStartMode(true);
-          }
 
           // 检查 -i/--instance 命令行参数指定的实例（仅 autostart 模式生效）
           let cliInstanceId: string | undefined;
@@ -649,6 +646,8 @@ function App() {
             if (targetInstance) {
               const source = isAutoStart ? '开机自启动' : '手动启动';
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
+              // 标记为自动运行模式，跳过阻塞式弹窗
+              useAppStore.getState().setIsAutoStartMode(true);
               useAppStore.getState().setActiveInstance(targetInstanceId);
 
               // 检查 -q/--quit-after-run 参数：任务完成后关闭自身

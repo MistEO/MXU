@@ -429,10 +429,7 @@ export interface AppState {
 
   // 日志管理
   instanceLogs: Record<string, LogEntry[]>;
-  addLog: (
-    instanceId: string,
-    log: Omit<LogEntry, 'id' | 'timestamp'> & { consoleMessage?: string | null },
-  ) => void;
+  addLog: (instanceId: string, log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   clearLogs: (instanceId: string) => void;
 
   // 回调 ID 与名称的映射

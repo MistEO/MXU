@@ -5,9 +5,8 @@
 mod webview2;
 
 fn main() {
-    // 初始化日志打印模式：
-    // --log-mode=none|raw|ui|verbose
-    mxu_lib::commands::console::init_console_output();
+    // 初始化日志 stdout 输出：--log-stdout
+    mxu_lib::commands::console::init_log_stdout();
 
     #[cfg(target_os = "windows")]
     {
@@ -87,5 +86,5 @@ fn main() {
         }
     }
 
-    mxu_lib::run();
+    mxu_lib::run()
 }

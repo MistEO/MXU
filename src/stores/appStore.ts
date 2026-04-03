@@ -34,17 +34,17 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { isConsoleDefinitelyOff, consoleLog } from '@/utils/consoleBridge';
+import { isLogStdoutOff, logToStdout } from '@/utils/logStdout';
 import { generateId, initializeAllOptionValues, convertPresetOptionValue } from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
-function forwardLogToConsole(message: string) {
-  if (isConsoleDefinitelyOff()) return;
+function forwardLogToStdout(message: string) {
+  if (isLogStdoutOff()) return;
   // 剥离所有 HTML 标签（含 <br/>、<span> 等），保留纯文本
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
-  consoleLog(plain);
+  logToStdout(plain);
 }
 
 // 重新导出类型供外部使用
@@ -1689,19 +1689,15 @@ export const useAppStore = create<AppState>()(
 
     addLog: (instanceId, log) =>
       set((state) => {
-        const { consoleMessage, ...uiLog } = log;
         const logs = state.instanceLogs[instanceId] || [];
         const newLog: LogEntry = {
           id: generateId(),
           timestamp: new Date(),
-          ...uiLog,
+          ...log,
         };
 
-        // --log-mode 模式：将日志转发到终端
-        // consoleMessage 为 null 时表示显式抑制本条终端输出（用于延迟回放场景）
-        if (consoleMessage !== null) {
-          forwardLogToConsole(consoleMessage ?? uiLog.message);
-        }
+        // --log-stdout 模式：将日志转发到 stdout
+        forwardLogToStdout(log.message);
         // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）。
         // 这里也做归一化，避免配置错误导致无限增长；与 UI
         // 限制保持一致：[100, 10000]，默认 2000。
@@ -1869,8 +1865,9 @@ function debouncedSaveConfig() {
   }, 500);
 }
 
-function selectPersistedState(state: AppState) {
-  return {
+// 订阅需要保存的状态变化
+useAppStore.subscribe(
+  (state) => ({
     instances: state.instances,
     activeInstanceId: state.activeInstanceId,
     theme: state.theme,
@@ -1903,15 +1900,9 @@ function selectPersistedState(state: AppState) {
     newTaskNames: state.newTaskNames,
     customAccents: state.customAccents,
     presetInitialized: state.presetInitialized,
-  };
-}
-
-let lastPersistedStateJson = '';
-
-// 订阅需要保存的状态变化
-useAppStore.subscribe((state) => {
-  const next = JSON.stringify(selectPersistedState(state));
-  if (next === lastPersistedStateJson) return;
-  lastPersistedStateJson = next;
-  debouncedSaveConfig();
-});
+  }),
+  () => {
+    debouncedSaveConfig();
+  },
+  { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+);

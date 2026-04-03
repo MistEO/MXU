@@ -143,6 +143,10 @@ export default {
         '활성화하면 프로그램이 이미 실행 중일 때 중복 실행을 방지하기 위해 시작을 건너뜁니다',
       skipYes: '이미 실행 중이면 시작 건너뛰기',
       skipNo: '항상 새 인스턴스 시작',
+      cmdLabel: 'cmd로 실행',
+      cmdDescription: '활성화하면 cmd /c로 프로그램을 실행하여 현재 프로세스 트리에서 분리합니다. 일부 게임은 프로세스 트리를 감지할 수 있습니다 (Windows 전용)',
+      cmdYes: 'cmd /c로 실행',
+      cmdNo: '직접 서브프로세스로 실행',
     },
     notify: {
       label: '💬 시스템 알림',
@@ -293,6 +297,8 @@ export default {
     skipIfRunning: '실행 중이면 건너뛰기',
     skipIfRunningHint:
       '활성화하면 프로그램이 이미 실행 중인 경우 실행을 건너뛱니다. 게임 등의 재시작을 피하는 데 유용합니다',
+    useCmd: 'cmd로 실행',
+    useCmdHint: '활성화하면 cmd /c로 프로그램을 실행하여 현재 프로세스 트리에서 분리합니다. 일부 게임은 프로세스 트리를 감지할 수 있습니다 (Windows 전용)',
     preActionSkipped: '전처리 프로그램 {{name}} 이(가) 실행 중이므로 건너뜁니다',
     waitingForDevice: '장치 준비 대기 중...',
     waitingForWindow: '윈도우 준비 대기 중...',

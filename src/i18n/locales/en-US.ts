@@ -144,6 +144,10 @@ export default {
         'When enabled, skips launching if the program is already running to avoid duplicates',
       skipYes: 'Skip launch if already running',
       skipNo: 'Always launch new instance',
+      cmdLabel: 'Launch via cmd',
+      cmdDescription: 'When enabled, launches the program via cmd /c to detach from the current process tree. Some games may detect the process tree (Windows only)',
+      cmdYes: 'Launch via cmd /c',
+      cmdNo: 'Launch as direct subprocess',
     },
     notify: {
       label: '💬 System Notification',
@@ -295,6 +299,8 @@ export default {
     skipIfRunning: 'Skip if Running',
     skipIfRunningHint:
       'When enabled, skips execution if the program is already running, useful for avoiding restarting games or other applications',
+    useCmd: 'Launch via cmd',
+    useCmdHint: 'When enabled, launches the program via cmd /c to detach from the current process tree. Some games may detect the process tree (Windows only)',
     preActionSkipped: 'Pre-program {{name}} is already running, skipped',
     waitingForDevice: 'Waiting for device to be ready...',
     waitingForWindow: 'Waiting for window to be ready...',

@@ -222,6 +222,11 @@ fn mxu_launch_action_fn(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let use_cmd = json
+        .get("use_cmd")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     // 如果启用了跳过检查且程序已在运行，直接返回成功
     if skip_if_running {
         if crate::commands::system::check_process_running(&program) {
@@ -253,11 +258,7 @@ fn mxu_launch_action_fn(
         }
     };
 
-    let mut cmd = std::process::Command::new(&program);
-
-    if !args_vec.is_empty() {
-        cmd.args(&args_vec);
-    }
+    let mut cmd = crate::commands::utils::build_launch_command(&program, &args_vec, use_cmd);
 
     // 默认使用程序所在目录作为工作目录
     if let Some(parent) = std::path::Path::new(&program).parent() {

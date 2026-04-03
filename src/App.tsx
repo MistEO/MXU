@@ -615,17 +615,54 @@ function App() {
           if (isAutoStart) {
             useAppStore.getState().setIsAutoStartMode(true);
           }
+
+          // 检查 -i/--instance 命令行参数指定的实例（仅 autostart 模式生效）
+          let cliInstanceId: string | undefined;
+          if (isAutoStart) {
+            const startInstance = await invoke<string | null>('get_start_instance');
+            if (startInstance) {
+              const matched = useAppStore
+                .getState()
+                .instances.find((i) => i.name === startInstance);
+              if (matched) {
+                log.info('命令行 --instance 参数：匹配实例:', startInstance);
+                cliInstanceId = matched.id;
+              } else {
+                log.warn('命令行 --instance 参数：未找到名为', startInstance, '的实例');
+              }
+            }
+          }
+
           const { autoStartInstanceId, autoRunOnLaunch } = useAppStore.getState();
+          // 命令行指定的实例优先，否则使用配置中的自动执行实例
+          const targetInstanceId = cliInstanceId || autoStartInstanceId;
           // 开机自启动 或 手动启动且勾选了"手动启动时也自动执行"
           const shouldAutoRun = isAutoStart || autoRunOnLaunch;
-          if (shouldAutoRun && autoStartInstanceId) {
+          if (shouldAutoRun && targetInstanceId) {
             const targetInstance = useAppStore
               .getState()
-              .instances.find((i) => i.id === autoStartInstanceId);
+              .instances.find((i) => i.id === targetInstanceId);
             if (targetInstance) {
               const source = isAutoStart ? '开机自启动' : '手动启动';
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
-              useAppStore.getState().setActiveInstance(autoStartInstanceId);
+              useAppStore.getState().setActiveInstance(targetInstanceId);
+
+              // 检查 -q/--quit-after-run 参数：任务完成后关闭自身
+              const shouldQuit = await invoke<boolean>('has_quit_after_run_flag');
+              if (shouldQuit) {
+                log.info('命令行 --quit-after-run 参数：任务完成后将关闭自身');
+                const unsub = useAppStore.subscribe(
+                  (state) => state.instances.find((i) => i.id === targetInstanceId)?.isRunning,
+                  (isRunning, prevIsRunning) => {
+                    if (prevIsRunning && !isRunning) {
+                      log.info('自动执行任务完成，关闭自身');
+                      unsub();
+                      import('@tauri-apps/plugin-process').then(({ exit }) => exit(0));
+                    }
+                  },
+                );
+              }
+
               // 延迟分发事件，等待 Toolbar 组件挂载并注册事件监听
               setTimeout(() => {
                 document.dispatchEvent(

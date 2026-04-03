@@ -655,6 +655,7 @@ export const maaService = {
    * @param args 附加参数
    * @param cwd 工作目录（可选）
    * @param waitForExit 是否等待进程退出（默认 true）
+   * @param useCmd 是否通过 cmd /c 启动（仅 Windows，默认 false）
    * @returns 程序退出码（不等待时返回 0）
    */
   async runAction(
@@ -662,17 +663,19 @@ export const maaService = {
     args: string,
     cwd?: string,
     waitForExit: boolean = true,
+    useCmd: boolean = false,
   ): Promise<number> {
     if (!isTauri()) {
       throw new Error('此功能仅在 Tauri 环境中可用');
     }
-    log.info('执行动作:', program, args, '等待:', waitForExit);
+    log.info('执行动作:', program, args, '等待:', waitForExit, '使用cmd:', useCmd);
     try {
       const exitCode = await invoke<number>('run_action', {
         program,
         args,
         cwd: cwd || null,
         waitForExit,
+        useCmd,
       });
       log.info('动作执行完成, 退出码:', exitCode);
       return exitCode;

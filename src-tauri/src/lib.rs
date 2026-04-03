@@ -34,6 +34,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets({
+                    #[allow(unused_mut)]
                     let mut targets = vec![Target::new(TargetKind::Folder {
                         path: logs_dir,
                         file_name: Some("mxu-tauri".into()),

@@ -106,13 +106,17 @@ pub fn build_user_agent() -> String {
 
 /// 构建启动程序的 Command
 ///
-/// 当 `use_cmd` 为 true 时（仅 Windows），通过 `cmd /c` 启动并设置
-/// `CREATE_BREAKAWAY_FROM_JOB` 标志使子进程脱离父进程的 job 对象。
+/// - 子进程的 stdout/stderr 设为 null，避免继承父进程的标准流。
+/// - 当 `use_cmd` 为 true 时（仅 Windows），通过 `cmd /c` 启动并设置
+///   `CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB` 标志，隐藏控制台窗口
+///   且使子进程脱离父进程 job 对象。
 pub fn build_launch_command(
     program: &str,
     args: &[String],
     use_cmd: bool,
 ) -> std::process::Command {
+    use std::process::Stdio;
+
     let mut cmd = if cfg!(target_os = "windows") && use_cmd {
         let mut c = std::process::Command::new("cmd.exe");
         c.arg("/c").arg(program);
@@ -128,11 +132,15 @@ pub fn build_launch_command(
         c
     };
 
+    // 不继承父进程的标准流
+    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+
     #[cfg(target_os = "windows")]
     if use_cmd {
         use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
-        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+        cmd.creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB);
     }
 
     cmd

@@ -647,10 +647,10 @@ function App() {
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
               useAppStore.getState().setActiveInstance(targetInstanceId);
 
-              // 检查 -k/--kill 参数：任务完成后关闭自身
-              const hasClose = await invoke<boolean>('has_close_flag');
-              if (hasClose) {
-                log.info('命令行 --close 参数：任务完成后将关闭自身');
+              // 检查 -q/--quit-after-run 参数：任务完成后关闭自身
+              const shouldQuit = await invoke<boolean>('has_quit_after_run_flag');
+              if (shouldQuit) {
+                log.info('命令行 --quit-after-run 参数：任务完成后将关闭自身');
                 const unsub = useAppStore.subscribe(
                   (state) => state.instances.find((i) => i.id === targetInstanceId)?.isRunning,
                   (isRunning, prevIsRunning) => {

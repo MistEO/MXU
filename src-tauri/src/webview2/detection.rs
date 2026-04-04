@@ -23,7 +23,6 @@ fn get_system_wow64_directory() -> Option<PathBuf> {
 /// - pv 值必须存在且不为空、不为 "0.0.0.0"
 ///
 /// 参考: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#detect-if-a-suitable-webview2-runtime-is-already-installed
-#[allow(unreachable_code)]
 pub fn is_webview2_installed() -> bool {
     // // 测试：强制视为未安装，以调试下载/安装流程。调试完请删除或注释下面这行。
     // return false;
@@ -85,7 +84,6 @@ pub fn is_webview2_installed() -> bool {
 /// - HKCU\Software\Microsoft\Edge\WebView2\BrowserExecutableFolder (设置为空字符串表示禁用)
 ///
 /// 返回 Some(reason) 如果被禁用，None 如果未被禁用
-#[allow(unreachable_code)]
 pub fn is_webview2_disabled() -> Option<String> {
     // // 测试：强制视为已禁用，以调试下载/安装流程。调试完请删除或注释下面这行。
     // return Some("Test Disable".to_string());

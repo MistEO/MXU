@@ -8,6 +8,9 @@ use super::utils::get_maafw_dir;
 use log::{info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 /// 标记是否检测到可能缺少 VC++ 运行库
 static VCREDIST_MISSING: AtomicBool = AtomicBool::new(false);
 
@@ -100,10 +103,11 @@ pub async fn open_file(file_path: String) -> Result<(), String> {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
-        // 在 Windows 上使用 cmd /c start 来打开文件
         Command::new("cmd")
             .args(["/c", "start", "", &file_path])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to open file: {}", e))?;
     }
@@ -136,8 +140,10 @@ pub async fn run_and_wait(file_path: String) -> Result<i32, String> {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
         let status = Command::new(&file_path)
+            .creation_flags(CREATE_NO_WINDOW)
             .status()
             .map_err(|e| format!("Failed to run file: {}", e))?;
 
@@ -492,6 +498,7 @@ pub fn migrate_legacy_autostart() {
 
 #[cfg(windows)]
 fn create_schtask_autostart() -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
     let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
     let exe = exe_path.to_string_lossy();
     let output = std::process::Command::new("schtasks")
@@ -512,6 +519,7 @@ fn create_schtask_autostart() -> Result<(), String> {
             "highest",
             "/f",
         ])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| format!("执行 schtasks 失败: {}", e))?;
     if !output.status.success() {
@@ -526,8 +534,10 @@ fn create_schtask_autostart() -> Result<(), String> {
 fn schtask_autostart_needs_refresh() -> bool {
     use regex::Regex;
 
+    use std::os::windows::process::CommandExt;
     let output = match std::process::Command::new("schtasks")
         .args(["/query", "/tn", "MXU", "/xml"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
     {
         Ok(o) if o.status.success() => o,
@@ -617,9 +627,10 @@ pub fn autostart_enable() -> Result<(), String> {
 pub fn autostart_disable() -> Result<(), String> {
     #[cfg(windows)]
     {
-        // 删除计划任务（不存在时忽略错误）
+        use std::os::windows::process::CommandExt;
         let _ = std::process::Command::new("schtasks")
             .args(["/delete", "/tn", "MXU", "/f"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
         // 清理旧版注册表条目
         remove_legacy_registry_autostart();
@@ -636,8 +647,10 @@ pub fn autostart_disable() -> Result<(), String> {
 pub fn autostart_is_enabled() -> bool {
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         let schtask = std::process::Command::new("schtasks")
             .args(["/query", "/tn", "MXU"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);

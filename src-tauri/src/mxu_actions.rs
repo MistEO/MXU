@@ -476,7 +476,13 @@ fn kill_process_by_name(name: &str) -> bool {
 
     #[cfg(windows)]
     {
-        match Command::new("taskkill").args(["/F", "/IM", name]).output() {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        match Command::new("taskkill")
+            .args(["/F", "/IM", name])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+        {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -577,8 +583,11 @@ fn execute_power_shutdown() -> bool {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         match Command::new("shutdown")
             .args(["/s", "/f", "/t", "0"])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
         {
             Ok(_) => {
@@ -629,8 +638,11 @@ fn execute_power_restart() -> bool {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         match Command::new("shutdown")
             .args(["/r", "/f", "/t", "0"])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
         {
             Ok(_) => {
@@ -737,8 +749,11 @@ fn execute_power_sleep() -> bool {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         match Command::new("rundll32.exe")
             .args(["powrprof.dll,SetSuspendState", "0,1,0"])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
         {
             Ok(_) => {

@@ -39,9 +39,16 @@ fn main() {
         }
 
         // 启动时自动请求管理员权限：如果当前不是管理员，则自提权重启并退出当前进程
-        // 说明：用户在 UAC 对话框中取消时，ShellExecuteEx 会返回 Err，此时继续以普通权限启动。
+        // 说明：用户取消 UAC 时 ShellExecuteW 会失败，此时继续以普通权限启动。
         // 调试模式下不请求管理员权限，方便开发调试
         if !cfg!(debug_assertions) && !mxu_lib::commands::system::is_elevated() {
+            use std::ffi::OsStr;
+            use std::os::windows::ffi::OsStrExt;
+            use windows::core::PCWSTR;
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::UI::Shell::ShellExecuteW;
+            use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
             let exe_path = match std::env::current_exe() {
                 Ok(p) => p,
                 Err(_) => {
@@ -51,19 +58,27 @@ fn main() {
                 }
             };
 
-            use winsafe::co::SW;
-            use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
+            fn to_wide(s: &str) -> Vec<u16> {
+                OsStr::new(s).encode_wide().chain(Some(0)).collect()
+            }
 
-            let result = ShellExecuteEx(&SHELLEXECUTEINFO {
-                file: &exe_path.to_string_lossy(),
-                verb: Option::from("runas"),
-                show: SW::SHOWNORMAL,
-                ..Default::default()
-            });
+            let operation = to_wide("runas");
+            let file = to_wide(&exe_path.to_string_lossy());
 
-            if result.is_ok() {
-                // 新的管理员进程已启动，退出当前普通权限进程
-                std::process::exit(0);
+            unsafe {
+                let result = ShellExecuteW(
+                    HWND::default(),
+                    PCWSTR::from_raw(operation.as_ptr()),
+                    PCWSTR::from_raw(file.as_ptr()),
+                    PCWSTR::null(),
+                    PCWSTR::null(),
+                    SW_SHOWNORMAL,
+                );
+
+                if result.0 as usize > 32 {
+                    // 新的管理员进程已启动，退出当前普通权限进程
+                    std::process::exit(0);
+                }
             }
         }
     }

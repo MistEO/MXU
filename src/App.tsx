@@ -613,6 +613,7 @@ function App() {
       // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
       // autostart 模式下，任务分发延迟到更新检查之后（有更新则先更新再跑任务）
       let autoStartTasksPending = false;
+      let isAutoRunOnLaunchMode = false;
       if (isTauri()) {
         try {
           const isAutoStart = await invoke<boolean>('is_autostart');
@@ -646,8 +647,13 @@ function App() {
             if (targetInstance) {
               const source = isAutoStart ? '开机自启动' : '手动启动';
               log.info(`${source}：激活配置并启动任务:`, targetInstance.name);
-              // 标记为自动运行模式，跳过阻塞式弹窗
-              useAppStore.getState().setIsAutoStartMode(true);
+              if (isAutoStart) {
+                // CLI --autostart：无人值守，跳过阻塞式弹窗
+                useAppStore.getState().setIsAutoStartMode(true);
+              } else {
+                // autoRunOnLaunch：用户在场，显示弹窗但关闭后自动跑任务
+                isAutoRunOnLaunchMode = true;
+              }
               useAppStore.getState().setActiveInstance(targetInstanceId);
 
               // 检查 -q/--quit-after-run 参数：任务完成后关闭自身
@@ -719,6 +725,10 @@ function App() {
                 channel: updateCompleteInfo.channel,
               });
               setShowInstallConfirmModal(true);
+              // autoRunOnLaunch：弹窗关闭后自动分发任务
+              if (isAutoRunOnLaunchMode) {
+                pendingAutoTasksRef.current = true;
+              }
               // 更新完成后跳过自动检查更新
               return;
             }
@@ -740,6 +750,10 @@ function App() {
               channel: updateCompleteInfo.channel,
             });
             setShowInstallConfirmModal(true);
+            // autoRunOnLaunch：弹窗关闭后自动分发任务
+            if (isAutoRunOnLaunchMode) {
+              pendingAutoTasksRef.current = true;
+            }
             // 更新完成后跳过自动检查更新
             return;
           }
@@ -769,6 +783,10 @@ function App() {
           useAppStore.getState().setInstallStatus('installing');
           setDownloadStatus('completed');
           setShowInstallConfirmModal(true);
+          // autoRunOnLaunch：弹窗关闭后自动分发任务
+          if (isAutoRunOnLaunchMode) {
+            pendingAutoTasksRef.current = true;
+          }
           return;
         }
       }
@@ -940,6 +958,19 @@ function App() {
       }, 500);
     }
   }, [downloadStatus]);
+
+  // 弹窗关闭后，如果有等待中的自动任务（autoRunOnLaunch 场景），立即分发
+  useEffect(() => {
+    if (pendingAutoTasksRef.current && !showInstallConfirmModal) {
+      pendingAutoTasksRef.current = false;
+      log.info('弹窗关闭，分发挂起的自动任务');
+      setTimeout(() => {
+        document.dispatchEvent(
+          new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+        );
+      }, 500);
+    }
+  }, [showInstallConfirmModal]);
 
   // 监听窗口大小和位置变化
   useEffect(() => {

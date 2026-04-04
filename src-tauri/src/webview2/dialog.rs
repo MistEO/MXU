@@ -233,7 +233,13 @@ impl CustomDialog {
     }
 
     pub(crate) fn close(mut self) {
-        self.hwnd.close();
+        // 绕过 WM_CLOSE，直接退出消息循环。
+        // WM_CLOSE 的处理器会在 Progress 对话框时调用 process::exit(0)，
+        // 那是为用户点 X 取消启动设计的；程序主动关闭时不应走那条路径。
+        self.hwnd.run_ui_thread(move || {
+            PostQuitMessage(0);
+            Ok(())
+        });
         if let Some(h) = self.handle.take() {
             let _ = h.join();
         }

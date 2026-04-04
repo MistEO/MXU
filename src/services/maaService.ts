@@ -18,6 +18,15 @@ import { isTauri } from '@/utils/paths';
 
 const log = loggers.maa;
 
+async function syncMaaVersionToStore(version: string): Promise<void> {
+  try {
+    const { useAppStore } = await import('@/stores/appStore');
+    useAppStore.getState().setMaaInitialized(true, version);
+  } catch (err) {
+    log.debug('同步 MaaFramework 版本到 store 失败:', err);
+  }
+}
+
 /** MaaFramework 回调事件载荷 */
 export interface MaaCallbackEvent {
   /** 消息类型，如 "Resource.Loading.Succeeded", "Controller.Action.Succeeded", "Tasker.Task.Succeeded" */
@@ -51,6 +60,7 @@ export const maaService = {
   async init(libDir?: string): Promise<string> {
     log.info('初始化 MaaFramework, libDir:', libDir || '(默认)');
     const version = await invoke<string>('maa_init', { libDir: libDir || null });
+    await syncMaaVersionToStore(version);
     log.info('MaaFramework 版本:', version);
     return version;
   },
@@ -72,6 +82,7 @@ export const maaService = {
   async getVersion(): Promise<string> {
     log.debug('获取 MaaFramework 版本...');
     const version = await invoke<string>('maa_get_version');
+    await syncMaaVersionToStore(version);
     log.info('MaaFramework 版本:', version);
     return version;
   },

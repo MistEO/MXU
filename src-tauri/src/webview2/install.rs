@@ -147,7 +147,7 @@ fn get_expand_exe_path() -> Result<std::path::PathBuf, String> {
             ))
         }
     } else {
-        Err("GetSystemDirectoryW 调用失败，无法获取系统目录".to_string())
+        Err("GetSystemDirectory 调用失败，无法获取系统目录".to_string())
     }
 }
 
@@ -444,7 +444,7 @@ pub fn download_and_extract() -> Result<(), String> {
                 .map_err(|e| format!("写入文件失败: {}", e))?;
             downloaded += bytes_read as u64;
 
-            // 节流 UI 更新，避免 SendMessageW 跨线程同步调用阻塞下载
+            // 节流 UI 更新，避免 run_ui_thread 跨线程同步调用阻塞下载
             if last_ui_update.elapsed() >= std::time::Duration::from_millis(200) {
                 last_ui_update = std::time::Instant::now();
                 if let Some(ref pw) = progress_dialog {

@@ -519,6 +519,8 @@ export default {
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+    aprilFools: '만우절 이스터에그',
+    aprilFoolsHint: '모든 작업 실행을 AI 추론 모드로 위장합니다 (4월 1일 자동 활성화)',
   },
 
   // 환영 대화상자

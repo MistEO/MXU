@@ -15,6 +15,7 @@ import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
+import { isAprilFools, getAIText } from '@/utils/aprilFools';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
@@ -22,7 +23,7 @@ import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
 import type { Instance } from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
-import { getInterfaceLangKey } from '@/i18n';
+import i18n, { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
@@ -1177,8 +1178,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const isDisabled = (tasks.length === 0 || !canRun) && !instance?.isRunning;
 
   // 获取启动按钮的文本
+  const _af = isAprilFools();
   const getStartButtonText = () => {
     if (isStarting) {
+      if (_af) return getAIText('startingTasks', i18n.language);
       switch (autoConnectPhase) {
         case 'searching':
           return t('taskList.autoConnect.searching');
@@ -1190,7 +1193,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           return t('taskList.startingTasks');
       }
     }
-    return t('taskList.startTasks');
+    return _af ? getAIText('startTasks', i18n.language) : t('taskList.startTasks');
   };
 
   // 获取按钮的 title 提示
@@ -1312,17 +1315,17 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           ) : isStopping ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>{t('taskList.stoppingTasks')}</span>
+              <span>{_af ? getAIText('stoppingTasks', i18n.language) : t('taskList.stoppingTasks')}</span>
             </>
           ) : instance?.isRunning ? (
             <>
               <StopCircle className="w-4 h-4" />
-              <span>{t('taskList.stopTasks')}</span>
+              <span>{_af ? getAIText('stopTasks', i18n.language) : t('taskList.stopTasks')}</span>
             </>
           ) : (
             <>
               <Play className="w-4 h-4" />
-              <span>{t('taskList.startTasks')}</span>
+              <span>{getStartButtonText()}</span>
             </>
           )}
         </button>

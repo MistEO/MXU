@@ -5,9 +5,6 @@
 mod webview2;
 
 fn main() {
-    // 初始化日志 stdout 输出：--log-stdout
-    mxu_lib::commands::console::init_log_stdout();
-
     #[cfg(target_os = "windows")]
     {
         // 设置 WebView2 数据目录为程序所在目录下的 webview_data 文件夹

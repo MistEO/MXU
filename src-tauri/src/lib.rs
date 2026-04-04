@@ -160,7 +160,6 @@ pub fn run() {
             commands::state::maa_get_all_states,
             commands::state::maa_get_cached_adb_devices,
             commands::state::maa_get_cached_win32_windows,
-            commands::state::is_log_stdout,
             commands::state::log_to_stdout,
             // 更新安装命令
             commands::update::extract_zip,

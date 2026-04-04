@@ -34,7 +34,7 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { isLogStdoutOff, logToStdout } from '@/utils/logStdout';
+import { logToStdout } from '@/utils/logStdout';
 import {
   generateId,
   initializeAllOptionValues,
@@ -46,8 +46,6 @@ import {
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
 function forwardLogToStdout(message: string) {
-  if (isLogStdoutOff()) return;
-  // 剥离所有 HTML 标签（含 <br/>、<span> 等），保留纯文本
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
   logToStdout(plain);
@@ -1718,7 +1716,6 @@ export const useAppStore = create<AppState>()(
           ...log,
         };
 
-        // --log-stdout 模式：将日志转发到 stdout
         forwardLogToStdout(log.message);
         // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）。
         // 这里也做归一化，避免配置错误导致无限增长；与 UI

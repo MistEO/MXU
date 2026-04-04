@@ -100,15 +100,10 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
             &lib_path
         };
 
-        if let Some(path_str) = dll_dir.to_str() {
-            let result = winsafe::SetDllDirectory(Some(path_str));
-            if result.is_err() {
-                warn!("SetDllDirectoryW failed");
-            } else {
-                debug!("SetDllDirectoryW set to {:?}", dll_dir);
-            }
-        } else {
-            warn!("dll_dir to_str failed");
+        debug!("SetDllDirectoryW set to {:?}", dll_dir);
+        let result = winsafe::SetDllDirectory(Some(&dll_dir.to_string_lossy()));
+        if result.is_err() {
+            warn!("SetDllDirectoryW failed");
         }
     }
 

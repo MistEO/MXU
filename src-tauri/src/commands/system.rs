@@ -849,8 +849,20 @@ pub fn startup_performance_check_and_notify(app_handle: tauri::AppHandle) {
         // 执行检查
         let result = perform_performance_check();
 
-        // 标记为已检查（即使检查失败也写入文件以避免重复弹窗）
-        let _ = std::fs::write(&marker, "1");
+        // 标记为已检查（即使检查失败也尝试写入文件以避免重复弹窗）
+        if let Err(err) = std::fs::create_dir_all(&data_dir) {
+            log::warn!(
+                "Failed to create performance marker directory {}: {}",
+                data_dir,
+                err
+            );
+        } else if let Err(err) = std::fs::write(&marker, "1") {
+            log::warn!(
+                "Failed to persist performance marker {}: {}",
+                marker.display(),
+                err
+            );
+        }
 
         // 若需要警告则通过事件发送给前端
         if result.warn {

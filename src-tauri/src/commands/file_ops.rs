@@ -226,6 +226,30 @@ fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<Exp
     Ok(files)
 }
 
+fn sanitize_relative_path(path: &Path) -> Option<PathBuf> {
+    use std::path::Component;
+
+    if path.is_absolute() {
+        return None;
+    }
+
+    let mut clean = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(seg) => clean.push(seg),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir => return None,
+            _ => return None,
+        }
+    }
+
+    if clean.as_os_str().is_empty() {
+        None
+    } else {
+        Some(clean)
+    }
+}
+
 fn is_image_file(path: &Path) -> bool {
     if !path.is_file() {
         return false;
@@ -571,4 +595,141 @@ pub fn export_logs(
     }
 
     Ok(zip_path.to_string_lossy().to_string())
+}
+
+/// 一键备份个人配置（config 目录）为 zip 文件
+/// 返回实际写入的 zip 路径
+#[tauri::command]
+pub fn backup_personal_config(save_path: String) -> Result<String, String> {
+    use std::fs::File;
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    let data_dir = get_app_data_dir()?;
+    let config_dir = data_dir.join("config");
+    if !config_dir.exists() || !config_dir.is_dir() {
+        return Err("配置目录不存在".to_string());
+    }
+
+    let mut output_path = PathBuf::from(save_path);
+    if output_path.extension().is_none() {
+        output_path.set_extension("zip");
+    }
+
+    let parent = output_path
+        .parent()
+        .ok_or_else(|| "备份路径无效".to_string())?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("无法创建备份目录 [{}]: {}", parent.display(), e))?;
+
+    let entries = collect_files_recursively(&config_dir, "config")?;
+    let file = File::create(&output_path)
+        .map_err(|e| format!("创建备份文件失败 [{}]: {}", output_path.display(), e))?;
+
+    let mut zip = ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    add_entries_to_zip(&mut zip, &entries, options);
+    zip.finish().map_err(|e| format!("完成备份压缩失败: {}", e))?;
+
+    log::info!(
+        "个人配置备份完成：{} 个文件 -> {}",
+        entries.len(),
+        output_path.display()
+    );
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
+/// 一键恢复个人配置（config 目录）
+/// 支持 zip 内部路径为 `config/*` 或直接根目录文件
+#[tauri::command]
+pub fn restore_personal_config(backup_path: String) -> Result<(), String> {
+    let backup_path = PathBuf::from(backup_path);
+    if !backup_path.exists() || !backup_path.is_file() {
+        return Err(format!("备份文件不存在: {}", backup_path.display()));
+    }
+
+    let data_dir = get_app_data_dir()?;
+    let config_dir = data_dir.join("config");
+    let cache_dir = data_dir.join("cache");
+    std::fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("无法创建缓存目录 [{}]: {}", cache_dir.display(), e))?;
+
+    let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let temp_extract_dir = cache_dir.join(format!("config-restore-tmp-{}", ts));
+    if temp_extract_dir.exists() {
+        let _ = std::fs::remove_dir_all(&temp_extract_dir);
+    }
+    std::fs::create_dir_all(&temp_extract_dir)
+        .map_err(|e| format!("无法创建临时恢复目录 [{}]: {}", temp_extract_dir.display(), e))?;
+
+    let file = std::fs::File::open(&backup_path)
+        .map_err(|e| format!("无法打开备份文件 [{}]: {}", backup_path.display(), e))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("无法解析备份 ZIP 文件: {}", e))?;
+
+    let mut restored_files = 0usize;
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| format!("读取 ZIP 条目失败 #{}: {}", i, e))?;
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        let entry_path = entry
+            .enclosed_name()
+            .map(|p| p.to_path_buf())
+            .ok_or_else(|| format!("ZIP 条目路径非法: {}", entry.name()))?;
+
+        let relative = if let Ok(stripped) = entry_path.strip_prefix("config") {
+            stripped.to_path_buf()
+        } else {
+            entry_path
+        };
+
+        let Some(safe_rel) = sanitize_relative_path(&relative) else {
+            continue;
+        };
+
+        let out_path = temp_extract_dir.join(&safe_rel);
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("无法创建目录 [{}]: {}", parent.display(), e))?;
+        }
+
+        let mut out_file = std::fs::File::create(&out_path)
+            .map_err(|e| format!("无法创建恢复文件 [{}]: {}", out_path.display(), e))?;
+        std::io::copy(&mut entry, &mut out_file)
+            .map_err(|e| format!("写入恢复文件失败 [{}]: {}", out_path.display(), e))?;
+        restored_files += 1;
+    }
+
+    if restored_files == 0 {
+        let _ = std::fs::remove_dir_all(&temp_extract_dir);
+        return Err("备份包中未找到可恢复的配置文件".to_string());
+    }
+
+    if config_dir.exists() {
+        std::fs::remove_dir_all(&config_dir)
+            .map_err(|e| format!("清理旧配置目录失败 [{}]: {}", config_dir.display(), e))?;
+    }
+
+    std::fs::rename(&temp_extract_dir, &config_dir).map_err(|e| {
+        format!(
+            "替换配置目录失败 [{}] -> [{}]: {}",
+            temp_extract_dir.display(),
+            config_dir.display(),
+            e
+        )
+    })?;
+
+    log::info!(
+        "个人配置恢复完成：{} 个文件 <- {}",
+        restored_files,
+        backup_path.display()
+    );
+
+    Ok(())
 }

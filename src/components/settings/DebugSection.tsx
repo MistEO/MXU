@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide-react';
+import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive, Download, Upload } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -35,6 +35,8 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
+  const [isBackingUpConfig, setIsBackingUpConfig] = useState(false);
+  const [isRestoringConfig, setIsRestoringConfig] = useState(false);
 
   const version = projectInterface?.version || '0.1.0';
 
@@ -125,6 +127,63 @@ export function DebugSection() {
       await openDirectory(logPath);
     } catch (err) {
       loggers.ui.error('打开日志目录失败:', err);
+    }
+  };
+
+  // 调试：备份个人配置（config 目录）
+  const handleBackupConfig = async () => {
+    if (!isTauri()) {
+      loggers.ui.warn('仅 Tauri 环境支持备份配置');
+      return;
+    }
+
+    setIsBackingUpConfig(true);
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const defaultName = `mxu-config-backup-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.zip`;
+      const savePath = await save({
+        defaultPath: defaultName,
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      });
+      if (!savePath) return;
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      const backupPath = await invoke<string>('backup_personal_config', { savePath });
+      loggers.ui.info('个人配置备份成功:', backupPath);
+
+      const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+      await revealItemInDir(backupPath);
+    } catch (err) {
+      loggers.ui.error('个人配置备份失败:', err);
+    } finally {
+      setIsBackingUpConfig(false);
+    }
+  };
+
+  // 调试：恢复个人配置（config 目录）
+  const handleRestoreConfig = async () => {
+    if (!isTauri()) {
+      loggers.ui.warn('仅 Tauri 环境支持恢复配置');
+      return;
+    }
+
+    setIsRestoringConfig(true);
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const filePath = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      });
+      if (!filePath || Array.isArray(filePath)) return;
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('restore_personal_config', { backupPath: filePath });
+      loggers.ui.info('个人配置恢复成功，请重启 MXU 使配置生效');
+    } catch (err) {
+      loggers.ui.error('个人配置恢复失败:', err);
+    } finally {
+      setIsRestoringConfig(false);
     }
   };
 
@@ -236,6 +295,24 @@ export function DebugSection() {
           >
             <Archive className="w-4 h-4" />
             {t('debug.exportLogs')}
+          </button>
+          <button
+            onClick={handleBackupConfig}
+            disabled={isBackingUpConfig || isRestoringConfig}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50"
+            title={t('debug.backupConfigHint')}
+          >
+            <Download className="w-4 h-4" />
+            {isBackingUpConfig ? t('debug.backingUpConfig') : t('debug.backupConfig')}
+          </button>
+          <button
+            onClick={handleRestoreConfig}
+            disabled={isBackingUpConfig || isRestoringConfig}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50"
+            title={t('debug.restoreConfigHint')}
+          >
+            <Upload className="w-4 h-4" />
+            {isRestoringConfig ? t('debug.restoringConfig') : t('debug.restoreConfig')}
           </button>
         </div>
 

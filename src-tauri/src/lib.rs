@@ -118,6 +118,14 @@ pub fn run() {
                 log::error!("Failed to initialize system tray: {}", e);
             }
 
+            // 首次启动时异步检查系统性能并在需要时通知前端（避免阻塞启动）
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    commands::system::startup_performance_check_and_notify(handle);
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -155,6 +163,8 @@ pub fn run() {
             commands::file_ops::check_exe_path,
             commands::file_ops::set_executable,
             commands::file_ops::export_logs,
+            commands::file_ops::backup_personal_config,
+            commands::file_ops::restore_personal_config,
             // 状态查询命令
             commands::state::maa_get_instance_state,
             commands::state::maa_get_all_states,

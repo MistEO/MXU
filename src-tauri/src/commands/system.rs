@@ -3,6 +3,7 @@
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
 use log::{info, warn};
+use tauri::Emitter;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::types::SystemInfo;
@@ -835,3 +836,206 @@ pub fn get_webview2_dir() -> WebView2DirInfo {
         }
     }
 }
+
+/// 启动时检查系统性能并在需要时向前端广播通知（仅在第一次启动时执行）
+pub fn startup_performance_check_and_notify(app_handle: tauri::AppHandle) {
+    // 尝试获取 data dir 标记，若已检查过则不重复
+    if let Ok(data_dir) = super::get_data_dir() {
+        let marker = std::path::Path::new(&data_dir).join(".performance_checked");
+        if marker.exists() {
+            return;
+        }
+
+        // 执行检查
+        let result = perform_performance_check();
+
+        // 标记为已检查（即使检查失败也尝试写入文件以避免重复弹窗）
+        if let Err(err) = std::fs::create_dir_all(&data_dir) {
+            log::warn!(
+                "Failed to create performance marker directory {}: {}",
+                data_dir,
+                err
+            );
+        } else if let Err(err) = std::fs::write(&marker, "1") {
+            log::warn!(
+                "Failed to persist performance marker {}: {}",
+                marker.display(),
+                err
+            );
+        }
+
+        // 若需要警告则通过事件发送给前端
+        if result.warn {
+            let _ = app_handle.emit("mxu:performance-warning", result.clone());
+            log::warn!("Startup performance warning: {:?}", result.reasons);
+        } else {
+            log::info!("Startup performance check passed");
+        }
+    }
+}
+
+/// 执行性能检测的具体实现，基于 Windows 的 wmic 与 GetSystemMetrics 做出启发式判断
+fn perform_performance_check() -> super::types::PerformanceCheckResult {
+    use super::types::PerformanceCheckResult;
+    let mut reasons: Vec<String> = Vec::new();
+
+    // Windows 平台基本检查
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+        let cx = unsafe { GetSystemMetrics(SM_CXSCREEN) } as i32;
+        let cy = unsafe { GetSystemMetrics(SM_CYSCREEN) } as i32;
+        if cx <= 1280 && cy <= 720 {
+            reasons.push(format!("屏幕分辨率较低: {}x{}，<=720p", cx, cy));
+        }
+
+        // 内存
+        if let Ok(output) = std::process::Command::new("wmic")
+            .args(["computersystem", "get", "TotalPhysicalMemory", "/format:csv"])
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(txt) = String::from_utf8(output.stdout) {
+                    for line in txt.lines() {
+                        let s = line.trim();
+                        if s.is_empty() || s.starts_with("Node") {
+                            continue;
+                        }
+                        let parts: Vec<&str> = s.split(',').collect();
+                        if parts.len() >= 2 {
+                            if let Ok(bytes) = parts[1].trim().parse::<u64>() {
+                                let gb = bytes as f64 / 1024.0 / 1024.0 / 1024.0;
+                                if gb < 12.0 {
+                                    reasons.push(format!("物理内存不足: {:.1} GB (<12GB)", gb));
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 磁盘：查找 SSD 字样
+        if let Ok(output) = std::process::Command::new("wmic")
+            .args(["diskdrive", "get", "Model,MediaType", "/format:csv"])
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(txt) = String::from_utf8(output.stdout) {
+                    let mut found_ssd = false;
+                    for line in txt.lines() {
+                        let s = line.trim().to_lowercase();
+                        if s.is_empty() || s.starts_with("node") {
+                            continue;
+                        }
+                        if s.contains("ssd") {
+                            found_ssd = true;
+                            break;
+                        }
+                    }
+                    if !found_ssd {
+                        reasons.push("未检测到 SSD，可能为机械硬盘，性能受限".to_string());
+                    }
+                }
+            }
+        }
+
+        // 显卡（简化判断）
+        if let Ok(output) = std::process::Command::new("wmic")
+            .args(["path", "win32_VideoController", "get", "Name", "/format:csv"])
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(txt) = String::from_utf8(output.stdout) {
+                    for line in txt.lines() {
+                        let s = line.trim();
+                        if s.is_empty() || s.starts_with("Node") {
+                            continue;
+                        }
+                        let parts: Vec<&str> = s.split(',').collect();
+                        if parts.len() >= 2 {
+                            let name = parts[1].to_lowercase();
+                            if name.contains("intel") {
+                                if !name.contains("uhd 630") && !name.contains("iris xe") && !name.contains("uhd 750") {
+                                    reasons.push(format!("检测到较弱的 Intel 集成显卡: {}", parts[1].trim()));
+                                }
+                            } else if name.contains("nvidia") {
+                                if name.contains("gtx 9") && !name.contains("gtx 960") && !name.contains("gtx 970") && !name.contains("gtx 980") {
+                                    reasons.push(format!("检测到较弱的 NVIDIA 显卡: {}", parts[1].trim()));
+                                }
+                            } else if name.contains("radeon") || name.contains("amd") {
+                                if !name.contains("r9 270") && !name.contains("rx") && !name.contains("vega") {
+                                    reasons.push(format!("检测到较弱的 AMD 显卡: {}", parts[1].trim()));
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // CPU（简化判断）
+        if let Ok(output) = std::process::Command::new("wmic")
+            .args(["cpu", "get", "Name", "/format:csv"])
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(txt) = String::from_utf8(output.stdout) {
+                    for line in txt.lines() {
+                        let s = line.trim();
+                        if s.is_empty() || s.starts_with("Node") {
+                            continue;
+                        }
+                        let parts: Vec<&str> = s.split(',').collect();
+                        if parts.len() >= 2 {
+                            let name_low = parts[1].to_lowercase();
+                            if name_low.contains("intel") {
+                                if let Some(pos) = name_low.find('i') {
+                                    let tail = &name_low[pos..];
+                                    if let Some(cap) = regex::Regex::new(r"i[3579]-?(\d{3,4})").unwrap().captures(tail) {
+                                        if let Some(m) = cap.get(1) {
+                                            if let Ok(num) = m.as_str().parse::<i32>() {
+                                                let gen = if num >= 1000 { num / 100 } else { num / 100 };
+                                                if gen < 6 {
+                                                    reasons.push(format!("CPU 代数过低: {}", parts[1].trim()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if name_low.contains("ryzen") {
+                                if let Some(cap) = regex::Regex::new(r"ryzen\s*(?:[3579])?\s*(\d{3,4})").unwrap().captures(&name_low) {
+                                    if let Some(m) = cap.get(1) {
+                                        if let Ok(num) = m.as_str().parse::<i32>() {
+                                            if num < 3000 {
+                                                reasons.push(format!("AMD CPU 可能低于 Zen2: {}", parts[1].trim()));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 非 Windows 平台：基础内存检查
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(mem) = sys_info::mem_info() {
+            let gb = mem.total as f64 / 1024.0 / 1024.0;
+            if gb < 12.0 {
+                reasons.push(format!("物理内存不足: {:.1} GB (<12GB)", gb));
+            }
+        }
+    }
+
+    let warn = !reasons.is_empty();
+    PerformanceCheckResult { warn, reasons }
+}
+

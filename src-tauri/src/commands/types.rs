@@ -288,6 +288,13 @@ pub struct SystemInfo {
     pub tauri_version: String,
 }
 
+/// 启动性能检查结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceCheckResult {
+    pub warn: bool,
+    pub reasons: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GitHubAsset {
     pub name: String,

@@ -6,13 +6,3 @@ mod install;
 
 pub use install::ensure_webview2;
 pub use install::get_webview2_runtime_dir;
-
-use std::os::windows::ffi::OsStrExt;
-
-/// 将 Rust 字符串转换为 Windows 宽字符串 (null-terminated)
-pub(crate) fn to_wide(s: &str) -> Vec<u16> {
-    std::ffi::OsStr::new(s)
-        .encode_wide()
-        .chain(Some(0))
-        .collect()
-}

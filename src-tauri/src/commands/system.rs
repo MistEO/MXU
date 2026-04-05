@@ -2,12 +2,11 @@
 //!
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
-use log::{info, warn};
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use super::types::SystemInfo;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
+use log::{info, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -25,38 +24,18 @@ pub fn set_vcredist_missing(missing: bool) {
 pub fn is_elevated() -> bool {
     #[cfg(windows)]
     {
-        use std::ptr;
-        use windows::Win32::Foundation::{CloseHandle, HANDLE};
-        use windows::Win32::Security::{
-            GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
-        };
-        use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+        use winsafe::co::{TOKEN, TOKEN_INFORMATION_CLASS};
+        use winsafe::{TokenInfo, HPROCESS};
 
-        unsafe {
-            let mut token_handle: HANDLE = HANDLE::default();
-            if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token_handle).is_err() {
-                return false;
-            }
-
-            let mut elevation = TOKEN_ELEVATION::default();
-            let mut return_length: u32 = 0;
-            let size = std::mem::size_of::<TOKEN_ELEVATION>() as u32;
-
-            let result = GetTokenInformation(
-                token_handle,
-                TokenElevation,
-                Some(ptr::addr_of_mut!(elevation) as *mut _),
-                size,
-                &mut return_length,
-            );
-
-            let _ = CloseHandle(token_handle);
-
-            if result.is_ok() {
-                elevation.TokenIsElevated != 0
+        if let Ok(token_handle) = HPROCESS::GetCurrentProcess().OpenProcessToken(TOKEN::QUERY) {
+            let result = token_handle.GetTokenInformation(TOKEN_INFORMATION_CLASS::Elevation);
+            if let Ok(TokenInfo::Elevation(elevation)) = result {
+                elevation.TokenIsElevated()
             } else {
                 false
             }
+        } else {
+            false
         }
     }
 
@@ -72,49 +51,31 @@ pub fn is_elevated() -> bool {
 pub fn restart_as_admin(app_handle: tauri::AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-        use windows::core::PCWSTR;
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::Shell::ShellExecuteW;
-        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        use winsafe::co::{SEE_MASK, SW};
+        use winsafe::{ShellExecuteEx, SHELLEXECUTEINFO};
 
         let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
 
         let exe_path_str = exe_path.to_string_lossy().to_string();
 
-        // 将字符串转换为 Windows 宽字符
-        fn to_wide(s: &str) -> Vec<u16> {
-            OsStr::new(s).encode_wide().chain(Some(0)).collect()
-        }
-
-        let operation = to_wide("runas");
-        let file = to_wide(&exe_path_str);
-
         info!("restart_as_admin: restarting with admin privileges");
 
-        unsafe {
-            let result = ShellExecuteW(
-                HWND::default(),
-                PCWSTR::from_raw(operation.as_ptr()),
-                PCWSTR::from_raw(file.as_ptr()),
-                PCWSTR::null(), // 无参数
-                PCWSTR::null(), // 使用当前目录
-                SW_SHOWNORMAL,
-            );
+        let result = ShellExecuteEx(&SHELLEXECUTEINFO {
+            file: &exe_path_str,
+            verb: Option::from("runas"),
+            show: SW::SHOWNORMAL,
+            mask: SEE_MASK::NOASYNC | SEE_MASK::FLAG_NO_UI,
+            ..Default::default()
+        });
 
-            // ShellExecuteW 返回值 > 32 表示成功
-            if result.0 as usize > 32 {
-                info!("restart_as_admin: new process started, exiting current");
-                // 退出当前进程
-                app_handle.exit(0);
-                Ok(())
-            } else {
-                Err(format!(
-                    "以管理员身份启动失败: 错误码 {}",
-                    result.0 as usize
-                ))
-            }
+        // ShellExecuteEx 返回 Result：Ok 表示成功，Err 表示失败
+        if let Err(e) = result {
+            Err(format!("以管理员身份启动失败: 错误码 {}", e.raw()))
+        } else {
+            info!("restart_as_admin: new process started, exiting current");
+            // 退出当前进程
+            app_handle.exit(0);
+            Ok(())
         }
     }
 
@@ -226,112 +187,55 @@ pub fn check_process_running(program: &str) -> bool {
 
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-            TH32CS_SNAPPROCESS,
-        };
-        use windows::Win32::System::Threading::{
-            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
-            PROCESS_QUERY_LIMITED_INFORMATION,
-        };
+        use winsafe::co::{PROCESS, PROCESS_NAME, TH32CS};
+        use winsafe::{HPROCESS, HPROCESSLIST};
 
         let file_name_lower = file_name.to_lowercase();
+        let target_lower = canonical_target.to_string_lossy().to_lowercase();
 
-        /// 动态扩容获取进程完整路径，处理长路径（>MAX_PATH）场景
-        unsafe fn query_process_image_path(
-            process: windows::Win32::Foundation::HANDLE,
-        ) -> Option<String> {
-            let mut capacity: u32 = 512;
-            loop {
-                let mut buf = vec![0u16; capacity as usize];
-                let mut size = capacity;
-                let result = QueryFullProcessImageNameW(
-                    process,
-                    PROCESS_NAME_FORMAT(0),
-                    windows::core::PWSTR(buf.as_mut_ptr()),
-                    &mut size,
+        let mut snapshot = match HPROCESSLIST::CreateToolhelp32Snapshot(TH32CS::SNAPPROCESS, None) {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!(
+                    "check_process_running: CreateToolhelp32Snapshot failed: {}",
+                    e
                 );
-                if result.is_ok() {
-                    return Some(String::from_utf16_lossy(&buf[..size as usize]));
-                }
-                // ERROR_INSUFFICIENT_BUFFER 对应 HRESULT 0x8007007A，仅此错误时扩容重试
-                let err = windows::core::Error::from_win32();
-                if err.code().0 as u32 != 0x8007007A || capacity >= 32768 {
-                    // 非缓冲区不足错误或已达上限，放弃
-                    return None;
-                }
-                capacity *= 2;
+                return false;
             }
-        }
+        };
+        for process_result in snapshot.iter_processes() {
+            if let Ok(entry) = process_result {
+                if entry.szExeFile().to_lowercase() == file_name_lower {
+                    if let Ok(process) = HPROCESS::OpenProcess(
+                        PROCESS::QUERY_LIMITED_INFORMATION,
+                        false,
+                        entry.th32ProcessID,
+                    ) {
+                        if let Ok(running_path) =
+                            process.QueryFullProcessImageName(PROCESS_NAME::WIN32)
+                        {
+                            let running_canonical = PathBuf::from(&running_path)
+                                .canonicalize()
+                                .map(|p| p.to_string_lossy().to_lowercase())
+                                .unwrap_or_else(|_| running_path.to_lowercase());
 
-        unsafe {
-            let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-                Ok(h) => h,
-                Err(e) => {
-                    log::error!(
-                        "check_process_running: CreateToolhelp32Snapshot failed: {}",
-                        e
-                    );
-                    return false;
-                }
-            };
-
-            let mut entry = PROCESSENTRY32W {
-                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-                ..Default::default()
-            };
-
-            let target_lower = canonical_target.to_string_lossy().to_lowercase();
-
-            if Process32FirstW(snapshot, &mut entry).is_ok() {
-                loop {
-                    // 从 szExeFile (UTF-16) 提取进程名
-                    let len = entry
-                        .szExeFile
-                        .iter()
-                        .position(|&c| c == 0)
-                        .unwrap_or(entry.szExeFile.len());
-                    let exe_name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
-
-                    // 先按文件名筛选
-                    if exe_name == file_name_lower {
-                        // 尝试获取完整路径
-                        if let Ok(process) = OpenProcess(
-                            PROCESS_QUERY_LIMITED_INFORMATION,
-                            false,
-                            entry.th32ProcessID,
-                        ) {
-                            if let Some(running_path) = query_process_image_path(process) {
-                                let running_canonical = PathBuf::from(&running_path)
-                                    .canonicalize()
-                                    .map(|p| p.to_string_lossy().to_lowercase())
-                                    .unwrap_or_else(|_| running_path.to_lowercase());
-
-                                if running_canonical == target_lower {
-                                    let _ = CloseHandle(process);
-                                    let _ = CloseHandle(snapshot);
-                                    info!(
-                                        "check_process_running: '{}' -> true (matched: {})",
-                                        program, running_path
-                                    );
-                                    return true;
-                                }
+                            if running_canonical == target_lower {
+                                info!(
+                                    "check_process_running: '{}' -> true (matched: {})",
+                                    program, running_path
+                                );
+                                return true;
                             }
-                            let _ = CloseHandle(process);
                         }
                     }
-
-                    if Process32NextW(snapshot, &mut entry).is_err() {
-                        break;
-                    }
                 }
+            } else {
+                break;
             }
-
-            let _ = CloseHandle(snapshot);
-            info!("check_process_running: '{}' -> false", program);
-            false
         }
+
+        info!("check_process_running: '{}' -> false", program);
+        false
     }
 
     #[cfg(target_os = "linux")]
@@ -594,13 +498,6 @@ pub fn migrate_legacy_autostart() {
 }
 
 #[cfg(windows)]
-fn to_wide(s: &str) -> Vec<u16> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    OsStr::new(s).encode_wide().chain(Some(0)).collect()
-}
-
-#[cfg(windows)]
 fn create_schtask_autostart() -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
@@ -675,26 +572,18 @@ fn schtask_autostart_needs_refresh() -> bool {
 /// 清理旧版注册表自启动条目（tauri-plugin-autostart 遗留）
 #[cfg(windows)]
 fn remove_legacy_registry_autostart() {
-    use windows::core::PCWSTR;
-    use windows::Win32::System::Registry::*;
+    use winsafe::co::{KEY, REG_OPTION};
+    use winsafe::HKEY;
 
-    unsafe {
-        let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
-        let mut hkey = HKEY::default();
-        if RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey.as_ptr()),
-            0,
-            KEY_SET_VALUE | KEY_QUERY_VALUE,
-            &mut hkey,
-        )
-        .is_ok()
-        {
-            for name in &["mxu", "MXU"] {
-                let wname = to_wide(name);
-                let _ = RegDeleteValueW(hkey, PCWSTR(wname.as_ptr()));
-            }
-            let _ = RegCloseKey(hkey);
+    let key_result = HKEY::CURRENT_USER.RegOpenKeyEx(
+        Some(r"Software\Microsoft\Windows\CurrentVersion\Run"),
+        REG_OPTION::NoValue,
+        KEY::SET_VALUE | KEY::QUERY_VALUE,
+    );
+
+    if let Ok(key) = key_result {
+        for name in &["mxu", "MXU"] {
+            let _ = key.RegDeleteValue(Some(name));
         }
     }
 }
@@ -702,29 +591,20 @@ fn remove_legacy_registry_autostart() {
 /// 检查旧版注册表中是否存在自启动条目
 #[cfg(windows)]
 fn has_legacy_registry_autostart() -> bool {
-    use windows::core::PCWSTR;
-    use windows::Win32::System::Registry::*;
+    use winsafe::co::{KEY, REG_OPTION};
+    use winsafe::HKEY;
 
-    unsafe {
-        let subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\Run");
-        let mut hkey = HKEY::default();
-        if RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey.as_ptr()),
-            0,
-            KEY_QUERY_VALUE,
-            &mut hkey,
-        )
-        .is_err()
-        {
-            return false;
-        }
-        let found = ["mxu", "MXU"].iter().any(|name| {
-            let wname = to_wide(name);
-            RegQueryValueExW(hkey, PCWSTR(wname.as_ptr()), None, None, None, None).is_ok()
-        });
-        let _ = RegCloseKey(hkey);
-        found
+    let key_result = HKEY::CURRENT_USER.RegOpenKeyEx(
+        Some(r"Software\Microsoft\Windows\CurrentVersion\Run"),
+        REG_OPTION::NoValue,
+        KEY::QUERY_VALUE,
+    );
+    if let Ok(key) = key_result {
+        ["mxu", "MXU"]
+            .iter()
+            .any(|name| key.RegQueryValueEx(Some(name)).is_ok())
+    } else {
+        false
     }
 }
 

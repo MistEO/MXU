@@ -94,28 +94,16 @@ pub fn maa_init(state: State<Arc<MaaState>>, lib_dir: Option<String>) -> Result<
     // Windows: 将 lib_dir 添加到 DLL 搜索路径，确保依赖 DLL 能被找到
     #[cfg(windows)]
     {
-        use std::os::windows::ffi::OsStrExt;
-        #[link(name = "kernel32")]
-        extern "system" {
-            fn SetDllDirectoryW(path: *const u16) -> i32;
-        }
-
         let dll_dir = if lib_path.is_file() {
             lib_path.parent().unwrap_or(&lib_path)
         } else {
             &lib_path
         };
 
-        let wide_path: Vec<u16> = dll_dir
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-        let result = unsafe { SetDllDirectoryW(wide_path.as_ptr()) };
-        if result == 0 {
+        debug!("SetDllDirectoryW set to {:?}", dll_dir);
+        let result = winsafe::SetDllDirectory(Some(&dll_dir.to_string_lossy()));
+        if result.is_err() {
             warn!("SetDllDirectoryW failed");
-        } else {
-            debug!("SetDllDirectoryW set to {:?}", dll_dir);
         }
     }
 

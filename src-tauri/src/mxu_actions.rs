@@ -691,20 +691,16 @@ fn execute_power_restart() -> bool {
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::WindowsAndMessaging::SendMessageW;
-
-        // WM_SYSCOMMAND = 0x0112, SC_MONITORPOWER = 0xF170, LPARAM(2) = turn off
-        const WM_SYSCOMMAND: u32 = 0x0112;
-        const SC_MONITORPOWER: usize = 0xF170;
-
+        use winsafe::co::SC;
+        use winsafe::msg::wm;
+        use winsafe::{HWND, POINT};
         unsafe {
-            SendMessageW(
-                HWND(0xFFFF as *mut std::ffi::c_void), // HWND_BROADCAST
-                WM_SYSCOMMAND,
-                windows::Win32::Foundation::WPARAM(SC_MONITORPOWER),
-                windows::Win32::Foundation::LPARAM(2), // 2 = turn off monitor
-            );
+            // NOTE: POINT::from(2) is equal to LPARAM(2)
+
+            HWND::BROADCAST.SendMessage(wm::SysCommand {
+                request: SC::MONITORPOWER,
+                position: POINT::from(2),
+            });
         }
         info!("[MXU_POWER] Screen off command issued (Windows)");
         true

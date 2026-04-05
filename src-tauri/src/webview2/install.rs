@@ -4,13 +4,13 @@
 //! 解压到程序目录下的 `cache/webview2_runtime/` 目录，通过环境变量
 //! `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指定运行时路径，不影响系统。
 
+use super::detection::{is_webview2_disabled, is_webview2_installed};
+use super::dialog::CustomDialog;
 use log::{info, warn};
 use std::io::Read;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
-
-use super::detection::{is_webview2_disabled, is_webview2_installed};
-use super::dialog::CustomDialog;
+use winsafe::GetSystemDirectory;
 
 /// WebView2 Fixed Version Runtime 版本号及对应的下载 GUID。
 /// **三者必须保持一致**——更新版本时需同时更新 `WEBVIEW2_VERSION`、`GUID_X64` 和 `GUID_ARM64`。
@@ -135,22 +135,19 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
 
 /// 获取 expand.exe 的完整路径（通过 Windows API 获取系统目录，避免依赖可被篡改的环境变量）
 fn get_expand_exe_path() -> Result<std::path::PathBuf, String> {
-    use windows::Win32::System::SystemInformation::GetSystemDirectoryW;
-
-    let mut buf = [0u16; 260];
-    let len = unsafe { GetSystemDirectoryW(Some(&mut buf)) } as usize;
-    if len == 0 || len > buf.len() {
-        return Err("GetSystemDirectoryW 调用失败，无法获取系统目录".to_string());
-    }
-    let system_dir = String::from_utf16_lossy(&buf[..len]);
-    let expand_path = std::path::PathBuf::from(&system_dir).join("expand.exe");
-    if expand_path.exists() {
-        Ok(expand_path)
+    let res = GetSystemDirectory();
+    if let Ok(path) = res {
+        let expand_path = std::path::PathBuf::from(path).join("expand.exe");
+        if expand_path.exists() {
+            Ok(expand_path)
+        } else {
+            Err(format!(
+                "未找到 expand.exe，请确认系统完整性。\n预期路径: {}",
+                expand_path.display()
+            ))
+        }
     } else {
-        Err(format!(
-            "未找到 expand.exe，请确认系统完整性。\n预期路径: {}",
-            expand_path.display()
-        ))
+        Err("GetSystemDirectory 调用失败，无法获取系统目录".to_string())
     }
 }
 
@@ -447,20 +444,20 @@ pub fn download_and_extract() -> Result<(), String> {
                 .map_err(|e| format!("写入文件失败: {}", e))?;
             downloaded += bytes_read as u64;
 
-            // 节流 UI 更新，避免 SendMessageW 跨线程同步调用阻塞下载
+            // 节流 UI 更新，避免 run_ui_thread 跨线程同步调用阻塞下载
             if last_ui_update.elapsed() >= std::time::Duration::from_millis(200) {
                 last_ui_update = std::time::Instant::now();
                 if let Some(ref pw) = progress_dialog {
                     if total_size > 0 {
                         let percent = ((downloaded as f64 / total_size as f64) * 100.0) as u32;
                         pw.set_progress(percent);
-                        pw.set_status(&format!(
+                        pw.set_status(format!(
                             "正在下载独立 WebView2... {:.1} MB / {:.1} MB",
                             downloaded as f64 / 1024.0 / 1024.0,
                             total_size as f64 / 1024.0 / 1024.0
                         ));
                     } else {
-                        pw.set_status(&format!(
+                        pw.set_status(format!(
                             "正在下载独立 WebView2... {:.1} MB",
                             downloaded as f64 / 1024.0 / 1024.0
                         ));
@@ -486,7 +483,7 @@ pub fn download_and_extract() -> Result<(), String> {
     // 更新进度：解压中
     if let Some(ref pw) = progress_dialog {
         pw.set_progress(100);
-        pw.set_status("正在解压...");
+        pw.set_status("正在解压...".to_string());
     }
 
     // 解压 cab 文件

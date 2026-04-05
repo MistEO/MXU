@@ -7,7 +7,6 @@ use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 use log::{info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
-use winsafe::co::SEE_MASK;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;

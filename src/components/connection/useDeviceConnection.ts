@@ -410,7 +410,7 @@ export function useDeviceConnection({
       if (savedDevice?.wlrSocketPath) {
         return savedDevice.wlrSocketPath;
       }
-      return t('controller.selectSocketPath');
+      return t('controller.selectDevice');
     }
     return t('controller.selectDevice');
   }, [controllerType, selectedAdbDevice, selectedWindow, selectedWlrootsSocket, activeInstance?.savedDevice, t]);

@@ -1319,6 +1319,7 @@ export const useAppStore = create<AppState>()(
           instanceTaskStatus: taskStatus,
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
+          cachedWlrootsSockets: states.cachedWlrootsSockets,
         };
       }),
 

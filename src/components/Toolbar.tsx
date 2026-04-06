@@ -386,7 +386,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                         addLog(targetId, {
                           type: 'info',
                           message: t('taskList.autoConnect.autoSelectedDevice', {
-                            path: sockets[0],
+                            name: sockets[0],
                           }),
                         });
                       }

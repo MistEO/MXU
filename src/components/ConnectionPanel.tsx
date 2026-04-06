@@ -468,7 +468,7 @@ export function ConnectionPanel() {
           if (instanceId) {
             addLog(instanceId, {
               type: 'info',
-              message: t('taskList.autoConnect.autoSelectedWlrootsSocket', {
+              message: t('taskList.autoConnect.autoSelectedDevice', {
                 name: autoSelected,
               }),
             });
@@ -981,7 +981,7 @@ export function ConnectionPanel() {
             return;
           }
           // 没找到匹配的，显示错误提示
-          setDeviceError(t('controller.savedWlrootsSocketNotFound'));
+          setDeviceError(t('controller.savedDeviceNotFound'));
         }
 
         // 显示搜索结果供用户选择

@@ -200,7 +200,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       });
 
       // 如果有任务因不兼容被跳过，记录警告
-      const skippedTasks = enabledTasks.filter((t) => !compatibleTasks.includes(t));
+      const compatibleTaskIds = new Set(compatibleTasks.map((t) => t.id));
+      const skippedTasks = enabledTasks.filter((t) => !compatibleTaskIds.has(t.id));
       if (skippedTasks.length > 0) {
         log.warn(
           `实例 ${targetInstance.name}: ${t('action.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
@@ -235,7 +236,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
       // 如果所有启用的任务都被过滤掉了，则无法启动
       if (compatibleTasks.length === 0) {
-        log.warn(`实例 ${targetInstance.name} 没有兼容当前控制器和资源的任务`);
+        log.warn(`实例 ${targetInstance.name}: ${t('action.noCompatibleTasks')}`);
         return false;
       }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);

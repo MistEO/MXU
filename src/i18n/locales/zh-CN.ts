@@ -213,6 +213,7 @@ export default {
     tasksSkippedDueToIncompatibility: '已跳过 {{count}} 个不兼容的任务',
     taskSkippedController: '任务 "{{taskName}}" 不支持当前控制器',
     taskSkippedResource: '任务 "{{taskName}}" 不支持当前资源',
+    noCompatibleTasks: '没有兼容当前控制器和资源的任务',
     // 自动连接相关
     autoConnect: {
       searching: '搜索设备...',

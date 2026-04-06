@@ -204,8 +204,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       const skippedTasks = enabledTasks.filter((t) => !compatibleTaskIds.has(t.id));
       if (skippedTasks.length > 0) {
         log.warn(
-          `实例 ${targetInstance.name}: ${t('action.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
+          `实例 ${targetInstance.name}: ${t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
         );
+        // 向用户显示跳过任务的警告
+        addLog(targetId, {
+          type: 'warning',
+          message: t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length }),
+        });
         skippedTasks.forEach((task) => {
           const taskDef = projectInterface?.task.find((td) => td.name === task.taskName);
           const taskLabel = taskDef?.label
@@ -226,17 +231,22 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             !taskDef.resource.includes(resourceName);
 
           if (isControllerIncompatible) {
-            log.warn(`  - ${t('action.taskSkippedController', { taskName: taskLabel })}`);
+            log.warn(`  - ${t('taskList.taskSkippedController', { taskName: taskLabel })}`);
           }
           if (isResourceIncompatible) {
-            log.warn(`  - ${t('action.taskSkippedResource', { taskName: taskLabel })}`);
+            log.warn(`  - ${t('taskList.taskSkippedResource', { taskName: taskLabel })}`);
           }
         });
       }
 
       // 如果所有启用的任务都被过滤掉了，则无法启动
       if (compatibleTasks.length === 0) {
-        log.warn(`实例 ${targetInstance.name}: ${t('action.noCompatibleTasks')}`);
+        log.warn(`实例 ${targetInstance.name}: ${t('taskList.noCompatibleTasks')}`);
+        // 向用户显示明确的错误信息
+        addLog(targetId, {
+          type: 'error',
+          message: t('taskList.noCompatibleTasks'),
+        });
         return false;
       }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);

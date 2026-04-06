@@ -77,6 +77,9 @@ pub enum ControllerConfig {
         mouse_method: u64,
         keyboard_method: u64,
     },
+    WlRoots {
+        wlr_socket_path: String,
+    },
     Gamepad {
         handle: u64,
         #[serde(default)]
@@ -130,6 +133,7 @@ pub struct AllInstanceStates {
     pub instances: HashMap<String, InstanceState>,
     pub cached_adb_devices: Vec<AdbDevice>,
     pub cached_win32_windows: Vec<Win32Window>,
+    pub cached_wlroots_sockets: Vec<String>,
 }
 
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
@@ -188,6 +192,8 @@ pub struct MaaState {
     pub cached_adb_devices: Mutex<Vec<AdbDevice>>,
     /// 缓存的 Win32 窗口列表（全局共享）
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
+    /// 缓存的 WlRoots socket 列表（全局共享）
+    pub cached_wlroots_sockets: Mutex<Vec<String>>,
 }
 
 impl MaaState {

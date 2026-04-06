@@ -58,7 +58,7 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'PlayCover' | 'Gamepad';
+export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -76,6 +76,7 @@ export interface ControllerItem {
   option?: string[];
   adb?: Record<string, unknown>;
   win32?: Win32Config;
+  wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
 }
@@ -86,6 +87,10 @@ export interface Win32Config {
   mouse?: string;
   keyboard?: string;
   screencap?: string | string[];
+}
+
+export interface WlRootsConfig {
+  wlr_socket_path?: string;
 }
 
 export interface PlayCoverConfig {
@@ -232,6 +237,7 @@ export type OptionValue =
 export interface SavedDeviceInfo {
   adbDeviceName?: string;
   windowName?: string;
+  wlrSocketPath?: string;
   playcoverAddress?: string;
 }
 

@@ -27,6 +27,8 @@ export interface SavedDeviceInfo {
   adbDeviceName?: string;
   // Win32/Gamepad：保存窗口名称
   windowName?: string;
+  // WlRoots：保存 Wayland socket 路径
+  wlrSocketPath?: string;
   // PlayCover：保存地址
   playcoverAddress?: string;
 }

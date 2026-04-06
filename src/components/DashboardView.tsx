@@ -134,6 +134,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       deviceName = savedDevice.adbDeviceName;
     } else if (savedDevice?.windowName) {
       deviceName = savedDevice.windowName;
+    } else if (savedDevice?.wlrSocketPath) {
+      deviceName = savedDevice.wlrSocketPath;
     } else if (savedDevice?.playcoverAddress) {
       deviceName = savedDevice.playcoverAddress;
     }

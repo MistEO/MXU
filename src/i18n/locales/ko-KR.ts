@@ -347,6 +347,7 @@ export default {
     selectController: '컨트롤러 선택',
     adb: 'Android 기기',
     win32: 'Windows 창',
+    wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
     gamepad: '게임패드',
     connecting: '연결 중...',

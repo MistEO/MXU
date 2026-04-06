@@ -36,6 +36,12 @@ export interface Win32ControllerConfig {
   keyboard_method: number;
 }
 
+/** WlRoots 控制器配置 (Linux) */
+export interface WlRootsControllerConfig {
+  type: 'WlRoots';
+  wlr_socket_path: string;
+}
+
 /** PlayCover 控制器配置 (macOS) */
 export interface PlayCoverControllerConfig {
   type: 'PlayCover';
@@ -53,6 +59,7 @@ export interface GamepadControllerConfig {
 export type ControllerConfig =
   | AdbControllerConfig
   | Win32ControllerConfig
+  | WlRootsControllerConfig
   | PlayCoverControllerConfig
   | GamepadControllerConfig;
 

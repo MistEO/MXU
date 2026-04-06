@@ -128,6 +128,7 @@ pub fn run() {
             commands::maa_core::maa_check_version,
             commands::maa_core::maa_find_adb_devices,
             commands::maa_core::maa_find_win32_windows,
+            commands::maa_core::maa_find_wlroots_sockets,
             commands::maa_core::maa_create_instance,
             commands::maa_core::maa_destroy_instance,
             commands::maa_core::maa_connect_controller,
@@ -160,6 +161,7 @@ pub fn run() {
             commands::state::maa_get_all_states,
             commands::state::maa_get_cached_adb_devices,
             commands::state::maa_get_cached_win32_windows,
+            commands::state::maa_get_cached_wlroots_sockets,
             commands::state::log_to_stdout,
             // 更新安装命令
             commands::update::extract_zip,

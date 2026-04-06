@@ -199,7 +199,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       // 检查是否有保存的设备配置
       const hasSavedDevice = Boolean(
         savedDevice &&
-        (savedDevice.adbDeviceName || savedDevice.windowName || savedDevice.playcoverAddress),
+        (savedDevice.adbDeviceName || savedDevice.windowName || savedDevice.wlrSocketPath || savedDevice.playcoverAddress),
       );
 
       let isTargetConnected = instanceConnectionStatus[targetId] === 'Connected';
@@ -315,6 +315,15 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                       // 没有保存的窗口，等待任意匹配窗口出现
                       deviceFound = windows.length > 0;
                     }
+                  } else if (controllerType === 'WlRoots') {
+                    const sockets = await maaService.findWlrootsSockets();
+                    if (savedDevice?.wlrSocketPath) {
+                      // 有保存的套接字路径，精确匹配
+                      deviceFound = sockets.includes(savedDevice.wlrSocketPath);
+                    } else {
+                      // 没有保存的套接字路径，等待任意匹配的套接字出现
+                      deviceFound = sockets.length > 0;
+                    }
                   } else {
                     // 无法确定控制器类型，跳过等待
                     deviceFound = true;
@@ -342,6 +351,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 if (
                   !savedDevice?.windowName &&
                   !savedDevice?.adbDeviceName &&
+                  !savedDevice?.wlrSocketPath &&
                   !savedDevice?.playcoverAddress
                 ) {
                   // 尝试找出实际匹配到的名称用于提示
@@ -367,6 +377,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                           type: 'info',
                           message: t('taskList.autoConnect.autoSelectedWindow', {
                             name: windows[0].window_name || windows[0].class_name,
+                          }),
+                        });
+                      }
+                    } else if (controllerType === 'WlRoots') {
+                      const sockets = await maaService.findWlrootsSockets();
+                      if (sockets.length > 0) {
+                        addLog(targetId, {
+                          type: 'info',
+                          message: t('taskList.autoConnect.autoSelectedDevice', {
+                            path: sockets[0],
                           }),
                         });
                       }
@@ -491,6 +511,20 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
               deviceName = matchedWindow.window_name || matchedWindow.class_name;
               targetType = 'window';
+            } else if (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) {
+              const sockets = await maaService.findWlrootsSockets();
+              if (!sockets.includes(savedDevice.wlrSocketPath)) {
+                log.warn(
+                  `实例 ${targetInstance.name}: 未找到 WlRoots socket ${savedDevice.wlrSocketPath}`,
+                );
+                return false;
+              }
+              config = {
+                type: 'WlRoots',
+                wlr_socket_path: savedDevice.wlrSocketPath,
+              };
+              deviceName = savedDevice.wlrSocketPath;
+              targetType = 'device';
             } else if (controllerType === 'PlayCover' && savedDevice.playcoverAddress) {
               config = {
                 type: 'PlayCover',
@@ -571,6 +605,30 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
               deviceName = firstWindow.window_name || firstWindow.class_name;
               targetType = 'window';
+            } else if (controllerType === 'WlRoots') {
+              const sockets = await maaService.findWlrootsSockets();
+              if (sockets.length === 0) {
+                log.warn(`实例 ${targetInstance.name}: 未搜索到任何 WlRoots socket`);
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.noDeviceFound'),
+                });
+                return false;
+              }
+              const firstSocket = sockets[0];
+              log.info(`实例 ${targetInstance.name}: 自动选择 WlRoots socket: ${firstSocket}`);
+              addLog(targetId, {
+                type: 'info',
+                message: t('taskList.autoConnect.autoSelectedDevice', {
+                  name: firstSocket,
+                }),
+              });
+              config = {
+                type: 'WlRoots',
+                wlr_socket_path: firstSocket,
+              };
+              deviceName = firstSocket;
+              targetType = 'device';
             } else if (controllerType === 'PlayCover') {
               // PlayCover 没有搜索功能，无法自动连接
               log.warn(`实例 ${targetInstance.name}: PlayCover 控制器需要手动配置地址`);

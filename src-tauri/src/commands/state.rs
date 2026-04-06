@@ -54,6 +54,10 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
         .cached_win32_windows
         .lock()
         .map_err(|e| e.to_string())?;
+    let cached_wlroots = state
+        .cached_wlroots_sockets
+        .lock()
+        .map_err(|e| e.to_string())?;
 
     let mut instance_states = HashMap::new();
 
@@ -82,6 +86,7 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
         instances: instance_states,
         cached_adb_devices: cached_adb.clone(),
         cached_win32_windows: cached_win32.clone(),
+        cached_wlroots_sockets: cached_wlroots.clone(),
     })
 }
 
@@ -101,6 +106,19 @@ pub fn maa_get_cached_win32_windows(
     debug!("maa_get_cached_win32_windows called");
     let cached = state
         .cached_win32_windows
+        .lock()
+        .map_err(|e| e.to_string())?;
+    Ok(cached.clone())
+}
+
+/// 获取缓存的 WlRoots socket 列表
+#[tauri::command]
+pub fn maa_get_cached_wlroots_sockets(
+    state: State<Arc<MaaState>>,
+) -> Result<Vec<String>, String> {
+    debug!("maa_get_cached_wlroots_sockets called");
+    let cached = state
+        .cached_wlroots_sockets
         .lock()
         .map_err(|e| e.to_string())?;
     Ok(cached.clone())

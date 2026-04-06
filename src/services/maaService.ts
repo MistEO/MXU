@@ -140,6 +140,19 @@ export const maaService = {
   },
 
   /**
+   * 查找 WlRoots 可用的 Wayland socket
+   */
+  async findWlrootsSockets(): Promise<string[]> {
+    log.info('搜索 WlRoots socket...');
+    const sockets = await invoke<string[]>('maa_find_wlroots_sockets');
+    log.info('找到 WlRoots socket:', sockets.length, '个');
+    sockets.forEach((socket, i) => {
+      log.debug(`  socket[${i}]: ${socket}`);
+    });
+    return sockets;
+  },
+
+  /**
    * 创建实例
    * @param instanceId 实例 ID
    */
@@ -545,6 +558,7 @@ export const maaService = {
     >;
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
+    cachedWlrootsSockets: string[];
   } | null> {
     if (!isTauri()) return null;
     try {
@@ -561,6 +575,7 @@ export const maaService = {
         >;
         cached_adb_devices: AdbDevice[];
         cached_win32_windows: Win32Window[];
+        cached_wlroots_sockets: string[];
       }>('maa_get_all_states');
 
       // 转换字段名
@@ -589,6 +604,7 @@ export const maaService = {
         instances,
         cachedAdbDevices: states.cached_adb_devices,
         cachedWin32Windows: states.cached_win32_windows,
+        cachedWlrootsSockets: states.cached_wlroots_sockets,
       };
     } catch (err) {
       log.error('获取所有状态失败:', err);
@@ -615,6 +631,18 @@ export const maaService = {
     if (!isTauri()) return [];
     try {
       return await invoke<Win32Window[]>('maa_get_cached_win32_windows');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * 获取缓存的 WlRoots socket 列表
+   */
+  async getCachedWlrootsSockets(): Promise<string[]> {
+    if (!isTauri()) return [];
+    try {
+      return await invoke<string[]>('maa_get_cached_wlroots_sockets');
     } catch {
       return [];
     }

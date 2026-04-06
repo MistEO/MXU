@@ -349,6 +349,7 @@ export default {
     selectController: 'Select Controller',
     adb: 'Android Device',
     win32: 'Windows Window',
+    wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',

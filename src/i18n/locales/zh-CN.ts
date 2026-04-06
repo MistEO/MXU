@@ -685,7 +685,7 @@ export default {
     everyHour: '每小时',
     all: '全部',
     hoursSelected: '个时间点',
-    timeZoneHint: '使用本地时区 (UTC+8)',
+    timeZoneHint: '使用本地时区',
     multiSelect: '可多选',
     enable: '启用策略',
     disable: '禁用策略',

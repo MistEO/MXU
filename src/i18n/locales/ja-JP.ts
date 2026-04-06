@@ -690,7 +690,7 @@ export default {
     everyHour: '毎時',
     all: 'すべて',
     hoursSelected: '件の時刻',
-    timeZoneHint: 'ローカルタイムゾーンを使用 (UTC+9)',
+    timeZoneHint: 'ローカルタイムゾーンを使用',
     multiSelect: '複数選択可',
     enable: 'スケジュールを有効化',
     disable: 'スケジュールを無効化',

@@ -245,7 +245,12 @@ function PolicyCard({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-text-muted">{t('schedule.timeZoneHint')}</p>
+            <p className="text-xs text-text-muted">
+              {t('schedule.timeZoneHint')} ({(() => {
+                const off = -new Date().getTimezoneOffset() / 60;
+                return `UTC${off >= 0 ? '+' : ''}${off}`;
+              })()})
+            </p>
           </div>
 
           {/* 摘要显示 */}

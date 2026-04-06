@@ -686,7 +686,7 @@ export default {
     everyHour: '매시',
     all: '전체',
     hoursSelected: '개의 시간',
-    timeZoneHint: '로컬 시간대 사용 (UTC+9)',
+    timeZoneHint: '로컬 시간대 사용',
     multiSelect: '다중 선택',
     enable: '예약 활성화',
     disable: '예약 비활성화',

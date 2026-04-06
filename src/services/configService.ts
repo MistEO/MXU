@@ -3,8 +3,28 @@ import { defaultConfig } from '@/types/config';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { joinPath, isTauri, getCacheDir } from '@/utils/paths';
+import { apiGet, apiPut } from '@/utils/backendApi';
 
 const log = loggers.config;
+
+/**
+ * 浏览器环境下，追踪由本客户端发起的 config 保存次数。
+ * 后端收到 PUT /config 后会广播 ConfigChanged 给所有 WS 客户端（包括发起者自己），
+ * 用此计数器让发起方跳过自己触发的 config-changed 事件，避免 importConfig 重置 UI 状态。
+ */
+let _pendingSelfSaves = 0;
+
+export function markSelfSave(): void {
+  _pendingSelfSaves++;
+}
+
+export function consumeSelfSave(): boolean {
+  if (_pendingSelfSaves > 0) {
+    _pendingSelfSaves--;
+    return true;
+  }
+  return false;
+}
 
 // 配置文件子目录
 const CONFIG_DIR = 'config';
@@ -53,7 +73,18 @@ export async function loadConfig(basePath: string, projectName?: string): Promis
       log.info('配置文件不存在，使用默认配置');
     }
   } else {
-    // 浏览器环境：尝试从 public 目录加载
+    // 浏览器环境：优先从后端 HTTP API 获取（Tauri 进程运行时提供权威配置）
+    try {
+      const config = await apiGet<MxuConfig>('/config');
+      if (config && config.version) {
+        log.info('配置加载成功（后端 HTTP API）');
+        return config;
+      }
+    } catch {
+      // API 不可用，继续尝试静态文件
+    }
+
+    // 回退：尝试从 public 目录加载（纯前端开发预览模式）
     try {
       const fileName = getConfigFileName(projectName);
       const fetchPath =
@@ -64,7 +95,7 @@ export async function loadConfig(basePath: string, projectName?: string): Promis
         if (contentType?.includes('application/json')) {
           const content = await response.text();
           const config = parseJsonc<MxuConfig>(content, fetchPath);
-          log.info('配置加载成功（浏览器环境）');
+          log.info('配置加载成功（浏览器环境静态文件）');
           return config;
         }
       }
@@ -88,11 +119,20 @@ export async function saveConfig(
   projectName?: string,
 ): Promise<boolean> {
   if (!isTauri()) {
-    // 浏览器环境不支持保存文件，使用 localStorage 作为后备
+    // 浏览器环境：优先通过后端 HTTP API 持久化（多端一致性）
+    try {
+      markSelfSave();
+      await apiPut<{ ok: boolean }>('/config', config);
+      log.debug('配置已通过后端 API 保存');
+      return true;
+    } catch {
+      // API 不可用，回退到 localStorage（离线/开发预览模式）
+    }
+
     try {
       const storageKey = projectName ? `mxu-config-${projectName}` : 'mxu-config';
       localStorage.setItem(storageKey, JSON.stringify(config));
-      log.debug('配置已保存到 localStorage');
+      log.debug('配置已保存到 localStorage（API 不可用时的回退）');
       return true;
     } catch {
       return false;

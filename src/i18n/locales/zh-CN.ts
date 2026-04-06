@@ -508,6 +508,12 @@ export default {
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
     tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+    allowLanAccess: '允许局域网访问',
+    allowLanAccessHint: '启用后 Web UI 将监听 0.0.0.0，允许局域网内其他设备访问',
+    allowLanAccessRestartMessage: '更改局域网访问设置需要重启才能生效，是否立即重启？',
+    restartLater: '稍后重启',
+    restartNow: '立即重启',
+    webServerAddress: 'Web 服务地址',
   },
 
   // 欢迎弹窗

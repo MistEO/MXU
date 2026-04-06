@@ -321,6 +321,9 @@ export function ConnectionPanel() {
     // 如果已连接或正在连接/搜索，不触发自动重连
     if (isConnected || isConnecting || isSearching) return;
 
+    // 后端已报告连接成功（如 WebUI 刷新后 restoreBackendStates 恢复），跳过重连
+    if (storedConnectionStatus === 'Connected') return;
+
     // 如果该实例已经尝试过自动重连，不再重复
     if (autoReconnectAttempted.has(instanceId)) return;
 

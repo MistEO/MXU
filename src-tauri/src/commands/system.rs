@@ -699,6 +699,31 @@ pub fn get_system_info() -> SystemInfo {
     }
 }
 
+/// 获取 Web 服务器实际监听端口
+///
+/// 若服务器尚未完成绑定，最多等待 5 秒后返回（0 表示超时未启动）。
+#[tauri::command]
+pub async fn get_web_server_port() -> u16 {
+    let port = crate::web_server::get_actual_port();
+    if port != 0 {
+        return port;
+    }
+    for _ in 0..50 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let port = crate::web_server::get_actual_port();
+        if port != 0 {
+            return port;
+        }
+    }
+    0
+}
+
+/// 获取本机局域网 IP（用于 Web UI 显示可访问的地址）
+#[tauri::command]
+pub fn get_local_lan_ip() -> Option<String> {
+    crate::web_server::get_local_ip().map(|s| s.to_string())
+}
+
 /// 获取当前使用的 WebView2 目录
 #[tauri::command]
 pub fn get_webview2_dir() -> WebView2DirInfo {

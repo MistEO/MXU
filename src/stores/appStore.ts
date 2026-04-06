@@ -1110,6 +1110,7 @@ export const useAppStore = create<AppState>()(
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
+        allowLanAccess: config.settings.allowLanAccess ?? false,
         autoStartInstanceId: config.settings.autoStartInstanceId,
         autoRunOnLaunch: config.settings.autoRunOnLaunch ?? false,
         autoStartRemovedInstanceName: config.settings.autoStartRemovedInstanceName,
@@ -1135,12 +1136,15 @@ export const useAppStore = create<AppState>()(
       applyTheme(mode, accentColor);
       setI18nLanguage(config.settings.language);
 
-      // 同步托盘设置到后端
+      // 同步托盘设置到后端（仅 Tauri 环境）
       const minimizeToTray = config.settings.minimizeToTray ?? false;
       if (minimizeToTray) {
-        import('@tauri-apps/api/core').then(({ invoke }) => {
-          invoke('set_minimize_to_tray', { enabled: minimizeToTray }).catch((err) => {
-            loggers.app.error('同步托盘设置失败:', err);
+        import('@/utils/paths').then(({ isTauri }) => {
+          if (!isTauri()) return;
+          import('@tauri-apps/api/core').then(({ invoke }) => {
+            invoke('set_minimize_to_tray', { enabled: minimizeToTray }).catch((err) => {
+              loggers.app.error('同步托盘设置失败:', err);
+            });
           });
         });
       }
@@ -1399,6 +1403,10 @@ export const useAppStore = create<AppState>()(
     // 通信兼容模式
     tcpCompatMode: false,
     setTcpCompatMode: (enabled) => set({ tcpCompatMode: enabled }),
+
+    // 局域网访问（Web UI 绑定 0.0.0.0，需重启生效）
+    allowLanAccess: false,
+    setAllowLanAccess: (enabled) => set({ allowLanAccess: enabled }),
 
     // 是否为开机自启动模式
     isAutoStartMode: false,
@@ -1837,6 +1845,7 @@ function generateConfig(): MxuConfig {
       welcomeShownHash: state.welcomeShownHash,
       devMode: state.devMode,
       tcpCompatMode: state.tcpCompatMode,
+      allowLanAccess: state.allowLanAccess,
       autoStartInstanceId: state.autoStartInstanceId,
       autoRunOnLaunch: state.autoRunOnLaunch,
       autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
@@ -1904,6 +1913,7 @@ useAppStore.subscribe(
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
+    allowLanAccess: state.allowLanAccess,
     autoStartInstanceId: state.autoStartInstanceId,
     autoRunOnLaunch: state.autoRunOnLaunch,
     autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
@@ -1920,3 +1930,32 @@ useAppStore.subscribe(
   },
   { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
 );
+
+/**
+ * 立即将当前状态序列化为 MxuConfig（不触发防抖保存）。
+ * 供 beforeunload 等需要同步获取快照的场景使用。
+ * 返回 null 表示当前状态不满足保存条件。
+ */
+export function flushConfig(): MxuConfig | null {
+  const state = useAppStore.getState();
+  if (!state.configPersistenceReady) return null;
+  if (!state.projectInterface?.name) return null;
+  return generateConfig();
+}
+
+/**
+ * 取消待执行的防抖保存并立即执行一次保存。
+ * 供 beforeunload 等需要确保最新状态落盘的场景使用。
+ */
+export function flushSaveConfig(): void {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  const state = useAppStore.getState();
+  if (!state.configPersistenceReady) return;
+  if (!state.projectInterface?.name || !state.dataPath || state.dataPath === '.') return;
+  const config = generateConfig();
+  const projectName = state.projectInterface.name;
+  saveConfig(state.dataPath, config, projectName);
+}

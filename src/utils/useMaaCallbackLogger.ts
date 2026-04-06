@@ -10,6 +10,8 @@ import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
+import { isTauri } from '@/utils/paths';
+import * as wsService from '@/services/wsService';
 import {
   resolveI18nText,
   detectContentType,
@@ -550,49 +552,51 @@ export function useMaaAgentLogger() {
   useEffect(() => {
     let cancelled = false;
 
+    const handleAgentOutput = (instance_id: string, _stream: string, line: string) => {
+      if (cancelled) return;
+
+      resolveFocusContent(line, {} as MaaCallbackDetails & Record<string, unknown>, instance_id)
+        .then((resolved) => {
+          if (cancelled) return;
+          addLog(instance_id, {
+            type: 'agent',
+            message: resolved.message,
+            html: resolved.html,
+          });
+        })
+        .catch((err) => {
+          log.warn('Failed to resolve agent content:', err);
+          if (cancelled) return;
+          addLog(instance_id, { type: 'agent', message: line });
+        });
+    };
+
     const setupListener = async () => {
       try {
-        // 监听 agent 输出事件
-        const { listen } = await import('@tauri-apps/api/event');
-        const unlisten = await listen<{ instance_id: string; stream: string; line: string }>(
-          'maa-agent-output',
-          (event) => {
-            // 组件已卸载则忽略
-            if (cancelled) return;
+        if (isTauri()) {
+          // Tauri WebView：监听 Tauri 事件
+          const { listen } = await import('@tauri-apps/api/event');
+          const unlisten = await listen<{ instance_id: string; stream: string; line: string }>(
+            'maa-agent-output',
+            (event) => {
+              const { instance_id, stream, line } = event.payload;
+              handleAgentOutput(instance_id, stream, line);
+            },
+          );
 
-            const { instance_id, line } = event.payload;
-
-            // 复用 resolveFocusContent 解析内容，支持国际化、URL、文件、Markdown、{image} 等
-            resolveFocusContent(
-              line,
-              {} as MaaCallbackDetails & Record<string, unknown>,
-              instance_id,
-            )
-              .then((resolved) => {
-                if (cancelled) return;
-                addLog(instance_id, {
-                  type: 'agent',
-                  message: resolved.message,
-                  html: resolved.html,
-                });
-              })
-              .catch((err) => {
-                log.warn('Failed to resolve agent content:', err);
-                if (cancelled) return;
-                // 降级：直接显示原始内容
-                addLog(instance_id, {
-                  type: 'agent',
-                  message: line,
-                });
-              });
-          },
-        );
-
-        // 如果在等待期间组件已卸载，立即取消监听
-        if (cancelled) {
-          unlisten();
+          if (cancelled) {
+            unlisten();
+          } else {
+            unlistenRef.current = unlisten;
+          }
         } else {
-          unlistenRef.current = unlisten;
+          // 浏览器：通过 WebSocket 接收
+          const unlisten = wsService.onAgentOutput(handleAgentOutput);
+          if (cancelled) {
+            unlisten();
+          } else {
+            unlistenRef.current = unlisten;
+          }
         }
       } catch (err) {
         log.warn('Failed to setup agent output listener:', err);

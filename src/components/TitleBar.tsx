@@ -112,9 +112,9 @@ export function TitleBar() {
     return version ? `${projectInterface.name} ${version}` : projectInterface.name;
   };
 
-  // macOS/Linux 使用原生标题栏，不渲染自定义标题栏
-  // 仅 Windows 使用自定义标题栏
-  if (platform === 'macos' || platform === 'linux') {
+  // 浏览器环境不渲染自定义标题栏（标题栏仅用于 Tauri 窗口控制按钮）
+  // macOS/Linux 使用原生标题栏，也不渲染
+  if (!isTauri() || platform === 'macos' || platform === 'linux') {
     return null;
   }
 

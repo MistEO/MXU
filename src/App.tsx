@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useAppStore, type DownloadProgress } from '@/stores/appStore';
+import { useAppStore, flushConfig, flushSaveConfig, type DownloadProgress } from '@/stores/appStore';
 import {
   TitleBar,
   TabBar,
@@ -21,6 +21,8 @@ import {
   maaService,
   proxySettingsForUpdateDownload,
 } from '@/services';
+import { loadIconAsDataUrl } from '@/services/contentResolver';
+import * as wsService from '@/services/wsService';
 import {
   downloadUpdate,
   getUpdateSavePath,
@@ -32,8 +34,17 @@ import {
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
+// register/unregisterAll 在 useEffect 内动态导入，此处仅声明类型引用
+// （动态导入可避免浏览器环境加载失败）
+let _globalShortcutModule: typeof import('@tauri-apps/plugin-global-shortcut') | null = null;
+async function getGlobalShortcut() {
+  if (!_globalShortcutModule) {
+    _globalShortcutModule = await import('@tauri-apps/plugin-global-shortcut');
+  }
+  return _globalShortcutModule;
+}
 import { loggers } from '@/utils/logger';
+import { setBackendPort, getApiBase } from '@/utils/backendApi';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode } from '@/themes';
@@ -171,40 +182,55 @@ function App() {
 
   // 转换背景图片为 Blob URL
   useEffect(() => {
-    if (!backgroundImage || !isTauri()) {
-      // 清理旧的 blob URL
+    if (!backgroundImage) {
+      // 无背景图：清理旧 blob URL
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = undefined;
       }
-      setBackgroundImageDataUrl(backgroundImage);
+      setBackgroundImageDataUrl(undefined);
       return;
     }
 
     const loadBackgroundImage = async () => {
       try {
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const fileData = await readFile(backgroundImage);
+        let fileData: Uint8Array;
+        let ext: string;
 
-        // 获取 MIME 类型
-        const ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
+        if (isTauri()) {
+          // Tauri 环境：直接读取本地文件
+          const { readFile } = await import('@tauri-apps/plugin-fs');
+          fileData = await readFile(backgroundImage);
+          ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
+        } else {
+          // 浏览器环境：通过后端 HTTP API 获取图片数据
+          const resp = await fetch(`${getApiBase()}/background-image`);
+          if (!resp.ok) {
+            setBackgroundImageDataUrl(undefined);
+            return;
+          }
+          const buffer = await resp.arrayBuffer();
+          fileData = new Uint8Array(buffer);
+          // 从 Content-Type 推断扩展名
+          const ct = resp.headers.get('content-type') || 'image/png';
+          ext = ct.split('/').pop()?.split(';')[0] || 'png';
+        }
+
         const mimeMap: Record<string, string> = {
           png: 'image/png',
           jpg: 'image/jpeg',
           jpeg: 'image/jpeg',
           webp: 'image/webp',
+          gif: 'image/gif',
         };
         const mimeType = mimeMap[ext] || 'image/png';
 
-        // 创建 Blob 和 URL
         const blob = new Blob([fileData], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
-        // 清理旧的 blob URL
         if (blobUrlRef.current) {
           URL.revokeObjectURL(blobUrlRef.current);
         }
-
         blobUrlRef.current = blobUrl;
         setBackgroundImageDataUrl(blobUrl);
       } catch (err) {
@@ -430,7 +456,7 @@ function App() {
 
   // 设置窗口图标（根据 ProjectInterface V2 协议）
   useEffect(() => {
-    if (!projectInterface?.icon || !isTauri()) return;
+    if (!projectInterface?.icon) return;
 
     const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
@@ -439,28 +465,41 @@ function App() {
     const iconPath = resolveI18nText(projectInterface.icon, translations);
     if (!iconPath) return;
 
-    // 拼接完整路径（相对于 basePath）
-    const fullIconPath = `${basePath}/${iconPath}`;
+    if (isTauri()) {
+      // Tauri 环境：设置窗口图标和托盘图标
+      const fullIconPath = `${basePath}/${iconPath}`;
 
-    const setIcon = async () => {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const currentWindow = getCurrentWindow();
-        await currentWindow.setIcon(fullIconPath);
-        log.info('窗口图标已设置:', fullIconPath);
-      } catch (err) {
-        log.warn('设置窗口图标失败:', err);
-      }
+      const setIcon = async () => {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const currentWindow = getCurrentWindow();
+          await currentWindow.setIcon(fullIconPath);
+          log.info('窗口图标已设置:', fullIconPath);
+        } catch (err) {
+          log.warn('设置窗口图标失败:', err);
+        }
 
-      // 同时更新托盘图标
-      try {
-        await invoke('update_tray_icon', { iconPath: fullIconPath });
-      } catch (err) {
-        log.warn('设置托盘图标失败:', err);
-      }
-    };
+        try {
+          await invoke('update_tray_icon', { iconPath: fullIconPath });
+        } catch (err) {
+          log.warn('设置托盘图标失败:', err);
+        }
+      };
 
-    setIcon();
+      setIcon();
+    } else {
+      // 浏览器环境：更新 <link rel="icon"> favicon
+      loadIconAsDataUrl(projectInterface.icon, basePath, translations).then((url) => {
+        if (!url) return;
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.href = url;
+      });
+    }
   }, [projectInterface, language, interfaceTranslations, basePath]);
 
   // 加载 interface.json 和配置文件
@@ -503,7 +542,7 @@ function App() {
       if (config.settings.windowSize) {
         await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
       }
-      if (config.settings.windowPosition) {
+      if (config.settings.windowPosition && isTauri()) {
         const { x, y } = config.settings.windowPosition;
         // 先检查位置是否在可见显示器范围内
         try {
@@ -526,8 +565,12 @@ function App() {
           }
         } catch (err) {
           log.warn('检查窗口位置失败，居中显示:', err);
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          await getCurrentWindow().center();
+          try {
+            const { getCurrentWindow } = await import('@tauri-apps/api/window');
+            await getCurrentWindow().center();
+          } catch {
+            // 浏览器环境忽略
+          }
         }
       }
 
@@ -577,6 +620,15 @@ function App() {
       setLoadingState('success');
       // 完成配置加载后，允许后续状态变更自动保存
       setConfigPersistenceReady(true);
+
+      // 浏览器环境：设置后端直连端口并建立 WebSocket 连接
+      if (!isTauri() && result.webServerPort) {
+        setBackendPort(result.webServerPort);
+        wsService.setServerPort(result.webServerPort);
+        wsService.connect();
+      } else if (!isTauri()) {
+        wsService.connect();
+      }
 
       // 检查是否缺少 VC++ 运行库
       checkVCRedistMissing();
@@ -870,6 +922,52 @@ function App() {
     };
 
     initApp();
+  }, []);
+
+  // beforeunload：刷新/关闭前强制保存一次配置，防止防抖窗口内的修改丢失
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isTauri()) {
+        // Tauri 环境：取消防抖、立即同步触发保存
+        flushSaveConfig();
+      } else {
+        // 浏览器环境：用 sendBeacon 发送（即使页面关闭也能发出）
+        const config = flushConfig();
+        if (!config) return;
+        const blob = new Blob([JSON.stringify(config)], { type: 'application/json' });
+        navigator.sendBeacon?.(`${getApiBase()}/config`, blob);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // 浏览器环境：监听 config-changed 事件（其他客户端修改配置后重新拉取）
+  useEffect(() => {
+    if (isTauri()) return;
+
+    const unlisten = wsService.onConfigChanged(async () => {
+      const { consumeSelfSave } = await import('@/services/configService');
+      if (consumeSelfSave()) {
+        log.debug('跳过本客户端自身触发的 config-changed');
+        return;
+      }
+      log.info('收到 config-changed（来自其他客户端），重新拉取配置...');
+      try {
+        const { apiGet } = await import('@/utils/backendApi');
+        const config = await apiGet<import('@/types/config').MxuConfig>('/config');
+        if (config) {
+          useAppStore.getState().importConfig(config);
+          log.info('配置已从后端重新同步');
+        }
+      } catch (err) {
+        log.warn('重新拉取配置失败:', err);
+      }
+    });
+
+    return () => {
+      unlisten();
+    };
   }, []);
 
   // 检查 VC++ 运行库缺失（在加载完成后检查）
@@ -1177,6 +1275,7 @@ function App() {
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
     if (!hotkeys?.globalEnabled) return;
+    if (!isTauri()) return; // 浏览器环境不支持全局快捷键
 
     const startKey = hotkeys.startTasks || 'F10';
     const stopKey = hotkeys.stopTasks || 'F11';
@@ -1188,6 +1287,7 @@ function App() {
     let lastStartTime = 0;
     const registerKeys = async () => {
       try {
+        const { register } = await getGlobalShortcut();
         await register(toTauriKey(startKey), () => {
           const now = Date.now();
           if (now - lastStartTime < GLOBAL_HOTKEY_THROTTLE_MS) return;
@@ -1216,7 +1316,9 @@ function App() {
 
     registerKeys();
     return () => {
-      unregisterAll().catch(() => {});
+      getGlobalShortcut()
+        .then(({ unregisterAll }) => unregisterAll())
+        .catch(() => {});
     };
   }, [hotkeys?.globalEnabled, hotkeys?.startTasks, hotkeys?.stopTasks]);
 

@@ -240,15 +240,9 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
 // ============================================================================
 
 /// 查找 ADB 设备（结果会缓存到 MaaState）
-#[tauri::command]
-pub async fn maa_find_adb_devices(
-    state: State<'_, Arc<MaaState>>,
-) -> Result<Vec<AdbDevice>, String> {
-    info!("maa_find_adb_devices called");
-
-    let state_arc = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
+/// 查找 ADB 设备的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_adb_devices_impl(state: Arc<MaaState>) -> Result<Vec<AdbDevice>, String> {
+    tokio::task::spawn_blocking(move || {
         let devices = Toolkit::find_adb_devices().map_err(|e| e.to_string())?;
 
         let result_devices: Vec<AdbDevice> = devices
@@ -263,49 +257,44 @@ pub async fn maa_find_adb_devices(
             })
             .collect();
 
-        // 缓存搜索结果
-        if let Ok(mut cached) = state_arc.cached_adb_devices.lock() {
+        if let Ok(mut cached) = state.cached_adb_devices.lock() {
             *cached = result_devices.clone();
         }
 
-        info!("Returning {} device(s)", result_devices.len());
+        info!("find_adb_devices_impl: {} device(s)", result_devices.len());
         Ok(result_devices)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// 查找 Win32 窗口（结果会缓存到 MaaState）
 #[tauri::command]
-pub async fn maa_find_win32_windows(
+pub async fn maa_find_adb_devices(
     state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<AdbDevice>, String> {
+    info!("maa_find_adb_devices called");
+    find_adb_devices_impl(state.inner().clone()).await
+}
+
+/// 查找 Win32 窗口的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_win32_windows_impl(
+    state: Arc<MaaState>,
     class_regex: Option<String>,
     window_regex: Option<String>,
 ) -> Result<Vec<Win32Window>, String> {
-    info!(
-        "maa_find_win32_windows called, class_regex: {:?}, window_regex: {:?}",
-        class_regex, window_regex
-    );
-
-    let state_arc = state.inner().clone();
-    let class_re_str = class_regex.clone();
-    let window_re_str = window_regex.clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
 
-        // 编译正则表达式
-        let class_re = class_re_str
+        let class_re = class_regex
             .as_ref()
             .and_then(|r| regex::Regex::new(r).ok());
-        let window_re = window_re_str
+        let window_re = window_regex
             .as_ref()
             .and_then(|r| regex::Regex::new(r).ok());
 
         let mut result_windows = Vec::new();
 
         for w in windows {
-            // 过滤
             if let Some(re) = &class_re {
                 if !re.is_match(&w.class_name) {
                     continue;
@@ -324,16 +313,32 @@ pub async fn maa_find_win32_windows(
             });
         }
 
-        // 缓存搜索结果
-        if let Ok(mut cached) = state_arc.cached_win32_windows.lock() {
+        if let Ok(mut cached) = state.cached_win32_windows.lock() {
             *cached = result_windows.clone();
         }
 
-        info!("Returning {} filtered window(s)", result_windows.len());
+        info!(
+            "find_win32_windows_impl: {} window(s)",
+            result_windows.len()
+        );
         Ok(result_windows)
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// 查找 Win32 窗口（结果会缓存到 MaaState）
+#[tauri::command]
+pub async fn maa_find_win32_windows(
+    state: State<'_, Arc<MaaState>>,
+    class_regex: Option<String>,
+    window_regex: Option<String>,
+) -> Result<Vec<Win32Window>, String> {
+    info!(
+        "maa_find_win32_windows called, class_regex: {:?}, window_regex: {:?}",
+        class_regex, window_regex
+    );
+    find_win32_windows_impl(state.inner().clone(), class_regex, window_regex).await
 }
 
 // ============================================================================
@@ -406,25 +411,16 @@ pub fn maa_destroy_instance(
 // 控制器命令
 // ============================================================================
 
-/// 连接控制器（异步，通过回调通知完成状态）
-/// 返回连接请求 ID，前端通过监听 maa-callback 事件获取完成状态
-#[tauri::command]
-pub async fn maa_connect_controller(
-    app: tauri::AppHandle,
-    state: State<'_, Arc<MaaState>>,
+/// 连接控制器的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+///
+/// `on_event(message, details)` 用于向客户端推送 Maa 回调事件。
+pub async fn connect_controller_impl(
+    state_arc: Arc<MaaState>,
     instance_id: String,
     config: ControllerConfig,
+    on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static>,
 ) -> Result<i64, String> {
-    info!(
-        "maa_connect_controller called, instance_id: {}",
-        instance_id
-    );
-
-    let state_arc = state.inner().clone();
-    let app_handle = app.clone();
-
-    // Move blocking controller creation and connection to spawn_blocking
-    tauri::async_runtime::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         // ControllerPool: 检查是否有可复用的已连接控制器
         let pooled = {
             let pool = state_arc
@@ -446,8 +442,8 @@ pub async fn maa_connect_controller(
 
             // 发送合成回调事件，前端无感知
             let details = format!(r#"{{"ctrl_id":{},"action":"Connect"}}"#, conn_id);
-            emit_callback_event(&app_handle, "Controller.Action.Starting", &details);
-            emit_callback_event(&app_handle, "Controller.Action.Succeeded", &details);
+            on_event("Controller.Action.Starting", &details);
+            on_event("Controller.Action.Succeeded", &details);
 
             return Ok(conn_id);
         }
@@ -541,11 +537,11 @@ pub async fn maa_connect_controller(
             }
         };
 
-        // 注册回调
-        let app_handle_clone = app_handle.clone();
+        // 注册回调（使用 on_event 抽象，Tauri 命令传入 emit_callback_event，HTTP 处理器传入无操作或 WebSocket 推送）
+        let on_event_clone = on_event.clone();
         controller
             .add_sink(move |msg, detail| {
-                emit_callback_event(&app_handle_clone, msg, detail);
+                on_event_clone(msg, detail);
             })
             .map_err(|e| e.to_string())?;
 
@@ -574,6 +570,29 @@ pub async fn maa_connect_controller(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// 连接控制器（异步，通过回调通知完成状态）
+/// 返回连接请求 ID，前端通过监听 maa-callback 事件获取完成状态
+#[tauri::command]
+pub async fn maa_connect_controller(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    config: ControllerConfig,
+) -> Result<i64, String> {
+    info!(
+        "maa_connect_controller called, instance_id: {}",
+        instance_id
+    );
+
+    connect_controller_impl(
+        state.inner().clone(),
+        instance_id,
+        config,
+        Arc::new(move |msg, detail| emit_callback_event(&app, msg, detail)),
+    )
+    .await
 }
 
 /// 获取连接状态（通过 MaaControllerConnected API 查询）
@@ -688,20 +707,17 @@ pub fn maa_destroy_resource(
 // ============================================================================
 
 /// 运行任务（异步，通过回调通知完成状态）
-/// 返回任务 ID，前端通过监听 maa-callback 事件获取完成状态
-#[tauri::command]
-pub fn maa_run_task(
-    app: tauri::AppHandle,
-    state: State<Arc<MaaState>>,
-    instance_id: String,
-    entry: String,
-    pipeline_override: String,
+/// 运行单个任务的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub fn run_task_impl(
+    state: &MaaState,
+    instance_id: &str,
+    entry: &str,
+    pipeline_override: &str,
+    on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static>,
 ) -> Result<i64, String> {
-    info!("maa_run_task called, entry: {}", entry);
-
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances
-        .get_mut(&instance_id)
+        .get_mut(instance_id)
         .ok_or("Instance not found")?;
 
     let resource = instance.resource.as_ref().ok_or("Resource not loaded")?;
@@ -710,7 +726,7 @@ pub fn maa_run_task(
         .as_ref()
         .ok_or("Controller not connected")?;
 
-    // 创建或获取 tasker（若已有 tasker 但未初始化则自动丢弃并重建）
+    // 创建或获取 tasker
     let needs_new_tasker = match instance.tasker.as_ref() {
         None => true,
         Some(t) => !t.inited(),
@@ -723,23 +739,20 @@ pub fn maa_run_task(
 
         let tasker = Tasker::new().map_err(|e| e.to_string())?;
 
-        // 添加回调 Sink，用于接收任务状态通知
-        let app_handle = app.clone();
+        let on_event_clone = on_event.clone();
         tasker
             .add_sink(move |msg, detail| {
-                emit_callback_event(&app_handle, msg, detail);
+                on_event_clone(msg, detail);
             })
             .map_err(|e| e.to_string())?;
 
-        // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
-        let app_handle = app.clone();
+        let on_event_clone = on_event.clone();
         tasker
             .add_context_sink(move |msg, detail| {
-                emit_callback_event(&app_handle, msg, detail);
+                on_event_clone(msg, detail);
             })
             .map_err(|e| e.to_string())?;
 
-        // 绑定资源和控制器
         tasker
             .bind(resource, controller)
             .map_err(|e| e.to_string())?;
@@ -754,13 +767,32 @@ pub fn maa_run_task(
     }
 
     let job = tasker
-        .post_task(&entry, &pipeline_override)
+        .post_task(entry, pipeline_override)
         .map_err(|e| e.to_string())?;
     let task_id = job.id;
 
     instance.task_ids.push(task_id);
-
     Ok(task_id)
+}
+
+/// 运行单个任务
+/// 返回任务 ID，前端通过监听 maa-callback 事件获取完成状态
+#[tauri::command]
+pub fn maa_run_task(
+    app: tauri::AppHandle,
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    entry: String,
+    pipeline_override: String,
+) -> Result<i64, String> {
+    info!("maa_run_task called, entry: {}", entry);
+    run_task_impl(
+        &state,
+        &instance_id,
+        &entry,
+        &pipeline_override,
+        Arc::new(move |msg, detail| emit_callback_event(&app, msg, detail)),
+    )
 }
 
 /// 获取任务状态
@@ -791,11 +823,11 @@ pub fn maa_get_task_status(
 }
 
 /// 停止任务
-#[tauri::command]
-pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
+/// 停止任务的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String> {
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances
-        .get_mut(&instance_id)
+        .get_mut(instance_id)
         .ok_or("Instance not found")?;
     let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
 
@@ -816,11 +848,15 @@ pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result
 
     instance.stop_in_progress = true;
     instance.stop_started_at = Some(Instant::now());
-    // 清空缓存的 task_ids
     instance.task_ids.clear();
 
     tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
+    stop_task_impl(&state, &instance_id)
 }
 
 /// 覆盖已提交任务的 Pipeline 配置（用于运行中修改尚未执行的任务选项）
@@ -853,27 +889,27 @@ pub fn maa_is_running(state: State<Arc<MaaState>>, instance_id: String) -> Resul
 // 截图命令
 // ============================================================================
 
-/// 发起截图请求
-#[tauri::command]
-pub fn maa_post_screencap(state: State<Arc<MaaState>>, instance_id: String) -> Result<i64, String> {
+/// 发起截图请求（内部实现）
+pub fn post_screencap_impl(state: &MaaState, instance_id: &str) -> Result<i64, String> {
     let instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let instance = instances.get(instance_id).ok_or("Instance not found")?;
     let controller = instance
         .controller
         .as_ref()
         .ok_or("Controller not connected")?;
-
     controller.post_screencap().map_err(|e| e.to_string())
 }
 
-/// 获取缓存的截图（返回 base64 编码的 PNG 图像）
+/// 发起截图请求
 #[tauri::command]
-pub fn maa_get_cached_image(
-    state: State<Arc<MaaState>>,
-    instance_id: String,
-) -> Result<String, String> {
+pub fn maa_post_screencap(state: State<Arc<MaaState>>, instance_id: String) -> Result<i64, String> {
+    post_screencap_impl(&state, &instance_id)
+}
+
+/// 获取缓存的截图（内部实现，返回 base64 编码的 PNG 图像）
+pub fn get_cached_image_impl(state: &MaaState, instance_id: &str) -> Result<String, String> {
     let instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+    let instance = instances.get(instance_id).ok_or("Instance not found")?;
     let controller = instance
         .controller
         .as_ref()
@@ -888,10 +924,17 @@ pub fn maa_get_cached_image(
         return Err("No image data available".to_string());
     }
 
-    // 复制数据并转换为 base64
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     let base64_str = STANDARD.encode(&data);
-
-    // 返回带 data URL 前缀的 base64 字符串
     Ok(format!("data:image/png;base64,{}", base64_str))
 }
+
+/// 获取缓存的截图（返回 base64 编码的 PNG 图像）
+#[tauri::command]
+pub fn maa_get_cached_image(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+) -> Result<String, String> {
+    get_cached_image_impl(&state, &instance_id)
+}
+

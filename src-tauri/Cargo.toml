@@ -36,8 +36,10 @@ base64 = "0.22"
 zip = "7.2.0"
 flate2 = "1.0"
 tar = "0.4"
-tokio = { version = "1", features = ["rt", "sync"] }
+tokio = { version = "1", features = ["rt", "sync", "net", "rt-multi-thread"] }
 reqwest = { version = "0.12", features = ["stream", "blocking", "json"] }
+axum = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
 futures-util = "0.3"
 bytes = "1"
 libc = "0.2.180"
@@ -47,6 +49,7 @@ urlencoding = "2.1"
 notify-rust = "4"
 shell-words = "1.1.1"
 maa-framework = { version = "1", features = ["dynamic"] }
+rust-embed = "8"
 
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析

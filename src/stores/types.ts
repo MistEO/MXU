@@ -339,6 +339,10 @@ export interface AppState {
   tcpCompatMode: boolean;
   setTcpCompatMode: (enabled: boolean) => void;
 
+  /** Web UI 允许局域网访问（绑定 0.0.0.0，重启生效） */
+  allowLanAccess: boolean;
+  setAllowLanAccess: (enabled: boolean) => void;
+
   // 托盘设置
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;

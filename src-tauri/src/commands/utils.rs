@@ -3,15 +3,26 @@
 //! 提供路径处理和其他通用工具函数
 
 use super::types::MaaCallbackEvent;
+use crate::ws_broadcast::{WsBroadcast, WsEvent};
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
-/// 发送回调事件到前端
+/// 发送回调事件到前端（Tauri WebView + WebSocket 浏览器客户端）
 pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details: S) {
-    let event = MaaCallbackEvent {
-        message: message.into(),
-        details: details.into(),
-    };
+    let message = message.into();
+    let details = details.into();
+
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::MaaCallback {
+            message: message.clone(),
+            details: details.clone(),
+        });
+    }
+
+    // 发送到 Tauri WebView
+    let event = MaaCallbackEvent { message, details };
     if let Err(e) = app.emit("maa-callback", event) {
         log::error!("Failed to emit maa-callback: {}", e);
     }

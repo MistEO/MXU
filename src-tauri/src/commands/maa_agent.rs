@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use chrono::Local;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 use maa_framework::agent_client::AgentClient;
 use maa_framework::controller::Controller;
@@ -32,12 +32,24 @@ pub struct AgentOutputEvent {
     pub line: String,
 }
 
-/// 发送 Agent 输出事件
+/// 发送 Agent 输出事件（Tauri WebView + WebSocket 浏览器客户端）
 fn emit_agent_output(app: &tauri::AppHandle, instance_id: &str, stream: &str, line: &str) {
+    let clean_line = strip_ansi_escapes(line);
+
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<crate::ws_broadcast::WsBroadcast>>() {
+        ws.send(crate::ws_broadcast::WsEvent::AgentOutput {
+            instance_id: instance_id.to_string(),
+            stream: stream.to_string(),
+            line: clean_line.clone(),
+        });
+    }
+
+    // 发送到 Tauri WebView
     let event = AgentOutputEvent {
         instance_id: instance_id.to_string(),
         stream: stream.to_string(),
-        line: strip_ansi_escapes(line),
+        line: clean_line,
     };
     if let Err(e) = app.emit("maa-agent-output", event) {
         log::error!("[agent_output] Failed to emit event: {}", e);

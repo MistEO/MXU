@@ -939,26 +939,26 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           ) : (
             <>
               {/* 任务名称：单击切换选中 */}
-              <div
-                className={clsx(
-                  'flex items-center gap-1 min-w-0 flex-shrink-0',
-                  isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
-                )}
-                onClick={handleNameClick}
-                title={t('taskItem.clickToToggle')}
-              >
-                <span
+                <div
                   className={clsx(
-                    'text-sm font-medium truncate',
-                    task.enabled ? 'text-text-primary' : 'text-text-muted',
+                    'flex items-center gap-1 min-w-0 overflow-hidden',
+                    isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
                   )}
+                  onClick={handleNameClick}
+                  title={t('taskItem.clickToToggle')}
                 >
-                  {displayName}
-                </span>
-                {task.customName && (
-                  <span className="flex-shrink-0 text-xs text-text-muted">({originalLabel})</span>
-                )}
-              </div>
+                  <span
+                    className={clsx(
+                      'min-w-0 text-sm font-medium truncate',
+                      task.enabled ? 'text-text-primary' : 'text-text-muted',
+                    )}
+                  >
+                    {displayName}
+                  </span>
+                  {task.customName && (
+                    <span className="min-w-0 truncate text-xs text-text-muted">({originalLabel})</span>
+                  )}
+                </div>
 
               {/* 不带选项的任务：直接显示不兼容警告 */}
               {!canExpand && isIncompatible && (
@@ -976,7 +976,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               {canExpand && (
                 <div
                   onClick={() => toggleTaskExpanded(instanceId, task.id)}
-                  className="flex-1 flex items-center self-stretch min-h-[28px] cursor-pointer"
+                  className="flex-1 min-w-0 flex items-center self-stretch min-h-[28px] cursor-pointer"
                   title={task.expanded ? t('taskItem.collapse') : t('taskItem.expand')}
                 >
                   {/* 选项预览标签 - 未展开时显示：不兼容时显示警告，否则显示选项预览 */}
@@ -1004,7 +1004,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                     </div>
                   )}
                   {/* 展开/折叠箭头 */}
-                  <div className="flex items-center justify-end pl-2 ml-auto">
+                  <div className="flex shrink-0 items-center justify-end pl-2 ml-auto">
                     <ChevronRight
                       className={clsx(
                         'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',

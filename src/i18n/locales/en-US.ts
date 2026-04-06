@@ -217,6 +217,9 @@ export default {
     stopTasks: 'Stop Tasks',
     startingTasks: 'Starting...',
     stoppingTasks: 'Stopping...',
+    tasksSkippedDueToIncompatibility: '{{count}} incompatible task(s) skipped',
+    taskSkippedController: 'Task "{{taskName}}" does not support current controller',
+    taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
     // Auto connect
     autoConnect: {
       searching: 'Searching devices...',

@@ -192,6 +192,52 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       // 获取控制器和资源配置
       const controllerName = selectedController[targetId] || projectInterface?.controller[0]?.name;
       const resourceName = selectedResource[targetId] || projectInterface?.resource[0]?.name;
+
+      // 过滤掉不兼容当前控制器/资源的任务
+      const compatibleTasks = enabledTasks.filter((t) => {
+        const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
+        return isTaskCompatible(taskDef, controllerName, resourceName);
+      });
+
+      // 如果有任务因不兼容被跳过，记录警告
+      const skippedTasks = enabledTasks.filter((t) => !compatibleTasks.includes(t));
+      if (skippedTasks.length > 0) {
+        log.warn(
+          `实例 ${targetInstance.name}: ${t('action.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
+        );
+        skippedTasks.forEach((task) => {
+          const taskDef = projectInterface?.task.find((td) => td.name === task.taskName);
+          const taskLabel = taskDef?.label
+            ? resolveI18nText(taskDef.label, translations)
+            : task.taskName;
+
+          // 检查是控制器不兼容还是资源不兼容
+          const isControllerIncompatible =
+            taskDef?.controller &&
+            taskDef.controller.length > 0 &&
+            controllerName &&
+            !taskDef.controller.includes(controllerName);
+
+          const isResourceIncompatible =
+            taskDef?.resource &&
+            taskDef.resource.length > 0 &&
+            resourceName &&
+            !taskDef.resource.includes(resourceName);
+
+          if (isControllerIncompatible) {
+            log.warn(`  - ${t('action.taskSkippedController', { taskName: taskLabel })}`);
+          }
+          if (isResourceIncompatible) {
+            log.warn(`  - ${t('action.taskSkippedResource', { taskName: taskLabel })}`);
+          }
+        });
+      }
+
+      // 如果所有启用的任务都被过滤掉了，则无法启动
+      if (compatibleTasks.length === 0) {
+        log.warn(`实例 ${targetInstance.name} 没有兼容当前控制器和资源的任务`);
+        return false;
+      }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
       const resource = projectInterface?.resource.find((r) => r.name === resourceName);
       const savedDevice = targetInstance.savedDevice;
@@ -725,11 +771,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         onPhaseChange?.('idle');
 
-        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, enabledTasks.length);
+        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, compatibleTasks.length);
 
         // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
         const taskConfigs: TaskConfig[] = [];
-        for (const selectedTask of enabledTasks) {
+        for (const selectedTask of compatibleTasks) {
           // 先检查是否是 MXU 特殊任务
           const specialTask = getMxuSpecialTask(selectedTask.taskName);
           const taskDef =
@@ -804,28 +850,28 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);
 
         // 初始化任务运行状态
-        const enabledTaskIds = enabledTasks.map((t) => t.id);
-        setAllTasksRunStatus(targetId, enabledTaskIds, 'pending');
+        const compatibleTaskIds = compatibleTasks.map((t) => t.id);
+        setAllTasksRunStatus(targetId, compatibleTaskIds, 'pending');
 
         // 开始任务时折叠所有任务
         collapseAllTasks(targetId, false);
 
         // 记录映射关系，并注册 task_id 与任务名的映射用于日志显示
         taskIds.forEach((maaTaskId, index) => {
-          if (enabledTasks[index]) {
-            registerMaaTaskMapping(targetId, maaTaskId, enabledTasks[index].id);
+          if (compatibleTasks[index]) {
+            registerMaaTaskMapping(targetId, maaTaskId, compatibleTasks[index].id);
             // 注册 task_id 与任务名的映射（使用自定义名称或 label）
             // MXU 特殊任务的 label 需要用 t() 翻译
-            const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
+            const specialTask = getMxuSpecialTask(compatibleTasks[index].taskName);
             const taskDef =
               specialTask?.taskDef ||
-              projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
+              projectInterface?.task.find((t) => t.name === compatibleTasks[index].taskName);
             const taskDisplayName =
-              enabledTasks[index].customName ||
+              compatibleTasks[index].customName ||
               (specialTask && taskDef?.label
                 ? t(taskDef.label)
                 : resolveI18nText(taskDef?.label, translations)) ||
-              enabledTasks[index].taskName;
+              compatibleTasks[index].taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }
         });

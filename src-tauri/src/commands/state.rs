@@ -162,3 +162,35 @@ pub fn clear_instance_logs(
     buffer.clear_instance(&instance_id);
     Ok(())
 }
+
+/// 同步指定实例的任务运行状态快照到后端
+#[tauri::command]
+pub fn sync_task_run_status(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    snapshot: super::types::InstanceTaskRunSnapshot,
+) -> Result<(), String> {
+    let mut snapshots = state.task_run_snapshots.lock().map_err(|e| e.to_string())?;
+    snapshots.insert(instance_id, snapshot);
+    Ok(())
+}
+
+/// 获取所有实例的任务运行状态快照（用于页面刷新后恢复）
+#[tauri::command]
+pub fn get_all_task_run_status(
+    state: State<Arc<MaaState>>,
+) -> Result<HashMap<String, super::types::InstanceTaskRunSnapshot>, String> {
+    let snapshots = state.task_run_snapshots.lock().map_err(|e| e.to_string())?;
+    Ok(snapshots.clone())
+}
+
+/// 清空指定实例的任务运行状态
+#[tauri::command]
+pub fn clear_task_run_status_backend(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+) -> Result<(), String> {
+    let mut snapshots = state.task_run_snapshots.lock().map_err(|e| e.to_string())?;
+    snapshots.remove(&instance_id);
+    Ok(())
+}

@@ -34,7 +34,13 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { logToStdout, pushLogToBackend, clearLogsOnBackend } from '@/utils/logStdout';
+import {
+  logToStdout,
+  pushLogToBackend,
+  clearLogsOnBackend,
+  syncTaskRunStatusToBackend,
+  clearTaskRunStatusOnBackend,
+} from '@/utils/logStdout';
 import {
   generateId,
   initializeAllOptionValues,
@@ -49,6 +55,19 @@ function forwardLogToStdout(message: string) {
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
   logToStdout(plain);
+}
+
+/** 从当前 store 状态中提取指定实例的任务运行快照并同步到后端 */
+function syncTaskRunSnapshotForInstance(instanceId: string) {
+  const state = useAppStore.getState();
+  const statuses = state.instanceTaskRunStatus[instanceId] || {};
+  const rawMappings = state.maaTaskIdMapping[instanceId] || {};
+  // maaTaskIdMapping 的 key 是 number，转为 Record<string, string> 兼容 JSON
+  const mappings: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawMappings)) {
+    mappings[String(k)] = v;
+  }
+  syncTaskRunStatusToBackend(instanceId, { statuses, mappings });
 }
 
 // 重新导出类型供外部使用
@@ -1576,7 +1595,7 @@ export const useAppStore = create<AppState>()(
     instanceTaskRunStatus: {},
     maaTaskIdMapping: {},
 
-    setTaskRunStatus: (instanceId, selectedTaskId, status) =>
+    setTaskRunStatus: (instanceId, selectedTaskId, status) => {
       set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1585,9 +1604,11 @@ export const useAppStore = create<AppState>()(
             [selectedTaskId]: status,
           },
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    setAllTasksRunStatus: (instanceId, taskIds, status) =>
+    setAllTasksRunStatus: (instanceId, taskIds, status) => {
       set((state) => {
         const taskStatus: Record<string, TaskRunStatus> = {};
         taskIds.forEach((id) => {
@@ -1599,9 +1620,11 @@ export const useAppStore = create<AppState>()(
             [instanceId]: taskStatus,
           },
         };
-      }),
+      });
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) =>
+    registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) => {
       set((state) => ({
         maaTaskIdMapping: {
           ...state.maaTaskIdMapping,
@@ -1610,7 +1633,9 @@ export const useAppStore = create<AppState>()(
             [maaTaskId]: selectedTaskId,
           },
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
     findSelectedTaskIdByMaaTaskId: (instanceId, maaTaskId) => {
       const state = get();
@@ -1622,7 +1647,6 @@ export const useAppStore = create<AppState>()(
       const state = get();
       const mapping = state.maaTaskIdMapping[instanceId];
       if (!mapping) return null;
-      // 反向查找：遍历 mapping 找到 value 等于 selectedTaskId 的 key
       for (const [maaTaskIdStr, taskId] of Object.entries(mapping)) {
         if (taskId === selectedTaskId) {
           return parseInt(maaTaskIdStr, 10);
@@ -1631,7 +1655,8 @@ export const useAppStore = create<AppState>()(
       return null;
     },
 
-    clearTaskRunStatus: (instanceId) =>
+    clearTaskRunStatus: (instanceId) => {
+      clearTaskRunStatusOnBackend(instanceId);
       set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1641,7 +1666,8 @@ export const useAppStore = create<AppState>()(
           ...state.maaTaskIdMapping,
           [instanceId]: {},
         },
-      })),
+      }));
+    },
 
     // 运行中任务队列管理
     instancePendingTaskIds: {},

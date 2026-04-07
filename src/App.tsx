@@ -614,6 +614,31 @@ function App() {
         log.warn('恢复运行日志失败:', err);
       }
 
+      // 从后端恢复任务运行状态（跨页面刷新持久化）
+      try {
+        const { getAllTaskRunStatusFromBackend } = await import('@/utils/logStdout');
+        const snapshots = await getAllTaskRunStatusFromBackend();
+        if (snapshots && Object.keys(snapshots).length > 0) {
+          const restoredStatuses: Record<string, Record<string, import('@/stores/types').TaskRunStatus>> = {};
+          const restoredMappings: Record<string, Record<number, string>> = {};
+          for (const [instanceId, snap] of Object.entries(snapshots)) {
+            restoredStatuses[instanceId] = snap.statuses as Record<string, import('@/stores/types').TaskRunStatus>;
+            const numericMappings: Record<number, string> = {};
+            for (const [k, v] of Object.entries(snap.mappings)) {
+              numericMappings[Number(k)] = v;
+            }
+            restoredMappings[instanceId] = numericMappings;
+          }
+          useAppStore.setState((state) => ({
+            instanceTaskRunStatus: { ...state.instanceTaskRunStatus, ...restoredStatuses },
+            maaTaskIdMapping: { ...state.maaTaskIdMapping, ...restoredMappings },
+          }));
+          log.info('已恢复任务运行状态:', Object.keys(snapshots).length, '个实例');
+        }
+      } catch (err) {
+        log.warn('恢复任务运行状态失败:', err);
+      }
+
       // 检查 MaaFramework 版本兼容性
       // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作
       try {

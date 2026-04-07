@@ -242,6 +242,15 @@ impl LogBuffer {
     }
 }
 
+/// 任务运行状态快照（按实例存储，跨页面刷新恢复）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct InstanceTaskRunSnapshot {
+    /// selectedTaskId → TaskRunStatus ("idle" | "pending" | "running" | "succeeded" | "failed")
+    pub statuses: HashMap<String, String>,
+    /// maaTaskId → selectedTaskId
+    pub mappings: HashMap<i64, String>,
+}
+
 /// MaaFramework 运行时状态
 #[derive(Default)]
 pub struct MaaState {
@@ -260,6 +269,8 @@ pub struct MaaState {
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）
     pub log_buffer: Mutex<LogBuffer>,
+    /// 任务运行状态快照（前端同步，页面刷新后恢复）
+    pub task_run_snapshots: Mutex<HashMap<String, InstanceTaskRunSnapshot>>,
 }
 
 impl MaaState {

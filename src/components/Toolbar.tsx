@@ -166,10 +166,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   };
 
   const beginPreActionControl = useCallback(async (targetInstanceId: string) => {
+    await maaService.setPreActionStop(targetInstanceId, false);
     preActionControlledInstanceIdRef.current = targetInstanceId;
     preActionStopRequestedRef.current = false;
     setPreActionControlledInstanceId(targetInstanceId);
-    await maaService.setPreActionStop(targetInstanceId, false);
   }, []);
 
   const endPreActionControl = useCallback(async (targetInstanceId: string) => {

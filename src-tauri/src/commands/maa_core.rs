@@ -664,7 +664,7 @@ pub fn maa_load_resource(
         .map_err(|e| e.to_string())?;
 
         // 注册 MXU Custom Actions
-        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res) {
+        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res, &app, &instance_id) {
             warn!("Failed to register MXU custom actions: {}", e);
         }
 

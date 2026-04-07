@@ -35,6 +35,7 @@ import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
+import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.ui;
@@ -203,18 +204,10 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         try {
           log.info(`[${instanceName}] 停止任务...`);
           setIsStopping(true);
-          cancelTaskQueueMonitor(instanceId);
-          await maaService.stopTask(instanceId);
-          const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
-          if (agentConfigs && agentConfigs.length > 0) {
-            await maaService.stopAgent(instanceId);
+          const stopped = await stopInstanceTasks(instanceId);
+          if (!stopped) {
+            log.warn(`[${instanceName}] 等待任务停止超时，保留当前运行状态`);
           }
-          updateInstance(instanceId, { isRunning: false });
-          setInstanceTaskStatus(instanceId, null);
-          setInstanceCurrentTaskId(instanceId, null);
-          clearTaskRunStatus(instanceId);
-          clearPendingTasks(instanceId);
-          clearScheduleExecution(instanceId);
         } catch (err) {
           log.error(`[${instanceName}] 停止任务失败:`, err);
         } finally {

@@ -20,6 +20,7 @@ import {
   checkAndPrepareDownload,
   maaService,
   proxySettingsForUpdateDownload,
+  stopInstanceTasksAndExitApp,
 } from '@/services';
 import {
   downloadUpdate,
@@ -1254,6 +1255,36 @@ function App() {
     return () => {
       if (unlistenStart) unlistenStart();
       if (unlistenStop) unlistenStop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    let unlisten: (() => void) | null = null;
+
+    const setupSelfStopListener = async () => {
+      try {
+        unlisten = await maaService.onSelfStopRequested(async ({ instanceId }) => {
+          log.info(`[self-stop#${instanceId}] 收到停止自身请求`);
+          try {
+            const stopped = await stopInstanceTasksAndExitApp(instanceId);
+            if (!stopped) {
+              log.warn(`[self-stop#${instanceId}] 停止超时，取消退出应用`);
+            }
+          } catch (error) {
+            log.error(`[self-stop#${instanceId}] 停止自身流程失败:`, error);
+          }
+        });
+      } catch (error) {
+        log.warn('注册停止自身事件监听失败:', error);
+      }
+    };
+
+    void setupSelfStopListener();
+
+    return () => {
+      if (unlisten) unlisten();
     };
   }, []);
 

@@ -50,6 +50,10 @@ export interface MaaCallbackDetails {
   name?: string;
 }
 
+export interface SelfStopRequestedEvent {
+  instanceId: string;
+}
+
 /** MaaFramework 服务 */
 export const maaService = {
   /**
@@ -466,6 +470,18 @@ export const maaService = {
         log.warn('Failed to parse callback details:', details);
         callback(message, {});
       }
+    });
+  },
+
+  async onSelfStopRequested(
+    callback: (payload: SelfStopRequestedEvent) => void | Promise<void>,
+  ): Promise<UnlistenFn> {
+    if (!isTauri()) {
+      return () => {};
+    }
+
+    return await listen<SelfStopRequestedEvent>('mxu-self-stop-requested', (event) => {
+      void callback(event.payload);
     });
   },
 

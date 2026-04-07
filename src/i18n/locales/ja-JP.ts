@@ -165,10 +165,10 @@ export default {
     },
     killProc: {
       label: '⛔ プロセス終了',
-      selfLabel: 'タスク停止後に MXU を終了',
+      selfLabel: '自身のプロセスを終了',
       selfDescription:
-        '有効にすると現在のタスクキューを正常停止し、停止完了後に MXU を終了します。無効にすると別のプロセス名を入力して終了できます',
-      selfYes: 'タスク停止後に MXU を終了',
+        '有効にするとこのアプリ自体を終了します。無効にすると別のプロセス名を入力して終了できます',
+      selfYes: '自身を終了',
       selfNo: '指定プロセスを終了',
       nameOptionLabel: 'プロセス設定',
       nameLabel: 'プロセス名',

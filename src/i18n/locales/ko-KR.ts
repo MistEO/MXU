@@ -165,10 +165,10 @@ export default {
     },
     killProc: {
       label: '⛔ 프로세스 종료',
-      selfLabel: '작업 중지 후 MXU 종료',
+      selfLabel: '자체 프로세스 종료',
       selfDescription:
-        '활성화하면 현재 작업 큐를 정상적으로 중지한 뒤 MXU를 종료합니다. 비활성화하면 다른 프로세스 이름을 입력하여 종료할 수 있습니다',
-      selfYes: '작업 중지 후 MXU 종료',
+        '활성화하면 이 프로그램 자체를 종료합니다. 비활성화하면 다른 프로세스 이름을 입력하여 종료할 수 있습니다',
+      selfYes: '자체 종료',
       selfNo: '지정 프로세스 종료',
       nameOptionLabel: '프로세스 설정',
       nameLabel: '프로세스 이름',

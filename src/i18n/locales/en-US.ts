@@ -166,10 +166,10 @@ export default {
     },
     killProc: {
       label: '⛔ Kill Process',
-      selfLabel: 'Stop Tasks Then Exit MXU',
+      selfLabel: 'Kill Self',
       selfDescription:
-        'When enabled, MXU gracefully stops the current task queue and exits after stopping completes; when disabled, you can enter another process name to kill',
-      selfYes: 'Stop tasks and exit MXU',
+        'When enabled, terminates this application itself; when disabled, you can enter another process name to kill',
+      selfYes: 'Kill self',
       selfNo: 'Kill specified process',
       nameOptionLabel: 'Process Settings',
       nameLabel: 'Process Name',

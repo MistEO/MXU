@@ -162,9 +162,9 @@ export default {
     },
     killProc: {
       label: '⛔ 結束程序',
-      selfLabel: '停止任務後退出 MXU',
-      selfDescription: '開啟時會優雅停止目前任務佇列，並在停止完成後退出 MXU；關閉後可輸入其他程序名稱來結束',
-      selfYes: '停止任務並退出 MXU',
+      selfLabel: '結束自身程序',
+      selfDescription: '開啟時結束本程式自身程序；關閉後可輸入其他程序名稱來結束',
+      selfYes: '結束自身',
       selfNo: '結束指定程序',
       nameOptionLabel: '程序設定',
       nameLabel: '程序名稱',

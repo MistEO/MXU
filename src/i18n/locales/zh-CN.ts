@@ -162,9 +162,9 @@ export default {
     },
     killProc: {
       label: '⛔ 结束进程',
-      selfLabel: '停止任务后退出 MXU',
-      selfDescription: '开启时会优雅停止当前任务队列，并在停止完成后退出 MXU；关闭后可输入其他进程名称来结束',
-      selfYes: '停止任务并退出 MXU',
+      selfLabel: '结束自身进程',
+      selfDescription: '开启时结束本程序自身进程；关闭后可输入其他进程名称来结束',
+      selfYes: '结束自身',
       selfNo: '结束指定进程',
       nameOptionLabel: '进程设置',
       nameLabel: '进程名称',

@@ -28,69 +28,47 @@
     "opener:default",
     {
       "identifier": "opener:allow-open-path",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "opener:allow-reveal-item-in-dir",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-write-file",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-remove",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     {
       "identifier": "fs:allow-rename",
-      "allow": [
-        { "path": "**/*" }
-      ]
+      "allow": [{ "path": "**/*" }]
     },
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
@@ -99,13 +77,7 @@
     "core:path:default",
     {
       "identifier": "http:default",
-      "allow": [
-        { "url": "https://mirrorchyan.com/**" },
-        { "url": "https://mirrorchyan.net/**" },
-        { "url": "https://api.github.com/**" },
-        { "url": "https://github.com/**" },
-        { "url": "https://objects.githubusercontent.com/**" }
-      ]
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
     },
     "process:allow-restart",
     "process:allow-exit",

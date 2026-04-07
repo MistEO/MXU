@@ -935,6 +935,15 @@ export const useAppStore = create<AppState>()(
     importConfig: (config) => {
       const pi = get().projectInterface;
 
+      // 保留当前各任务的 expanded 状态（纯 UI 状态，不随配置同步）
+      // 这样当其他客户端修改配置触发 importConfig 时，不会意外折叠用户已展开的任务
+      const prevExpandedByTask = new Map<string, boolean>();
+      for (const inst of get().instances) {
+        for (const t of inst.selectedTasks) {
+          prevExpandedByTask.set(t.id, t.expanded);
+        }
+      }
+
       // 获取保存时的任务快照，用于判断哪些是真正新增的任务
       const snapshotTaskNames = new Set(config.interfaceTaskSnapshot || []);
 
@@ -996,7 +1005,7 @@ export const useAppStore = create<AppState>()(
                 customName: t.customName,
                 enabled: t.enabled,
                 optionValues: t.optionValues,
-                expanded: false,
+                expanded: prevExpandedByTask.get(t.id) ?? false,
               };
             }
 
@@ -1018,7 +1027,7 @@ export const useAppStore = create<AppState>()(
               customName: t.customName,
               enabled: t.enabled,
               optionValues: mergedValues,
-              expanded: false,
+              expanded: prevExpandedByTask.get(t.id) ?? false,
             };
           });
 

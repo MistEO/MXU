@@ -813,6 +813,13 @@ export default {
     retry: '重试',
   },
 
+  // 连接断开提示（WebUI 模式）
+  connectionLost: {
+    title: '连接已断开',
+    message: '与后端服务的连接已中断，正在尝试重新连接...',
+    reconnecting: '重连中...',
+  },
+
   // 程序路径问题提示
   badPath: {
     title: '程序位置不对',

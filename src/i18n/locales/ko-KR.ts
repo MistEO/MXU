@@ -814,6 +814,13 @@ export default {
     retry: '다시 시도',
   },
 
+  // 연결 끊김 (WebUI 모드)
+  connectionLost: {
+    title: '연결이 끊어졌습니다',
+    message: '백엔드 서비스와의 연결이 끊어졌습니다. 재연결을 시도하고 있습니다...',
+    reconnecting: '재연결 중...',
+  },
+
   // 경로 경고
   badPath: {
     title: '프로그램 위치가 잘못되었습니다',

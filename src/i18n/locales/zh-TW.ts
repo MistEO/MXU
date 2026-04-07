@@ -798,6 +798,13 @@ export default {
     retry: '重試',
   },
 
+  // 連線中斷提示（WebUI 模式）
+  connectionLost: {
+    title: '連線已中斷',
+    message: '與後端服務的連線已中斷，正在嘗試重新連線...',
+    reconnecting: '重連中...',
+  },
+
   // 程式路徑問題提示
   badPath: {
     title: '程式位置不對',

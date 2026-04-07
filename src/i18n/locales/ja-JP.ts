@@ -820,6 +820,13 @@ export default {
     retry: '再試行',
   },
 
+  // 接続切断（WebUI モード）
+  connectionLost: {
+    title: '接続が切断されました',
+    message: 'バックエンドサービスとの接続が切断されました。再接続を試みています...',
+    reconnecting: '再接続中...',
+  },
+
   // パス警告
   badPath: {
     title: 'プログラムの場所が正しくありません',

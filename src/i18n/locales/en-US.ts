@@ -821,6 +821,13 @@ export default {
     retry: 'Retry',
   },
 
+  // Connection lost (WebUI mode)
+  connectionLost: {
+    title: 'Connection Lost',
+    message: 'The connection to the backend has been lost. Attempting to reconnect...',
+    reconnecting: 'Reconnecting...',
+  },
+
   // Bad path warning
   badPath: {
     title: 'Wrong Location',

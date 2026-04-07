@@ -39,6 +39,7 @@ type MaaCallbackHandler = (message: string, details: string) => void;
 type AgentOutputHandler = (instanceId: string, stream: string, line: string) => void;
 type ConfigChangedHandler = () => void;
 type StateChangedHandler = (instanceId: string, kind: string) => void;
+type ConnectionStatusHandler = (connected: boolean) => void;
 
 // ============================================================================
 // 内部状态
@@ -55,6 +56,19 @@ const maaCallbackHandlers = new Set<MaaCallbackHandler>();
 const agentOutputHandlers = new Set<AgentOutputHandler>();
 const configChangedHandlers = new Set<ConfigChangedHandler>();
 const stateChangedHandlers = new Set<StateChangedHandler>();
+const connectionStatusHandlers = new Set<ConnectionStatusHandler>();
+
+/** 当前是否处于已连接状态（用于去重通知） */
+let currentlyConnected = false;
+/** 是否曾经成功连接过（首次连接前不弹断开提示） */
+let hasEverConnected = false;
+
+function notifyConnectionStatus(connected: boolean) {
+  if (connected === currentlyConnected) return;
+  currentlyConnected = connected;
+  if (connected) hasEverConnected = true;
+  connectionStatusHandlers.forEach((h) => h(connected));
+}
 
 // ============================================================================
 // WebSocket URL 推算
@@ -99,13 +113,17 @@ function scheduleReconnect() {
 
 function onOpen() {
   log.info('WebSocket 已连接');
-  reconnectDelay = 1000; // 连接成功后重置退避计时
+  reconnectDelay = 1000;
+  notifyConnectionStatus(true);
 }
 
 function onClose(event: CloseEvent) {
   ws = null;
   if (!stopped) {
     log.warn(`WebSocket 断开 (code=${event.code})，准备重连`);
+    if (hasEverConnected) {
+      notifyConnectionStatus(false);
+    }
     scheduleReconnect();
   }
 }
@@ -209,4 +227,15 @@ export function onConfigChanged(handler: ConfigChangedHandler): () => void {
 export function onStateChanged(handler: StateChangedHandler): () => void {
   stateChangedHandlers.add(handler);
   return () => stateChangedHandlers.delete(handler);
+}
+
+/** 订阅连接状态变更（connected: true/false），返回取消订阅函数 */
+export function onConnectionStatus(handler: ConnectionStatusHandler): () => void {
+  connectionStatusHandlers.add(handler);
+  return () => connectionStatusHandlers.delete(handler);
+}
+
+/** 返回是否曾经成功建立过连接 */
+export function hasConnectedBefore(): boolean {
+  return hasEverConnected;
 }

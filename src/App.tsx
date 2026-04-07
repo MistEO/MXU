@@ -63,6 +63,7 @@ import {
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { LoadingScreen } from './components/app';
+import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 
 const log = loggers.app;
@@ -1645,6 +1646,9 @@ function App() {
     >
       <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
       <div className="relative z-10 h-full flex flex-col">
+        {/* WebUI 模式下的连接断开覆盖层 */}
+        <ConnectionLostOverlay />
+
         {/* 自定义标题栏 */}
         <TitleBar />
 

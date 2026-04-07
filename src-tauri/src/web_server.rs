@@ -167,6 +167,8 @@ pub async fn start_web_server(
         // 任务运行状态（跨刷新持久化）
         .route("/task-status", get(handle_get_all_task_run_status))
         .route("/task-status/:id", axum::routing::put(handle_sync_task_run_status).delete(handle_clear_task_run_status))
+        // 心跳
+        .route("/heartbeat", get(handle_heartbeat))
         // 系统信息
         .route("/system/is-elevated", get(handle_is_elevated))
         // 本地文件代理（浏览器通过此端点访问 exe 目录下的资源文件）
@@ -910,6 +912,12 @@ async fn handle_clear_task_run_status(
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+/// GET /api/heartbeat
+/// 轻量心跳端点，供 Web 客户端检测后端是否存活
+async fn handle_heartbeat() -> impl IntoResponse {
+    Json(serde_json::json!({ "ok": true })).into_response()
 }
 
 /// GET /api/system/is-elevated

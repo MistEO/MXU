@@ -492,6 +492,49 @@ pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
 }
 
+/// 检查命令行是否包含 -h/--help 参数
+pub fn has_help_flag() -> bool {
+    std::env::args().skip(1).any(|arg| arg == "-h" || arg == "--help")
+}
+
+/// 生成命令行帮助文本
+pub fn get_cli_help_text() -> String {
+    let exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "mxu".to_string());
+
+    format!(
+        "\
+MXU 命令行参数
+
+用法:
+  {exe_name} [参数]
+
+参数:
+  -h, --help
+      显示本帮助并退出
+
+  --autostart
+      以开机自启动模式运行，并触发自动执行逻辑
+      通常由 MXU 创建的系统自启动任务自动传入
+
+  -i, --instance <实例名>
+      指定自动执行时使用的实例名
+      仅在 --autostart 模式下生效
+      也支持 -i=<实例名> 与 --instance=<实例名> 写法
+
+  -q, --quit-after-run
+      当本次启动实际触发自动执行后，在任务完成时自动退出
+
+示例:
+  {exe_name} --autostart --instance \"日常任务\"
+  {exe_name} --autostart -i \"日常任务\" --quit-after-run
+"
+    )
+}
+
 /// 从命令行参数中获取指定选项的值
 /// 支持 `-x value`、`--name value`、`-x=value`、`--name=value` 格式
 /// 返回第一个匹配的值；若值缺失或以 `-` 开头则视为无效并跳过

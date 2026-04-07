@@ -5,6 +5,11 @@
 mod webview2;
 
 fn main() {
+    if mxu_lib::commands::system::has_help_flag() {
+        print!("{}", mxu_lib::commands::system::get_cli_help_text());
+        return;
+    }
+
     #[cfg(target_os = "windows")]
     {
         // 设置 WebView2 数据目录为程序所在目录下的 webview_data 文件夹

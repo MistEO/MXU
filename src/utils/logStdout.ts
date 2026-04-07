@@ -78,6 +78,8 @@ export function clearLogsOnBackend(instanceId: string) {
 export interface InstanceTaskRunSnapshot {
   statuses: Record<string, string>;
   mappings: Record<string, string>; // Rust 端 key 是 i64, JSON 序列化为字符串 key
+  pending_task_ids: number[];
+  current_task_index: number;
 }
 
 /** 将指定实例的任务运行状态快照同步到后端（fire-and-forget） */

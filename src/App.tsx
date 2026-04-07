@@ -621,6 +621,8 @@ function App() {
         if (snapshots && Object.keys(snapshots).length > 0) {
           const restoredStatuses: Record<string, Record<string, import('@/stores/types').TaskRunStatus>> = {};
           const restoredMappings: Record<string, Record<number, string>> = {};
+          const restoredPendingTaskIds: Record<string, number[]> = {};
+          const restoredCurrentTaskIndex: Record<string, number> = {};
           for (const [instanceId, snap] of Object.entries(snapshots)) {
             restoredStatuses[instanceId] = snap.statuses as Record<string, import('@/stores/types').TaskRunStatus>;
             const numericMappings: Record<number, string> = {};
@@ -628,12 +630,33 @@ function App() {
               numericMappings[Number(k)] = v;
             }
             restoredMappings[instanceId] = numericMappings;
+            if (snap.pending_task_ids?.length) {
+              restoredPendingTaskIds[instanceId] = snap.pending_task_ids;
+              restoredCurrentTaskIndex[instanceId] = snap.current_task_index ?? 0;
+            }
           }
           useAppStore.setState((state) => ({
             instanceTaskRunStatus: { ...state.instanceTaskRunStatus, ...restoredStatuses },
             maaTaskIdMapping: { ...state.maaTaskIdMapping, ...restoredMappings },
+            instancePendingTaskIds: { ...state.instancePendingTaskIds, ...restoredPendingTaskIds },
+            instanceCurrentTaskIndex: { ...state.instanceCurrentTaskIndex, ...restoredCurrentTaskIndex },
           }));
           log.info('已恢复任务运行状态:', Object.keys(snapshots).length, '个实例');
+
+          // 为正在运行的实例重启任务队列监视器
+          const { startGlobalCallbackListener } = await import('@/components/connection/callbackCache');
+          const { startTaskQueueMonitor } = await import('@/services/taskMonitor');
+          const currentState = useAppStore.getState();
+          const runningInstances = currentState.instances.filter((i) => i.isRunning);
+          if (runningInstances.length > 0) {
+            await startGlobalCallbackListener();
+            for (const inst of runningInstances) {
+              if (restoredPendingTaskIds[inst.id]?.length) {
+                startTaskQueueMonitor(inst.id);
+                log.info('已重启任务监视器:', inst.name);
+              }
+            }
+          }
         }
       } catch (err) {
         log.warn('恢复任务运行状态失败:', err);

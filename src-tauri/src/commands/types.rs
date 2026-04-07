@@ -249,6 +249,12 @@ pub struct InstanceTaskRunSnapshot {
     pub statuses: HashMap<String, String>,
     /// maaTaskId → selectedTaskId
     pub mappings: HashMap<i64, String>,
+    /// 任务队列（maaTaskId 列表，执行顺序）
+    #[serde(default)]
+    pub pending_task_ids: Vec<i64>,
+    /// 当前执行到的任务索引
+    #[serde(default)]
+    pub current_task_index: usize,
 }
 
 /// MaaFramework 运行时状态

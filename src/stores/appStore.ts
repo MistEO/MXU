@@ -62,12 +62,18 @@ function syncTaskRunSnapshotForInstance(instanceId: string) {
   const state = useAppStore.getState();
   const statuses = state.instanceTaskRunStatus[instanceId] || {};
   const rawMappings = state.maaTaskIdMapping[instanceId] || {};
-  // maaTaskIdMapping 的 key 是 number，转为 Record<string, string> 兼容 JSON
   const mappings: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawMappings)) {
     mappings[String(k)] = v;
   }
-  syncTaskRunStatusToBackend(instanceId, { statuses, mappings });
+  const pending_task_ids = state.instancePendingTaskIds[instanceId] || [];
+  const current_task_index = state.instanceCurrentTaskIndex[instanceId] || 0;
+  syncTaskRunStatusToBackend(instanceId, {
+    statuses,
+    mappings,
+    pending_task_ids,
+    current_task_index,
+  });
 }
 
 // 重新导出类型供外部使用
@@ -1673,39 +1679,47 @@ export const useAppStore = create<AppState>()(
     instancePendingTaskIds: {},
     instanceCurrentTaskIndex: {},
 
-    setPendingTaskIds: (instanceId, taskIds) =>
+    setPendingTaskIds: (instanceId, taskIds) => {
       set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: taskIds,
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    appendPendingTaskId: (instanceId, taskId) =>
+    appendPendingTaskId: (instanceId, taskId) => {
       set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: [...(state.instancePendingTaskIds[instanceId] || []), taskId],
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    setCurrentTaskIndex: (instanceId, index) =>
+    setCurrentTaskIndex: (instanceId, index) => {
       set((state) => ({
         instanceCurrentTaskIndex: {
           ...state.instanceCurrentTaskIndex,
           [instanceId]: index,
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    advanceCurrentTaskIndex: (instanceId) =>
+    advanceCurrentTaskIndex: (instanceId) => {
       set((state) => ({
         instanceCurrentTaskIndex: {
           ...state.instanceCurrentTaskIndex,
           [instanceId]: (state.instanceCurrentTaskIndex[instanceId] || 0) + 1,
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
-    clearPendingTasks: (instanceId) =>
+    clearPendingTasks: (instanceId) => {
       set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
@@ -1715,7 +1729,9 @@ export const useAppStore = create<AppState>()(
           ...state.instanceCurrentTaskIndex,
           [instanceId]: 0,
         },
-      })),
+      }));
+      syncTaskRunSnapshotForInstance(instanceId);
+    },
 
     // 定时执行状态
     scheduleExecutions: {},

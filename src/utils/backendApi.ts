@@ -70,6 +70,18 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /**
+ * 向后端 HTTP API 发送 DELETE 请求
+ */
+export async function apiDelete(path: string): Promise<void> {
+  const url = `${getApiBase()}${path}`;
+  const resp = await fetch(url, { method: 'DELETE' });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText);
+    throw new Error(`API DELETE ${path} failed (${resp.status}): ${text}`);
+  }
+}
+
+/**
  * 检测后端 HTTP API 是否可用（axum server 是否在运行）
  */
 export async function isBackendApiAvailable(): Promise<boolean> {

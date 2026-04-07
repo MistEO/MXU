@@ -34,7 +34,7 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { logToStdout } from '@/utils/logStdout';
+import { logToStdout, pushLogToBackend, clearLogsOnBackend } from '@/utils/logStdout';
 import {
   generateId,
   initializeAllOptionValues,
@@ -1716,16 +1716,23 @@ export const useAppStore = create<AppState>()(
     addLog: (instanceId, log) =>
       set((state) => {
         const logs = state.instanceLogs[instanceId] || [];
+        const now = new Date();
         const newLog: LogEntry = {
           id: generateId(),
-          timestamp: new Date(),
+          timestamp: now,
           ...log,
         };
 
         forwardLogToStdout(log.message);
-        // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）。
-        // 这里也做归一化，避免配置错误导致无限增长；与 UI
-        // 限制保持一致：[100, 10000]，默认 2000。
+
+        pushLogToBackend(instanceId, {
+          id: newLog.id,
+          timestamp: now.toISOString(),
+          type: newLog.type,
+          message: newLog.message,
+          html: newLog.html,
+        });
+
         const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
         const rawLimit = Number.isFinite(state.maxLogsPerInstance)
           ? state.maxLogsPerInstance
@@ -1740,13 +1747,15 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-    clearLogs: (instanceId) =>
+    clearLogs: (instanceId) => {
+      clearLogsOnBackend(instanceId);
       set((state) => ({
         instanceLogs: {
           ...state.instanceLogs,
           [instanceId]: [],
         },
-      })),
+      }));
+    },
 
     // 回调 ID 与名称的映射
     ctrlIdToName: {},

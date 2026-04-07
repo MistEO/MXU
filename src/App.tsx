@@ -589,6 +589,31 @@ function App() {
         log.warn('恢复后端状态失败:', err);
       }
 
+      // 从后端恢复运行日志（跨页面刷新持久化）
+      try {
+        const { getAllLogsFromBackend } = await import('@/utils/logStdout');
+        const backendLogs = await getAllLogsFromBackend();
+        if (backendLogs && Object.keys(backendLogs).length > 0) {
+          const store = useAppStore.getState();
+          const restoredLogs: Record<string, import('@/stores/types').LogEntry[]> = {};
+          for (const [instanceId, entries] of Object.entries(backendLogs)) {
+            restoredLogs[instanceId] = entries.map((e) => ({
+              id: e.id,
+              timestamp: new Date(e.timestamp),
+              type: e.type as import('@/stores/types').LogType,
+              message: e.message,
+              html: e.html,
+            }));
+          }
+          useAppStore.setState({
+            instanceLogs: { ...store.instanceLogs, ...restoredLogs },
+          });
+          log.info('已恢复运行日志:', Object.keys(restoredLogs).length, '个实例');
+        }
+      } catch (err) {
+        log.warn('恢复运行日志失败:', err);
+      }
+
       // 检查 MaaFramework 版本兼容性
       // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作
       try {

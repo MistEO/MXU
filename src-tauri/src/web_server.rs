@@ -159,6 +159,9 @@ pub async fn start_web_server(
         .route("/maa/instances/:id/tasks/run", axum::routing::post(handle_run_task))
         .route("/maa/instances/:id/tasks/stop", axum::routing::post(handle_stop_task))
         .route("/maa/instances/:id/screenshot", get(handle_get_screenshot))
+        // 运行日志（跨刷新持久化）
+        .route("/logs", get(handle_get_all_logs))
+        .route("/logs/:id", axum::routing::post(handle_push_log).delete(handle_clear_instance_logs))
         // 系统信息
         .route("/system/is-elevated", get(handle_is_elevated))
         // 本地文件代理（浏览器通过此端点访问 exe 目录下的资源文件）
@@ -776,6 +779,43 @@ async fn handle_serve_local_file(
                 .into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "文件不存在").into_response(),
+    }
+}
+
+/// GET /api/logs — 获取所有实例的运行日志
+async fn handle_get_all_logs(State(state): State<WebState>) -> impl IntoResponse {
+    match state.maa_state.log_buffer.lock() {
+        Ok(buffer) => Json(buffer.get_all().clone()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// POST /api/logs/:id — 推送一条运行日志
+async fn handle_push_log(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+    Json(entry): Json<crate::commands::types::LogEntryDto>,
+) -> impl IntoResponse {
+    match state.maa_state.log_buffer.lock() {
+        Ok(mut buffer) => {
+            buffer.push(&instance_id, entry);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// DELETE /api/logs/:id — 清空指定实例的运行日志
+async fn handle_clear_instance_logs(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.maa_state.log_buffer.lock() {
+        Ok(mut buffer) => {
+            buffer.clear_instance(&instance_id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 

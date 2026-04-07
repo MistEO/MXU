@@ -232,6 +232,9 @@ pub fn run() {
             commands::state::maa_get_cached_win32_windows,
             commands::state::maa_get_cached_wlroots_sockets,
             commands::state::log_to_stdout,
+            commands::state::push_log,
+            commands::state::get_all_logs,
+            commands::state::clear_instance_logs,
             // 更新安装命令
             commands::update::extract_zip,
             commands::update::check_changes_json,

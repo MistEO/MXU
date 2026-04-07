@@ -180,6 +180,68 @@ impl Drop for InstanceRuntime {
     }
 }
 
+/// 前端运行日志条目（用于跨页面刷新持久化）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntryDto {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "type")]
+    pub log_type: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+}
+
+/// 每个实例的日志缓冲区默认上限
+const DEFAULT_MAX_LOGS: usize = 2000;
+
+/// 运行日志缓冲区（按实例隔离，支持容量限制）
+pub struct LogBuffer {
+    logs: HashMap<String, Vec<LogEntryDto>>,
+    max_per_instance: usize,
+}
+
+impl Default for LogBuffer {
+    fn default() -> Self {
+        Self {
+            logs: HashMap::new(),
+            max_per_instance: DEFAULT_MAX_LOGS,
+        }
+    }
+}
+
+impl LogBuffer {
+    pub fn new(max_per_instance: usize) -> Self {
+        Self {
+            logs: HashMap::new(),
+            max_per_instance: max_per_instance.max(100),
+        }
+    }
+
+    pub fn push(&mut self, instance_id: &str, entry: LogEntryDto) {
+        let entries = self.logs.entry(instance_id.to_string()).or_default();
+        entries.push(entry);
+        if entries.len() > self.max_per_instance {
+            let overflow = entries.len() - self.max_per_instance;
+            entries.drain(..overflow);
+        }
+    }
+
+    pub fn get_all(&self) -> &HashMap<String, Vec<LogEntryDto>> {
+        &self.logs
+    }
+
+    pub fn clear_instance(&mut self, instance_id: &str) {
+        if let Some(entries) = self.logs.get_mut(instance_id) {
+            entries.clear();
+        }
+    }
+
+    pub fn set_max(&mut self, max: usize) {
+        self.max_per_instance = max.max(100);
+    }
+}
+
 /// MaaFramework 运行时状态
 #[derive(Default)]
 pub struct MaaState {
@@ -196,6 +258,8 @@ pub struct MaaState {
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
     /// 缓存的 WlRoots socket 列表（全局共享）
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
+    /// 运行日志缓冲区（前端推送，页面刷新后恢复）
+    pub log_buffer: Mutex<LogBuffer>,
 }
 
 impl MaaState {

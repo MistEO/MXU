@@ -1,9 +1,11 @@
 /**
- * 日志 stdout 输出桥接模块
- * 将前端 UI 日志转发到后端 stdout，便于终端调试和第三方调度工具读取
+ * 日志后端桥接模块
+ * - 将前端 UI 日志转发到后端 stdout，便于终端调试和第三方调度工具读取
+ * - 将运行日志推送到后端缓冲区，支持跨页面刷新持久化
  */
 
 import { isTauri } from '@/utils/paths';
+import { apiDelete, apiGet, apiPost } from '@/utils/backendApi';
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -26,5 +28,44 @@ export function logToStdout(message: string) {
   if (!message) return;
   getInvoke().then((inv) => {
     if (inv) inv('log_to_stdout', { message }).catch(() => {});
+  });
+}
+
+export interface LogEntryDto {
+  id: string;
+  timestamp: string;
+  type: string;
+  message: string;
+  html?: string;
+}
+
+/** 将一条运行日志推送到后端缓冲区（fire-and-forget） */
+export function pushLogToBackend(instanceId: string, entry: LogEntryDto) {
+  getInvoke().then((inv) => {
+    if (inv) {
+      inv('push_log', { instanceId, entry }).catch(() => {});
+    } else {
+      apiPost(`/logs/${instanceId}`, entry).catch(() => {});
+    }
+  });
+}
+
+/** 获取后端缓冲区中所有实例的运行日志 */
+export async function getAllLogsFromBackend(): Promise<Record<string, LogEntryDto[]>> {
+  const inv = await getInvoke();
+  if (inv) {
+    return (await inv('get_all_logs')) as Record<string, LogEntryDto[]>;
+  }
+  return apiGet<Record<string, LogEntryDto[]>>('/logs');
+}
+
+/** 清空后端缓冲区中指定实例的运行日志（fire-and-forget） */
+export function clearLogsOnBackend(instanceId: string) {
+  getInvoke().then((inv) => {
+    if (inv) {
+      inv('clear_instance_logs', { instanceId }).catch(() => {});
+    } else {
+      apiDelete(`/logs/${instanceId}`).catch(() => {});
+    }
   });
 }

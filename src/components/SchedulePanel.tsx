@@ -246,10 +246,12 @@ function PolicyCard({
               ))}
             </div>
             <p className="text-xs text-text-muted">
-              {t('schedule.timeZoneHint')} ({(() => {
+              {t('schedule.timeZoneHint')} (
+              {(() => {
                 const off = -new Date().getTimezoneOffset() / 60;
                 return `UTC${off >= 0 ? '+' : ''}${off}`;
-              })()})
+              })()}
+              )
             </p>
           </div>
 

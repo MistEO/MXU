@@ -6,6 +6,8 @@ use chrono::TimeZone;
 use log::{info, warn};
 use maa_framework::custom::FnAction;
 use maa_framework::resource::Resource;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 
 // ============================================================================
 // MXU_SLEEP Custom Action
@@ -25,6 +27,18 @@ fn is_tasker_stopping(ctx: &maa_framework::context::Context) -> bool {
     // SAFETY: tasker_ptr 来自 Context::tasker_handle()，生命周期由 MaaFramework 管理，
     // 在 custom action 回调期间保证有效。此处仅做只读状态查询。
     unsafe { maa_framework::sys::MaaTaskerStopping(tasker_ptr) != 0 }
+}
+
+fn request_tasker_stop(ctx: &maa_framework::context::Context) -> bool {
+    let tasker_ptr = ctx.tasker_handle();
+    if tasker_ptr.is_null() {
+        warn!("[MXU] Tasker handle is null, cannot request stop");
+        return false;
+    }
+
+    // SAFETY: tasker_ptr 来自 Context::tasker_handle()，生命周期由 MaaFramework 管理，
+    // 在 custom action 回调期间保证有效。此处仅发送停止请求，不持有该指针。
+    unsafe { maa_framework::sys::MaaTaskerPostStop(tasker_ptr) != 0 }
 }
 
 fn wait_with_stop_check(ctx: &maa_framework::context::Context, total_secs: u64) -> bool {
@@ -420,11 +434,33 @@ fn mxu_notify_action_fn(
 /// MXU_KILLPROC 动作名称常量
 const MXU_KILLPROC_ACTION: &str = "MXU_KILLPROC_ACTION";
 
-/// MXU_KILLPROC custom action 回调函数
-/// 从 custom_action_param 中读取 kill_self, process_name，结束进程
-fn mxu_killproc_action_fn(
-    _ctx: &maa_framework::context::Context,
+const MXU_SELF_STOP_REQUESTED_EVENT: &str = "mxu-self-stop-requested";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SelfStopRequestedEvent {
+    instance_id: String,
+}
+
+fn emit_self_stop_requested(app_handle: &AppHandle, instance_id: &str) -> bool {
+    if let Err(e) = app_handle.emit(
+        MXU_SELF_STOP_REQUESTED_EVENT,
+        SelfStopRequestedEvent {
+            instance_id: instance_id.to_string(),
+        },
+    ) {
+        log::error!("[MXU_KILLPROC] Failed to emit self-stop event: {}", e);
+        false
+    } else {
+        true
+    }
+}
+
+fn mxu_killproc_action_impl(
+    ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
+    app_handle: Option<&AppHandle>,
+    instance_id: Option<&str>,
 ) -> bool {
     let param_str = args.param;
     info!("[MXU_KILLPROC] Received param: {}", param_str);
@@ -443,31 +479,32 @@ fn mxu_killproc_action_fn(
         .unwrap_or(true);
 
     if kill_self {
-        info!("[MXU_KILLPROC] Killing self process");
-        // 获取当前可执行文件名
-        let exe_name = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
+        info!("[MXU_KILLPROC] Requesting graceful self-stop");
 
-        if let Some(name) = exe_name {
-            info!("[MXU_KILLPROC] Current exe: {}", name);
-            kill_process_by_name(&name)
-        } else {
-            warn!("[MXU_KILLPROC] Could not determine current exe name, using process::exit");
-            std::process::exit(0);
+        if !request_tasker_stop(ctx) {
+            warn!("[MXU_KILLPROC] Failed to request tasker stop for self-stop mode");
+            return false;
         }
-    } else {
-        let process_name = match json.get("process_name").and_then(|v| v.as_str()) {
-            Some(p) if !p.trim().is_empty() => p.to_string(),
+
+        return match (app_handle, instance_id) {
+            (Some(app), Some(id)) => emit_self_stop_requested(app, id),
             _ => {
-                warn!("[MXU_KILLPROC] Missing or empty 'process_name' parameter");
-                return false;
+                warn!("[MXU_KILLPROC] Missing app handle or instance id for self-stop event");
+                false
             }
         };
-
-        info!("[MXU_KILLPROC] Killing process: {}", process_name);
-        kill_process_by_name(&process_name)
     }
+
+    let process_name = match json.get("process_name").and_then(|v| v.as_str()) {
+        Some(p) if !p.trim().is_empty() => p.to_string(),
+        _ => {
+            warn!("[MXU_KILLPROC] Missing or empty 'process_name' parameter");
+            return false;
+        }
+    };
+
+    info!("[MXU_KILLPROC] Killing process: {}", process_name);
+    kill_process_by_name(&process_name)
 }
 
 /// 按名称结束进程
@@ -802,7 +839,11 @@ fn execute_power_sleep() -> bool {
 
 /// 为资源注册所有 MXU 内置 custom actions
 /// 在资源创建后调用此函数
-pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
+pub fn register_all_mxu_actions(
+    resource: &Resource,
+    app_handle: &AppHandle,
+    instance_id: &str,
+) -> Result<(), String> {
     let mut failed_count = 0;
 
     // 定义一个局部宏打印日志并统计失败
@@ -840,8 +881,46 @@ pub fn register_all_mxu_actions(resource: &Resource) -> Result<(), String> {
     reg_action!(MXU_LAUNCH_ACTION, mxu_launch_action_fn);
     reg_action!(MXU_WEBHOOK_ACTION, mxu_webhook_action_fn);
     reg_action!(MXU_NOTIFY_ACTION, mxu_notify_action_fn);
-    reg_action!(MXU_KILLPROC_ACTION, mxu_killproc_action_fn);
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
+
+    let killproc_app_handle = app_handle.clone();
+    let killproc_instance_id = instance_id.to_string();
+    let killproc_wrapper = move |ctx: &maa_framework::context::Context,
+                                 args: &maa_framework::custom::ActionArgs|
+          -> bool {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mxu_killproc_action_impl(
+                ctx,
+                args,
+                Some(&killproc_app_handle),
+                Some(&killproc_instance_id),
+            )
+        }))
+        .unwrap_or_else(|e| {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic payload".to_string()
+            };
+            log::error!("[MXU] Custom action {} panicked: {}", MXU_KILLPROC_ACTION, msg);
+            false
+        })
+    };
+
+    if let Err(e) = resource.register_custom_action(
+        MXU_KILLPROC_ACTION,
+        Box::new(FnAction::new(killproc_wrapper)),
+    ) {
+        warn!("[MXU] Failed to register {}: {:?}", MXU_KILLPROC_ACTION, e);
+        failed_count += 1;
+    } else {
+        info!(
+            "[MXU] Custom action {} registered successfully",
+            MXU_KILLPROC_ACTION
+        );
+    }
 
     if failed_count > 0 {
         warn!(

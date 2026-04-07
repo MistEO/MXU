@@ -20,7 +20,7 @@ import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
-import type { Instance } from '@/types/interface';
+import type { Instance, TaskItem } from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
@@ -28,9 +28,11 @@ import { ScheduleButton } from './toolbar/ScheduleButton';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 import { scheduleService } from '@/services/scheduleService';
+import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
+const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
 
 interface ToolbarProps {
   showAddPanel: boolean;
@@ -98,6 +100,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   // 权限提示弹窗状态
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [isRestartingAsAdmin, setIsRestartingAsAdmin] = useState(false);
+  const [preActionControlledInstanceId, setPreActionControlledInstanceId] = useState<string | null>(
+    null,
+  );
+  const preActionControlledInstanceIdRef = useRef<string | null>(null);
+  const preActionStopRequestedRef = useRef(false);
+  const lastStartCancelledRef = useRef(false);
 
   const instance = getActiveInstance();
   const tasks = instance?.selectedTasks || [];
@@ -108,6 +116,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const translations = interfaceTranslations[langKey];
 
   const instanceId = instance?.id || '';
+  const isPreActionControlledInstance = Boolean(instanceId) && preActionControlledInstanceId === instanceId;
+  const isStartStopRunning = Boolean(instance?.isRunning) || isPreActionControlledInstance;
 
   // 检查是否有保存的设备和资源配置（用于权限检查等）
   const currentControllerName =
@@ -156,6 +166,52 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
+  const beginPreActionControl = useCallback(async (targetInstanceId: string) => {
+    await maaService.setPreActionStop(targetInstanceId, false);
+    preActionControlledInstanceIdRef.current = targetInstanceId;
+    preActionStopRequestedRef.current = false;
+    setPreActionControlledInstanceId(targetInstanceId);
+  }, []);
+
+  const endPreActionControl = useCallback(async (targetInstanceId: string) => {
+    if (preActionControlledInstanceIdRef.current === targetInstanceId) {
+      preActionControlledInstanceIdRef.current = null;
+      preActionStopRequestedRef.current = false;
+      setPreActionControlledInstanceId((current) =>
+        current === targetInstanceId ? null : current,
+      );
+    }
+    try {
+      await maaService.setPreActionStop(targetInstanceId, false);
+    } catch (err) {
+      log.warn('清理前置程序停止标记失败:', err);
+    }
+  }, []);
+
+  const throwIfPreActionStopped = useCallback((targetInstanceId: string) => {
+    if (
+      preActionControlledInstanceIdRef.current === targetInstanceId &&
+      preActionStopRequestedRef.current
+    ) {
+      throw new Error(PRE_ACTION_CANCELLED_ERROR);
+    }
+  }, []);
+
+  const waitWithStopCheck = useCallback(
+    async (totalMs: number, targetInstanceId: string) => {
+      const intervalMs = 100;
+      let elapsed = 0;
+      while (elapsed < totalMs) {
+        throwIfPreActionStopped(targetInstanceId);
+        const sleepMs = Math.min(intervalMs, totalMs - elapsed);
+        await new Promise((resolve) => setTimeout(resolve, sleepMs));
+        elapsed += sleepMs;
+      }
+      throwIfPreActionStopped(targetInstanceId);
+    },
+    [throwIfPreActionStopped],
+  );
+
   /**
    * 统一任务启动入口 - 供手动启动、定时启动、快捷键启动等场景复用
    * @param targetInstance 目标实例
@@ -175,6 +231,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       const { schedulePolicyName, onPhaseChange } = options || {};
       const targetId = targetInstance.id;
       const targetTasks = targetInstance.selectedTasks || [];
+      lastStartCancelledRef.current = false;
 
       // 检查是否有启用的任务
       const enabledTasks = targetTasks.filter((t) => t.enabled);
@@ -184,7 +241,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       }
 
       // 检查是否正在运行
-      if (targetInstance.isRunning) {
+      if (
+        targetInstance.isRunning ||
+        preActionControlledInstanceIdRef.current === targetId
+      ) {
         log.warn(`实例 ${targetInstance.name} 正在运行中`);
         return false;
       }
@@ -192,6 +252,63 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       // 获取控制器和资源配置
       const controllerName = selectedController[targetId] || projectInterface?.controller[0]?.name;
       const resourceName = selectedResource[targetId] || projectInterface?.resource[0]?.name;
+
+      // 过滤掉不兼容当前控制器/资源的任务
+      const compatibleTasks = enabledTasks.filter((t) => {
+        const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
+        return isTaskCompatible(taskDef, controllerName, resourceName);
+      });
+
+      // 如果有任务因不兼容被跳过，记录警告
+      const compatibleTaskIds = new Set(compatibleTasks.map((t) => t.id));
+      const skippedTasks = enabledTasks.filter((t) => !compatibleTaskIds.has(t.id));
+      if (skippedTasks.length > 0) {
+        log.warn(
+          `实例 ${targetInstance.name}: ${t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
+        );
+        // 向用户显示跳过任务的警告
+        addLog(targetId, {
+          type: 'warning',
+          message: t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length }),
+        });
+        skippedTasks.forEach((task) => {
+          const taskDef = projectInterface?.task.find((td) => td.name === task.taskName);
+          const taskLabel = taskDef?.label
+            ? resolveI18nText(taskDef.label, translations)
+            : task.taskName;
+
+          // 检查是控制器不兼容还是资源不兼容
+          const isControllerIncompatible =
+            taskDef?.controller &&
+            taskDef.controller.length > 0 &&
+            controllerName &&
+            !taskDef.controller.includes(controllerName);
+
+          const isResourceIncompatible =
+            taskDef?.resource &&
+            taskDef.resource.length > 0 &&
+            resourceName &&
+            !taskDef.resource.includes(resourceName);
+
+          if (isControllerIncompatible) {
+            log.warn(`  - ${t('taskList.taskSkippedController', { taskName: taskLabel })}`);
+          }
+          if (isResourceIncompatible) {
+            log.warn(`  - ${t('taskList.taskSkippedResource', { taskName: taskLabel })}`);
+          }
+        });
+      }
+
+      // 如果所有启用的任务都被过滤掉了，则无法启动
+      if (compatibleTasks.length === 0) {
+        log.warn(`实例 ${targetInstance.name}: ${t('taskList.noCompatibleTasks')}`);
+        // 向用户显示明确的错误信息
+        addLog(targetId, {
+          type: 'error',
+          message: t('taskList.noCompatibleTasks'),
+        });
+        return false;
+      }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
       const resource = projectInterface?.resource.find((r) => r.name === resourceName);
       const savedDevice = targetInstance.savedDevice;
@@ -199,7 +316,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       // 检查是否有保存的设备配置
       const hasSavedDevice = Boolean(
         savedDevice &&
-        (savedDevice.adbDeviceName || savedDevice.windowName || savedDevice.playcoverAddress),
+        (savedDevice.adbDeviceName ||
+          savedDevice.windowName ||
+          savedDevice.wlrSocketPath ||
+          savedDevice.playcoverAddress),
       );
 
       let isTargetConnected = instanceConnectionStatus[targetId] === 'Connected';
@@ -238,20 +358,26 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
         }
 
+        let preActionControlStarted = false;
         if (shouldRunPreAction && preAction) {
+          preActionControlStarted = true;
+          await beginPreActionControl(targetId);
           log.info(`实例 ${targetInstance.name}: 执行前置动作:`, preAction.program);
           addLog(targetId, {
             type: 'info',
             message: t('action.preActionStarting'),
           });
           try {
+            throwIfPreActionStopped(targetId);
             const exitCode = await maaService.runAction(
+              targetId,
               preAction.program,
               preAction.args,
               basePath,
               preAction.waitForExit ?? true,
               preAction.useCmd ?? false,
             );
+            throwIfPreActionStopped(targetId);
             if (exitCode !== 0) {
               log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
               addLog(targetId, {
@@ -292,6 +418,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               const maxAttempts = 300; // 最多等待 5 分钟
 
               while (!deviceFound && attempts < maxAttempts) {
+                throwIfPreActionStopped(targetId);
                 try {
                   if (controllerType === 'Adb') {
                     const devices = await maaService.findAdbDevices();
@@ -315,6 +442,15 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                       // 没有保存的窗口，等待任意匹配窗口出现
                       deviceFound = windows.length > 0;
                     }
+                  } else if (controllerType === 'WlRoots') {
+                    const sockets = await maaService.findWlrootsSockets();
+                    if (savedDevice?.wlrSocketPath) {
+                      // 有保存的套接字路径，精确匹配
+                      deviceFound = sockets.includes(savedDevice.wlrSocketPath);
+                    } else {
+                      // 没有保存的套接字路径，等待任意匹配的套接字出现
+                      deviceFound = sockets.length > 0;
+                    }
                   } else {
                     // 无法确定控制器类型，跳过等待
                     deviceFound = true;
@@ -328,7 +464,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
                 if (!deviceFound) {
                   attempts++;
-                  await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待 1 秒
+                  await waitWithStopCheck(1000, targetId);
                 }
               }
 
@@ -342,6 +478,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 if (
                   !savedDevice?.windowName &&
                   !savedDevice?.adbDeviceName &&
+                  !savedDevice?.wlrSocketPath &&
                   !savedDevice?.playcoverAddress
                 ) {
                   // 尝试找出实际匹配到的名称用于提示
@@ -370,6 +507,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                           }),
                         });
                       }
+                    } else if (controllerType === 'WlRoots') {
+                      const sockets = await maaService.findWlrootsSockets();
+                      if (sockets.length > 0) {
+                        addLog(targetId, {
+                          type: 'info',
+                          message: t('taskList.autoConnect.autoSelectedDevice', {
+                            name: sockets[0],
+                          }),
+                        });
+                      }
                     }
                   } catch {
                     // 忽略二次搜索错误
@@ -384,7 +531,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                     type: 'info',
                     message: t('action.preActionConnectDelay', { seconds: delaySec }),
                   });
-                  await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+                  await waitWithStopCheck(delaySec * 1000, targetId);
                 }
 
                 // 前置程序（重新）启动了应用，旧窗口句柄已失效，必须重新连接
@@ -400,12 +547,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
             }
           } catch (err) {
+            if ((err instanceof Error ? err.message : String(err)) === PRE_ACTION_CANCELLED_ERROR) {
+              throw err;
+            }
             log.error(`实例 ${targetInstance.name}: 前置动作执行失败:`, err);
             addLog(targetId, {
               type: 'error',
               message: t('action.preActionFailed', { error: String(err) }),
             });
             // 前置动作失败不阻止任务执行，继续
+          } finally {
+            if (preActionControlStarted) {
+              await endPreActionControl(targetId);
+            }
           }
         }
 
@@ -491,6 +645,20 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
               deviceName = matchedWindow.window_name || matchedWindow.class_name;
               targetType = 'window';
+            } else if (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) {
+              const sockets = await maaService.findWlrootsSockets();
+              if (!sockets.includes(savedDevice.wlrSocketPath)) {
+                log.warn(
+                  `实例 ${targetInstance.name}: 未找到 WlRoots socket ${savedDevice.wlrSocketPath}`,
+                );
+                return false;
+              }
+              config = {
+                type: 'WlRoots',
+                wlr_socket_path: savedDevice.wlrSocketPath,
+              };
+              deviceName = savedDevice.wlrSocketPath;
+              targetType = 'device';
             } else if (controllerType === 'PlayCover' && savedDevice.playcoverAddress) {
               config = {
                 type: 'PlayCover',
@@ -571,6 +739,30 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
               }
               deviceName = firstWindow.window_name || firstWindow.class_name;
               targetType = 'window';
+            } else if (controllerType === 'WlRoots') {
+              const sockets = await maaService.findWlrootsSockets();
+              if (sockets.length === 0) {
+                log.warn(`实例 ${targetInstance.name}: 未搜索到任何 WlRoots socket`);
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.noDeviceFound'),
+                });
+                return false;
+              }
+              const firstSocket = sockets[0];
+              log.info(`实例 ${targetInstance.name}: 自动选择 WlRoots socket: ${firstSocket}`);
+              addLog(targetId, {
+                type: 'info',
+                message: t('taskList.autoConnect.autoSelectedDevice', {
+                  name: firstSocket,
+                }),
+              });
+              config = {
+                type: 'WlRoots',
+                wlr_socket_path: firstSocket,
+              };
+              deviceName = firstSocket;
+              targetType = 'device';
             } else if (controllerType === 'PlayCover') {
               // PlayCover 没有搜索功能，无法自动连接
               log.warn(`实例 ${targetInstance.name}: PlayCover 控制器需要手动配置地址`);
@@ -725,41 +917,57 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         onPhaseChange?.('idle');
 
-        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, enabledTasks.length);
-
-        // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
-        const taskConfigs: TaskConfig[] = [];
-        for (const selectedTask of enabledTasks) {
-          // 先检查是否是 MXU 特殊任务
+        // 构建可运行任务列表（排除无法找到定义的任务）
+        // 这确保了 taskConfigs、taskIds 和 runnableTasks 的索引对齐
+        interface RunnableTask {
+          selectedTask: (typeof compatibleTasks)[0];
+          taskDef: NonNullable<ReturnType<typeof getMxuSpecialTask>>['taskDef'] | TaskItem;
+          specialTask: ReturnType<typeof getMxuSpecialTask>;
+        }
+        const runnableTasks: RunnableTask[] = [];
+        for (const selectedTask of compatibleTasks) {
           const specialTask = getMxuSpecialTask(selectedTask.taskName);
           const taskDef =
             specialTask?.taskDef ||
             projectInterface?.task.find((t) => t.name === selectedTask.taskName);
-          if (!taskDef) continue;
-          taskConfigs.push({
-            entry: taskDef.entry,
-            pipeline_override: generateTaskPipelineOverride(
-              selectedTask,
-              projectInterface,
-              controllerName,
-              resourceName,
-            ),
-          });
-          // 预注册 entry -> taskName 映射，确保回调时能找到任务名
-          // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译
-          const taskDisplayName =
-            selectedTask.customName ||
-            (specialTask && taskDef.label
-              ? t(taskDef.label)
-              : resolveI18nText(taskDef.label, translations)) ||
-            selectedTask.taskName;
-          registerEntryTaskName(taskDef.entry, taskDisplayName);
+          if (!taskDef) {
+            log.warn(`跳过任务 ${selectedTask.taskName}: 未找到任务定义`);
+            continue;
+          }
+          runnableTasks.push({ selectedTask, taskDef, specialTask });
         }
 
-        if (taskConfigs.length === 0) {
+        if (runnableTasks.length === 0) {
           log.warn(`实例 ${targetInstance.name}: 没有可执行的任务`);
           return false;
         }
+
+        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, runnableTasks.length);
+
+        // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
+        const taskConfigs: TaskConfig[] = runnableTasks.map(
+          ({ selectedTask, taskDef, specialTask }) => {
+            // 预注册 entry -> taskName 映射，确保回调时能找到任务名
+            // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译
+            const taskDisplayName =
+              selectedTask.customName ||
+              (specialTask && taskDef.label
+                ? t(taskDef.label)
+                : resolveI18nText(taskDef.label, translations)) ||
+              selectedTask.taskName;
+            registerEntryTaskName(taskDef.entry, taskDisplayName);
+
+            return {
+              entry: taskDef.entry,
+              pipeline_override: generateTaskPipelineOverride(
+                selectedTask,
+                projectInterface,
+                controllerName,
+                resourceName,
+              ),
+            };
+          },
+        );
 
         // 准备 Agent 配置（支持单个或多个 Agent）
         const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
@@ -803,29 +1011,27 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);
 
-        // 初始化任务运行状态
-        const enabledTaskIds = enabledTasks.map((t) => t.id);
-        setAllTasksRunStatus(targetId, enabledTaskIds, 'pending');
+        // 初始化任务运行状态（使用 runnableTasks 确保索引对齐）
+        const runnableTaskIds = runnableTasks.map((rt) => rt.selectedTask.id);
+        setAllTasksRunStatus(targetId, runnableTaskIds, 'pending');
 
         // 开始任务时折叠所有任务
         collapseAllTasks(targetId, false);
 
         // 记录映射关系，并注册 task_id 与任务名的映射用于日志显示
         taskIds.forEach((maaTaskId, index) => {
-          if (enabledTasks[index]) {
-            registerMaaTaskMapping(targetId, maaTaskId, enabledTasks[index].id);
+          const runnable = runnableTasks[index];
+          if (runnable) {
+            const { selectedTask, taskDef, specialTask } = runnable;
+            registerMaaTaskMapping(targetId, maaTaskId, selectedTask.id);
             // 注册 task_id 与任务名的映射（使用自定义名称或 label）
             // MXU 特殊任务的 label 需要用 t() 翻译
-            const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
-            const taskDef =
-              specialTask?.taskDef ||
-              projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
             const taskDisplayName =
-              enabledTasks[index].customName ||
-              (specialTask && taskDef?.label
+              selectedTask.customName ||
+              (specialTask && taskDef.label
                 ? t(taskDef.label)
-                : resolveI18nText(taskDef?.label, translations)) ||
-              enabledTasks[index].taskName;
+                : resolveI18nText(taskDef.label, translations)) ||
+              selectedTask.taskName;
             registerTaskIdName(maaTaskId, taskDisplayName);
           }
         });
@@ -839,10 +1045,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         log.error(`实例 ${targetInstance.name}: 任务启动异常:`, err);
 
         const errMsg = err instanceof Error ? err.message : String(err);
-        addLog(targetId, {
-          type: 'error',
-          message: `${t('taskList.autoConnect.startFailed')}: ${errMsg}`,
-        });
+        const cancelled = errMsg === PRE_ACTION_CANCELLED_ERROR;
+        if (!cancelled) {
+          addLog(targetId, {
+            type: 'error',
+            message: `${t('taskList.autoConnect.startFailed')}: ${errMsg}`,
+          });
+        }
 
         const failedAgentConfigs = normalizeAgentConfigs(projectInterface?.agent);
         if (failedAgentConfigs && failedAgentConfigs.length > 0) {
@@ -867,12 +1076,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }
 
         updateInstance(targetId, { isRunning: false });
-        setInstanceTaskStatus(targetId, 'Failed');
+        setInstanceTaskStatus(targetId, cancelled ? null : 'Failed');
         setInstanceCurrentTaskId(targetId, null);
         clearTaskRunStatus(targetId);
         clearPendingTasks(targetId);
         clearScheduleExecution(targetId);
         cancelTaskQueueMonitor(targetId);
+        if (cancelled) {
+          lastStartCancelledRef.current = true;
+          setIsStopping(false);
+        }
 
         return false;
       }
@@ -899,6 +1112,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       setShowAddTaskPanel,
       addLog,
       t,
+      beginPreActionControl,
+      endPreActionControl,
+      throwIfPreActionStopped,
+      waitWithStopCheck,
     ],
   );
 
@@ -982,66 +1199,42 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     }
   };
 
-  // 停止轮询 / 重发相关常量
-  const STOP_TIMEOUT_MS = 8000; // 等待任务停止的最长时间
-  const STOP_REPOST_INTERVAL_MS = 800; // 超时未停时重发 stop 的间隔
-  const STOP_POLL_INTERVAL_MS = 100; // 轮询 isRunning 的间隔
-
-  const waitForTaskStop = async (instanceId: string) => {
-    const start = Date.now();
-    let lastPost = start;
-    while (Date.now() - start < STOP_TIMEOUT_MS) {
-      const running = await maaService.isRunning(instanceId);
-      if (!running) return true;
-      if (Date.now() - lastPost >= STOP_REPOST_INTERVAL_MS) {
-        try {
-          await maaService.stopTask(instanceId);
-          lastPost = Date.now();
-        } catch (err) {
-          log.warn('重复停止任务失败:', err);
-        }
-      }
-      await new Promise((resolve) => setTimeout(resolve, STOP_POLL_INTERVAL_MS));
-    }
-    return false;
-  };
-
   /**
-   * 停止任务的统一流程：发送 stop → 轮询确认 → 断开 agent → 清理 UI 状态
+   * 停止任务的统一流程：复用公共 stop helper，保持各入口行为一致
    * handleStartStop 和 handleStopTasks 共用此逻辑以保持行为一致。
    */
   const performStop = async (targetInstanceId: string) => {
     if (isStopping) return;
     setIsStopping(true);
+    let keepStoppingForPreAction = false;
     try {
-      log.info('停止任务...', targetInstanceId);
-      cancelTaskQueueMonitor(targetInstanceId);
-      await maaService.stopTask(targetInstanceId);
-      const stopped = await waitForTaskStop(targetInstanceId);
-      if (!stopped) {
-        log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
+      if (preActionControlledInstanceIdRef.current === targetInstanceId) {
+        preActionStopRequestedRef.current = true;
+        try {
+          await maaService.setPreActionStop(targetInstanceId, true);
+          keepStoppingForPreAction = true;
+        } catch (err) {
+          preActionStopRequestedRef.current = false;
+          log.error('发送前置程序停止请求失败:', err);
+          throw err;
+        }
         return;
       }
-      const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
-      if (agentConfigs && agentConfigs.length > 0) {
-        // 任务已停止后再断开 agent，避免释放顺序问题
-        await maaService.stopAgent(targetInstanceId);
+      const stopped = await stopInstanceTasks(targetInstanceId);
+      if (!stopped) {
+        log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
       }
-      updateInstance(targetInstanceId, { isRunning: false });
-      setInstanceTaskStatus(targetInstanceId, null);
-      setInstanceCurrentTaskId(targetInstanceId, null);
-      clearTaskRunStatus(targetInstanceId);
-      clearPendingTasks(targetInstanceId);
-      clearScheduleExecution(targetInstanceId);
     } finally {
-      setIsStopping(false);
+      if (!keepStoppingForPreAction) {
+        setIsStopping(false);
+      }
     }
   };
 
   const handleStartStop = async () => {
     if (!instance) return;
 
-    if (instance.isRunning) {
+    if (isStartStopRunning) {
       // 停止任务
       try {
         await performStop(instance.id);
@@ -1071,7 +1264,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           onPhaseChange: setAutoConnectPhase,
         });
 
-        if (!success) {
+        if (!success && !lastStartCancelledRef.current) {
           throw new Error(t('taskList.autoConnect.startFailed'));
         }
       } catch (err) {
@@ -1105,7 +1298,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         }),
       });
 
-      if (currentInstance.isRunning) {
+      if (
+        currentInstance.isRunning ||
+        preActionControlledInstanceIdRef.current === currentInstance.id
+      ) {
         addLog(currentInstance.id, {
           type: 'error',
           message: t('logs.messages.hotkeyStartFailed'),
@@ -1131,7 +1327,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     };
 
     const handleStopTasks = async (evt: Event) => {
-      const runningInstance = useAppStore.getState().instances.find((i) => i.isRunning);
+      const storeState = useAppStore.getState();
+      const runningInstance =
+        storeState.instances.find((i) => i.isRunning) ||
+        (preActionControlledInstanceIdRef.current
+          ? storeState.instances.find((i) => i.id === preActionControlledInstanceIdRef.current)
+          : undefined);
       if (!runningInstance) return;
       if (isStopping) return;
 
@@ -1171,10 +1372,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       document.removeEventListener('mxu-stop-tasks', handleStopTasks);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instance?.id, instance?.isRunning]);
+  }, [instance?.id, instance?.isRunning, isStopping]);
 
   // canRun 只检查是否有启用的任务；运行中时按钮用于停止，不应禁用
-  const isDisabled = (tasks.length === 0 || !canRun) && !instance?.isRunning;
+  const isDisabled = (tasks.length === 0 || !canRun) && !isStartStopRunning;
 
   // 获取启动按钮的文本
   const getStartButtonText = () => {
@@ -1289,35 +1490,35 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         <button
           data-role="start-stop-button"
           onClick={handleStartStop}
-          disabled={isDisabled || isStarting || isStopping}
+          disabled={isDisabled || isStopping || (isStarting && !isStartStopRunning)}
           className={clsx(
             'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            isStarting
-              ? 'bg-success text-white'
-              : isStopping
-                ? 'bg-warning text-white'
-                : instance?.isRunning
-                  ? 'bg-error hover:bg-error/90 text-white'
+            isStopping
+              ? 'bg-warning text-white'
+              : isStartStopRunning
+                ? 'bg-error hover:bg-error/90 text-white'
+                : isStarting
+                  ? 'bg-success text-white'
                   : isDisabled
                     ? 'bg-bg-active text-text-tertiary cursor-not-allowed'
                     : 'bg-accent hover:bg-accent-hover text-white',
           )}
           title={getButtonTitle()}
         >
-          {isStarting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>{getStartButtonText()}</span>
-            </>
-          ) : isStopping ? (
+          {isStopping ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>{t('taskList.stoppingTasks')}</span>
             </>
-          ) : instance?.isRunning ? (
+          ) : isStartStopRunning ? (
             <>
               <StopCircle className="w-4 h-4" />
               <span>{t('taskList.stopTasks')}</span>
+            </>
+          ) : isStarting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{getStartButtonText()}</span>
             </>
           ) : (
             <>

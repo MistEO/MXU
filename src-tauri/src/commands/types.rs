@@ -2,7 +2,7 @@
 //!
 //! 包含 Tauri 命令使用的数据结构和枚举
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -77,6 +77,9 @@ pub enum ControllerConfig {
         mouse_method: u64,
         keyboard_method: u64,
     },
+    WlRoots {
+        wlr_socket_path: String,
+    },
     Gamepad {
         handle: u64,
         #[serde(default)]
@@ -130,6 +133,7 @@ pub struct AllInstanceStates {
     pub instances: HashMap<String, InstanceState>,
     pub cached_adb_devices: Vec<AdbDevice>,
     pub cached_win32_windows: Vec<Win32Window>,
+    pub cached_wlroots_sockets: Vec<String>,
 }
 
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
@@ -182,12 +186,16 @@ pub struct MaaState {
     pub lib_dir: Mutex<Option<PathBuf>>,
     pub resource_dir: Mutex<Option<PathBuf>>,
     pub instances: Mutex<HashMap<String, InstanceRuntime>>,
+    /// 前置程序停止请求（用于中断等待退出）
+    pub pre_action_stop_requests: Mutex<HashSet<String>>,
     /// Controller 连接池：相同配置的 Controller 复用同一个 MaaControllerHandle
     pub controller_pool: Mutex<HashMap<ControllerConfig, Controller>>,
     /// 缓存的 ADB 设备列表（全局共享，避免重复搜索）
     pub cached_adb_devices: Mutex<Vec<AdbDevice>>,
     /// 缓存的 Win32 窗口列表（全局共享）
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
+    /// 缓存的 WlRoots socket 列表（全局共享）
+    pub cached_wlroots_sockets: Mutex<Vec<String>>,
 }
 
 impl MaaState {

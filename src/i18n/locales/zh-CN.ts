@@ -210,6 +210,10 @@ export default {
     stopTasks: '停止任务',
     startingTasks: '启动中...',
     stoppingTasks: '停止中...',
+    tasksSkippedDueToIncompatibility: '已跳过 {{count}} 个不兼容的任务',
+    taskSkippedController: '任务 "{{taskName}}" 不支持当前控制器',
+    taskSkippedResource: '任务 "{{taskName}}" 不支持当前资源',
+    noCompatibleTasks: '没有兼容当前控制器和资源的任务',
     // 自动连接相关
     autoConnect: {
       searching: '搜索设备...',
@@ -340,6 +344,7 @@ export default {
     selectController: '选择控制器',
     adb: 'Android 设备',
     win32: 'Windows 窗口',
+    wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
     gamepad: '游戏手柄',
     connecting: '连接中...',

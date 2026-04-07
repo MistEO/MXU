@@ -1279,8 +1279,10 @@ export const useAppStore = create<AppState>()(
     // 设备列表缓存
     cachedAdbDevices: [],
     cachedWin32Windows: [],
+    cachedWlrootsSockets: [],
     setCachedAdbDevices: (devices) => set({ cachedAdbDevices: devices }),
     setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
+    setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
 
     // 从后端恢复 MAA 运行时状态
     restoreBackendStates: (states) =>
@@ -1321,6 +1323,7 @@ export const useAppStore = create<AppState>()(
           instanceTaskStatus: taskStatus,
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
+          cachedWlrootsSockets: states.cachedWlrootsSockets,
         };
       }),
 

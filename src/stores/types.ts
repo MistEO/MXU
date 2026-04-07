@@ -249,8 +249,10 @@ export interface AppState {
   // 设备列表缓存
   cachedAdbDevices: AdbDevice[];
   cachedWin32Windows: Win32Window[];
+  cachedWlrootsSockets: string[];
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
+  setCachedWlrootsSockets: (sockets: string[]) => void;
 
   // 从后端恢复 MAA 运行时状态
   restoreBackendStates: (states: {
@@ -266,6 +268,7 @@ export interface AppState {
     >;
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
+    cachedWlrootsSockets: string[];
   }) => void;
 
   // 截图流状态

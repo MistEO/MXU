@@ -939,26 +939,28 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           ) : (
             <>
               {/* 任务名称：单击切换选中 */}
-                <div
+              <div
+                className={clsx(
+                  'flex items-center gap-1 min-w-0 overflow-hidden',
+                  isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
+                )}
+                onClick={handleNameClick}
+                title={t('taskItem.clickToToggle')}
+              >
+                <span
                   className={clsx(
-                    'flex items-center gap-1 min-w-0 overflow-hidden',
-                    isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
+                    'min-w-0 text-sm font-medium truncate',
+                    task.enabled ? 'text-text-primary' : 'text-text-muted',
                   )}
-                  onClick={handleNameClick}
-                  title={t('taskItem.clickToToggle')}
                 >
-                  <span
-                    className={clsx(
-                      'min-w-0 text-sm font-medium truncate',
-                      task.enabled ? 'text-text-primary' : 'text-text-muted',
-                    )}
-                  >
-                    {displayName}
+                  {displayName}
+                </span>
+                {task.customName && (
+                  <span className="min-w-0 truncate text-xs text-text-muted">
+                    ({originalLabel})
                   </span>
-                  {task.customName && (
-                    <span className="min-w-0 truncate text-xs text-text-muted">({originalLabel})</span>
-                  )}
-                </div>
+                )}
+              </div>
 
               {/* 不带选项的任务：直接显示不兼容警告 */}
               {!canExpand && isIncompatible && (

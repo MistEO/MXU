@@ -76,6 +76,10 @@ export interface MaaCallbackDetails {
   name?: string;
 }
 
+export interface SelfStopRequestedEvent {
+  instanceId: string;
+}
+
 /** MaaFramework 服务 */
 export const maaService = {
   /**
@@ -209,6 +213,19 @@ export const maaService = {
       );
     });
     return windows;
+  },
+
+  /**
+   * 查找 WlRoots 可用的 Wayland socket
+   */
+  async findWlrootsSockets(): Promise<string[]> {
+    log.info('搜索 WlRoots socket...');
+    const sockets = await invoke<string[]>('maa_find_wlroots_sockets');
+    log.info('找到 WlRoots socket:', sockets.length, '个');
+    sockets.forEach((socket, i) => {
+      log.debug(`  socket[${i}]: ${socket}`);
+    });
+    return sockets;
   },
 
   /**
@@ -582,6 +599,18 @@ export const maaService = {
     });
   },
 
+  async onSelfStopRequested(
+    callback: (payload: SelfStopRequestedEvent) => void | Promise<void>,
+  ): Promise<UnlistenFn> {
+    if (!isTauri()) {
+      return () => {};
+    }
+
+    return await listen<SelfStopRequestedEvent>('mxu-self-stop-requested', (event) => {
+      void callback(event.payload);
+    });
+  },
+
   /**
    * 等待单个操作完成的一次性回调（适用于截图等需要立即获取结果的场景）
    * 注意：此函数会阻塞调用者直到回调到达，适合在非 UI 线程或循环中使用
@@ -687,6 +716,7 @@ export const maaService = {
     >;
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
+    cachedWlrootsSockets: string[];
   } | null> {
     try {
       // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
@@ -704,6 +734,7 @@ export const maaService = {
             >;
             cached_adb_devices: AdbDevice[];
             cached_win32_windows: Win32Window[];
+            cached_wlroots_sockets: string[];
           }>('maa_get_all_states')
         : await apiGet<{
             instances: Record<
@@ -718,6 +749,7 @@ export const maaService = {
             >;
             cached_adb_devices: AdbDevice[];
             cached_win32_windows: Win32Window[];
+            cached_wlroots_sockets: string[];
           }>('/maa/state');
 
       // 转换字段名（snake_case -> camelCase）
@@ -746,6 +778,7 @@ export const maaService = {
         instances,
         cachedAdbDevices: states.cached_adb_devices,
         cachedWin32Windows: states.cached_win32_windows,
+        cachedWlrootsSockets: states.cached_wlroots_sockets,
       };
     } catch (err) {
       log.error('获取所有状态失败:', err);
@@ -772,6 +805,18 @@ export const maaService = {
     if (!isTauri()) return [];
     try {
       return await invoke<Win32Window[]>('maa_get_cached_win32_windows');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * 获取缓存的 WlRoots socket 列表
+   */
+  async getCachedWlrootsSockets(): Promise<string[]> {
+    if (!isTauri()) return [];
+    try {
+      return await invoke<string[]>('maa_get_cached_wlroots_sockets');
     } catch {
       return [];
     }
@@ -830,6 +875,7 @@ export const maaService = {
    * @returns 程序退出码（不等待时返回 0）
    */
   async runAction(
+    instanceId: string,
     program: string,
     args: string,
     cwd?: string,
@@ -842,6 +888,7 @@ export const maaService = {
     log.info('执行动作:', program, args, '等待:', waitForExit, '使用cmd:', useCmd);
     try {
       const exitCode = await invoke<number>('run_action', {
+        instanceId,
         program,
         args,
         cwd: cwd || null,
@@ -854,6 +901,11 @@ export const maaService = {
       log.error('动作执行失败:', err);
       throw err;
     }
+  },
+
+  async setPreActionStop(instanceId: string, stop: boolean): Promise<void> {
+    if (!isTauri()) return;
+    await invoke('set_pre_action_stop', { instanceId, stop });
   },
 
   /**

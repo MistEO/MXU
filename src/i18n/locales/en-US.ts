@@ -217,6 +217,10 @@ export default {
     stopTasks: 'Stop Tasks',
     startingTasks: 'Starting...',
     stoppingTasks: 'Stopping...',
+    tasksSkippedDueToIncompatibility: '{{count}} incompatible task(s) skipped',
+    taskSkippedController: 'Task "{{taskName}}" does not support current controller',
+    taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
+    noCompatibleTasks: 'No tasks compatible with current controller and resource',
     // Auto connect
     autoConnect: {
       searching: 'Searching devices...',
@@ -349,6 +353,7 @@ export default {
     selectController: 'Select Controller',
     adb: 'Android Device',
     win32: 'Windows Window',
+    wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',

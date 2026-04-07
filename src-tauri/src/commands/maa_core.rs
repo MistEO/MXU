@@ -341,6 +341,40 @@ pub async fn maa_find_win32_windows(
     find_win32_windows_impl(state.inner().clone(), class_regex, window_regex).await
 }
 
+/// 查找 WlRoots 可用的 Wayland socket（结果会缓存到 MaaState）
+#[tauri::command]
+pub async fn maa_find_wlroots_sockets(
+    state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<String>, String> {
+    info!("maa_find_wlroots_sockets called");
+
+    let state_arc = state.inner().clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Linux 平台上，Toolkit::find_desktop_windows 返回项中的 window_name
+        // 即为可用的 wayland socket 名称。
+        let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
+
+        let mut result_sockets = Vec::new();
+        for w in windows {
+            let socket = w.window_name.trim();
+            if !socket.is_empty() {
+                result_sockets.push(socket.to_string());
+            }
+        }
+
+        // 缓存搜索结果
+        if let Ok(mut cached) = state_arc.cached_wlroots_sockets.lock() {
+            *cached = result_sockets.clone();
+        }
+
+        info!("Returning {} wlroots socket(s)", result_sockets.len());
+        Ok(result_sockets)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ============================================================================
 // 实例管理命令
 // ============================================================================
@@ -513,6 +547,9 @@ pub async fn connect_controller_impl(
                 )
                 .map_err(|e| e.to_string())?
             }
+            ControllerConfig::WlRoots { wlr_socket_path } => {
+                Controller::new_wlroots(wlr_socket_path).map_err(|e| e.to_string())?
+            }
             ControllerConfig::PlayCover { address, uuid } => {
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
@@ -646,7 +683,7 @@ pub fn maa_load_resource(
         .map_err(|e| e.to_string())?;
 
         // 注册 MXU Custom Actions
-        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res) {
+        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res, &app, &instance_id) {
             warn!("Failed to register MXU custom actions: {}", e);
         }
 

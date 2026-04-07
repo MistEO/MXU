@@ -3,10 +3,15 @@
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
 use super::types::SystemInfo;
+use super::types::MaaState;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 use log::{info, warn};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tauri::State;
+use tokio::time::sleep;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -346,7 +351,27 @@ pub fn is_process_running(program: String) -> bool {
 /// cwd: 工作目录（可选，默认为程序所在目录）
 /// wait_for_exit: 是否等待进程退出
 #[tauri::command]
+pub fn set_pre_action_stop(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    stop: bool,
+) -> Result<(), String> {
+    let mut requests = state
+        .pre_action_stop_requests
+        .lock()
+        .map_err(|e| e.to_string())?;
+    if stop {
+        requests.insert(instance_id);
+    } else {
+        requests.remove(&instance_id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn run_action(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
     program: String,
     args: String,
     cwd: Option<String>,
@@ -356,8 +381,8 @@ pub async fn run_action(
     let use_cmd = use_cmd.unwrap_or(false);
 
     info!(
-        "run_action: program={}, args={}, wait={}, use_cmd={}",
-        program, args, wait_for_exit, use_cmd
+        "run_action: instance_id={}, program={}, args={}, wait={}, use_cmd={}",
+        instance_id, program, args, wait_for_exit, use_cmd
     );
 
     // 使用 shell 语义解析参数至数组（支持引号）
@@ -382,14 +407,39 @@ pub async fn run_action(
     }
 
     if wait_for_exit {
-        // 等待进程退出
-        let status = cmd
-            .status()
+        let mut child = cmd
+            .spawn()
             .map_err(|e| format!("Failed to run action: {} - {}", program, e))?;
 
-        let exit_code = status.code().unwrap_or(-1);
-        info!("run_action finished with exit code: {}", exit_code);
-        Ok(exit_code)
+        loop {
+            if let Some(status) = child
+                .try_wait()
+                .map_err(|e| format!("Failed to wait action: {} - {}", program, e))?
+            {
+                let exit_code = status.code().unwrap_or(-1);
+                info!("run_action finished with exit code: {}", exit_code);
+                return Ok(exit_code);
+            }
+
+            let stop_requested = {
+                let requests = state
+                    .pre_action_stop_requests
+                    .lock()
+                    .map_err(|e| e.to_string())?;
+                requests.contains(&instance_id)
+            };
+
+            if stop_requested {
+                info!("run_action wait cancelled by stop request: {}", instance_id);
+                // 停止只中断等待，不强制终止前置程序；交给后台线程 wait 以避免子进程泄漏。
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+                return Err("MXU_PRE_ACTION_CANCELLED".to_string());
+            }
+
+            sleep(Duration::from_millis(100)).await;
+        }
     } else {
         // 不等待，启动后立即返回
         cmd.spawn()
@@ -440,6 +490,49 @@ pub fn check_vcredist_missing() -> bool {
 #[tauri::command]
 pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
+}
+
+/// 检查命令行是否包含 -h/--help 参数
+pub fn has_help_flag() -> bool {
+    std::env::args().skip(1).any(|arg| arg == "-h" || arg == "--help")
+}
+
+/// 生成命令行帮助文本
+pub fn get_cli_help_text() -> String {
+    let exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "mxu".to_string());
+
+    format!(
+        "\
+MXU 命令行参数
+
+用法:
+  {exe_name} [参数]
+
+参数:
+  -h, --help
+      显示本帮助并退出
+
+  --autostart
+      以开机自启动模式运行，并触发自动执行逻辑
+      通常由 MXU 创建的系统自启动任务自动传入
+
+  -i, --instance <实例名>
+      指定自动执行时使用的实例名
+      仅在 --autostart 模式下生效
+      也支持 -i=<实例名> 与 --instance=<实例名> 写法
+
+  -q, --quit-after-run
+      当本次启动实际触发自动执行后，在任务完成时自动退出
+
+示例:
+  {exe_name} --autostart --instance \"日常任务\"
+  {exe_name} --autostart -i \"日常任务\" --quit-after-run
+"
+    )
 }
 
 /// 从命令行参数中获取指定选项的值

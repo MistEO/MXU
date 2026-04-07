@@ -300,6 +300,7 @@ async function processImports(
 // 检测当前操作系统
 const isWindows = navigator.platform.toLowerCase().includes('win');
 const isMacOS = navigator.platform.toLowerCase().includes('mac');
+const isLinux = navigator.platform.toLowerCase().includes('linux');
 
 /**
  * 获取当前平台不支持的控制器类型集合
@@ -314,6 +315,10 @@ function getUnsupportedControllerTypes(): Set<ControllerType> {
   // 非 macOS 系统不支持 PlayCover
   if (!isMacOS) {
     unsupported.add('PlayCover');
+  }
+  // 非 Linux 系统不支持 WlRoots
+  if (!isLinux) {
+    unsupported.add('WlRoots');
   }
   return unsupported;
 }

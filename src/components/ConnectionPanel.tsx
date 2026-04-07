@@ -43,8 +43,10 @@ export function ConnectionPanel() {
     instances,
     cachedAdbDevices,
     cachedWin32Windows,
+    cachedWlrootsSockets,
     setCachedAdbDevices,
     setCachedWin32Windows,
+    setCachedWlrootsSockets,
     selectedController,
     selectedResource,
     setSelectedController,
@@ -78,6 +80,7 @@ export function ConnectionPanel() {
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [selectedAdbDevice, setSelectedAdbDevice] = useState<AdbDevice | null>(null);
   const [selectedWindow, setSelectedWindow] = useState<Win32Window | null>(null);
+  const [selectedWlrootsSocket, setSelectedWlrootsSocket] = useState<string | null>(null);
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   // PlayCover 地址从保存的配置初始化
   const [playcoverAddress, setPlaycoverAddress] = useState(
@@ -253,6 +256,14 @@ export function ConnectionPanel() {
       setSelectedWindow(null);
     }
 
+    if (savedDevice?.wlrSocketPath && cachedWlrootsSockets.length > 0) {
+      // 从缓存中找到匹配的 WlRoots socket
+      const matchedSocket = cachedWlrootsSockets.find((s) => s === savedDevice.wlrSocketPath);
+      setSelectedWlrootsSocket(matchedSocket || null);
+    } else {
+      setSelectedWlrootsSocket(null);
+    }
+
     // 恢复 PlayCover 地址
     if (savedDevice?.playcoverAddress) {
       setPlaycoverAddress(savedDevice.playcoverAddress);
@@ -298,7 +309,10 @@ export function ConnectionPanel() {
 
   // 判断是否需要搜索设备（PlayCover 不需要搜索）
   const needsDeviceSearch =
-    controllerType === 'Adb' || controllerType === 'Win32' || controllerType === 'Gamepad';
+    controllerType === 'Adb' ||
+    controllerType === 'Win32' ||
+    controllerType === 'Gamepad' ||
+    controllerType === 'WlRoots';
 
   // 记录上一次的控制器名称，用于检测切换
   const prevControllerNameRef = useRef<string | undefined>(currentControllerName);
@@ -332,6 +346,7 @@ export function ConnectionPanel() {
       savedDevice &&
       ((controllerType === 'Adb' && savedDevice.adbDeviceName) ||
         ((controllerType === 'Win32' || controllerType === 'Gamepad') && savedDevice.windowName) ||
+        (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
 
     if (hasHistoricalDevice && needsDeviceSearch) {
@@ -442,6 +457,36 @@ export function ConnectionPanel() {
           // 有保存窗口但匹配失败，显示下拉框让用户选择
           setShowDeviceDropdown(true);
         }
+      } else if (controllerType === 'WlRoots') {
+        const sockets = await maaService.findWlrootsSockets();
+        setCachedWlrootsSockets(sockets);
+
+        let autoSelected: string | null = null;
+        if (savedDevice?.wlrSocketPath) {
+          const matched = sockets.filter((s) => s === savedDevice.wlrSocketPath);
+          if (matched.length === 1) {
+            autoSelected = matched[0];
+          }
+        } else if (sockets.length > 0) {
+          // 没有保存连接时自动选择第一个
+          autoSelected = sockets[0];
+          // 给出首次自动匹配提示
+          if (instanceId) {
+            addLog(instanceId, {
+              type: 'info',
+              message: t('taskList.autoConnect.autoSelectedDevice', {
+                name: autoSelected,
+              }),
+            });
+          }
+        }
+
+        if (autoSelected) {
+          handleSelectWlrootsSocket(autoSelected);
+        } else if (sockets.length > 0) {
+          // 有保存连接但匹配失败，显示下拉框让用户选择
+          setShowDeviceDropdown(true);
+        }
       }
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
@@ -527,6 +572,13 @@ export function ConnectionPanel() {
         };
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
+      } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
+        config = {
+          type: 'WlRoots',
+          wlr_socket_path: selectedWlrootsSocket,
+        };
+        deviceName = selectedWlrootsSocket;
+        targetType = 'device';
       } else if (controllerType === 'PlayCover') {
         // 保存 PlayCover 地址到实例配置
         setInstanceSavedDevice(instanceId, { playcoverAddress });
@@ -673,6 +725,7 @@ export function ConnectionPanel() {
       case 'Adb':
         return <Smartphone className="w-4 h-4" />;
       case 'Win32':
+      case 'WlRoots':
         return <Monitor className="w-4 h-4" />;
       case 'PlayCover':
         return <Apple className="w-4 h-4" />;
@@ -706,6 +759,16 @@ export function ConnectionPanel() {
         return savedDevice.windowName;
       }
       return t('controller.selectWindow');
+    }
+    if (controllerType === 'WlRoots') {
+      if (selectedWlrootsSocket) {
+        return selectedWlrootsSocket;
+      }
+      // 缓存为空但有历史窗口名称
+      if (savedDevice?.wlrSocketPath) {
+        return savedDevice.wlrSocketPath;
+      }
+      return t('controller.selectDevice');
     }
     return t('controller.selectDevice');
   };
@@ -807,6 +870,47 @@ export function ConnectionPanel() {
     }
   };
 
+  // 选择 WlRoots socket 并自动连接（如已连接会先断开旧连接）
+  const handleSelectWlrootsSocket = async (socketPath: string) => {
+    setSelectedWlrootsSocket(socketPath);
+    setShowDeviceDropdown(false);
+
+    // 保存 socket path 到实例配置
+    setInstanceSavedDevice(instanceId, { wlrSocketPath: socketPath });
+
+    // 自动连接
+    setIsConnecting(true);
+    setDeviceError(null);
+
+    try {
+      // 先断开旧连接
+      if (isConnected) {
+        await maaService.destroyInstance(instanceId).catch(() => {});
+        setIsConnected(false);
+        setInstanceResourceLoaded(instanceId, false);
+      }
+
+      const initialized = await ensureMaaInitialized();
+      if (!initialized) {
+        throw new Error(t('maa.initFailed'));
+      }
+
+      await maaService.createInstance(instanceId).catch(() => {});
+
+      const config: ControllerConfig = {
+        type: 'WlRoots',
+        wlr_socket_path: socketPath,
+      };
+
+      await connectControllerInternal(config, socketPath, 'device');
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
+      setIsConnected(false);
+      setInstanceConnectionStatus(instanceId, 'Disconnected');
+      setIsConnecting(false);
+    }
+  };
+
   // 点击历史设备条目时，触发搜索并自动匹配连接
   const handleSearchAndConnectHistorical = async () => {
     if (!currentController) return;
@@ -867,6 +971,27 @@ export function ConnectionPanel() {
 
         // 显示搜索结果供用户选择
         if (windows.length > 0) {
+          setShowDeviceDropdown(true);
+        }
+      } else if (controllerType === 'WlRoots') {
+        const sockets = await maaService.findWlrootsSockets();
+        setCachedWlrootsSockets(sockets);
+
+        // 尝试匹配保存的窗口名称
+        if (savedDevice?.wlrSocketPath) {
+          const matched = sockets.find((s) => s === savedDevice.wlrSocketPath);
+          if (matched) {
+            // 找到匹配的，自动连接
+            setIsSearching(false);
+            handleSelectWlrootsSocket(matched);
+            return;
+          }
+          // 没找到匹配的，显示错误提示
+          setDeviceError(t('controller.savedDeviceNotFound'));
+        }
+
+        // 显示搜索结果供用户选择
+        if (sockets.length > 0) {
           setShowDeviceDropdown(true);
         }
       }
@@ -939,6 +1064,35 @@ export function ConnectionPanel() {
 
       return [];
     }
+    if (controllerType === 'WlRoots') {
+      // 如果缓存中有窗口，使用缓存列表
+      if (cachedWlrootsSockets.length > 0) {
+        return cachedWlrootsSockets.map((socket) => ({
+          id: `wlr:${socket}`,
+          name: socket,
+          description: socket,
+          selected: selectedWlrootsSocket === socket,
+          onClick: () => handleSelectWlrootsSocket(socket),
+          isHistorical: false,
+        }));
+      }
+
+      // 缓存为空但有历史窗口名称，显示历史窗口条目
+      if (savedDevice?.wlrSocketPath) {
+        return [
+          {
+            id: 'historical-wlroots-socket',
+            name: savedDevice.wlrSocketPath,
+            description: t('controller.lastSelected'),
+            selected: true,
+            onClick: handleSearchAndConnectHistorical,
+            isHistorical: true,
+          },
+        ];
+      }
+
+      return [];
+    }
     return [];
   };
 
@@ -946,6 +1100,7 @@ export function ConnectionPanel() {
   const canConnect = () => {
     if (controllerType === 'Adb') return !!selectedAdbDevice;
     if (controllerType === 'Win32' || controllerType === 'Gamepad') return !!selectedWindow;
+    if (controllerType === 'WlRoots') return !!selectedWlrootsSocket;
     if (controllerType === 'PlayCover') return playcoverAddress.trim().length > 0;
     return false;
   };
@@ -979,6 +1134,9 @@ export function ConnectionPanel() {
       if (savedDevice?.windowName) {
         return truncateText(savedDevice.windowName, 6);
       }
+      if (savedDevice?.wlrSocketPath) {
+        return truncateText(savedDevice.wlrSocketPath, 6);
+      }
       if (savedDevice?.playcoverAddress) {
         return truncateText(savedDevice.playcoverAddress, 6);
       }
@@ -994,6 +1152,7 @@ export function ConnectionPanel() {
       activeInstance?.savedDevice &&
       (activeInstance.savedDevice.adbDeviceName ||
         activeInstance.savedDevice.windowName ||
+        activeInstance.savedDevice.wlrSocketPath ||
         activeInstance.savedDevice.playcoverAddress);
 
     return (
@@ -1110,6 +1269,7 @@ export function ConnectionPanel() {
                           setInstanceConnectionStatus(instanceId, 'Disconnected');
                           setSelectedAdbDevice(null);
                           setSelectedWindow(null);
+                          setSelectedWlrootsSocket(null);
 
                           // 检查当前资源是否支持新控制器，如果不支持则切换到第一个可用资源
                           const newControllerResources = allResources.filter((r) => {
@@ -1195,7 +1355,7 @@ export function ConnectionPanel() {
               </div>
             )}
 
-            {/* 设备选择（Adb/Win32/Gamepad）- 下拉框和刷新按钮同一行 */}
+            {/* 设备选择（Adb/Win32/Gamepad/Wlroots）- 下拉框和刷新按钮同一行 */}
             {needsDeviceSearch && (
               <div className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
@@ -1219,7 +1379,13 @@ export function ConnectionPanel() {
                     <span
                       className={clsx(
                         'truncate',
-                        (controllerType === 'Adb' ? selectedAdbDevice : selectedWindow)
+                        (
+                          controllerType === 'Adb'
+                            ? selectedAdbDevice
+                            : controllerType === 'WlRoots'
+                              ? selectedWlrootsSocket
+                              : selectedWindow
+                        )
                           ? 'text-text-primary'
                           : 'text-text-muted',
                       )}

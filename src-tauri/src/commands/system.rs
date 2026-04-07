@@ -3,10 +3,15 @@
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
 use super::types::SystemInfo;
+use super::types::MaaState;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 use log::{info, warn};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+use tauri::State;
+use tokio::time::sleep;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -346,7 +351,27 @@ pub fn is_process_running(program: String) -> bool {
 /// cwd: 工作目录（可选，默认为程序所在目录）
 /// wait_for_exit: 是否等待进程退出
 #[tauri::command]
+pub fn set_pre_action_stop(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    stop: bool,
+) -> Result<(), String> {
+    let mut requests = state
+        .pre_action_stop_requests
+        .lock()
+        .map_err(|e| e.to_string())?;
+    if stop {
+        requests.insert(instance_id);
+    } else {
+        requests.remove(&instance_id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn run_action(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
     program: String,
     args: String,
     cwd: Option<String>,
@@ -356,8 +381,8 @@ pub async fn run_action(
     let use_cmd = use_cmd.unwrap_or(false);
 
     info!(
-        "run_action: program={}, args={}, wait={}, use_cmd={}",
-        program, args, wait_for_exit, use_cmd
+        "run_action: instance_id={}, program={}, args={}, wait={}, use_cmd={}",
+        instance_id, program, args, wait_for_exit, use_cmd
     );
 
     // 使用 shell 语义解析参数至数组（支持引号）
@@ -382,14 +407,39 @@ pub async fn run_action(
     }
 
     if wait_for_exit {
-        // 等待进程退出
-        let status = cmd
-            .status()
+        let mut child = cmd
+            .spawn()
             .map_err(|e| format!("Failed to run action: {} - {}", program, e))?;
 
-        let exit_code = status.code().unwrap_or(-1);
-        info!("run_action finished with exit code: {}", exit_code);
-        Ok(exit_code)
+        loop {
+            if let Some(status) = child
+                .try_wait()
+                .map_err(|e| format!("Failed to wait action: {} - {}", program, e))?
+            {
+                let exit_code = status.code().unwrap_or(-1);
+                info!("run_action finished with exit code: {}", exit_code);
+                return Ok(exit_code);
+            }
+
+            let stop_requested = {
+                let requests = state
+                    .pre_action_stop_requests
+                    .lock()
+                    .map_err(|e| e.to_string())?;
+                requests.contains(&instance_id)
+            };
+
+            if stop_requested {
+                info!("run_action wait cancelled by stop request: {}", instance_id);
+                // 停止只中断等待，不强制终止前置程序；交给后台线程 wait 以避免子进程泄漏。
+                std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+                return Err("MXU_PRE_ACTION_CANCELLED".to_string());
+            }
+
+            sleep(Duration::from_millis(100)).await;
+        }
     } else {
         // 不等待，启动后立即返回
         cmd.spawn()

@@ -185,6 +185,7 @@ pub fn run() {
             commands::system::maa_set_save_draw,
             commands::system::open_file,
             commands::system::run_and_wait,
+            commands::system::set_pre_action_stop,
             commands::system::run_action,
             commands::system::is_process_running,
             commands::system::retry_load_maa_library,

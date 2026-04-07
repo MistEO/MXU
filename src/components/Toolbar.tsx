@@ -29,6 +29,7 @@ import { startGlobalCallbackListener, waitForResResult } from '@/components/conn
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
+import { isTauri } from '@/utils/paths';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
@@ -1116,6 +1117,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   tRef.current = t;
 
   useEffect(() => {
+    if (!isTauri()) return;
+
     scheduleService.setTriggerCallback(async (inst, policyName, slotLabel, isCompensation) => {
       const currentT = tRef.current;
       const currentAddLog = addLogRef.current;

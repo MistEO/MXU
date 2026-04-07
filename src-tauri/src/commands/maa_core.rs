@@ -657,23 +657,22 @@ pub fn maa_get_connection_status(
 // 资源命令
 // ============================================================================
 
-/// 加载资源（异步，通过回调通知完成状态）
-/// 返回资源加载请求 ID 列表，前端通过监听 maa-callback 事件获取完成状态
-#[tauri::command]
-pub fn maa_load_resource(
-    app: tauri::AppHandle,
-    state: State<Arc<MaaState>>,
-    instance_id: String,
-    paths: Vec<String>,
+/// 加载资源的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub fn load_resource_impl(
+    state: &MaaState,
+    instance_id: &str,
+    paths: &[String],
+    on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static>,
+    app: Option<&tauri::AppHandle>,
 ) -> Result<Vec<i64>, String> {
     info!(
-        "maa_load_resource called, instance: {}, paths: {:?}",
+        "load_resource_impl called, instance: {}, paths: {:?}",
         instance_id, paths
     );
 
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances
-        .get_mut(&instance_id)
+        .get_mut(instance_id)
         .ok_or("Instance not found")?;
 
     // 创建或获取资源
@@ -681,15 +680,19 @@ pub fn maa_load_resource(
         let res = Resource::new().map_err(|e| e.to_string())?;
 
         // 注册回调
-        let app_handle = app.clone();
+        let on_event_clone = on_event.clone();
         res.add_sink(move |msg, detail| {
-            emit_callback_event(&app_handle, msg, detail);
+            on_event_clone(msg, detail);
         })
         .map_err(|e| e.to_string())?;
 
         // 注册 MXU Custom Actions
-        if let Err(e) = crate::mxu_actions::register_all_mxu_actions(&res, &app, &instance_id) {
-            warn!("Failed to register MXU custom actions: {}", e);
+        if let Some(app_handle) = app {
+            if let Err(e) =
+                crate::mxu_actions::register_all_mxu_actions(&res, app_handle, instance_id)
+            {
+                warn!("Failed to register MXU custom actions: {}", e);
+            }
         }
 
         instance.resource = Some(res);
@@ -699,7 +702,7 @@ pub fn maa_load_resource(
     let mut res_ids = Vec::new();
 
     for path in paths {
-        let normalized = normalize_path(&path).to_string_lossy().to_string();
+        let normalized = normalize_path(path).to_string_lossy().to_string();
         match resource.post_bundle(&normalized) {
             Ok(job) => {
                 info!("Posted resource bundle: {} -> id: {}", normalized, job.id);
@@ -711,7 +714,29 @@ pub fn maa_load_resource(
         }
     }
 
-    // 通知 WebUI 客户端：资源加载已提交，需刷新运行时状态
+    Ok(res_ids)
+}
+
+/// 加载资源（异步，通过回调通知完成状态）
+/// 返回资源加载请求 ID 列表，前端通过监听 maa-callback 事件获取完成状态
+#[tauri::command]
+pub fn maa_load_resource(
+    app: tauri::AppHandle,
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    paths: Vec<String>,
+) -> Result<Vec<i64>, String> {
+    let res_ids = load_resource_impl(
+        &state,
+        &instance_id,
+        &paths,
+        Arc::new({
+            let app = app.clone();
+            move |msg, detail| emit_callback_event(&app, msg, detail)
+        }),
+        Some(&app),
+    )?;
+
     super::utils::emit_state_changed(&app, &instance_id, "resource-loading");
 
     Ok(res_ids)

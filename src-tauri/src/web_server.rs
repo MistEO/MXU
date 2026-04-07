@@ -24,7 +24,8 @@ use crate::commands::{
     app_config::AppConfigState,
     maa_core::{
         connect_controller_impl, find_adb_devices_impl, find_win32_windows_impl,
-        get_cached_image_impl, post_screencap_impl, run_task_impl, stop_task_impl,
+        get_cached_image_impl, load_resource_impl, post_screencap_impl, run_task_impl,
+        stop_task_impl,
     },
     types::{ControllerConfig, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
@@ -156,6 +157,7 @@ pub async fn start_web_server(
         .route("/maa/instances/:id", axum::routing::put(handle_create_instance).delete(handle_destroy_instance))
         // Maa 实例操作（通过 instance_id 路径参数）
         .route("/maa/instances/:id/connect", axum::routing::post(handle_connect_controller))
+        .route("/maa/instances/:id/resource/load", axum::routing::post(handle_load_resource))
         .route("/maa/instances/:id/tasks/run", axum::routing::post(handle_run_task))
         .route("/maa/instances/:id/tasks/stop", axum::routing::post(handle_stop_task))
         .route("/maa/instances/:id/screenshot", get(handle_get_screenshot))
@@ -572,6 +574,49 @@ async fn handle_connect_controller(
         Ok(conn_id) => {
             emit_state_changed(&state.app_handle, &instance_id, "connected");
             Json(serde_json::json!({ "connId": conn_id })).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /api/maa/instances/:id/resource/load
+/// 加载资源（异步，通过 WebSocket 回调通知完成状态）
+/// Body: `{ "paths": ["/path/to/resource"] }`
+async fn handle_load_resource(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    ensure_instance_exists(&state.maa_state, &instance_id);
+
+    let paths: Vec<String> = match body.get("paths").and_then(|v| v.as_array()) {
+        Some(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "missing 'paths' array" })),
+            )
+                .into_response();
+        }
+    };
+
+    let app_handle = state.app_handle.clone();
+    let on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static> =
+        Arc::new(move |msg: &str, detail: &str| {
+            emit_callback_event(&app_handle, msg, detail);
+        });
+
+    match load_resource_impl(&state.maa_state, &instance_id, &paths, on_event, None) {
+        Ok(res_ids) => {
+            emit_state_changed(&state.app_handle, &instance_id, "resource-loading");
+            Json(serde_json::json!({ "resIds": res_ids })).into_response()
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

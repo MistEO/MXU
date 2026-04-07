@@ -317,7 +317,13 @@ export const maaService = {
       log.debug(`  路径[${i}]: ${path}`);
     });
     if (!isTauri()) {
-      return paths.map((_, i) => i + 1);
+      const result = await apiPost<{ resIds: number[] }>(
+        `/maa/instances/${instanceId}/resource/load`,
+        { paths },
+      );
+      const resIds = result.resIds ?? [];
+      log.info('资源加载请求已发送 (HTTP), resIds:', resIds);
+      return resIds;
     }
     const resIds = await invoke<number[]>('maa_load_resource', { instanceId, paths });
     log.info('资源加载请求已发送, resIds:', resIds);

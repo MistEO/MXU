@@ -114,6 +114,13 @@ function scheduleReconnect() {
 function onOpen() {
   log.info('WebSocket 已连接');
   reconnectDelay = 1000;
+
+  if (hasEverConnected && !currentlyConnected) {
+    log.info('后端恢复，刷新页面以重新同步状态');
+    window.location.reload();
+    return;
+  }
+
   notifyConnectionStatus(true);
 }
 

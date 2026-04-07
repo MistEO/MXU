@@ -17,6 +17,7 @@ export default {
     info: '提示',
     resizeOrCollapse: '拖動調整寬度，向右拖動到底可摺疊',
     copySuffix: '（副本）',
+    desktopOnly: '僅桌面端可用',
   },
 
   // 標題列

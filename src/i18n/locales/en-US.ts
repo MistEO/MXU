@@ -18,6 +18,7 @@ export default {
     info: 'Info',
     resizeOrCollapse: 'Drag to resize, drag to the right edge to collapse',
     copySuffix: ' (Copy)',
+    desktopOnly: 'Desktop only',
   },
 
   // Title bar

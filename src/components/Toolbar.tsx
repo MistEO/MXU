@@ -25,7 +25,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
-import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
+import { startGlobalCallbackListener, waitForResResult } from '@/components/connection/callbackCache';
 import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
@@ -888,26 +888,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             registerResIdName(resId, resDisplayName);
           });
 
-          // 等待资源加载完成
-          const loadResult = await new Promise<boolean>((resolve) => {
-            const timeout = setTimeout(() => resolve(false), 60000);
-            let remaining = new Set(resIds);
-
-            maaService.onCallback((message, details) => {
-              if (details.res_id === undefined || !remaining.has(details.res_id)) return;
-              if (message === 'Resource.Loading.Succeeded') {
-                remaining.delete(details.res_id);
-                if (remaining.size === 0) {
-                  clearTimeout(timeout);
-                  setInstanceResourceLoaded(targetId, true);
-                  resolve(true);
-                }
-              } else if (message === 'Resource.Loading.Failed') {
-                clearTimeout(timeout);
-                resolve(false);
-              }
-            });
-          });
+          // 等待资源加载完成（通过 callbackCache 缓存机制，避免竞态丢失回调）
+          const results = await Promise.all(resIds.map((resId) => waitForResResult(resId, 60000)));
+          const loadResult = results.every((r) => r === 'succeeded');
+          if (loadResult) {
+            setInstanceResourceLoaded(targetId, true);
+          }
 
           if (!loadResult) {
             log.warn(`实例 ${targetInstance.name}: 资源加载失败`);

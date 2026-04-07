@@ -18,6 +18,7 @@ export default {
     info: '提示',
     resizeOrCollapse: '拖动调整宽度，向右拖动到底可折叠',
     copySuffix: '（副本）',
+    desktopOnly: '仅桌面端可用',
   },
 
   // 标题栏

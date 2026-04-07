@@ -17,6 +17,7 @@ export default {
     info: 'お知らせ',
     resizeOrCollapse: 'ドラッグして幅を調整、右端までドラッグで折りたたみ',
     copySuffix: '（コピー）',
+    desktopOnly: 'デスクトップ版のみ',
   },
 
   // タイトルバー

@@ -1044,6 +1044,34 @@ function App() {
     };
   }, []);
 
+  // 浏览器环境：监听 state-changed 事件（Tauri 端连接/任务启停后通知 WebUI 刷新运行时状态）
+  useEffect(() => {
+    if (isTauri()) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const unlisten = wsService.onStateChanged(async (_instanceId, _kind) => {
+      // 防抖：300ms 内的多次 state-changed 合并为一次拉取
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        try {
+          const backendStates = await maaService.getAllStates();
+          if (backendStates) {
+            restoreBackendStates(backendStates);
+            log.debug('收到 state-changed，已刷新运行时状态');
+          }
+        } catch (err) {
+          log.warn('state-changed 后刷新状态失败:', err);
+        }
+      }, 300);
+    });
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      unlisten();
+    };
+  }, [restoreBackendStates]);
+
   // 检查 VC++ 运行库缺失（在加载完成后检查）
   const checkVCRedistMissing = useCallback(async () => {
     if (!isTauri()) return;

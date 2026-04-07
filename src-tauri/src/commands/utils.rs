@@ -28,6 +28,16 @@ pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details
     }
 }
 
+/// 发送实例状态变更事件到 WebSocket 客户端（浏览器端实时同步用）
+pub fn emit_state_changed(app: &AppHandle, instance_id: &str, kind: &str) {
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::StateChanged {
+            instance_id: instance_id.to_string(),
+            kind: kind.to_string(),
+        });
+    }
+}
+
 /// 获取应用数据目录
 /// - macOS: ~/Library/Application Support/MXU/
 /// - Windows/Linux: exe 所在目录（保持便携式部署）

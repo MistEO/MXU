@@ -568,8 +568,15 @@ async fn handle_connect_controller(
         emit_callback_event(&app_handle, msg, detail);
     });
 
-    match connect_controller_impl(state.maa_state, instance_id, config, on_event).await {
-        Ok(conn_id) => Json(serde_json::json!({ "connId": conn_id })).into_response(),
+    match connect_controller_impl(state.maa_state, instance_id.clone(), config, on_event).await {
+        Ok(conn_id) => {
+            // 通知 WebSocket 客户端：连接请求已提交
+            state.ws_broadcast.send(WsEvent::StateChanged {
+                instance_id: instance_id.clone(),
+                kind: "connected".to_string(),
+            });
+            Json(serde_json::json!({ "connId": conn_id })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),
@@ -614,6 +621,12 @@ async fn handle_run_task(
         }
     }
 
+    // 通知 WebSocket 客户端：任务已启动
+    state.ws_broadcast.send(WsEvent::StateChanged {
+        instance_id: instance_id.clone(),
+        kind: "task-started".to_string(),
+    });
+
     Json(serde_json::json!({ "taskIds": task_ids })).into_response()
 }
 
@@ -624,7 +637,14 @@ async fn handle_stop_task(
     axum::extract::Path(instance_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     match stop_task_impl(&state.maa_state, &instance_id) {
-        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Ok(()) => {
+            // 通知 WebSocket 客户端：任务已停止
+            state.ws_broadcast.send(WsEvent::StateChanged {
+                instance_id: instance_id.clone(),
+                kind: "task-stopped".to_string(),
+            });
+            Json(serde_json::json!({ "ok": true })).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),

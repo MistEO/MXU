@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tauri::State;
 
 /// 应用配置状态（供 HTTP server 使用）
 #[derive(Default)]
@@ -169,6 +170,31 @@ impl AppConfigState {
         log::debug!("AppConfigState: config saved to {:?}", config_path);
         Ok(())
     }
+}
+
+// ============================================================================
+// Tauri 命令
+// ============================================================================
+
+/// 通知后端配置已变更（Tauri 桌面端保存后调用）
+///
+/// 更新 `AppConfigState` 内存缓存，并通过 WebSocket 广播 `ConfigChanged` 事件，
+/// 使所有浏览器 WebUI 客户端重新拉取最新配置。
+#[tauri::command]
+pub fn notify_config_changed(
+    app: tauri::AppHandle,
+    state: State<Arc<AppConfigState>>,
+    config: serde_json::Value,
+) -> Result<(), String> {
+    *state.config.lock().map_err(|e| e.to_string())? = config;
+
+    use crate::ws_broadcast::{WsBroadcast, WsEvent};
+    use tauri::Manager;
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::ConfigChanged);
+    }
+
+    Ok(())
 }
 
 // ============================================================================

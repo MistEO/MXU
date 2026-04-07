@@ -279,6 +279,8 @@ pub fn run() {
             commands::tray::get_minimize_to_tray,
             commands::tray::update_tray_icon,
             commands::tray::update_tray_tooltip,
+            // 配置同步命令（WebUI 实时同步）
+            commands::app_config::notify_config_changed,
         ])
         .on_window_event(|window, event| {
             match event {

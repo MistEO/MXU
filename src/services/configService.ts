@@ -175,6 +175,15 @@ export async function saveConfig(
     const content = JSON.stringify(config, null, 2);
     await writeTextFile(configPath, content);
     log.info('配置保存成功');
+
+    // 通知 Rust 后端更新内存缓存并广播 config-changed 给 WebUI 浏览器客户端
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('notify_config_changed', { config });
+    } catch (err) {
+      log.debug('notify_config_changed 调用失败（不影响保存）:', err);
+    }
+
     return true;
   } catch (err) {
     log.error('保存配置文件失败:', err);

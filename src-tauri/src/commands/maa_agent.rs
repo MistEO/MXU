@@ -563,6 +563,10 @@ pub async fn maa_start_tasks(
         "[start_tasks] maa_start_tasks completed successfully, returning {} task_ids",
         task_ids.len()
     );
+
+    // 通知 WebUI 客户端：任务已启动，需刷新运行时状态
+    super::utils::emit_state_changed(&app, &instance_id, "task-started");
+
     Ok(task_ids)
 }
 

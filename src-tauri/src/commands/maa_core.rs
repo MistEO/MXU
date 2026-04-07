@@ -623,13 +623,18 @@ pub async fn maa_connect_controller(
         instance_id
     );
 
-    connect_controller_impl(
+    let app_clone = app.clone();
+    let result = connect_controller_impl(
         state.inner().clone(),
-        instance_id,
+        instance_id.clone(),
         config,
         Arc::new(move |msg, detail| emit_callback_event(&app, msg, detail)),
     )
-    .await
+    .await;
+    if result.is_ok() {
+        super::utils::emit_state_changed(&app_clone, &instance_id, "connected");
+    }
+    result
 }
 
 /// 获取连接状态（通过 MaaControllerConnected API 查询）
@@ -705,6 +710,9 @@ pub fn maa_load_resource(
             }
         }
     }
+
+    // 通知 WebUI 客户端：资源加载已提交，需刷新运行时状态
+    super::utils::emit_state_changed(&app, &instance_id, "resource-loading");
 
     Ok(res_ids)
 }
@@ -823,13 +831,18 @@ pub fn maa_run_task(
     pipeline_override: String,
 ) -> Result<i64, String> {
     info!("maa_run_task called, entry: {}", entry);
-    run_task_impl(
+    let app_clone = app.clone();
+    let result = run_task_impl(
         &state,
         &instance_id,
         &entry,
         &pipeline_override,
         Arc::new(move |msg, detail| emit_callback_event(&app, msg, detail)),
-    )
+    );
+    if result.is_ok() {
+        super::utils::emit_state_changed(&app_clone, &instance_id, "task-started");
+    }
+    result
 }
 
 /// 获取任务状态
@@ -892,8 +905,16 @@ pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String>
 }
 
 #[tauri::command]
-pub fn maa_stop_task(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
-    stop_task_impl(&state, &instance_id)
+pub fn maa_stop_task(
+    app: tauri::AppHandle,
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+) -> Result<(), String> {
+    let result = stop_task_impl(&state, &instance_id);
+    if result.is_ok() {
+        super::utils::emit_state_changed(&app, &instance_id, "task-stopped");
+    }
+    result
 }
 
 /// 覆盖已提交任务的 Pipeline 配置（用于运行中修改尚未执行的任务选项）

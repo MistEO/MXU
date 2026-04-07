@@ -176,10 +176,11 @@ impl AppConfigState {
 // Tauri 命令
 // ============================================================================
 
-/// 通知后端配置已变更（Tauri 桌面端保存后调用）
+/// 通知后端配置已变更（任一客户端保存后调用）
 ///
-/// 更新 `AppConfigState` 内存缓存，并通过 WebSocket 广播 `ConfigChanged` 事件，
-/// 使所有浏览器 WebUI 客户端重新拉取最新配置。
+/// 更新 `AppConfigState` 内存缓存，并通过双通道（WS + Tauri 事件）广播 `ConfigChanged`，
+/// 使所有其他客户端（浏览器 WebUI 和 Tauri 桌面端）重新拉取最新配置。
+/// 各端需配合 `consumeSelfSave` 跳过自身触发的通知。
 #[tauri::command]
 pub fn notify_config_changed(
     app: tauri::AppHandle,
@@ -188,11 +189,7 @@ pub fn notify_config_changed(
 ) -> Result<(), String> {
     *state.config.lock().map_err(|e| e.to_string())? = config;
 
-    use crate::ws_broadcast::{WsBroadcast, WsEvent};
-    use tauri::Manager;
-    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
-        ws.send(WsEvent::ConfigChanged);
-    }
+    super::utils::emit_config_changed(&app);
 
     Ok(())
 }

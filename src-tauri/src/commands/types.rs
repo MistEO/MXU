@@ -308,6 +308,13 @@ pub struct MaaCallbackEvent {
     pub details: String,
 }
 
+/// 实例状态变更事件（用于 Tauri WebView 端监听）
+#[derive(Clone, Serialize, Deserialize)]
+pub struct StateChangedEvent {
+    pub instance_id: String,
+    pub kind: String,
+}
+
 /// Agent 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {

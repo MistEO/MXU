@@ -2,7 +2,7 @@
 //!
 //! 提供路径处理和其他通用工具函数
 
-use super::types::MaaCallbackEvent;
+use super::types::{MaaCallbackEvent, StateChangedEvent};
 use crate::ws_broadcast::{WsBroadcast, WsEvent};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -28,13 +28,40 @@ pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details
     }
 }
 
-/// 发送实例状态变更事件到 WebSocket 客户端（浏览器端实时同步用）
+/// 发送实例状态变更事件（双通道：WS 浏览器客户端 + Tauri WebView）
+///
+/// Tauri 端和 WebUI 端都会收到此事件，用于刷新 `isRunning`、连接状态等运行时信息。
 pub fn emit_state_changed(app: &AppHandle, instance_id: &str, kind: &str) {
+    // 广播到所有 WebSocket 客户端
     if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
         ws.send(WsEvent::StateChanged {
             instance_id: instance_id.to_string(),
             kind: kind.to_string(),
         });
+    }
+
+    // 发送到 Tauri WebView
+    let event = StateChangedEvent {
+        instance_id: instance_id.to_string(),
+        kind: kind.to_string(),
+    };
+    if let Err(e) = app.emit("state-changed", event) {
+        log::error!("Failed to emit state-changed: {}", e);
+    }
+}
+
+/// 发送配置变更事件（双通道：WS 浏览器客户端 + Tauri WebView）
+///
+/// 各客户端收到后应重新拉取配置并 `importConfig`（需配合 `consumeSelfSave` 跳过自身触发）。
+pub fn emit_config_changed(app: &AppHandle) {
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::ConfigChanged);
+    }
+
+    // 发送到 Tauri WebView
+    if let Err(e) = app.emit("config-changed-external", ()) {
+        log::error!("Failed to emit config-changed-external: {}", e);
     }
 }
 

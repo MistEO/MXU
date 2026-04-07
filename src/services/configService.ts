@@ -8,8 +8,8 @@ import { apiGet, apiPut } from '@/utils/backendApi';
 const log = loggers.config;
 
 /**
- * 浏览器环境下，追踪由本客户端发起的 config 保存次数。
- * 后端收到 PUT /config 后会广播 ConfigChanged 给所有 WS 客户端（包括发起者自己），
+ * 追踪由本客户端发起的 config 保存次数。
+ * 后端保存配置后会双通道广播 ConfigChanged（WS + Tauri 事件），所有客户端都会收到，
  * 用此计数器让发起方跳过自己触发的 config-changed 事件，避免 importConfig 重置 UI 状态。
  */
 let _pendingSelfSaves = 0;
@@ -176,8 +176,9 @@ export async function saveConfig(
     await writeTextFile(configPath, content);
     log.info('配置保存成功');
 
-    // 通知 Rust 后端更新内存缓存并广播 config-changed 给 WebUI 浏览器客户端
+    // 通知 Rust 后端更新内存缓存并广播 config-changed 给所有其他客户端
     try {
+      markSelfSave();
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('notify_config_changed', { config });
     } catch (err) {

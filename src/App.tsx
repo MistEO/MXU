@@ -1016,11 +1016,12 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // 浏览器环境：监听 config-changed 事件（其他客户端修改配置后重新拉取）
+  // 监听 config-changed 事件（其他客户端修改配置后重新拉取）
+  // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
   useEffect(() => {
-    if (isTauri()) return;
+    let cleanup: (() => void) | undefined;
 
-    const unlisten = wsService.onConfigChanged(async () => {
+    const handleConfigChanged = async () => {
       const { consumeSelfSave } = await import('@/services/configService');
       if (consumeSelfSave()) {
         log.debug('跳过本客户端自身触发的 config-changed');
@@ -1028,30 +1029,51 @@ function App() {
       }
       log.info('收到 config-changed（来自其他客户端），重新拉取配置...');
       try {
-        const { apiGet } = await import('@/utils/backendApi');
-        const config = await apiGet<import('@/types/config').MxuConfig>('/config');
-        if (config) {
-          useAppStore.getState().importConfig(config);
-          log.info('配置已从后端重新同步');
+        if (isTauri()) {
+          const { loadConfig } = await import('@/services/configService');
+          const pi = useAppStore.getState().projectInterface;
+          const dataPath = useAppStore.getState().dataPath;
+          const config = await loadConfig(dataPath, pi?.name);
+          if (config) {
+            useAppStore.getState().importConfig(config);
+            log.info('配置已从磁盘重新同步');
+          }
+        } else {
+          const { apiGet } = await import('@/utils/backendApi');
+          const config = await apiGet<import('@/types/config').MxuConfig>('/config');
+          if (config) {
+            useAppStore.getState().importConfig(config);
+            log.info('配置已从后端重新同步');
+          }
         }
       } catch (err) {
         log.warn('重新拉取配置失败:', err);
       }
-    });
-
-    return () => {
-      unlisten();
     };
+
+    if (isTauri()) {
+      let unlisten: (() => void) | null = null;
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen('config-changed-external', handleConfigChanged).then((u) => {
+          unlisten = u;
+        });
+      });
+      cleanup = () => unlisten?.();
+    } else {
+      const unlisten = wsService.onConfigChanged(handleConfigChanged);
+      cleanup = unlisten;
+    }
+
+    return () => cleanup?.();
   }, []);
 
-  // 浏览器环境：监听 state-changed 事件（Tauri 端连接/任务启停后通知 WebUI 刷新运行时状态）
+  // 监听 state-changed 事件（其他客户端连接/任务启停后通知刷新运行时状态）
+  // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
   useEffect(() => {
-    if (isTauri()) return;
-
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let cleanup: (() => void) | undefined;
 
-    const unlisten = wsService.onStateChanged(async (_instanceId, _kind) => {
-      // 防抖：300ms 内的多次 state-changed 合并为一次拉取
+    const handleStateChanged = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         try {
@@ -1064,11 +1086,24 @@ function App() {
           log.warn('state-changed 后刷新状态失败:', err);
         }
       }, 300);
-    });
+    };
+
+    if (isTauri()) {
+      let unlisten: (() => void) | null = null;
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen('state-changed', handleStateChanged).then((u) => {
+          unlisten = u;
+        });
+      });
+      cleanup = () => unlisten?.();
+    } else {
+      const unlisten = wsService.onStateChanged(handleStateChanged);
+      cleanup = unlisten;
+    }
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      unlisten();
+      cleanup?.();
     };
   }, [restoreBackendStates]);
 

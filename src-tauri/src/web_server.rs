@@ -27,9 +27,9 @@ use crate::commands::{
         get_cached_image_impl, post_screencap_impl, run_task_impl, stop_task_impl,
     },
     types::{ControllerConfig, MaaState, TaskConfig},
-    utils::emit_callback_event,
+    utils::{emit_callback_event, emit_config_changed, emit_state_changed},
 };
-use crate::ws_broadcast::{WsBroadcast, WsEvent};
+use crate::ws_broadcast::WsBroadcast;
 
 /// Web 服务器默认监听端口
 pub const DEFAULT_PORT: u16 = 12701;
@@ -396,8 +396,8 @@ async fn handle_put_config(
 ) -> impl IntoResponse {
     match state.app_config.save_config(new_config) {
         Ok(()) => {
-            // 通知其他 WebSocket 客户端配置已变更，让它们重新拉取
-            state.ws_broadcast.send(WsEvent::ConfigChanged);
+            // 通知所有客户端（WS 浏览器 + Tauri 桌面端）配置已变更
+            emit_config_changed(&state.app_handle);
             (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
         }
         Err(e) => (
@@ -570,11 +570,7 @@ async fn handle_connect_controller(
 
     match connect_controller_impl(state.maa_state, instance_id.clone(), config, on_event).await {
         Ok(conn_id) => {
-            // 通知 WebSocket 客户端：连接请求已提交
-            state.ws_broadcast.send(WsEvent::StateChanged {
-                instance_id: instance_id.clone(),
-                kind: "connected".to_string(),
-            });
+            emit_state_changed(&state.app_handle, &instance_id, "connected");
             Json(serde_json::json!({ "connId": conn_id })).into_response()
         }
         Err(e) => (
@@ -621,11 +617,7 @@ async fn handle_run_task(
         }
     }
 
-    // 通知 WebSocket 客户端：任务已启动
-    state.ws_broadcast.send(WsEvent::StateChanged {
-        instance_id: instance_id.clone(),
-        kind: "task-started".to_string(),
-    });
+    emit_state_changed(&state.app_handle, &instance_id, "task-started");
 
     Json(serde_json::json!({ "taskIds": task_ids })).into_response()
 }
@@ -638,11 +630,7 @@ async fn handle_stop_task(
 ) -> impl IntoResponse {
     match stop_task_impl(&state.maa_state, &instance_id) {
         Ok(()) => {
-            // 通知 WebSocket 客户端：任务已停止
-            state.ws_broadcast.send(WsEvent::StateChanged {
-                instance_id: instance_id.clone(),
-                kind: "task-stopped".to_string(),
-            });
+            emit_state_changed(&state.app_handle, &instance_id, "task-stopped");
             Json(serde_json::json!({ "ok": true })).into_response()
         }
         Err(e) => (

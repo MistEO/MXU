@@ -57,7 +57,6 @@ export async function stopInstanceTasks(instanceId: string): Promise<boolean> {
 
   const stopPromise = (async () => {
     log.info(`[task-stop#${instanceId}] 停止任务`);
-    cancelTaskQueueMonitor(instanceId);
 
     try {
       await maaService.stopTask(instanceId);
@@ -74,6 +73,8 @@ export async function stopInstanceTasks(instanceId: string): Promise<boolean> {
       log.warn(`[task-stop#${instanceId}] 等待任务停止超时，保留运行状态`);
       return false;
     }
+
+    cancelTaskQueueMonitor(instanceId);
 
     const agentConfigs = normalizeAgentConfigs(useAppStore.getState().projectInterface?.agent);
     if (agentConfigs && agentConfigs.length > 0) {

@@ -442,7 +442,7 @@ struct SelfStopRequestedEvent {
     instance_id: String,
 }
 
-fn emit_self_stop_requested(app_handle: &AppHandle, instance_id: &str) {
+fn emit_self_stop_requested(app_handle: &AppHandle, instance_id: &str) -> bool {
     if let Err(e) = app_handle.emit(
         MXU_SELF_STOP_REQUESTED_EVENT,
         SelfStopRequestedEvent {
@@ -450,6 +450,9 @@ fn emit_self_stop_requested(app_handle: &AppHandle, instance_id: &str) {
         },
     ) {
         log::error!("[MXU_KILLPROC] Failed to emit self-stop event: {}", e);
+        false
+    } else {
+        true
     }
 }
 
@@ -483,12 +486,13 @@ fn mxu_killproc_action_impl(
             return false;
         }
 
-        match (app_handle, instance_id) {
+        return match (app_handle, instance_id) {
             (Some(app), Some(id)) => emit_self_stop_requested(app, id),
-            _ => warn!("[MXU_KILLPROC] Missing app handle or instance id for self-stop event"),
-        }
-
-        return false;
+            _ => {
+                warn!("[MXU_KILLPROC] Missing app handle or instance id for self-stop event");
+                false
+            }
+        };
     }
 
     let process_name = match json.get("process_name").and_then(|v| v.as_str()) {

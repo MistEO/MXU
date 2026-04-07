@@ -42,6 +42,17 @@ import {
   clearTaskRunStatusOnBackend,
 } from '@/utils/logStdout';
 import {
+  loadWebUIAppearance,
+  patchWebUIAppearance,
+  cacheBackendAppearance,
+  getBackendAppearance,
+  loadWebUILayout,
+  patchWebUILayout,
+  cacheBackendLayout,
+  getBackendLayout,
+} from '@/services/appearanceStorage';
+import { isTauri } from '@/utils/paths';
+import {
   generateId,
   initializeAllOptionValues,
   convertPresetOptionValue,
@@ -114,20 +125,29 @@ export const useAppStore = create<AppState>()(
       set({ theme });
       const mode = resolveThemeMode(theme);
       applyTheme(mode, get().accentColor);
+      if (!isTauri()) patchWebUIAppearance({ theme });
     },
     setAccentColor: (accent) => {
       set({ accentColor: accent });
       const { theme } = get();
       const mode = resolveThemeMode(theme);
       applyTheme(mode, accent);
+      if (!isTauri()) patchWebUIAppearance({ accentColor: accent });
     },
     setLanguage: (lang) => {
       set({ language: lang });
       setI18nLanguage(lang);
+      if (!isTauri()) patchWebUIAppearance({ language: lang });
     },
-    setBackgroundImage: (path) => set({ backgroundImage: path }),
-    setBackgroundOpacity: (opacity) =>
-      set({ backgroundOpacity: Math.max(0, Math.min(100, opacity)) }),
+    setBackgroundImage: (path) => {
+      set({ backgroundImage: path });
+      if (!isTauri()) patchWebUIAppearance({ backgroundImage: path });
+    },
+    setBackgroundOpacity: (opacity) => {
+      const clamped = Math.max(0, Math.min(100, opacity));
+      set({ backgroundOpacity: clamped });
+      if (!isTauri()) patchWebUIAppearance({ backgroundOpacity: clamped });
+    },
     setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
     setMaxLogsPerInstance: (value) =>
       set({
@@ -138,29 +158,28 @@ export const useAppStore = create<AppState>()(
         customAccents: [...state.customAccents, accent],
       }));
       registerCustomAccent(accent);
-      // 如果当前使用的是这个自定义强调色，重新应用主题
       const { theme, accentColor } = get();
       if (accentColor === accent.name) {
         const mode = resolveThemeMode(theme);
         applyTheme(mode, accent.name);
       }
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
     updateCustomAccent: (id, accent) => {
       set((state) => ({
         customAccents: state.customAccents.map((a) => (a.id === id ? accent : a)),
       }));
-      // 先移除旧的，再注册新的
       const oldAccent = get().customAccents.find((a) => a.id === id);
       if (oldAccent) {
         unregisterCustomAccent(oldAccent.name);
       }
       registerCustomAccent(accent);
-      // 如果当前使用的是这个自定义强调色，重新应用主题
       const { theme, accentColor } = get();
       if (accentColor === accent.name) {
         const mode = resolveThemeMode(theme);
         applyTheme(mode, accent.name);
       }
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
     removeCustomAccent: (id) => {
       const accent = get().customAccents.find((a) => a.id === id);
@@ -169,14 +188,15 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           customAccents: state.customAccents.filter((a) => a.id !== id),
         }));
-        // 如果当前使用的是这个自定义强调色，切换到默认强调色
         const { theme, accentColor } = get();
         if (accentColor === accent.name) {
           const defaultAccent: AccentColor = 'emerald';
           set({ accentColor: defaultAccent });
           const mode = resolveThemeMode(theme);
           applyTheme(mode, defaultAccent);
+          if (!isTauri()) patchWebUIAppearance({ accentColor: defaultAccent });
         }
+        if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
       }
     },
     reorderCustomAccents: (oldIndex, newIndex) => {
@@ -189,6 +209,7 @@ export const useAppStore = create<AppState>()(
         next.splice(newIndex, 0, moved);
         return { customAccents: next };
       });
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
 
     // 快捷键设置（默认：F10 开始任务，F11 结束任务）
@@ -1084,14 +1105,30 @@ export const useAppStore = create<AppState>()(
         }
       });
 
-      const accentColor = (config.settings.accentColor as AccentColor) || 'deepsea';
+      const configAccentColor = (config.settings.accentColor as AccentColor) || 'deepsea';
+
+      // WebUI 模式下：缓存后端外观 & 布局设置，使用 localStorage 本地值
+      const isWebUI = !isTauri();
+      if (isWebUI) {
+        cacheBackendAppearance(config.settings, config.customAccents);
+        cacheBackendLayout(config.settings);
+      }
+
+      // 确定实际使用的外观设置
+      const localAppearance = isWebUI ? loadWebUIAppearance() : null;
+      const localLayout = isWebUI ? loadWebUILayout() : null;
+      const effectiveTheme = localAppearance?.theme ?? config.settings.theme;
+      const effectiveAccentColor = localAppearance?.accentColor ?? configAccentColor;
+      const effectiveLanguage = localAppearance?.language ?? config.settings.language;
+      const effectiveBgImage = localAppearance
+        ? localAppearance.backgroundImage
+        : config.settings.backgroundImage;
+      const effectiveBgOpacity = localAppearance?.backgroundOpacity ?? config.settings.backgroundOpacity ?? 50;
+      const effectiveCustomAccents = localAppearance?.customAccents ?? config.customAccents ?? [];
 
       // 加载自定义强调色
-      const customAccents = config.customAccents || [];
-      // 清除旧的自定义强调色
       clearCustomAccents();
-      // 注册新的自定义强调色
-      customAccents.forEach((accent: CustomAccent) => {
+      effectiveCustomAccents.forEach((accent: CustomAccent) => {
         registerCustomAccent(accent);
       });
 
@@ -1108,19 +1145,19 @@ export const useAppStore = create<AppState>()(
       set({
         instances,
         activeInstanceId,
-        theme: config.settings.theme,
-        accentColor,
-        language: config.settings.language,
-        backgroundImage: config.settings.backgroundImage,
-        backgroundOpacity: config.settings.backgroundOpacity ?? 50,
+        theme: effectiveTheme,
+        accentColor: effectiveAccentColor,
+        language: effectiveLanguage,
+        backgroundImage: effectiveBgImage,
+        backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
-        customAccents,
+        customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
         nextInstanceNumber: maxNumber + 1,
-        windowSize: config.settings.windowSize || defaultWindowSize,
-        windowPosition: config.settings.windowPosition,
+        windowSize: localLayout?.windowSize ?? config.settings.windowSize ?? defaultWindowSize,
+        windowPosition: localLayout ? localLayout.windowPosition : config.settings.windowPosition,
         mirrorChyanSettings: (() => {
           const saved = config.settings.mirrorChyan || defaultMirrorChyanSettings;
           const piName = get().projectInterface?.name;
@@ -1133,14 +1170,14 @@ export const useAppStore = create<AppState>()(
           return saved;
         })(),
         proxySettings: config.settings.proxy,
-        showOptionPreview: config.settings.showOptionPreview ?? true,
-        sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
-        rightPanelWidth: config.settings.rightPanelWidth ?? 320,
-        rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
-        addTaskPanelHeight: normalizeAddTaskPanelHeight(config.settings.addTaskPanelHeight),
-        connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
-        screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
-        screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
+        showOptionPreview: localLayout?.showOptionPreview ?? config.settings.showOptionPreview ?? true,
+        sidePanelExpanded: localLayout?.sidePanelExpanded ?? config.settings.sidePanelExpanded ?? true,
+        rightPanelWidth: localLayout?.rightPanelWidth ?? config.settings.rightPanelWidth ?? 320,
+        rightPanelCollapsed: localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? false,
+        addTaskPanelHeight: normalizeAddTaskPanelHeight(localLayout?.addTaskPanelHeight ?? config.settings.addTaskPanelHeight),
+        connectionPanelExpanded: localLayout?.connectionPanelExpanded ?? config.settings.connectionPanelExpanded ?? true,
+        screenshotPanelExpanded: localLayout?.screenshotPanelExpanded ?? config.settings.screenshotPanelExpanded ?? true,
+        screenshotFrameRate: localLayout?.screenshotFrameRate ?? config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
@@ -1165,10 +1202,9 @@ export const useAppStore = create<AppState>()(
       });
 
       // 应用主题（包括强调色）
-      const theme = config.settings.theme;
-      const mode = resolveThemeMode(theme);
-      applyTheme(mode, accentColor);
-      setI18nLanguage(config.settings.language);
+      const mode = resolveThemeMode(effectiveTheme);
+      applyTheme(mode, effectiveAccentColor);
+      setI18nLanguage(effectiveLanguage);
 
       // 同步托盘设置到后端（仅 Tauri 环境）
       const minimizeToTray = config.settings.minimizeToTray ?? false;
@@ -1373,25 +1409,46 @@ export const useAppStore = create<AppState>()(
 
     // 右侧面板折叠状态
     sidePanelExpanded: true,
-    setSidePanelExpanded: (expanded) => set({ sidePanelExpanded: expanded }),
-    toggleSidePanelExpanded: () =>
-      set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded })),
+    setSidePanelExpanded: (expanded) => {
+      set({ sidePanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ sidePanelExpanded: expanded });
+    },
+    toggleSidePanelExpanded: () => {
+      set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded }));
+      if (!isTauri()) patchWebUILayout({ sidePanelExpanded: get().sidePanelExpanded });
+    },
 
     // 右侧面板宽度和折叠状态
     rightPanelWidth: 320,
     rightPanelCollapsed: false,
-    setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
-    setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+    setRightPanelWidth: (width) => {
+      set({ rightPanelWidth: width });
+      if (!isTauri()) patchWebUILayout({ rightPanelWidth: width });
+    },
+    setRightPanelCollapsed: (collapsed) => {
+      set({ rightPanelCollapsed: collapsed });
+      if (!isTauri()) patchWebUILayout({ rightPanelCollapsed: collapsed });
+    },
 
     // 添加任务面板高度
     addTaskPanelHeight: defaultAddTaskPanelHeight,
-    setAddTaskPanelHeight: (height) => set({ addTaskPanelHeight: clampAddTaskPanelHeight(height) }),
+    setAddTaskPanelHeight: (height) => {
+      const clamped = clampAddTaskPanelHeight(height);
+      set({ addTaskPanelHeight: clamped });
+      if (!isTauri()) patchWebUILayout({ addTaskPanelHeight: clamped });
+    },
 
     // 卡片展开状态
     connectionPanelExpanded: true,
     screenshotPanelExpanded: true,
-    setConnectionPanelExpanded: (expanded) => set({ connectionPanelExpanded: expanded }),
-    setScreenshotPanelExpanded: (expanded) => set({ screenshotPanelExpanded: expanded }),
+    setConnectionPanelExpanded: (expanded) => {
+      set({ connectionPanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ connectionPanelExpanded: expanded });
+    },
+    setScreenshotPanelExpanded: (expanded) => {
+      set({ screenshotPanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ screenshotPanelExpanded: expanded });
+    },
 
     // 中控台视图模式
     dashboardView: false,
@@ -1400,11 +1457,17 @@ export const useAppStore = create<AppState>()(
 
     // 窗口大小
     windowSize: defaultWindowSize,
-    setWindowSize: (size) => set({ windowSize: size }),
+    setWindowSize: (size) => {
+      set({ windowSize: size });
+      if (!isTauri()) patchWebUILayout({ windowSize: size });
+    },
 
     // 窗口位置
     windowPosition: undefined,
-    setWindowPosition: (position) => set({ windowPosition: position }),
+    setWindowPosition: (position) => {
+      set({ windowPosition: position });
+      if (!isTauri()) patchWebUILayout({ windowPosition: position });
+    },
 
     // MirrorChyan 更新设置
     mirrorChyanSettings: defaultMirrorChyanSettings,
@@ -1423,11 +1486,17 @@ export const useAppStore = create<AppState>()(
 
     // 任务选项预览显示设置
     showOptionPreview: true,
-    setShowOptionPreview: (show) => set({ showOptionPreview: show }),
+    setShowOptionPreview: (show) => {
+      set({ showOptionPreview: show });
+      if (!isTauri()) patchWebUILayout({ showOptionPreview: show });
+    },
 
     // 实时截图帧率设置
     screenshotFrameRate: defaultScreenshotFrameRate,
-    setScreenshotFrameRate: (rate) => set({ screenshotFrameRate: rate }),
+    setScreenshotFrameRate: (rate) => {
+      set({ screenshotFrameRate: rate });
+      if (!isTauri()) patchWebUILayout({ screenshotFrameRate: rate });
+    },
 
     // Welcome 弹窗显示记录
     welcomeShownHash: '',
@@ -1858,6 +1927,8 @@ export const useAppStore = create<AppState>()(
   })),
 );
 
+const _isWebUI = !isTauri();
+
 // 生成配置用于保存
 function generateConfig(): MxuConfig {
   const state = useAppStore.getState();
@@ -1881,50 +1952,53 @@ function generateConfig(): MxuConfig {
       schedulePolicies: inst.schedulePolicies,
       preAction: inst.preAction,
     })),
-    settings: {
-      theme: state.theme,
-      accentColor: state.accentColor,
-      language: state.language,
-      backgroundImage: state.backgroundImage,
-      backgroundOpacity: state.backgroundOpacity,
-      confirmBeforeDelete: state.confirmBeforeDelete,
-      maxLogsPerInstance: state.maxLogsPerInstance,
-      windowSize: state.windowSize,
-      windowPosition: state.windowPosition,
-      mirrorChyan: {
-        ...state.mirrorChyanSettings,
-        cdk: '',
-        cdkEncrypted: encryptCdk(state.mirrorChyanSettings.cdk, state.projectInterface?.name),
-      },
-      proxy: state.proxySettings,
-      showOptionPreview: state.showOptionPreview,
-      sidePanelExpanded: state.sidePanelExpanded,
-      rightPanelWidth: state.rightPanelWidth,
-      rightPanelCollapsed: state.rightPanelCollapsed,
-      addTaskPanelHeight: state.addTaskPanelHeight,
-      connectionPanelExpanded: state.connectionPanelExpanded,
-      screenshotPanelExpanded: state.screenshotPanelExpanded,
-      screenshotFrameRate: state.screenshotFrameRate,
-      welcomeShownHash: state.welcomeShownHash,
-      devMode: state.devMode,
-      tcpCompatMode: state.tcpCompatMode,
-      allowLanAccess: state.allowLanAccess,
-      autoStartInstanceId: state.autoStartInstanceId,
-      autoRunOnLaunch: state.autoRunOnLaunch,
-      autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
-      minimizeToTray: state.minimizeToTray,
-      onboardingCompleted: state.onboardingCompleted,
-      preActionConnectDelaySec: state.preActionConnectDelaySec,
-      hotkeys: state.hotkeys,
-    },
+    // WebUI 模式下保留后端原始的外观 & 布局设置，避免覆盖桌面端偏好
+    ...(() => {
+      const ba = _isWebUI ? getBackendAppearance() : undefined;
+      const bl = _isWebUI ? getBackendLayout() : undefined;
+      return {
+        settings: {
+          theme: ba?.theme ?? state.theme,
+          accentColor: ba?.accentColor ?? state.accentColor,
+          language: ba?.language ?? state.language,
+          backgroundImage: ba?.backgroundImage ?? state.backgroundImage,
+          backgroundOpacity: ba?.backgroundOpacity ?? state.backgroundOpacity,
+          confirmBeforeDelete: state.confirmBeforeDelete,
+          maxLogsPerInstance: state.maxLogsPerInstance,
+          windowSize: bl?.windowSize ?? state.windowSize,
+          windowPosition: bl?.windowPosition ?? state.windowPosition,
+          showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
+          sidePanelExpanded: bl?.sidePanelExpanded ?? state.sidePanelExpanded,
+          rightPanelWidth: bl?.rightPanelWidth ?? state.rightPanelWidth,
+          rightPanelCollapsed: bl?.rightPanelCollapsed ?? state.rightPanelCollapsed,
+          addTaskPanelHeight: bl?.addTaskPanelHeight ?? state.addTaskPanelHeight,
+          connectionPanelExpanded: bl?.connectionPanelExpanded ?? state.connectionPanelExpanded,
+          screenshotPanelExpanded: bl?.screenshotPanelExpanded ?? state.screenshotPanelExpanded,
+          screenshotFrameRate: bl?.screenshotFrameRate ?? state.screenshotFrameRate,
+          mirrorChyan: {
+            ...state.mirrorChyanSettings,
+            cdk: '',
+            cdkEncrypted: encryptCdk(state.mirrorChyanSettings.cdk, state.projectInterface?.name),
+          },
+          proxy: state.proxySettings,
+          welcomeShownHash: state.welcomeShownHash,
+          devMode: state.devMode,
+          tcpCompatMode: state.tcpCompatMode,
+          allowLanAccess: state.allowLanAccess,
+          autoStartInstanceId: state.autoStartInstanceId,
+          autoRunOnLaunch: state.autoRunOnLaunch,
+          autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
+          minimizeToTray: state.minimizeToTray,
+          onboardingCompleted: state.onboardingCompleted,
+          preActionConnectDelaySec: state.preActionConnectDelaySec,
+          hotkeys: state.hotkeys,
+        },
+        customAccents: ba?.customAccents ?? state.customAccents,
+      };
+    })(),
     recentlyClosed: state.recentlyClosed,
-    // 保存当前 interface.json 的任务名列表快照，用于下次加载时检测新增任务
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
-    // 保存用户尚未查看的新增任务
     newTaskNames: state.newTaskNames,
-    // 保存自定义强调色
-    customAccents: state.customAccents,
-    // 保存最后激活的实例 ID
     lastActiveInstanceId: state.activeInstanceId || undefined,
     // 保存预设初始化标记
     presetInitialized: state.presetInitialized || undefined,
@@ -1952,27 +2026,31 @@ function debouncedSaveConfig() {
 }
 
 // 订阅需要保存的状态变化
+// WebUI 模式下外观 & 布局字段已独立存 localStorage，不参与 config 保存订阅
 useAppStore.subscribe(
   (state) => ({
     instances: state.instances,
     activeInstanceId: state.activeInstanceId,
-    theme: state.theme,
-    accentColor: state.accentColor,
-    language: state.language,
+    ...(!_isWebUI && {
+      theme: state.theme,
+      accentColor: state.accentColor,
+      language: state.language,
+      customAccents: state.customAccents,
+      windowSize: state.windowSize,
+      windowPosition: state.windowPosition,
+      showOptionPreview: state.showOptionPreview,
+      sidePanelExpanded: state.sidePanelExpanded,
+      rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
+      addTaskPanelHeight: state.addTaskPanelHeight,
+      connectionPanelExpanded: state.connectionPanelExpanded,
+      screenshotPanelExpanded: state.screenshotPanelExpanded,
+      screenshotFrameRate: state.screenshotFrameRate,
+    }),
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
-    windowSize: state.windowSize,
-    windowPosition: state.windowPosition,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
-    showOptionPreview: state.showOptionPreview,
-    sidePanelExpanded: state.sidePanelExpanded,
-    rightPanelWidth: state.rightPanelWidth,
-    rightPanelCollapsed: state.rightPanelCollapsed,
-    addTaskPanelHeight: state.addTaskPanelHeight,
-    connectionPanelExpanded: state.connectionPanelExpanded,
-    screenshotPanelExpanded: state.screenshotPanelExpanded,
-    screenshotFrameRate: state.screenshotFrameRate,
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
@@ -1985,7 +2063,6 @@ useAppStore.subscribe(
     hotkeys: state.hotkeys,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
-    customAccents: state.customAccents,
     presetInitialized: state.presetInitialized,
   }),
   () => {

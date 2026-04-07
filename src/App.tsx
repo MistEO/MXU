@@ -48,7 +48,8 @@ import { loggers } from '@/utils/logger';
 import { setBackendPort, getApiBase } from '@/utils/backendApi';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
-import { applyTheme, resolveThemeMode } from '@/themes';
+import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
+import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
   isTauri,
   isValidWindowSize,
@@ -968,7 +969,37 @@ function App() {
     if (initialized.current) return;
     initialized.current = true;
 
-    // 应用默认主题（包括模式和强调色）
+    // WebUI 模式从 localStorage 加载独立的外观 & 布局偏好
+    if (!isTauri()) {
+      const localAppearance = loadWebUIAppearance();
+      if (localAppearance) {
+        clearCustomAccents();
+        localAppearance.customAccents?.forEach((a) => registerCustomAccent(a));
+        useAppStore.setState({
+          theme: localAppearance.theme,
+          accentColor: localAppearance.accentColor,
+          language: localAppearance.language,
+          backgroundImage: localAppearance.backgroundImage,
+          backgroundOpacity: localAppearance.backgroundOpacity,
+          customAccents: localAppearance.customAccents || [],
+        });
+      }
+      const localLayout = loadWebUILayout();
+      if (localLayout) {
+        useAppStore.setState({
+          sidePanelExpanded: localLayout.sidePanelExpanded,
+          rightPanelWidth: localLayout.rightPanelWidth,
+          rightPanelCollapsed: localLayout.rightPanelCollapsed,
+          addTaskPanelHeight: localLayout.addTaskPanelHeight,
+          connectionPanelExpanded: localLayout.connectionPanelExpanded,
+          screenshotPanelExpanded: localLayout.screenshotPanelExpanded,
+          showOptionPreview: localLayout.showOptionPreview,
+          screenshotFrameRate: localLayout.screenshotFrameRate,
+          ...(localLayout.windowSize && { windowSize: localLayout.windowSize }),
+          ...(localLayout.windowPosition && { windowPosition: localLayout.windowPosition }),
+        });
+      }
+    }
     const { theme: initialTheme, accentColor: initialAccent } = useAppStore.getState();
     const mode = resolveThemeMode(initialTheme);
     applyTheme(mode, initialAccent);

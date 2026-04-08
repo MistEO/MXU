@@ -171,6 +171,7 @@ pub async fn start_web_server(
         .route("/heartbeat", get(handle_heartbeat))
         // 系统信息
         .route("/system/is-elevated", get(handle_is_elevated))
+        .route("/system/restart-as-admin", axum::routing::post(handle_restart_as_admin))
         // 本地文件代理（浏览器通过此端点访问 exe 目录下的资源文件）
         .route("/local-file", get(handle_serve_local_file))
         .with_state(state);
@@ -927,4 +928,19 @@ async fn handle_is_elevated() -> impl IntoResponse {
         "elevated": crate::commands::system::is_elevated(),
     }))
     .into_response()
+}
+
+/// POST /api/system/restart-as-admin
+/// 以管理员权限重启应用
+async fn handle_restart_as_admin(
+    State(state): State<WebState>,
+) -> impl IntoResponse {
+    match crate::commands::system::restart_as_admin(state.app_handle) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
 }

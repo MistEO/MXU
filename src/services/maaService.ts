@@ -849,7 +849,8 @@ export const maaService = {
    */
   async restartAsAdmin(): Promise<void> {
     if (!isTauri()) {
-      throw new Error('此功能仅在 Tauri 环境中可用');
+      await apiPost('/system/restart-as-admin');
+      return;
     }
     await invoke('restart_as_admin');
   },

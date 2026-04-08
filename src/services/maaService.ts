@@ -532,10 +532,15 @@ export const maaService = {
       );
     }
     if (!isTauri()) {
-      // 浏览器模式：不支持 Agent；直接调用 run 端点提交任务
       const result = await apiPost<{ taskIds: number[] }>(
-        `/maa/instances/${instanceId}/tasks/run`,
-        tasks,
+        `/maa/instances/${instanceId}/tasks/start`,
+        {
+          tasks,
+          agent_configs: agentConfigs && agentConfigs.length > 0 ? agentConfigs : null,
+          cwd: cwd || null,
+          tcp_compat_mode: tcpCompatMode || false,
+          pi_envs: agentConfigs && agentConfigs.length > 0 && piEnvs ? piEnvs : null,
+        },
       );
       log.info('任务已提交 (HTTP), taskIds:', result.taskIds);
       return result.taskIds;
@@ -559,7 +564,11 @@ export const maaService = {
    */
   async stopAgent(instanceId: string): Promise<void> {
     log.info('停止 Agent, 实例:', instanceId);
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/agent/stop`, {});
+      log.info('停止 Agent 成功 (HTTP)');
+      return;
+    }
     await invoke('maa_stop_agent', { instanceId });
     log.info('停止 Agent 成功');
   },

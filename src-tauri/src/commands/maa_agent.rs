@@ -347,11 +347,10 @@ async fn start_single_agent(
     }).await.map_err(|e| e.to_string())?
 }
 
-/// 启动任务（支持多个 Agent）
-#[tauri::command]
-pub async fn maa_start_tasks(
+/// 启动任务的核心实现（Tauri invoke 和 HTTP handler 共享）
+pub async fn start_tasks_impl(
     app: tauri::AppHandle,
-    state: State<'_, Arc<MaaState>>,
+    maa_state: &Arc<MaaState>,
     instance_id: String,
     tasks: Vec<TaskConfig>,
     agent_configs: Option<Vec<AgentConfig>>,
@@ -359,7 +358,7 @@ pub async fn maa_start_tasks(
     tcp_compat_mode: bool,
     pi_envs: Option<HashMap<String, String>>,
 ) -> Result<Vec<i64>, String> {
-    info!("maa_start_tasks called");
+    info!("start_tasks_impl called");
 
     info!("instance_id: {}", instance_id);
     info!("tasks: {:?}", tasks);
@@ -368,7 +367,7 @@ pub async fn maa_start_tasks(
 
     let (resource, controller, tasker) = {
         debug!("[start_tasks] Acquiring instances lock...");
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         debug!("[start_tasks] Instances lock acquired");
         let instance = instances
             .get_mut(&instance_id)
@@ -503,7 +502,7 @@ pub async fn maa_start_tasks(
             }
 
             // 保存所有 agent 状态到 instance
-            let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+            let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
             if let Some(instance) = instances.get_mut(&instance_id) {
                 instance.agent_clients.extend(new_clients);
                 instance.agent_children.extend(new_children);
@@ -552,7 +551,7 @@ pub async fn maa_start_tasks(
     // 缓存 task_ids，用于刷新后恢复状态
     debug!("[start_tasks] Caching task_ids...");
     {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         if let Some(instance) = instances.get_mut(&instance_id) {
             instance.task_ids = task_ids.clone();
         }
@@ -560,29 +559,51 @@ pub async fn maa_start_tasks(
     debug!("[start_tasks] Task_ids cached");
 
     info!(
-        "[start_tasks] maa_start_tasks completed successfully, returning {} task_ids",
+        "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",
         task_ids.len()
     );
 
-    // 通知 WebUI 客户端：任务已启动，需刷新运行时状态
+    // 通知所有客户端：任务已启动，需刷新运行时状态
     super::utils::emit_state_changed(&app, &instance_id, "task-started");
 
     Ok(task_ids)
 }
 
-/// 停止所有 Agent 并断开连接（异步执行，避免阻塞 UI）
-/// 不强制 kill 子进程，等待 MaaTaskerPostStop 触发子进程自行退出
+/// 启动任务（支持多个 Agent）— Tauri invoke 入口，委托给 start_tasks_impl
 #[tauri::command]
-pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> Result<(), String> {
-    info!("maa_stop_agent called for instance: {}", instance_id);
+pub async fn maa_start_tasks(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    tasks: Vec<TaskConfig>,
+    agent_configs: Option<Vec<AgentConfig>>,
+    cwd: String,
+    tcp_compat_mode: bool,
+    pi_envs: Option<HashMap<String, String>>,
+) -> Result<Vec<i64>, String> {
+    start_tasks_impl(
+        app,
+        &state,
+        instance_id,
+        tasks,
+        agent_configs,
+        cwd,
+        tcp_compat_mode,
+        pi_envs,
+    )
+    .await
+}
+
+/// 停止所有 Agent 的核心实现（Tauri invoke 和 HTTP handler 共享）
+pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
+    info!("stop_agent_impl called for instance: {}", instance_id);
 
     let (clients, children) = {
-        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         let instance = instances
-            .get_mut(&instance_id)
+            .get_mut(instance_id)
             .ok_or("Instance not found")?;
 
-        // 取出所有 agent clients 和 children，准备在后台线程清理
         (
             std::mem::take(&mut instance.agent_clients),
             std::mem::take(&mut instance.agent_children),
@@ -601,12 +622,10 @@ pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> R
     );
 
     thread::spawn(move || {
-        // 断开所有客户端连接
         for client in clients {
             let _ = client.disconnect();
         }
 
-        // 等待子进程退出
         for (i, mut child) in children.into_iter().enumerate() {
             debug!("Waiting for agent process #{} to exit...", i);
 
@@ -614,7 +633,6 @@ pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> R
             let timeout = std::time::Duration::from_secs(5);
             let mut exited = false;
 
-            // 同步轮询子进程状态
             while start.elapsed() < timeout {
                 match child.try_wait() {
                     Ok(Some(_)) => {
@@ -631,7 +649,6 @@ pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> R
                 }
             }
 
-            // 超时未退出则强制 kill
             if !exited {
                 warn!("Agent process #{} did not exit in time, killing it...", i);
                 let _ = child.kill();
@@ -643,4 +660,10 @@ pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> R
     });
 
     Ok(())
+}
+
+/// 停止所有 Agent 并断开连接 — Tauri invoke 入口，委托给 stop_agent_impl
+#[tauri::command]
+pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> Result<(), String> {
+    stop_agent_impl(&state, &instance_id)
 }

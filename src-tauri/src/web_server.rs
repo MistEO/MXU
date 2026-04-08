@@ -22,12 +22,13 @@ use tower_http::cors::CorsLayer;
 
 use crate::commands::{
     app_config::AppConfigState,
+    maa_agent::{start_tasks_impl, stop_agent_impl},
     maa_core::{
         connect_controller_impl, find_adb_devices_impl, find_win32_windows_impl,
         get_cached_image_impl, load_resource_impl, post_screencap_impl, run_task_impl,
         stop_task_impl,
     },
-    types::{ControllerConfig, MaaState, TaskConfig},
+    types::{AgentConfig, ControllerConfig, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
 };
 use crate::ws_broadcast::WsBroadcast;
@@ -204,7 +205,9 @@ pub async fn start_web_server(
         .route("/maa/instances/:id/connect", axum::routing::post(handle_connect_controller))
         .route("/maa/instances/:id/resource/load", axum::routing::post(handle_load_resource))
         .route("/maa/instances/:id/tasks/run", axum::routing::post(handle_run_task))
+        .route("/maa/instances/:id/tasks/start", axum::routing::post(handle_start_tasks))
         .route("/maa/instances/:id/tasks/stop", axum::routing::post(handle_stop_task))
+        .route("/maa/instances/:id/agent/stop", axum::routing::post(handle_stop_agent))
         .route("/maa/instances/:id/screenshot", get(handle_get_screenshot))
         // 运行日志（跨刷新持久化）
         .route("/logs", get(handle_get_all_logs))
@@ -728,6 +731,54 @@ async fn handle_run_task(
     Json(serde_json::json!({ "taskIds": task_ids })).into_response()
 }
 
+/// POST /api/maa/instances/:id/tasks/start 请求体
+#[derive(serde::Deserialize)]
+struct StartTasksRequest {
+    tasks: Vec<TaskConfig>,
+    #[serde(default)]
+    agent_configs: Option<Vec<AgentConfig>>,
+    #[serde(default)]
+    cwd: Option<String>,
+    #[serde(default)]
+    tcp_compat_mode: Option<bool>,
+    #[serde(default)]
+    pi_envs: Option<std::collections::HashMap<String, String>>,
+}
+
+/// POST /api/maa/instances/:id/tasks/start
+/// 启动任务（支持 Agent），与 Tauri invoke `maa_start_tasks` 使用同一套实现
+async fn handle_start_tasks(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+    Json(body): Json<StartTasksRequest>,
+) -> impl IntoResponse {
+    ensure_instance_exists(&state.maa_state, &instance_id);
+
+    let cwd = body.cwd.unwrap_or_else(|| {
+        state.app_config.base_path.lock().unwrap().clone()
+    });
+
+    match start_tasks_impl(
+        state.app_handle,
+        &state.maa_state,
+        instance_id,
+        body.tasks,
+        body.agent_configs,
+        cwd,
+        body.tcp_compat_mode.unwrap_or(false),
+        body.pi_envs,
+    )
+    .await
+    {
+        Ok(task_ids) => Json(serde_json::json!({ "taskIds": task_ids })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
 /// POST /api/maa/instances/:id/tasks/stop
 /// 停止当前实例的任务
 async fn handle_stop_task(
@@ -739,6 +790,22 @@ async fn handle_stop_task(
             emit_state_changed(&state.app_handle, &instance_id, "task-stopped");
             Json(serde_json::json!({ "ok": true })).into_response()
         }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /api/maa/instances/:id/agent/stop
+/// 停止 Agent 并断开连接，与 Tauri invoke `maa_stop_agent` 使用同一套实现
+async fn handle_stop_agent(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match stop_agent_impl(&state.maa_state, &instance_id) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),

@@ -956,10 +956,12 @@ export const useAppStore = create<AppState>()(
     importConfig: (config) => {
       const pi = get().projectInterface;
 
-      // 保留当前各任务的 expanded 状态（纯 UI 状态，不随配置同步）
-      // 这样当其他客户端修改配置触发 importConfig 时，不会意外折叠用户已展开的任务
+      // 保留当前各实例/任务的运行时状态（纯 UI 状态，不随配置同步）
+      // 这样当其他客户端修改配置触发 importConfig 时，不会意外重置运行状态或折叠任务
+      const prevRunningByInstance = new Map<string, boolean>();
       const prevExpandedByTask = new Map<string, boolean>();
       for (const inst of get().instances) {
+        prevRunningByInstance.set(inst.id, inst.isRunning);
         for (const t of inst.selectedTasks) {
           prevExpandedByTask.set(t.id, t.expanded);
         }
@@ -1072,7 +1074,7 @@ export const useAppStore = create<AppState>()(
           resourceName: inst.resourceName,
           savedDevice: inst.savedDevice,
           selectedTasks: savedTasks,
-          isRunning: false,
+          isRunning: prevRunningByInstance.get(inst.id) ?? false,
           schedulePolicies: inst.schedulePolicies,
           preAction: inst.preAction,
         };
@@ -1366,8 +1368,13 @@ export const useAppStore = create<AppState>()(
     setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
 
     // 从后端恢复 MAA 运行时状态
-    restoreBackendStates: (states) =>
+    // skipRunningState: 运行时 state-changed 事件调用时为 true，避免过时的后端
+    // 状态覆盖前端已设置的 isRunning（竞态：connect/resource 事件的防抖 getAllStates
+    // 可能在前端 setIsRunning(true) 之后、后端 startTasks 完成之前返回 false）。
+    // 初始化恢复时不传此选项，以便从后端恢复运行中实例的状态。
+    restoreBackendStates: (states, options) =>
       set((currentState) => {
+        const skipRunning = options?.skipRunningState ?? false;
         const connectionStatus: Record<string, ConnectionStatus> = {};
         const resourceLoaded: Record<string, boolean> = {};
         const taskStatus: Record<string, TaskStatus | null> = {};
@@ -1376,10 +1383,16 @@ export const useAppStore = create<AppState>()(
         const updatedInstances = currentState.instances.map((instance) => {
           const backendState = states.instances[instance.id];
           if (backendState) {
-            // 只有当后端有正在运行的任务时，才恢复 isRunning 状态
-            // taskIds 为空表示用户已停止任务（MaaTaskerPostStop 清空了
-            // task_ids， 但 MaaTaskerRunning 可能在回调完成前仍返回 true）
-            const isRunning = backendState.isRunning && backendState.taskIds.length > 0;
+            let isRunning: boolean;
+            if (skipRunning) {
+              // 运行时同步：保留前端当前 isRunning，不被过时的后端数据覆盖
+              isRunning = instance.isRunning;
+            } else {
+              // 初始化恢复：以后端为准
+              // taskIds 为空表示用户已停止任务（MaaTaskerPostStop 清空了
+              // task_ids，但 MaaTaskerRunning 可能在回调完成前仍返回 true）
+              isRunning = backendState.isRunning && backendState.taskIds.length > 0;
+            }
             return {
               ...instance,
               isRunning,
@@ -1391,8 +1404,13 @@ export const useAppStore = create<AppState>()(
         for (const [instanceId, state] of Object.entries(states.instances)) {
           connectionStatus[instanceId] = state.connected ? 'Connected' : 'Disconnected';
           resourceLoaded[instanceId] = state.resourceLoaded;
-          // 同样检查 taskIds，避免显示错误的运行状态
-          if (state.isRunning && state.taskIds.length > 0) {
+          if (skipRunning) {
+            // 运行时同步：保留前端当前 taskStatus
+            const existing = currentState.instanceTaskStatus[instanceId];
+            if (existing) {
+              taskStatus[instanceId] = existing;
+            }
+          } else if (state.isRunning && state.taskIds.length > 0) {
             taskStatus[instanceId] = 'Running';
           }
         }

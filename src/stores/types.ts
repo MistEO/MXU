@@ -255,21 +255,24 @@ export interface AppState {
   setCachedWlrootsSockets: (sockets: string[]) => void;
 
   // 从后端恢复 MAA 运行时状态
-  restoreBackendStates: (states: {
-    instances: Record<
-      string,
-      {
-        connected: boolean;
-        resourceLoaded: boolean;
-        taskerInited: boolean;
-        isRunning: boolean;
-        taskIds: number[];
-      }
-    >;
-    cachedAdbDevices: AdbDevice[];
-    cachedWin32Windows: Win32Window[];
-    cachedWlrootsSockets: string[];
-  }) => void;
+  restoreBackendStates: (
+    states: {
+      instances: Record<
+        string,
+        {
+          connected: boolean;
+          resourceLoaded: boolean;
+          taskerInited: boolean;
+          isRunning: boolean;
+          taskIds: number[];
+        }
+      >;
+      cachedAdbDevices: AdbDevice[];
+      cachedWin32Windows: Win32Window[];
+      cachedWlrootsSockets: string[];
+    },
+    options?: { skipRunningState?: boolean },
+  ) => void;
 
   // 截图流状态
   instanceScreenshotStreaming: Record<string, boolean>;

@@ -1112,7 +1112,7 @@ function App() {
         try {
           const backendStates = await maaService.getAllStates();
           if (backendStates) {
-            restoreBackendStates(backendStates);
+            restoreBackendStates(backendStates, { skipRunningState: true });
             log.debug('收到 state-changed，已刷新运行时状态');
           }
         } catch (err) {

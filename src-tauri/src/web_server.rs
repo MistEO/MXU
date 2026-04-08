@@ -753,28 +753,23 @@ async fn handle_load_resource(
 
 /// POST /api/maa/instances/:id/tasks/run
 /// 运行一批任务（不启动 agent，适用于已连接的实例）
-/// Body: `[{"entry": "TaskName", "pipelineOverride": "{}"}]`
+/// Body: `[{"entry": "TaskName", "pipelineOverride": "{}", "selected_task_id": "..." }]`
 async fn handle_run_task(
     State(state): State<WebState>,
     axum::extract::Path(instance_id): axum::extract::Path<String>,
     Json(tasks): Json<Vec<TaskConfig>>,
 ) -> impl IntoResponse {
-    let app_handle = state.app_handle.clone();
-    let on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static> =
-        Arc::new(move |msg: &str, detail: &str| {
-            emit_callback_event(&app_handle, msg, detail);
-        });
-
     let mut task_ids = Vec::new();
     let maa = state.maa_state;
 
     for task in &tasks {
         match run_task_impl(
+            &state.app_handle,
             &maa,
             &instance_id,
             &task.entry,
             &task.pipeline_override,
-            on_event.clone(),
+            task.selected_task_id.as_deref(),
         ) {
             Ok(id) => task_ids.push(id),
             Err(e) => {

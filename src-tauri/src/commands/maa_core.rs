@@ -19,7 +19,7 @@ use super::types::{
     AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
     Win32Window,
 };
-use super::utils::{emit_callback_event, get_maafw_dir, normalize_path};
+use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
@@ -789,11 +789,12 @@ pub fn maa_destroy_resource(
 /// 运行任务（异步，通过回调通知完成状态）
 /// 运行单个任务的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
 pub fn run_task_impl(
-    state: &MaaState,
+    app: &tauri::AppHandle,
+    state: &Arc<MaaState>,
     instance_id: &str,
     entry: &str,
     pipeline_override: &str,
-    on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static>,
+    selected_task_id: Option<&str>,
 ) -> Result<i64, String> {
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
@@ -817,17 +818,26 @@ pub fn run_task_impl(
 
         let tasker = Tasker::new().map_err(|e| e.to_string())?;
 
-        let on_event_clone = on_event.clone();
+        let app_for_sink = app.clone();
+        let maa_state_for_sink = Arc::clone(state);
+        let instance_id_for_sink = instance_id.to_string();
         tasker
             .add_sink(move |msg, detail| {
-                on_event_clone(msg, detail);
+                handle_task_callback(
+                    &maa_state_for_sink,
+                    &app_for_sink,
+                    &instance_id_for_sink,
+                    msg,
+                    detail,
+                );
+                emit_callback_event(&app_for_sink, msg, detail);
             })
             .map_err(|e| e.to_string())?;
 
-        let on_event_clone = on_event.clone();
+        let app_for_context_sink = app.clone();
         tasker
             .add_context_sink(move |msg, detail| {
-                on_event_clone(msg, detail);
+                emit_callback_event(&app_for_context_sink, msg, detail);
             })
             .map_err(|e| e.to_string())?;
 
@@ -849,7 +859,24 @@ pub fn run_task_impl(
         .map_err(|e| e.to_string())?;
     let task_id = job.id;
 
-    instance.task_ids.push(task_id);
+    if !instance.task_ids.contains(&task_id) {
+        instance.task_ids.push(task_id);
+    }
+
+    if let Some(selected_task_id) = selected_task_id {
+        let task_run_state = &mut instance.task_run_state;
+        if !task_run_state.pending_task_ids.contains(&task_id) {
+            task_run_state.pending_task_ids.push(task_id);
+        }
+        task_run_state
+            .mappings
+            .insert(task_id, selected_task_id.to_string());
+        task_run_state
+            .statuses
+            .insert(selected_task_id.to_string(), "pending".to_string());
+        task_run_state.overall_status = Some("Running".to_string());
+    }
+
     Ok(task_id)
 }
 
@@ -862,15 +889,17 @@ pub fn maa_run_task(
     instance_id: String,
     entry: String,
     pipeline_override: String,
+    selected_task_id: Option<String>,
 ) -> Result<i64, String> {
     info!("maa_run_task called, entry: {}", entry);
     let app_clone = app.clone();
     let result = run_task_impl(
+        &app,
         &state,
         &instance_id,
         &entry,
         &pipeline_override,
-        Arc::new(move |msg, detail| emit_callback_event(&app, msg, detail)),
+        selected_task_id.as_deref(),
     );
     if result.is_ok() {
         super::utils::emit_state_changed(&app_clone, &instance_id, "task-started");

@@ -287,6 +287,7 @@ export function AddTaskPanel() {
           instance.id,
           specialTask.entry,
           pipelineOverride,
+          addedTask.id,
         );
 
         log.info(`特殊任务已追加, maaTaskId:`, maaTaskId);
@@ -345,7 +346,12 @@ export function AddTaskPanel() {
         log.info('运行中追加任务:', task.entry, ', pipelineOverride:', pipelineOverride);
 
         // 调用 PostTask
-        const maaTaskId = await maaService.runTask(instance.id, task.entry, pipelineOverride);
+        const maaTaskId = await maaService.runTask(
+          instance.id,
+          task.entry,
+          pipelineOverride,
+          addedTask.id,
+        );
 
         log.info('任务已追加, maaTaskId:', maaTaskId);
 

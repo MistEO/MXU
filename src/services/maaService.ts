@@ -15,7 +15,7 @@ import type {
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/paths';
-import { apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
+import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
 import * as wsService from '@/services/wsService';
 
 const log = loggers.maa;
@@ -251,7 +251,7 @@ export const maaService = {
   async destroyInstance(instanceId: string): Promise<void> {
     log.info('销毁实例:', instanceId);
     if (!isTauri()) {
-      await fetch(`${getApiBase()}/maa/instances/${instanceId}`, { method: 'DELETE' });
+      await apiDelete(`/maa/instances/${instanceId}`);
       log.info('销毁实例成功 (HTTP):', instanceId);
       return;
     }
@@ -362,12 +362,14 @@ export const maaService = {
    * @param instanceId 实例 ID
    * @param entry 任务入口
    * @param pipelineOverride Pipeline 覆盖 JSON
+   * @param selectedTaskId 对应的前端任务 ID（用于后端跟踪任务状态）
    * @returns 任务 ID
    */
   async runTask(
     instanceId: string,
     entry: string,
     pipelineOverride: string = '{}',
+    selectedTaskId?: string,
   ): Promise<number> {
     log.info(
       '运行任务, 实例:',
@@ -380,7 +382,7 @@ export const maaService = {
     if (!isTauri()) {
       const result = await apiPost<{ taskIds: number[] }>(
         `/maa/instances/${instanceId}/tasks/run`,
-        [{ entry, pipeline_override: pipelineOverride }],
+        [{ entry, pipeline_override: pipelineOverride, selected_task_id: selectedTaskId }],
       );
       const taskId = result.taskIds[0] ?? 0;
       log.info('任务已提交 (HTTP), taskId:', taskId);
@@ -390,6 +392,7 @@ export const maaService = {
       instanceId,
       entry,
       pipelineOverride,
+      selectedTaskId: selectedTaskId ?? null,
     });
     log.info('任务已提交, taskId:', taskId);
     return taskId;

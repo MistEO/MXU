@@ -37,7 +37,7 @@ export function WebUIBetaBanner() {
         {t('webuiBeta.desktopHint')}
       </span>
       <button
-        onClick={setDismissed}
+        onClick={() => setDismissed(true)}
         className="shrink-0 p-0.5 rounded hover:bg-amber-500/20 transition-colors"
         aria-label={t('common.close')}
       >

@@ -61,10 +61,54 @@ pub fn get_local_ip() -> Option<&'static str> {
 
 /// 编译时嵌入的前端构建产物（../dist 目录）
 /// release 构建时由 beforeBuildCommand (`pnpm build`) 生成
+#[cfg(not(debug_assertions))]
 #[derive(RustEmbed)]
 #[folder = "../dist"]
 struct FrontendAssets;
 
+/// dev 构建中，Vite dev server 的地址（与 tauri.conf.json devUrl 保持一致）
+#[cfg(debug_assertions)]
+const VITE_DEV_URL: &str = "http://localhost:1420";
+
+/// dev 模式专用：将前端静态资源请求反向代理到 Vite dev server，
+/// 从而获得实时 HMR 而无需重新编译 Rust。
+#[cfg(debug_assertions)]
+async fn serve_vite_proxy(uri: axum::http::Uri) -> impl IntoResponse {
+    let path = uri
+        .path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or("/");
+    let url = format!("{}{}", VITE_DEV_URL, path);
+
+    match reqwest::get(&url).await {
+        Ok(resp) => {
+            let status =
+                axum::http::StatusCode::from_u16(resp.status().as_u16())
+                    .unwrap_or(axum::http::StatusCode::OK);
+            let content_type = resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("application/octet-stream")
+                .to_string();
+            let body = resp.bytes().await.unwrap_or_default().to_vec();
+            (status, [(header::CONTENT_TYPE, content_type)], body).into_response()
+        }
+        Err(_) => {
+            // Vite dev server 尚未就绪时返回自动刷新页面
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                b"<html><body><p>Waiting for Vite dev server...</p>\
+                  <script>setTimeout(()=>location.reload(),2000)</script></body></html>"
+                    .to_vec(),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[cfg(not(debug_assertions))]
 fn guess_mime(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or("") {
         "html" | "htm" => "text/html; charset=utf-8",
@@ -86,6 +130,7 @@ fn guess_mime(path: &str) -> &'static str {
 }
 
 /// 从内嵌资源提供前端文件，支持 SPA 路由回退（未匹配路径返回 index.html）
+#[cfg(not(debug_assertions))]
 async fn serve_embedded(uri: axum::http::Uri) -> impl IntoResponse {
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
@@ -179,30 +224,43 @@ pub async fn start_web_server(
     // 主路由：API + 静态前端页面
     let mut app: Router = Router::new().nest("/api", api_routes);
 
-    // 优先从 exe 同目录的 dist/ 提供前端页面（方便热更新前端），
-    // 否则使用编译时内嵌的前端资源（release 默认路径）
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
-
-    let has_external_dist = exe_dir
-        .as_ref()
-        .map(|dir| dir.join("dist").exists())
-        .unwrap_or(false);
-
-    if has_external_dist {
-        let dist_dir = exe_dir.unwrap().join("dist");
-        log::info!("Web server: serving static files from {:?}", dist_dir);
-        app = app.fallback_service(
-            tower_http::services::ServeDir::new(&dist_dir)
-                .append_index_html_on_directories(true)
-                .fallback(tower_http::services::ServeFile::new(
-                    dist_dir.join("index.html"),
-                )),
+    // dev 构建：反向代理到 Vite dev server，实现实时 HMR
+    #[cfg(debug_assertions)]
+    {
+        log::info!(
+            "Web server [dev]: proxying frontend to Vite dev server at {}",
+            VITE_DEV_URL
         );
-    } else {
-        log::info!("Web server: serving embedded frontend assets");
-        app = app.fallback(serve_embedded);
+        app = app.fallback(serve_vite_proxy);
+    }
+
+    // release 构建：优先从 exe 同目录的 dist/ 提供前端页面（方便热更新前端），
+    // 否则使用编译时内嵌的前端资源
+    #[cfg(not(debug_assertions))]
+    {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+
+        let has_external_dist = exe_dir
+            .as_ref()
+            .map(|dir| dir.join("dist").exists())
+            .unwrap_or(false);
+
+        if has_external_dist {
+            let dist_dir = exe_dir.unwrap().join("dist");
+            log::info!("Web server: serving static files from {:?}", dist_dir);
+            app = app.fallback_service(
+                tower_http::services::ServeDir::new(&dist_dir)
+                    .append_index_html_on_directories(true)
+                    .fallback(tower_http::services::ServeFile::new(
+                        dist_dir.join("index.html"),
+                    )),
+            );
+        } else {
+            log::info!("Web server: serving embedded frontend assets");
+            app = app.fallback(serve_embedded);
+        }
     }
 
     // CORS：允许所有来源（浏览器需要跨域支持）

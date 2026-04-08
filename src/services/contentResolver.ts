@@ -12,7 +12,7 @@ import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cachedFetch } from './cacheService';
-import { isTauri } from '@/utils/paths';
+import { isTauri, joinPath } from '@/utils/paths';
 import { getApiBase } from '@/utils/backendApi';
 
 const log = loggers.app;

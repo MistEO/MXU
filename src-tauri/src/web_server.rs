@@ -212,9 +212,6 @@ pub async fn start_web_server(
         // 运行日志（跨刷新持久化）
         .route("/logs", get(handle_get_all_logs))
         .route("/logs/:id", axum::routing::post(handle_push_log).delete(handle_clear_instance_logs))
-        // 任务运行状态（跨刷新持久化）
-        .route("/task-status", get(handle_get_all_task_run_status))
-        .route("/task-status/:id", axum::routing::put(handle_sync_task_run_status).delete(handle_clear_task_run_status))
         // 心跳
         .route("/heartbeat", get(handle_heartbeat))
         // 系统信息
@@ -505,7 +502,7 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
                         "resource_loaded": runtime.resource.as_ref().is_some_and(|r| r.loaded()),
                         "tasker_inited": runtime.tasker.as_ref().is_some_and(|t| t.inited()),
                         "is_running": is_running,
-                        "task_ids": runtime.task_ids,
+                        "task_run_state": serde_json::to_value(&runtime.task_run_state).unwrap_or_default(),
                     }),
                 );
             }
@@ -997,43 +994,6 @@ async fn handle_clear_instance_logs(
     match state.maa_state.log_buffer.lock() {
         Ok(mut buffer) => {
             buffer.clear_instance(&instance_id);
-            StatusCode::NO_CONTENT.into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-    }
-}
-
-/// GET /api/task-status — 获取所有实例的任务运行状态快照
-async fn handle_get_all_task_run_status(State(state): State<WebState>) -> impl IntoResponse {
-    match state.maa_state.task_run_snapshots.lock() {
-        Ok(snapshots) => Json(snapshots.clone()).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-    }
-}
-
-/// PUT /api/task-status/:id — 同步指定实例的任务运行状态快照
-async fn handle_sync_task_run_status(
-    State(state): State<WebState>,
-    axum::extract::Path(instance_id): axum::extract::Path<String>,
-    Json(snapshot): Json<crate::commands::types::InstanceTaskRunSnapshot>,
-) -> impl IntoResponse {
-    match state.maa_state.task_run_snapshots.lock() {
-        Ok(mut snapshots) => {
-            snapshots.insert(instance_id, snapshot);
-            StatusCode::NO_CONTENT.into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-    }
-}
-
-/// DELETE /api/task-status/:id — 清空指定实例的任务运行状态
-async fn handle_clear_task_run_status(
-    State(state): State<WebState>,
-    axum::extract::Path(instance_id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    match state.maa_state.task_run_snapshots.lock() {
-        Ok(mut snapshots) => {
-            snapshots.remove(&instance_id);
             StatusCode::NO_CONTENT.into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),

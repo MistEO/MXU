@@ -689,7 +689,6 @@ export const maaService = {
           resourceLoaded: state.resourceLoaded,
           isRunning: state.isRunning,
           currentTaskId: null,
-          taskIds: state.taskIds,
         };
       } catch {
         return null;
@@ -701,14 +700,12 @@ export const maaService = {
         resource_loaded: boolean;
         tasker_inited: boolean;
         is_running: boolean;
-        task_ids: number[];
       }>('maa_get_instance_state', { instanceId });
       return {
         connectionStatus: state.connected ? 'Connected' : 'Disconnected',
         resourceLoaded: state.resource_loaded,
         isRunning: state.is_running,
         currentTaskId: null,
-        taskIds: state.task_ids,
       };
     } catch {
       return null;
@@ -726,7 +723,13 @@ export const maaService = {
         resourceLoaded: boolean;
         taskerInited: boolean;
         isRunning: boolean;
-        taskIds: number[];
+        taskRunState: {
+          statuses: Record<string, string>;
+          mappings: Record<string, string>;
+          pendingTaskIds: number[];
+          currentTaskIndex: number;
+          overallStatus: string | null;
+        };
       }
     >;
     cachedAdbDevices: AdbDevice[];
@@ -734,38 +737,31 @@ export const maaService = {
     cachedWlrootsSockets: string[];
   } | null> {
     try {
+      type RawTaskRunState = {
+        statuses: Record<string, string>;
+        mappings: Record<string, string>;
+        pending_task_ids: number[];
+        current_task_index: number;
+        overall_status: string | null;
+      };
+      type RawInstanceState = {
+        connected: boolean;
+        resource_loaded: boolean;
+        tasker_inited: boolean;
+        is_running: boolean;
+        task_run_state: RawTaskRunState;
+      };
+      type RawAllStates = {
+        instances: Record<string, RawInstanceState>;
+        cached_adb_devices: AdbDevice[];
+        cached_win32_windows: Win32Window[];
+        cached_wlroots_sockets: string[];
+      };
+
       // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
       const states = isTauri()
-        ? await invoke<{
-            instances: Record<
-              string,
-              {
-                connected: boolean;
-                resource_loaded: boolean;
-                tasker_inited: boolean;
-                is_running: boolean;
-                task_ids: number[];
-              }
-            >;
-            cached_adb_devices: AdbDevice[];
-            cached_win32_windows: Win32Window[];
-            cached_wlroots_sockets: string[];
-          }>('maa_get_all_states')
-        : await apiGet<{
-            instances: Record<
-              string,
-              {
-                connected: boolean;
-                resource_loaded: boolean;
-                tasker_inited: boolean;
-                is_running: boolean;
-                task_ids: number[];
-              }
-            >;
-            cached_adb_devices: AdbDevice[];
-            cached_win32_windows: Win32Window[];
-            cached_wlroots_sockets: string[];
-          }>('/maa/state');
+        ? await invoke<RawAllStates>('maa_get_all_states')
+        : await apiGet<RawAllStates>('/maa/state');
 
       // 转换字段名（snake_case -> camelCase）
       const instances: Record<
@@ -775,17 +771,30 @@ export const maaService = {
           resourceLoaded: boolean;
           taskerInited: boolean;
           isRunning: boolean;
-          taskIds: number[];
+          taskRunState: {
+            statuses: Record<string, string>;
+            mappings: Record<string, string>;
+            pendingTaskIds: number[];
+            currentTaskIndex: number;
+            overallStatus: string | null;
+          };
         }
       > = {};
 
       for (const [id, state] of Object.entries(states.instances)) {
+        const trs = state.task_run_state ?? {};
         instances[id] = {
           connected: state.connected,
           resourceLoaded: state.resource_loaded,
           taskerInited: state.tasker_inited,
           isRunning: state.is_running,
-          taskIds: state.task_ids,
+          taskRunState: {
+            statuses: trs.statuses ?? {},
+            mappings: trs.mappings ?? {},
+            pendingTaskIds: trs.pending_task_ids ?? [],
+            currentTaskIndex: trs.current_task_index ?? 0,
+            overallStatus: trs.overall_status ?? null,
+          },
         };
       }
 

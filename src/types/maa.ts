@@ -82,8 +82,6 @@ export interface InstanceRuntimeInfo {
   resourceLoaded: boolean;
   isRunning: boolean;
   currentTaskId: number | null;
-  /** 当前运行的任务 ID 列表 */
-  taskIds: number[];
 }
 
 /** Win32 截图方法 */
@@ -178,4 +176,6 @@ export interface AgentConfig {
 export interface TaskConfig {
   entry: string;
   pipeline_override: string;
+  /** 对应的前端选中任务 ID（用于后端跟踪 per-task 状态） */
+  selected_task_id?: string;
 }

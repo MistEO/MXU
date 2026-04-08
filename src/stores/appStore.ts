@@ -34,13 +34,7 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import {
-  logToStdout,
-  pushLogToBackend,
-  clearLogsOnBackend,
-  syncTaskRunStatusToBackend,
-  clearTaskRunStatusOnBackend,
-} from '@/utils/logStdout';
+import { logToStdout, pushLogToBackend, clearLogsOnBackend } from '@/utils/logStdout';
 import {
   loadWebUIAppearance,
   patchWebUIAppearance,
@@ -68,24 +62,6 @@ function forwardLogToStdout(message: string) {
   logToStdout(plain);
 }
 
-/** 从当前 store 状态中提取指定实例的任务运行快照并同步到后端 */
-function syncTaskRunSnapshotForInstance(instanceId: string) {
-  const state = useAppStore.getState();
-  const statuses = state.instanceTaskRunStatus[instanceId] || {};
-  const rawMappings = state.maaTaskIdMapping[instanceId] || {};
-  const mappings: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawMappings)) {
-    mappings[String(k)] = v;
-  }
-  const pending_task_ids = state.instancePendingTaskIds[instanceId] || [];
-  const current_task_index = state.instanceCurrentTaskIndex[instanceId] || 0;
-  syncTaskRunStatusToBackend(instanceId, {
-    statuses,
-    mappings,
-    pending_task_ids,
-    current_task_index,
-  });
-}
 
 // 重新导出类型供外部使用
 export type {
@@ -1367,36 +1343,30 @@ export const useAppStore = create<AppState>()(
     setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
     setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
 
-    // 从后端恢复 MAA 运行时状态
-    // skipRunningState: 运行时 state-changed 事件调用时为 true，避免过时的后端
-    // 状态覆盖前端已设置的 isRunning（竞态：connect/resource 事件的防抖 getAllStates
-    // 可能在前端 setIsRunning(true) 之后、后端 startTasks 完成之前返回 false）。
-    // 初始化恢复时不传此选项，以便从后端恢复运行中实例的状态。
+    // 从后端恢复 MAA 运行时状态（后端是单一真相来源）
+    // skipRunningState: 运行时 state-changed 事件（connected/resource-loading）调用时
+    // 为 true，避免过时的后端状态覆盖前端已设置的 isRunning（竞态：connect/resource 事件
+    // 的防抖 getAllStates 可能在前端 setIsRunning(true) 之后、后端 startTasks 完成之前
+    // 返回 false）。任务相关事件和初始化恢复时不传此选项，以后端为准。
     restoreBackendStates: (states, options) =>
       set((currentState) => {
         const skipRunning = options?.skipRunningState ?? false;
         const connectionStatus: Record<string, ConnectionStatus> = {};
         const resourceLoaded: Record<string, boolean> = {};
         const taskStatus: Record<string, TaskStatus | null> = {};
+        const instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>> = {};
+        const maaTaskIdMapping: Record<string, Record<number, string>> = {};
+        const instancePendingTaskIds: Record<string, number[]> = {};
+        const instanceCurrentTaskIndex: Record<string, number> = {};
 
         // 更新实例的 isRunning 状态
         const updatedInstances = currentState.instances.map((instance) => {
           const backendState = states.instances[instance.id];
           if (backendState) {
-            let isRunning: boolean;
-            if (skipRunning) {
-              // 运行时同步：保留前端当前 isRunning，不被过时的后端数据覆盖
-              isRunning = instance.isRunning;
-            } else {
-              // 初始化恢复：以后端为准
-              // taskIds 为空表示用户已停止任务（MaaTaskerPostStop 清空了
-              // task_ids，但 MaaTaskerRunning 可能在回调完成前仍返回 true）
-              isRunning = backendState.isRunning && backendState.taskIds.length > 0;
-            }
-            return {
-              ...instance,
-              isRunning,
-            };
+            const isRunning = skipRunning
+              ? instance.isRunning
+              : backendState.isRunning;
+            return { ...instance, isRunning };
           }
           return instance;
         });
@@ -1404,14 +1374,40 @@ export const useAppStore = create<AppState>()(
         for (const [instanceId, state] of Object.entries(states.instances)) {
           connectionStatus[instanceId] = state.connected ? 'Connected' : 'Disconnected';
           resourceLoaded[instanceId] = state.resourceLoaded;
-          if (skipRunning) {
-            // 运行时同步：保留前端当前 taskStatus
-            const existing = currentState.instanceTaskStatus[instanceId];
-            if (existing) {
-              taskStatus[instanceId] = existing;
+
+          // 从后端 task_run_state 恢复任务运行状态
+          const trs = state.taskRunState;
+          if (trs) {
+            // 转换 statuses（string -> TaskRunStatus）
+            const statuses: Record<string, TaskRunStatus> = {};
+            for (const [k, v] of Object.entries(trs.statuses)) {
+              statuses[k] = v as TaskRunStatus;
             }
-          } else if (state.isRunning && state.taskIds.length > 0) {
-            taskStatus[instanceId] = 'Running';
+            instanceTaskRunStatus[instanceId] = statuses;
+
+            // 转换 mappings（string keys -> number keys）
+            const mappings: Record<number, string> = {};
+            for (const [k, v] of Object.entries(trs.mappings)) {
+              mappings[Number(k)] = v;
+            }
+            maaTaskIdMapping[instanceId] = mappings;
+
+            instancePendingTaskIds[instanceId] = trs.pendingTaskIds ?? [];
+            instanceCurrentTaskIndex[instanceId] = trs.currentTaskIndex ?? 0;
+
+            // 映射 overall_status → instanceTaskStatus
+            if (skipRunning) {
+              const existing = currentState.instanceTaskStatus[instanceId];
+              if (existing) {
+                taskStatus[instanceId] = existing;
+              }
+            } else if (state.isRunning) {
+              taskStatus[instanceId] = 'Running';
+            } else if (trs.overallStatus === 'Succeeded') {
+              taskStatus[instanceId] = 'Succeeded';
+            } else if (trs.overallStatus === 'Failed') {
+              taskStatus[instanceId] = 'Failed';
+            }
           }
         }
 
@@ -1420,6 +1416,10 @@ export const useAppStore = create<AppState>()(
           instanceConnectionStatus: connectionStatus,
           instanceResourceLoaded: resourceLoaded,
           instanceTaskStatus: taskStatus,
+          instanceTaskRunStatus,
+          maaTaskIdMapping,
+          instancePendingTaskIds,
+          instanceCurrentTaskIndex,
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
           cachedWlrootsSockets: states.cachedWlrootsSockets,
@@ -1715,72 +1715,30 @@ export const useAppStore = create<AppState>()(
 
     clearRecentlyClosed: () => set({ recentlyClosed: [] }),
 
-    // 任务运行状态
+    // 任务运行状态（只读缓存，由 restoreBackendStates 填充）
     instanceTaskRunStatus: {},
     maaTaskIdMapping: {},
-
-    setTaskRunStatus: (instanceId, selectedTaskId, status) => {
-      set((state) => ({
-        instanceTaskRunStatus: {
-          ...state.instanceTaskRunStatus,
-          [instanceId]: {
-            ...state.instanceTaskRunStatus[instanceId],
-            [selectedTaskId]: status,
-          },
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    setAllTasksRunStatus: (instanceId, taskIds, status) => {
-      set((state) => {
-        const taskStatus: Record<string, TaskRunStatus> = {};
-        taskIds.forEach((id) => {
-          taskStatus[id] = status;
-        });
-        return {
-          instanceTaskRunStatus: {
-            ...state.instanceTaskRunStatus,
-            [instanceId]: taskStatus,
-          },
-        };
-      });
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) => {
-      set((state) => ({
-        maaTaskIdMapping: {
-          ...state.maaTaskIdMapping,
-          [instanceId]: {
-            ...state.maaTaskIdMapping[instanceId],
-            [maaTaskId]: selectedTaskId,
-          },
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
+    instancePendingTaskIds: {},
+    instanceCurrentTaskIndex: {},
 
     findSelectedTaskIdByMaaTaskId: (instanceId, maaTaskId) => {
       const state = get();
       const mapping = state.maaTaskIdMapping[instanceId];
-      return mapping?.[maaTaskId] || null;
+      return mapping?.[maaTaskId] ?? null;
     },
 
     findMaaTaskIdBySelectedTaskId: (instanceId, selectedTaskId) => {
-      const state = get();
-      const mapping = state.maaTaskIdMapping[instanceId];
+      const mapping = get().maaTaskIdMapping[instanceId];
       if (!mapping) return null;
       for (const [maaTaskIdStr, taskId] of Object.entries(mapping)) {
         if (taskId === selectedTaskId) {
-          return parseInt(maaTaskIdStr, 10);
+          return Number(maaTaskIdStr);
         }
       }
       return null;
     },
 
     clearTaskRunStatus: (instanceId) => {
-      clearTaskRunStatusOnBackend(instanceId);
       set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1790,55 +1748,6 @@ export const useAppStore = create<AppState>()(
           ...state.maaTaskIdMapping,
           [instanceId]: {},
         },
-      }));
-    },
-
-    // 运行中任务队列管理
-    instancePendingTaskIds: {},
-    instanceCurrentTaskIndex: {},
-
-    setPendingTaskIds: (instanceId, taskIds) => {
-      set((state) => ({
-        instancePendingTaskIds: {
-          ...state.instancePendingTaskIds,
-          [instanceId]: taskIds,
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    appendPendingTaskId: (instanceId, taskId) => {
-      set((state) => ({
-        instancePendingTaskIds: {
-          ...state.instancePendingTaskIds,
-          [instanceId]: [...(state.instancePendingTaskIds[instanceId] || []), taskId],
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    setCurrentTaskIndex: (instanceId, index) => {
-      set((state) => ({
-        instanceCurrentTaskIndex: {
-          ...state.instanceCurrentTaskIndex,
-          [instanceId]: index,
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    advanceCurrentTaskIndex: (instanceId) => {
-      set((state) => ({
-        instanceCurrentTaskIndex: {
-          ...state.instanceCurrentTaskIndex,
-          [instanceId]: (state.instanceCurrentTaskIndex[instanceId] || 0) + 1,
-        },
-      }));
-      syncTaskRunSnapshotForInstance(instanceId);
-    },
-
-    clearPendingTasks: (instanceId) => {
-      set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: [],
@@ -1848,7 +1757,6 @@ export const useAppStore = create<AppState>()(
           [instanceId]: 0,
         },
       }));
-      syncTaskRunSnapshotForInstance(instanceId);
     },
 
     // 定时执行状态

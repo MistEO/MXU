@@ -235,9 +235,6 @@ pub fn run() {
             commands::state::push_log,
             commands::state::get_all_logs,
             commands::state::clear_instance_logs,
-            commands::state::sync_task_run_status,
-            commands::state::get_all_task_run_status,
-            commands::state::clear_task_run_status_backend,
             // 更新安装命令
             commands::update::extract_zip,
             commands::update::check_changes_json,

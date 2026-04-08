@@ -44,8 +44,6 @@ function cleanupTaskState(instanceId: string) {
   state.updateInstance(instanceId, { isRunning: false });
   state.setInstanceTaskStatus(instanceId, null);
   state.setInstanceCurrentTaskId(instanceId, null);
-  state.clearTaskRunStatus(instanceId);
-  state.clearPendingTasks(instanceId);
   state.clearScheduleExecution(instanceId);
 }
 

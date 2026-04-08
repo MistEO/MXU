@@ -34,7 +34,6 @@ import { normalizeAgentConfigs } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
-import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
@@ -68,11 +67,6 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     updateInstance,
     setInstanceTaskStatus,
     setInstanceCurrentTaskId,
-    setAllTasksRunStatus,
-    registerMaaTaskMapping,
-    clearTaskRunStatus,
-    setPendingTaskIds,
-    clearPendingTasks,
     clearScheduleExecution,
     basePath,
     registerTaskIdName,
@@ -240,6 +234,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                 currentControllerName,
                 currentResourceName,
               ),
+              // 传递 selectedTaskId，后端用于建立 maaTaskId -> selectedTaskId 映射
+              selected_task_id: selectedTask.id,
             });
             // MXU 特殊任务的 label 是 MXU i18n key，需要用 t() 翻译
             const taskDisplayName =
@@ -291,14 +287,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
           log.info(`[${instanceName}] 任务已提交, task_ids:`, taskIds);
 
-          // 初始化任务运行状态
-          const enabledTaskIds = enabledTasks.map((t) => t.id);
-          setAllTasksRunStatus(instanceId, enabledTaskIds, 'pending');
-
-          // 记录映射关系
+          // 注册 task_id 与任务名的映射（用于日志显示），后端管理状态
           taskIds.forEach((maaTaskId, index) => {
             if (enabledTasks[index]) {
-              registerMaaTaskMapping(instanceId, maaTaskId, enabledTasks[index].id);
               // MXU 特殊任务的 label 需要用 t() 翻译
               const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
               const taskDef =
@@ -314,9 +305,6 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             }
           });
 
-          // 设置任务队列
-          setPendingTaskIds(instanceId, taskIds);
-          startTaskQueueMonitor(instanceId);
           setIsStarting(false);
         } catch (err) {
           log.error(`[${instanceName}] 任务启动异常:`, err);
@@ -331,10 +319,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           updateInstance(instanceId, { isRunning: false });
           setInstanceTaskStatus(instanceId, 'Failed');
           setInstanceCurrentTaskId(instanceId, null);
-          clearTaskRunStatus(instanceId);
-          clearPendingTasks(instanceId);
           clearScheduleExecution(instanceId);
-          cancelTaskQueueMonitor(instanceId);
           setIsStarting(false);
         }
       }
@@ -351,12 +336,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       updateInstance,
       setInstanceTaskStatus,
       setInstanceCurrentTaskId,
-      clearTaskRunStatus,
-      clearPendingTasks,
       clearScheduleExecution,
-      setAllTasksRunStatus,
-      registerMaaTaskMapping,
-      setPendingTaskIds,
       registerTaskIdName,
       registerEntryTaskName,
       setShowAddTaskPanel,

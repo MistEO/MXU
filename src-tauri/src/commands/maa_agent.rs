@@ -20,7 +20,7 @@ use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
 use super::types::{AgentConfig, MaaState, TaskConfig};
-use super::utils::{emit_callback_event, get_logs_dir, normalize_path};
+use super::utils::{emit_callback_event, get_logs_dir, handle_task_callback, normalize_path};
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -403,10 +403,15 @@ pub async fn start_tasks_impl(
             let t = Tasker::new().map_err(|e| e.to_string())?;
             debug!("[start_tasks] Tasker created");
 
-            // 添加回调 Sink，用于接收任务状态通知
+            // 添加回调 Sink，用于接收任务状态通知并更新后端 TaskRunState
             debug!("[start_tasks] Adding tasker sink...");
             let app_handle = app.clone();
+            let maa_state_for_sink = Arc::clone(maa_state);
+            let inst_id_for_sink = instance_id.clone();
             t.add_sink(move |msg, detail| {
+                // 先更新后端 TaskRunState（单一真相来源）
+                handle_task_callback(&maa_state_for_sink, &app_handle, &inst_id_for_sink, msg, detail);
+                // 再转发原始回调到前端
                 emit_callback_event(&app_handle, msg, detail);
             })
             .map_err(|e| e.to_string())?;
@@ -520,7 +525,8 @@ pub async fn start_tasks_impl(
     };
 
     debug!("[start_tasks] Submitting {} tasks...", tasks.len());
-    let mut task_ids = Vec::new();
+    // (maa_task_id, selected_task_id) 配对列表，用于后续初始化 TaskRunState
+    let mut task_id_pairs: Vec<(i64, Option<String>)> = Vec::new();
     for (idx, task) in tasks.iter().enumerate() {
         debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
 
@@ -531,7 +537,7 @@ pub async fn start_tasks_impl(
         match tasker.post_task(&task.entry, &task.pipeline_override) {
             Ok(job) => {
                 info!("[start_tasks] post_task returned task_id: {}", job.id);
-                task_ids.push(job.id);
+                task_id_pairs.push((job.id, task.selected_task_id.clone()));
                 debug!(
                     "[start_tasks] Task {} submitted successfully, task_id: {}",
                     idx, job.id
@@ -543,20 +549,37 @@ pub async fn start_tasks_impl(
         }
     }
 
+    let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _)| *id).collect();
     debug!(
         "[start_tasks] All tasks submitted, total: {} task_ids",
         task_ids.len()
     );
 
-    // 缓存 task_ids，用于刷新后恢复状态
-    debug!("[start_tasks] Caching task_ids...");
+    // 初始化后端 TaskRunState（单一真相来源）并缓存 task_ids
+    debug!("[start_tasks] Initializing TaskRunState...");
     {
         let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         if let Some(instance) = instances.get_mut(&instance_id) {
             instance.task_ids = task_ids.clone();
+
+            // 重置任务运行状态
+            let state = &mut instance.task_run_state;
+            state.statuses.clear();
+            state.mappings.clear();
+            state.pending_task_ids = task_ids.clone();
+            state.current_task_index = 0;
+            state.overall_status = Some("Running".to_string());
+
+            // 建立 maaTaskId -> selectedTaskId 映射，并将有映射的任务初始化为 "pending"
+            for (maa_task_id, selected_task_id) in &task_id_pairs {
+                if let Some(sel_id) = selected_task_id {
+                    state.mappings.insert(*maa_task_id, sel_id.clone());
+                    state.statuses.insert(sel_id.clone(), "pending".to_string());
+                }
+            }
         }
     }
-    debug!("[start_tasks] Task_ids cached");
+    debug!("[start_tasks] TaskRunState initialized");
 
     info!(
         "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",

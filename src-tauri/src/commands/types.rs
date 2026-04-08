@@ -112,6 +112,21 @@ pub enum TaskStatus {
     Failed,
 }
 
+/// 任务运行状态（后端管理，作为单一真相来源）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TaskRunState {
+    /// selectedTaskId → status ("idle"/"pending"/"running"/"succeeded"/"failed")
+    pub statuses: HashMap<String, String>,
+    /// maaTaskId → selectedTaskId
+    pub mappings: HashMap<i64, String>,
+    /// 任务队列（maaTaskId 列表，执行顺序）
+    pub pending_task_ids: Vec<i64>,
+    /// 当前执行到的任务索引
+    pub current_task_index: usize,
+    /// 实例级整体状态（None/"Running"/"Succeeded"/"Failed"）
+    pub overall_status: Option<String>,
+}
+
 /// 实例运行时状态（用于前端查询）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstanceState {
@@ -123,8 +138,8 @@ pub struct InstanceState {
     pub tasker_inited: bool,
     /// 是否有任务正在运行（通过 MaaTaskerRunning API 查询）
     pub is_running: bool,
-    /// 当前运行的任务 ID 列表
-    pub task_ids: Vec<i64>,
+    /// 任务运行状态（后端管理，包含逐任务状态、映射、队列）
+    pub task_run_state: TaskRunState,
 }
 
 /// 所有实例状态的快照
@@ -152,6 +167,8 @@ pub struct InstanceRuntime {
     pub stop_in_progress: bool,
     /// stop 请求的起始时间（用于节流/重试）
     pub stop_started_at: Option<Instant>,
+    /// 任务运行状态（后端管理，单一真相来源）
+    pub task_run_state: TaskRunState,
 }
 
 impl Drop for InstanceRuntime {
@@ -242,21 +259,6 @@ impl LogBuffer {
     }
 }
 
-/// 任务运行状态快照（按实例存储，跨页面刷新恢复）
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct InstanceTaskRunSnapshot {
-    /// selectedTaskId → TaskRunStatus ("idle" | "pending" | "running" | "succeeded" | "failed")
-    pub statuses: HashMap<String, String>,
-    /// maaTaskId → selectedTaskId
-    pub mappings: HashMap<i64, String>,
-    /// 任务队列（maaTaskId 列表，执行顺序）
-    #[serde(default)]
-    pub pending_task_ids: Vec<i64>,
-    /// 当前执行到的任务索引
-    #[serde(default)]
-    pub current_task_index: usize,
-}
-
 /// MaaFramework 运行时状态
 #[derive(Default)]
 pub struct MaaState {
@@ -275,8 +277,6 @@ pub struct MaaState {
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）
     pub log_buffer: Mutex<LogBuffer>,
-    /// 任务运行状态快照（前端同步，页面刷新后恢复）
-    pub task_run_snapshots: Mutex<HashMap<String, InstanceTaskRunSnapshot>>,
 }
 
 impl MaaState {
@@ -330,6 +330,9 @@ pub struct AgentConfig {
 pub struct TaskConfig {
     pub entry: String,
     pub pipeline_override: String,
+    /// 对应的前端选中任务 ID（用于后端跟踪 per-task 状态）
+    #[serde(default)]
+    pub selected_task_id: Option<String>,
 }
 
 /// 版本检查结果

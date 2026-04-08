@@ -617,53 +617,6 @@ function App() {
         log.warn('恢复运行日志失败:', err);
       }
 
-      // 从后端恢复任务运行状态（跨页面刷新持久化）
-      try {
-        const { getAllTaskRunStatusFromBackend } = await import('@/utils/logStdout');
-        const snapshots = await getAllTaskRunStatusFromBackend();
-        if (snapshots && Object.keys(snapshots).length > 0) {
-          const restoredStatuses: Record<string, Record<string, import('@/stores/types').TaskRunStatus>> = {};
-          const restoredMappings: Record<string, Record<number, string>> = {};
-          const restoredPendingTaskIds: Record<string, number[]> = {};
-          const restoredCurrentTaskIndex: Record<string, number> = {};
-          for (const [instanceId, snap] of Object.entries(snapshots)) {
-            restoredStatuses[instanceId] = snap.statuses as Record<string, import('@/stores/types').TaskRunStatus>;
-            const numericMappings: Record<number, string> = {};
-            for (const [k, v] of Object.entries(snap.mappings)) {
-              numericMappings[Number(k)] = v;
-            }
-            restoredMappings[instanceId] = numericMappings;
-            if (snap.pending_task_ids?.length) {
-              restoredPendingTaskIds[instanceId] = snap.pending_task_ids;
-              restoredCurrentTaskIndex[instanceId] = snap.current_task_index ?? 0;
-            }
-          }
-          useAppStore.setState((state) => ({
-            instanceTaskRunStatus: { ...state.instanceTaskRunStatus, ...restoredStatuses },
-            maaTaskIdMapping: { ...state.maaTaskIdMapping, ...restoredMappings },
-            instancePendingTaskIds: { ...state.instancePendingTaskIds, ...restoredPendingTaskIds },
-            instanceCurrentTaskIndex: { ...state.instanceCurrentTaskIndex, ...restoredCurrentTaskIndex },
-          }));
-          log.info('已恢复任务运行状态:', Object.keys(snapshots).length, '个实例');
-
-          // 为正在运行的实例重启任务队列监视器
-          const { startGlobalCallbackListener } = await import('@/components/connection/callbackCache');
-          const { startTaskQueueMonitor } = await import('@/services/taskMonitor');
-          const currentState = useAppStore.getState();
-          const runningInstances = currentState.instances.filter((i) => i.isRunning);
-          if (runningInstances.length > 0) {
-            await startGlobalCallbackListener();
-            for (const inst of runningInstances) {
-              if (restoredPendingTaskIds[inst.id]?.length) {
-                startTaskQueueMonitor(inst.id);
-                log.info('已重启任务监视器:', inst.name);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        log.warn('恢复任务运行状态失败:', err);
-      }
 
       // 检查 MaaFramework 版本兼容性
       // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作
@@ -1079,6 +1032,11 @@ function App() {
             log.info('配置已从后端重新同步');
           }
         }
+        // importConfig 会重置 isRunning，需立即从后端刷新真实状态
+        const backendStates = await maaService.getAllStates();
+        if (backendStates) {
+          useAppStore.getState().restoreBackendStates(backendStates);
+        }
       } catch (err) {
         log.warn('重新拉取配置失败:', err);
       }
@@ -1100,16 +1058,20 @@ function App() {
     return () => cleanup?.();
   }, []);
 
-  // 监听 state-changed 事件（其他客户端连接/任务启停后通知刷新运行时状态）
+  // 监听 state-changed 事件（后端状态变更后通知刷新，包含任务进度更新）
   // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
+  // 后端是单一真相来源，所有 kind 统一触发 getAllStates + restoreBackendStates
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    // 追踪防抖窗口内收到的最高优先级 kind，task 相关事件表示需要同步 isRunning
+    // 追踪防抖窗口内是否收到过任务相关事件（需要同步 isRunning 的事件）
     let pendingTaskKind = false;
     let cleanup: (() => void) | undefined;
 
     const isTaskKind = (kind: string) =>
-      kind === 'task-started' || kind === 'task-stopped';
+      kind === 'task-started' ||
+      kind === 'task-stopped' ||
+      kind === 'task-progress' ||
+      kind === 'tasks-completed';
 
     const handleStateChanged = (_instanceId: string, kind: string) => {
       if (isTaskKind(kind)) pendingTaskKind = true;
@@ -1120,8 +1082,9 @@ function App() {
         try {
           const backendStates = await maaService.getAllStates();
           if (backendStates) {
-            // task-started / task-stopped 事件需要同步 isRunning（跨端同步）
-            // 其他事件（connected / resource-loading）跳过，避免竞态覆盖前端已设置的状态
+            // 任务相关事件需要同步 isRunning（跨端同步 + 任务自然完成）
+            // 其他事件（connected/resource-loading）跳过，避免竞态覆盖
+            // 前端已设置的 isRunning（start 流程中前端先于后端设置状态）
             restoreBackendStates(backendStates, {
               skipRunningState: !shouldSyncRunning,
             });

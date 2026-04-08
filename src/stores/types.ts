@@ -264,7 +264,13 @@ export interface AppState {
           resourceLoaded: boolean;
           taskerInited: boolean;
           isRunning: boolean;
-          taskIds: number[];
+          taskRunState: {
+            statuses: Record<string, string>;
+            mappings: Record<string, string>;
+            pendingTaskIds: number[];
+            currentTaskIndex: number;
+            overallStatus: string | null;
+          };
         }
       >;
       cachedAdbDevices: AdbDevice[];
@@ -413,24 +419,17 @@ export interface AppState {
   removeFromRecentlyClosed: (id: string) => void;
   clearRecentlyClosed: () => void;
 
-  // 任务运行状态
+  // 任务运行状态（只读缓存，由 restoreBackendStates 从后端填充）
   instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>>;
   maaTaskIdMapping: Record<string, Record<number, string>>;
-  setTaskRunStatus: (instanceId: string, selectedTaskId: string, status: TaskRunStatus) => void;
-  setAllTasksRunStatus: (instanceId: string, taskIds: string[], status: TaskRunStatus) => void;
-  registerMaaTaskMapping: (instanceId: string, maaTaskId: number, selectedTaskId: string) => void;
-  findSelectedTaskIdByMaaTaskId: (instanceId: string, maaTaskId: number) => string | null;
-  findMaaTaskIdBySelectedTaskId: (instanceId: string, selectedTaskId: string) => number | null;
-  clearTaskRunStatus: (instanceId: string) => void;
-
-  // 运行中任务队列管理
   instancePendingTaskIds: Record<string, number[]>;
   instanceCurrentTaskIndex: Record<string, number>;
-  setPendingTaskIds: (instanceId: string, taskIds: number[]) => void;
-  appendPendingTaskId: (instanceId: string, taskId: number) => void;
-  setCurrentTaskIndex: (instanceId: string, index: number) => void;
-  advanceCurrentTaskIndex: (instanceId: string) => void;
-  clearPendingTasks: (instanceId: string) => void;
+  /** 通过 maaTaskId 反查 selectedTaskId（用于日志模块） */
+  findSelectedTaskIdByMaaTaskId: (instanceId: string, maaTaskId: number) => string | null;
+  /** 通过 selectedTaskId 反查 maaTaskId（用于 pipeline override） */
+  findMaaTaskIdBySelectedTaskId: (instanceId: string, selectedTaskId: string) => number | null;
+  /** 清空指定实例的本地任务运行状态缓存 */
+  clearTaskRunStatus: (instanceId: string) => void;
 
   // 定时执行状态
   scheduleExecutions: Record<string, ScheduleExecutionInfo>;

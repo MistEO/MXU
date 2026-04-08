@@ -925,6 +925,17 @@ pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String>
     instance.stop_started_at = Some(Instant::now());
     instance.task_ids.clear();
 
+    // 将剩余 pending 任务标记为 failed，更新整体状态
+    {
+        let state = &mut instance.task_run_state;
+        for status in state.statuses.values_mut() {
+            if status == "pending" || status == "running" {
+                *status = "failed".to_string();
+            }
+        }
+        state.overall_status = Some("Failed".to_string());
+    }
+
     tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())
 }

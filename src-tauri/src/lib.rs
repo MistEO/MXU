@@ -82,6 +82,10 @@ pub fn run() {
                 }
             }
 
+            // 先注册共享状态，再启动依赖这些状态的后台任务，避免启动竞态
+            app.manage(ws_broadcast.clone());
+            app.manage(app_config.clone());
+
             // 启动 HTTP Web 服务器（后台 tokio 任务，不阻塞 Tauri 启动）
             {
                 let maa_clone = maa_state.clone();
@@ -111,10 +115,6 @@ pub fn run() {
                     .await;
                 });
             }
-
-            // 注册到 Tauri 状态，使 emit_callback_event/emit_agent_output 能通过 try_state 获取
-            app.manage(ws_broadcast);
-            app.manage(app_config);
 
             // Windows 下移除系统标题栏（使用自定义标题栏）
             // macOS/Linux 保留完整的原生标题栏

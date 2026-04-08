@@ -11,14 +11,14 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
-    http::{header, StatusCode},
+    http::{header, HeaderMap, Method, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
 };
 #[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::commands::{
     app_config::AppConfigState,
@@ -312,8 +312,16 @@ pub async fn start_web_server(
         }
     }
 
-    // CORS：允许所有来源（浏览器需要跨域支持）
-    let app = app.layer(CorsLayer::permissive());
+    #[cfg(debug_assertions)]
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
+
+    #[cfg(not(debug_assertions))]
+    let cors = CorsLayer::new().allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+
+    let app = app.layer(cors);
 
     let bind_host = if allow_lan_access {
         "0.0.0.0"
@@ -407,8 +415,31 @@ pub async fn start_web_server(
 async fn handle_ws_upgrade(
     ws: WebSocketUpgrade,
     State(state): State<WebState>,
+    _headers: HeaderMap,
 ) -> impl IntoResponse {
+    #[cfg(not(debug_assertions))]
+    if !is_same_origin_ws_request(&_headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_ws_connection(socket, state))
+        .into_response()
+}
+
+#[cfg(not(debug_assertions))]
+fn is_same_origin_ws_request(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        // 非浏览器客户端通常不带 Origin，保守兼容
+        return true;
+    };
+    let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    origin
+        .parse::<axum::http::Uri>()
+        .ok()
+        .and_then(|uri| uri.authority().map(|a| a.as_str().eq_ignore_ascii_case(host)))
+        .unwrap_or(false)
 }
 
 /// 每个 WebSocket 连接的处理循环
@@ -474,10 +505,26 @@ async fn handle_ws_connection(mut socket: WebSocket, state: WebState) {
 /// GET /api/interface
 /// 返回已处理的 interface.json 内容、翻译文件及路径信息
 async fn handle_get_interface(State(state): State<WebState>) -> impl IntoResponse {
-    let pi = state.app_config.project_interface.lock().unwrap().clone();
-    let translations = state.app_config.translations.lock().unwrap().clone();
-    let base_path = state.app_config.base_path.lock().unwrap().clone();
-    let data_path = state.app_config.data_path.lock().unwrap().clone();
+    let (pi, translations, base_path, data_path) = match (
+        state.app_config.project_interface.lock(),
+        state.app_config.translations.lock(),
+        state.app_config.base_path.lock(),
+        state.app_config.data_path.lock(),
+    ) {
+        (Ok(pi), Ok(translations), Ok(base_path), Ok(data_path)) => (
+            pi.clone(),
+            translations.clone(),
+            base_path.clone(),
+            data_path.clone(),
+        ),
+        _ => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "读取 interface 状态失败" })),
+            )
+                .into_response();
+        }
+    };
 
     match pi {
         Some(interface) => Json(serde_json::json!({
@@ -499,7 +546,16 @@ async fn handle_get_interface(State(state): State<WebState>) -> impl IntoRespons
 /// GET /api/config
 /// 返回当前 MXU 配置（JSON 原文）
 async fn handle_get_config(State(state): State<WebState>) -> impl IntoResponse {
-    let config = state.app_config.config.lock().unwrap().clone();
+    let config = match state.app_config.config.lock() {
+        Ok(config) => config.clone(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "读取配置状态失败" })),
+            )
+                .into_response();
+        }
+    };
     Json(config).into_response()
 }
 
@@ -579,7 +635,16 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
 /// GET /api/maa/initialized
 /// 返回 Maa 库初始化状态及版本号
 async fn handle_get_maa_initialized(State(state): State<WebState>) -> impl IntoResponse {
-    let lib_dir_set = state.maa_state.lib_dir.lock().unwrap().is_some();
+    let lib_dir_set = match state.maa_state.lib_dir.lock() {
+        Ok(lib_dir) => lib_dir.is_some(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "读取 Maa 初始化状态失败" })),
+            )
+                .into_response();
+        }
+    };
 
     // 库已加载时尝试获取版本号（load_library 后才可调用 maa_version）
     let version = if lib_dir_set {
@@ -745,7 +810,13 @@ async fn handle_load_resource(
             emit_callback_event(&app_handle, msg, detail);
         });
 
-    match load_resource_impl(&state.maa_state, &instance_id, &paths, on_event, None) {
+    match load_resource_impl(
+        &state.maa_state,
+        &instance_id,
+        &paths,
+        on_event,
+        Some(&state.app_handle),
+    ) {
         Ok(res_ids) => {
             emit_state_changed(&state.app_handle, &instance_id, "resource-loading");
             Json(serde_json::json!({ "resIds": res_ids })).into_response()
@@ -817,9 +888,19 @@ async fn handle_start_tasks(
 ) -> impl IntoResponse {
     ensure_instance_exists(&state.maa_state, &instance_id);
 
-    let cwd = body
-        .cwd
-        .unwrap_or_else(|| state.app_config.base_path.lock().unwrap().clone());
+    let cwd = match body.cwd {
+        Some(cwd) => cwd,
+        None => match state.app_config.base_path.lock() {
+            Ok(base_path) => base_path.clone(),
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "读取基础路径失败" })),
+                )
+                    .into_response();
+            }
+        },
+    };
 
     match start_tasks_impl(
         state.app_handle,
@@ -1019,7 +1100,16 @@ async fn handle_screenshot_unsubscribe(
 /// GET /api/background-image
 /// 读取配置中的背景图路径并返回图片二进制数据
 async fn handle_get_background_image(State(state): State<WebState>) -> impl IntoResponse {
-    let config = state.app_config.config.lock().unwrap().clone();
+    let config = match state.app_config.config.lock() {
+        Ok(config) => config.clone(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "读取背景图配置失败" })),
+            )
+                .into_response();
+        }
+    };
 
     let image_path = config
         .get("settings")

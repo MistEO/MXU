@@ -62,11 +62,17 @@ const connectionStatusHandlers = new Set<ConnectionStatusHandler>();
 let currentlyConnected = false;
 /** 是否曾经成功连接过（首次连接前不弹断开提示） */
 let hasEverConnected = false;
+/** 是否发生过一次意外断连（供晚注册的订阅者恢复当前断连态） */
+let hasUnexpectedDisconnect = false;
 
-function notifyConnectionStatus(connected: boolean) {
-  if (connected === currentlyConnected) return;
+function notifyConnectionStatus(connected: boolean, force = false) {
+  const changed = connected !== currentlyConnected;
   currentlyConnected = connected;
-  if (connected) hasEverConnected = true;
+  if (connected) {
+    hasEverConnected = true;
+    hasUnexpectedDisconnect = false;
+  }
+  if (!changed && !force) return;
   connectionStatusHandlers.forEach((h) => h(connected));
 }
 
@@ -126,11 +132,12 @@ function onOpen() {
 
 function onClose(event: CloseEvent) {
   ws = null;
+  currentlyConnected = false;
   if (!stopped) {
     log.warn(`WebSocket 断开 (code=${event.code})，准备重连`);
-    if (hasEverConnected) {
-      notifyConnectionStatus(false);
-    }
+    const shouldForceNotify = !hasUnexpectedDisconnect;
+    hasUnexpectedDisconnect = true;
+    notifyConnectionStatus(false, shouldForceNotify);
     scheduleReconnect();
   }
 }
@@ -193,6 +200,8 @@ export function connect(): void {
 /** 主动断开并停止自动重连 */
 export function disconnect(): void {
   stopped = true;
+  currentlyConnected = false;
+  hasUnexpectedDisconnect = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -239,6 +248,9 @@ export function onStateChanged(handler: StateChangedHandler): () => void {
 /** 订阅连接状态变更（connected: true/false），返回取消订阅函数 */
 export function onConnectionStatus(handler: ConnectionStatusHandler): () => void {
   connectionStatusHandlers.add(handler);
+  if (currentlyConnected || hasUnexpectedDisconnect) {
+    handler(currentlyConnected);
+  }
   return () => connectionStatusHandlers.delete(handler);
 }
 

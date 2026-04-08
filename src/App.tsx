@@ -16,6 +16,8 @@ import {
   autoLoadInterface,
   loadConfig,
   loadConfigFromStorage,
+  consumeSelfSave,
+  markSelfSave,
   resolveI18nText,
   checkAndPrepareDownload,
   maaService,
@@ -35,6 +37,7 @@ import {
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { useShallow } from 'zustand/react/shallow';
 // register/unregisterAll 在 useEffect 内动态导入，此处仅声明类型引用
 // （动态导入可避免浏览器环境加载失败）
 let _globalShortcutModule: typeof import('@tauri-apps/plugin-global-shortcut') | null = null;
@@ -45,7 +48,8 @@ async function getGlobalShortcut() {
   return _globalShortcutModule;
 }
 import { loggers } from '@/utils/logger';
-import { setBackendPort, getApiBase } from '@/utils/backendApi';
+import { setBackendPort, getApiBase, apiGet } from '@/utils/backendApi';
+import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
@@ -182,7 +186,49 @@ function App() {
     onboardingCompleted,
     backgroundImage,
     backgroundOpacity,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((state) => ({
+      setProjectInterface: state.setProjectInterface,
+      setInterfaceTranslations: state.setInterfaceTranslations,
+      setBasePath: state.setBasePath,
+      setDataPath: state.setDataPath,
+      setConfigPersistenceReady: state.setConfigPersistenceReady,
+      basePath: state.basePath,
+      importConfig: state.importConfig,
+      createInstance: state.createInstance,
+      theme: state.theme,
+      currentPage: state.currentPage,
+      setCurrentPage: state.setCurrentPage,
+      projectInterface: state.projectInterface,
+      interfaceTranslations: state.interfaceTranslations,
+      language: state.language,
+      sidePanelExpanded: state.sidePanelExpanded,
+      dashboardView: state.dashboardView,
+      setDashboardView: state.setDashboardView,
+      setWindowSize: state.setWindowSize,
+      setWindowPosition: state.setWindowPosition,
+      setUpdateInfo: state.setUpdateInfo,
+      restoreBackendStates: state.restoreBackendStates,
+      setDownloadStatus: state.setDownloadStatus,
+      setDownloadProgress: state.setDownloadProgress,
+      setDownloadSavePath: state.setDownloadSavePath,
+      setJustUpdatedInfo: state.setJustUpdatedInfo,
+      setShowInstallConfirmModal: state.setShowInstallConfirmModal,
+      showInstallConfirmModal: state.showInstallConfirmModal,
+      updateInfo: state.updateInfo,
+      downloadStatus: state.downloadStatus,
+      setShowUpdateDialog: state.setShowUpdateDialog,
+      showAddTaskPanel: state.showAddTaskPanel,
+      setShowAddTaskPanel: state.setShowAddTaskPanel,
+      rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
+      setRightPanelWidth: state.setRightPanelWidth,
+      setRightPanelCollapsed: state.setRightPanelCollapsed,
+      onboardingCompleted: state.onboardingCompleted,
+      backgroundImage: state.backgroundImage,
+      backgroundOpacity: state.backgroundOpacity,
+    })),
+  );
 
   // 转换背景图片为 Blob URL
   useEffect(() => {
@@ -599,7 +645,6 @@ function App() {
 
       // 从后端恢复运行日志（跨页面刷新持久化）
       try {
-        const { getAllLogsFromBackend } = await import('@/utils/logStdout');
         const backendLogs = await getAllLogsFromBackend();
         if (backendLogs && Object.keys(backendLogs).length > 0) {
           const store = useAppStore.getState();
@@ -1002,6 +1047,7 @@ function App() {
         const payload = JSON.stringify(config);
         const url = `${getApiBase()}/config`;
         const blob = new Blob([payload], { type: 'application/json' });
+        markSelfSave();
         const sent = navigator.sendBeacon?.(url, blob) ?? false;
         if (!sent) {
           void fetch(url, {
@@ -1025,7 +1071,6 @@ function App() {
     let cleanup: (() => void) | undefined;
 
     const handleConfigChanged = async () => {
-      const { consumeSelfSave } = await import('@/services/configService');
       if (consumeSelfSave()) {
         log.debug('跳过本客户端自身触发的 config-changed');
         return;
@@ -1033,7 +1078,6 @@ function App() {
       log.info('收到 config-changed（来自其他客户端），重新拉取配置...');
       try {
         if (isTauri()) {
-          const { loadConfig } = await import('@/services/configService');
           const pi = useAppStore.getState().projectInterface;
           const dataPath = useAppStore.getState().dataPath;
           const config = await loadConfig(dataPath, pi?.name);
@@ -1042,7 +1086,6 @@ function App() {
             log.info('配置已从磁盘重新同步');
           }
         } else {
-          const { apiGet } = await import('@/utils/backendApi');
           const config = await apiGet<import('@/types/config').MxuConfig>('/config');
           if (config) {
             useAppStore.getState().importConfig(config);
@@ -1060,13 +1103,25 @@ function App() {
     };
 
     if (isTauri()) {
+      let cancelled = false;
       let unlisten: (() => void) | null = null;
-      import('@tauri-apps/api/event').then(({ listen }) => {
-        listen('config-changed-external', handleConfigChanged).then((u) => {
-          unlisten = u;
-        });
-      });
-      cleanup = () => unlisten?.();
+      void (async () => {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          const dispose = await listen('config-changed-external', handleConfigChanged);
+          if (cancelled) {
+            dispose();
+            return;
+          }
+          unlisten = dispose;
+        } catch (err) {
+          log.warn('注册 config-changed 监听失败:', err);
+        }
+      })();
+      cleanup = () => {
+        cancelled = true;
+        unlisten?.();
+      };
     } else {
       const unlisten = wsService.onConfigChanged(handleConfigChanged);
       cleanup = unlisten;
@@ -1114,16 +1169,28 @@ function App() {
     };
 
     if (isTauri()) {
+      let cancelled = false;
       let unlisten: (() => void) | null = null;
-      import('@tauri-apps/api/event').then(({ listen }) => {
-        listen<{ instance_id: string; kind: string }>(
-          'state-changed',
-          (event) => handleStateChanged(event.payload.instance_id, event.payload.kind),
-        ).then((u) => {
-          unlisten = u;
-        });
-      });
-      cleanup = () => unlisten?.();
+      void (async () => {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          const dispose = await listen<{ instance_id: string; kind: string }>(
+            'state-changed',
+            (event) => handleStateChanged(event.payload.instance_id, event.payload.kind),
+          );
+          if (cancelled) {
+            dispose();
+            return;
+          }
+          unlisten = dispose;
+        } catch (err) {
+          log.warn('注册 state-changed 监听失败:', err);
+        }
+      })();
+      cleanup = () => {
+        cancelled = true;
+        unlisten?.();
+      };
     } else {
       const unlisten = wsService.onStateChanged(handleStateChanged);
       cleanup = unlisten;
@@ -1562,6 +1629,7 @@ function App() {
       >
         <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
         <div className="relative z-10 h-full flex flex-col">
+          <ConnectionLostOverlay />
           <TitleBar />
           <WebUIBetaBanner />
           {/* 安装确认模态框 - 在设置页面也需要能弹出 */}

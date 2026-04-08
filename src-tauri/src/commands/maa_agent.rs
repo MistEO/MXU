@@ -410,7 +410,13 @@ pub async fn start_tasks_impl(
             let inst_id_for_sink = instance_id.clone();
             t.add_sink(move |msg, detail| {
                 // 先更新后端 TaskRunState（单一真相来源）
-                handle_task_callback(&maa_state_for_sink, &app_handle, &inst_id_for_sink, msg, detail);
+                handle_task_callback(
+                    &maa_state_for_sink,
+                    &app_handle,
+                    &inst_id_for_sink,
+                    msg,
+                    detail,
+                );
                 // 再转发原始回调到前端
                 emit_callback_event(&app_handle, msg, detail);
             })
@@ -623,9 +629,7 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
 
     let (clients, children) = {
         let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
-        let instance = instances
-            .get_mut(instance_id)
-            .ok_or("Instance not found")?;
+        let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
 
         (
             std::mem::take(&mut instance.agent_clients),

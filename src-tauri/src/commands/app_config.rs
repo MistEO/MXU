@@ -101,7 +101,10 @@ impl AppConfigState {
                 }
             }
         } else {
-            log::info!("AppConfigState: config file not found at {:?}, using default", config_path);
+            log::info!(
+                "AppConfigState: config file not found at {:?}, using default",
+                config_path
+            );
         }
 
         // 默认配置（第一次使用时）
@@ -127,8 +130,7 @@ impl AppConfigState {
         let config_dir = Path::new(&data_path).join("config");
 
         if !config_dir.exists() {
-            std::fs::create_dir_all(&config_dir)
-                .map_err(|e| format!("创建配置目录失败: {}", e))?;
+            std::fs::create_dir_all(&config_dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
         }
 
         let config_path = config_dir.join(&config_filename);
@@ -142,9 +144,7 @@ impl AppConfigState {
 
         if new_instances_empty && config_path.exists() {
             if let Ok(existing_content) = std::fs::read_to_string(&config_path) {
-                if let Ok(existing) =
-                    serde_json::from_str::<serde_json::Value>(&existing_content)
-                {
+                if let Ok(existing) = serde_json::from_str::<serde_json::Value>(&existing_content) {
                     let existing_non_empty = existing
                         .get("instances")
                         .and_then(|v| v.as_array())
@@ -163,8 +163,7 @@ impl AppConfigState {
         let content =
             serde_json::to_string_pretty(&config).map_err(|e| format!("序列化配置失败: {}", e))?;
 
-        std::fs::write(&config_path, content)
-            .map_err(|e| format!("写入配置文件失败: {}", e))?;
+        std::fs::write(&config_path, content).map_err(|e| format!("写入配置文件失败: {}", e))?;
 
         *self.config.lock().unwrap() = config;
         log::debug!("AppConfigState: config saved to {:?}", config_path);
@@ -230,19 +229,11 @@ fn load_translations(
                         translations.insert(lang.clone(), value);
                     }
                     Err(e) => {
-                        log::warn!(
-                            "AppConfigState: parse translation [{}] failed: {}",
-                            lang,
-                            e
-                        );
+                        log::warn!("AppConfigState: parse translation [{}] failed: {}", lang, e);
                     }
                 },
                 Err(e) => {
-                    log::warn!(
-                        "AppConfigState: read translation [{}] failed: {}",
-                        lang,
-                        e
-                    );
+                    log::warn!("AppConfigState: read translation [{}] failed: {}", lang, e);
                 }
             }
         }
@@ -270,19 +261,11 @@ fn process_imports(interface: &mut serde_json::Value, base_dir: &Path) {
                     log::info!("AppConfigState: merged import {:?}", rel_path);
                 }
                 Err(e) => {
-                    log::warn!(
-                        "AppConfigState: parse import {:?} failed: {}",
-                        rel_path,
-                        e
-                    );
+                    log::warn!("AppConfigState: parse import {:?} failed: {}", rel_path, e);
                 }
             },
             Err(e) => {
-                log::warn!(
-                    "AppConfigState: read import {:?} failed: {}",
-                    rel_path,
-                    e
-                );
+                log::warn!("AppConfigState: read import {:?} failed: {}", rel_path, e);
             }
         }
     }

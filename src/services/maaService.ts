@@ -219,7 +219,9 @@ export const maaService = {
    */
   async findWlrootsSockets(): Promise<string[]> {
     log.info('搜索 WlRoots socket...');
-    const sockets = await invoke<string[]>('maa_find_wlroots_sockets');
+    const sockets = isTauri()
+      ? await invoke<string[]>('maa_find_wlroots_sockets')
+      : await apiGet<string[]>('/maa/wlroots-sockets');
     log.info('找到 WlRoots socket:', sockets.length, '个');
     sockets.forEach((socket, i) => {
       log.debug(`  socket[${i}]: ${socket}`);
@@ -441,12 +443,17 @@ export const maaService = {
       ', override:',
       pipelineOverride,
     );
-    if (!isTauri()) return false;
-    const success = await invoke<boolean>('maa_override_pipeline', {
-      instanceId,
-      taskId,
-      pipelineOverride,
-    });
+    const success = isTauri()
+      ? await invoke<boolean>('maa_override_pipeline', {
+          instanceId,
+          taskId,
+          pipelineOverride,
+        })
+      : (
+          await apiPost<{ success: boolean }>(`/maa/instances/${instanceId}/tasks/${taskId}/pipeline`, {
+            pipelineOverride,
+          })
+        ).success;
     log.info('覆盖 Pipeline 结果:', success);
     return success;
   },

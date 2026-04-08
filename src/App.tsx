@@ -229,7 +229,9 @@ function App() {
         };
         const mimeType = mimeMap[ext] || 'image/png';
 
-        const blob = new Blob([fileData], { type: mimeType });
+        const blobBytes = new Uint8Array(fileData.length);
+        blobBytes.set(fileData);
+        const blob = new Blob([blobBytes.buffer], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
         if (blobUrlRef.current) {
@@ -991,11 +993,23 @@ function App() {
         // Tauri 环境：取消防抖、立即同步触发保存
         flushSaveConfig();
       } else {
-        // 浏览器环境：用 sendBeacon 发送（即使页面关闭也能发出）
+        // 浏览器环境：优先用 sendBeacon，失败时回退 keepalive fetch
         const config = flushConfig();
         if (!config) return;
-        const blob = new Blob([JSON.stringify(config)], { type: 'application/json' });
-        navigator.sendBeacon?.(`${getApiBase()}/config`, blob);
+        const payload = JSON.stringify(config);
+        const url = `${getApiBase()}/config`;
+        const blob = new Blob([payload], { type: 'application/json' });
+        const sent = navigator.sendBeacon?.(url, blob) ?? false;
+        if (!sent) {
+          void fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {
+            // 页面即将关闭，此处无法可靠恢复，静默忽略即可
+          });
+        }
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);

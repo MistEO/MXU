@@ -7,16 +7,16 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use axum::{
-    Router,
     extract::{
-        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
     },
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::get,
-    Json,
+    Json, Router,
 };
+#[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
 use tower_http::cors::CorsLayer;
 
@@ -24,8 +24,9 @@ use crate::commands::{
     app_config::AppConfigState,
     maa_agent::{start_tasks_impl, stop_agent_impl},
     maa_core::{
-        connect_controller_impl, find_adb_devices_impl, find_win32_windows_impl,
-        get_cached_image_impl, load_resource_impl, post_screencap_impl, run_task_impl,
+        connect_controller_impl, destroy_instance_impl, find_adb_devices_impl,
+        find_win32_windows_impl, find_wlroots_sockets_impl, get_cached_image_impl,
+        load_resource_impl, override_pipeline_impl, post_screencap_impl, run_task_impl,
         stop_task_impl,
     },
     types::{AgentConfig, ControllerConfig, MaaState, TaskConfig},
@@ -75,17 +76,13 @@ const VITE_DEV_URL: &str = "http://localhost:1420";
 /// 从而获得实时 HMR 而无需重新编译 Rust。
 #[cfg(debug_assertions)]
 async fn serve_vite_proxy(uri: axum::http::Uri) -> impl IntoResponse {
-    let path = uri
-        .path_and_query()
-        .map(|pq| pq.as_str())
-        .unwrap_or("/");
+    let path = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
     let url = format!("{}{}", VITE_DEV_URL, path);
 
     match reqwest::get(&url).await {
         Ok(resp) => {
-            let status =
-                axum::http::StatusCode::from_u16(resp.status().as_u16())
-                    .unwrap_or(axum::http::StatusCode::OK);
+            let status = axum::http::StatusCode::from_u16(resp.status().as_u16())
+                .unwrap_or(axum::http::StatusCode::OK);
             let content_type = resp
                 .headers()
                 .get(reqwest::header::CONTENT_TYPE)
@@ -189,7 +186,12 @@ pub async fn start_web_server(
     let api_routes = Router::new()
         // 配置 & 接口
         .route("/interface", get(handle_get_interface))
-        .route("/config", get(handle_get_config).put(handle_put_config))
+        .route(
+            "/config",
+            get(handle_get_config)
+                .put(handle_put_config)
+                .post(handle_put_config),
+        )
         .route("/background-image", get(handle_get_background_image))
         // WebSocket 实时推送
         .route("/ws", get(handle_ws_upgrade))
@@ -199,15 +201,41 @@ pub async fn start_web_server(
         // Maa 设备扫描
         .route("/maa/devices", get(handle_get_adb_devices))
         .route("/maa/windows", get(handle_get_win32_windows))
+        .route("/maa/wlroots-sockets", get(handle_get_wlroots_sockets))
         // Maa 实例管理
-        .route("/maa/instances/:id", axum::routing::put(handle_create_instance).delete(handle_destroy_instance))
+        .route(
+            "/maa/instances/:id",
+            axum::routing::put(handle_create_instance).delete(handle_destroy_instance),
+        )
         // Maa 实例操作（通过 instance_id 路径参数）
-        .route("/maa/instances/:id/connect", axum::routing::post(handle_connect_controller))
-        .route("/maa/instances/:id/resource/load", axum::routing::post(handle_load_resource))
-        .route("/maa/instances/:id/tasks/run", axum::routing::post(handle_run_task))
-        .route("/maa/instances/:id/tasks/start", axum::routing::post(handle_start_tasks))
-        .route("/maa/instances/:id/tasks/stop", axum::routing::post(handle_stop_task))
-        .route("/maa/instances/:id/agent/stop", axum::routing::post(handle_stop_agent))
+        .route(
+            "/maa/instances/:id/connect",
+            axum::routing::post(handle_connect_controller),
+        )
+        .route(
+            "/maa/instances/:id/resource/load",
+            axum::routing::post(handle_load_resource),
+        )
+        .route(
+            "/maa/instances/:id/tasks/run",
+            axum::routing::post(handle_run_task),
+        )
+        .route(
+            "/maa/instances/:id/tasks/start",
+            axum::routing::post(handle_start_tasks),
+        )
+        .route(
+            "/maa/instances/:id/tasks/stop",
+            axum::routing::post(handle_stop_task),
+        )
+        .route(
+            "/maa/instances/:id/tasks/:task_id/pipeline",
+            axum::routing::post(handle_override_pipeline),
+        )
+        .route(
+            "/maa/instances/:id/agent/stop",
+            axum::routing::post(handle_stop_agent),
+        )
         .route("/maa/instances/:id/screenshot", get(handle_get_screenshot))
         .route(
             "/maa/instances/:id/screenshot/subscribe",
@@ -219,12 +247,18 @@ pub async fn start_web_server(
         )
         // 运行日志（跨刷新持久化）
         .route("/logs", get(handle_get_all_logs))
-        .route("/logs/:id", axum::routing::post(handle_push_log).delete(handle_clear_instance_logs))
+        .route(
+            "/logs/:id",
+            axum::routing::post(handle_push_log).delete(handle_clear_instance_logs),
+        )
         // 心跳
         .route("/heartbeat", get(handle_heartbeat))
         // 系统信息
         .route("/system/is-elevated", get(handle_is_elevated))
-        .route("/system/restart-as-admin", axum::routing::post(handle_restart_as_admin))
+        .route(
+            "/system/restart-as-admin",
+            axum::routing::post(handle_restart_as_admin),
+        )
         // 本地文件代理（浏览器通过此端点访问 exe 目录下的资源文件）
         .route("/local-file", get(handle_serve_local_file))
         .with_state(state);
@@ -274,7 +308,11 @@ pub async fn start_web_server(
     // CORS：允许所有来源（浏览器需要跨域支持）
     let app = app.layer(CorsLayer::permissive());
 
-    let bind_host = if allow_lan_access { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_host = if allow_lan_access {
+        "0.0.0.0"
+    } else {
+        "127.0.0.1"
+    };
 
     // 端口绑定策略：
     // 1. 先对默认端口重试几次（处理开发热重载时旧进程尚未退出的瞬态冲突）
@@ -373,8 +411,7 @@ async fn handle_ws_upgrade(
 /// - 客户端断开或发送 Close 帧后退出
 async fn handle_ws_connection(mut socket: WebSocket, state: WebState) {
     let mut rx = state.ws_broadcast.subscribe();
-    let mut ping_interval =
-        tokio::time::interval(std::time::Duration::from_secs(30));
+    let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(30));
     // 跳过第一次立即触发
     ping_interval.tick().await;
 
@@ -459,7 +496,7 @@ async fn handle_get_config(State(state): State<WebState>) -> impl IntoResponse {
     Json(config).into_response()
 }
 
-/// PUT /api/config
+/// PUT/POST /api/config
 /// 更新配置：写入内存 + 持久化到磁盘 + 广播 ConfigChanged 给所有 WS 客户端
 async fn handle_put_config(
     State(state): State<WebState>,
@@ -487,9 +524,10 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
     let instances_result = state.maa_state.instances.lock();
     let adb_result = state.maa_state.cached_adb_devices.lock();
     let win32_result = state.maa_state.cached_win32_windows.lock();
+    let wlroots_result = state.maa_state.cached_wlroots_sockets.lock();
 
-    match (instances_result, adb_result, win32_result) {
-        (Ok(mut instances), Ok(adb), Ok(win32)) => {
+    match (instances_result, adb_result, win32_result, wlroots_result) {
+        (Ok(mut instances), Ok(adb), Ok(win32), Ok(wlroots)) => {
             let mut instance_states: HashMap<String, serde_json::Value> = HashMap::new();
 
             for (id, runtime) in instances.iter_mut() {
@@ -519,6 +557,7 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
                 "instances": instance_states,
                 "cached_adb_devices": serde_json::to_value(&*adb).unwrap_or(serde_json::Value::Array(vec![])),
                 "cached_win32_windows": serde_json::to_value(&*win32).unwrap_or(serde_json::Value::Array(vec![])),
+                "cached_wlroots_sockets": serde_json::to_value(&*wlroots).unwrap_or(serde_json::Value::Array(vec![])),
             }))
             .into_response()
         }
@@ -537,14 +576,22 @@ async fn handle_get_maa_initialized(State(state): State<WebState>) -> impl IntoR
 
     // 库已加载时尝试获取版本号（load_library 后才可调用 maa_version）
     let version = if lib_dir_set {
-        let v = maa_framework::maa_version().to_string();
-        if v.is_empty() { None } else { Some(v) }
+        std::panic::catch_unwind(|| maa_framework::maa_version().to_string())
+            .ok()
+            .and_then(|v| {
+                if v.is_empty() || v == "unknown" {
+                    None
+                } else {
+                    Some(v)
+                }
+            })
     } else {
         None
     };
+    let initialized = version.is_some();
 
     Json(serde_json::json!({
-        "initialized": lib_dir_set,
+        "initialized": initialized,
         "version": version,
     }))
     .into_response()
@@ -586,6 +633,19 @@ async fn handle_get_win32_windows(
     }
 }
 
+/// GET /api/maa/wlroots-sockets
+/// 扫描并返回 WlRoots socket 列表（会更新 MaaState 缓存）
+async fn handle_get_wlroots_sockets(State(state): State<WebState>) -> impl IntoResponse {
+    match find_wlroots_sockets_impl(state.maa_state).await {
+        Ok(sockets) => Json(serde_json::to_value(&sockets).unwrap_or_default()).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
 /// PUT /api/maa/instances/:id
 /// 创建实例（幂等）
 async fn handle_create_instance(
@@ -602,18 +662,14 @@ async fn handle_destroy_instance(
     State(state): State<WebState>,
     axum::extract::Path(instance_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    let mut instances = match state.maa_state.instances.lock() {
-        Ok(g) => g,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-                .into_response()
-        }
-    };
-    instances.remove(&instance_id);
-    Json(serde_json::json!({ "ok": true })).into_response()
+    match destroy_instance_impl(&state.maa_state, &instance_id) {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
 }
 
 /// 确保指定实例存在，不存在则自动创建
@@ -759,9 +815,9 @@ async fn handle_start_tasks(
 ) -> impl IntoResponse {
     ensure_instance_exists(&state.maa_state, &instance_id);
 
-    let cwd = body.cwd.unwrap_or_else(|| {
-        state.app_config.base_path.lock().unwrap().clone()
-    });
+    let cwd = body
+        .cwd
+        .unwrap_or_else(|| state.app_config.base_path.lock().unwrap().clone());
 
     match start_tasks_impl(
         state.app_handle,
@@ -795,6 +851,35 @@ async fn handle_stop_task(
             emit_state_changed(&state.app_handle, &instance_id, "task-stopped");
             Json(serde_json::json!({ "ok": true })).into_response()
         }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// POST /api/maa/instances/:id/tasks/:task_id/pipeline 请求体
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OverridePipelineRequest {
+    pipeline_override: String,
+}
+
+/// POST /api/maa/instances/:id/tasks/:task_id/pipeline
+/// 覆盖已提交任务的 Pipeline 配置，与 Tauri invoke `maa_override_pipeline` 使用同一套实现
+async fn handle_override_pipeline(
+    State(state): State<WebState>,
+    axum::extract::Path((instance_id, task_id)): axum::extract::Path<(String, i64)>,
+    Json(body): Json<OverridePipelineRequest>,
+) -> impl IntoResponse {
+    match override_pipeline_impl(
+        &state.maa_state,
+        &instance_id,
+        task_id,
+        &body.pipeline_override,
+    ) {
+        Ok(success) => Json(serde_json::json!({ "success": success })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),
@@ -840,11 +925,7 @@ async fn handle_get_screenshot(
                 if let Some(b64) = data_url.strip_prefix("data:image/png;base64,") {
                     use base64::{engine::general_purpose::STANDARD, Engine as _};
                     if let Ok(bytes) = STANDARD.decode(b64) {
-                        return (
-                            StatusCode::OK,
-                            [(header::CONTENT_TYPE, "image/png")],
-                            bytes,
-                        )
+                        return (StatusCode::OK, [(header::CONTENT_TYPE, "image/png")], bytes)
                             .into_response();
                     }
                 }
@@ -959,18 +1040,9 @@ async fn handle_get_background_image(State(state): State<WebState>) -> impl Into
                 } else {
                     "application/octet-stream"
                 };
-                (
-                    StatusCode::OK,
-                    [(header::CONTENT_TYPE, content_type)],
-                    data,
-                )
-                    .into_response()
+                (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], data).into_response()
             }
-            Err(e) => (
-                StatusCode::NOT_FOUND,
-                format!("背景图读取失败: {}", e),
-            )
-                .into_response(),
+            Err(e) => (StatusCode::NOT_FOUND, format!("背景图读取失败: {}", e)).into_response(),
         },
         None => (StatusCode::NOT_FOUND, "未设置背景图片").into_response(),
     }
@@ -1017,12 +1089,7 @@ async fn handle_serve_local_file(
                 "bmp" => "image/bmp",
                 _ => "application/octet-stream",
             };
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, content_type)],
-                data,
-            )
-                .into_response()
+            (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], data).into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "文件不存在").into_response(),
     }
@@ -1082,9 +1149,7 @@ async fn handle_is_elevated() -> impl IntoResponse {
 
 /// POST /api/system/restart-as-admin
 /// 以管理员权限重启应用
-async fn handle_restart_as_admin(
-    State(state): State<WebState>,
-) -> impl IntoResponse {
+async fn handle_restart_as_admin(State(state): State<WebState>) -> impl IntoResponse {
     match crate::commands::system::restart_as_admin(state.app_handle) {
         Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
         Err(e) => (

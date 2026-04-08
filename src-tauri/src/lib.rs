@@ -8,8 +8,8 @@ pub mod ws_broadcast;
 use commands::{AppConfigState, MaaState};
 use std::sync::Arc;
 use tauri::Manager;
-use ws_broadcast::WsBroadcast;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+use ws_broadcast::WsBroadcast;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

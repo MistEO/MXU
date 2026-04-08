@@ -154,12 +154,8 @@ pub fn get_all_logs(
 
 /// 清空指定实例的运行日志
 #[tauri::command]
-pub fn clear_instance_logs(
-    state: State<Arc<MaaState>>,
-    instance_id: String,
-) -> Result<(), String> {
+pub fn clear_instance_logs(state: State<Arc<MaaState>>, instance_id: String) -> Result<(), String> {
     let mut buffer = state.log_buffer.lock().map_err(|e| e.to_string())?;
     buffer.clear_instance(&instance_id);
     Ok(())
 }
-

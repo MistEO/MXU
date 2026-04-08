@@ -13,8 +13,8 @@
 
 use std::collections::HashMap;
 use std::sync::{
-    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
 };
 use std::time::Instant;
 
@@ -177,8 +177,7 @@ fn capture_loop(
                                 );
                                 (true, false)
                             } else {
-                                let is_running =
-                                    inst.tasker.as_ref().is_some_and(|t| t.running());
+                                let is_running = inst.tasker.as_ref().is_some_and(|t| t.running());
                                 // 任务运行中，管线自动更新缓存，跳过主动截图
                                 (false, !is_running)
                             }

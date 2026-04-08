@@ -285,9 +285,7 @@ pub async fn find_win32_windows_impl(
     tokio::task::spawn_blocking(move || {
         let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
 
-        let class_re = class_regex
-            .as_ref()
-            .and_then(|r| regex::Regex::new(r).ok());
+        let class_re = class_regex.as_ref().and_then(|r| regex::Regex::new(r).ok());
         let window_re = window_regex
             .as_ref()
             .and_then(|r| regex::Regex::new(r).ok());
@@ -327,6 +325,36 @@ pub async fn find_win32_windows_impl(
     .map_err(|e| e.to_string())?
 }
 
+/// 查找 WlRoots 可用的 Wayland socket（结果会缓存到 MaaState）
+/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_wlroots_sockets_impl(state: Arc<MaaState>) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        // Linux 平台上，Toolkit::find_desktop_windows 返回项中的 window_name
+        // 即为可用的 wayland socket 名称。
+        let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
+
+        let mut result_sockets = Vec::new();
+        for w in windows {
+            let socket = w.window_name.trim();
+            if !socket.is_empty() {
+                result_sockets.push(socket.to_string());
+            }
+        }
+
+        if let Ok(mut cached) = state.cached_wlroots_sockets.lock() {
+            *cached = result_sockets.clone();
+        }
+
+        info!(
+            "find_wlroots_sockets_impl: {} wlroots socket(s)",
+            result_sockets.len()
+        );
+        Ok(result_sockets)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// 查找 Win32 窗口（结果会缓存到 MaaState）
 #[tauri::command]
 pub async fn maa_find_win32_windows(
@@ -347,32 +375,7 @@ pub async fn maa_find_wlroots_sockets(
     state: State<'_, Arc<MaaState>>,
 ) -> Result<Vec<String>, String> {
     info!("maa_find_wlroots_sockets called");
-
-    let state_arc = state.inner().clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        // Linux 平台上，Toolkit::find_desktop_windows 返回项中的 window_name
-        // 即为可用的 wayland socket 名称。
-        let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
-
-        let mut result_sockets = Vec::new();
-        for w in windows {
-            let socket = w.window_name.trim();
-            if !socket.is_empty() {
-                result_sockets.push(socket.to_string());
-            }
-        }
-
-        // 缓存搜索结果
-        if let Ok(mut cached) = state_arc.cached_wlroots_sockets.lock() {
-            *cached = result_sockets.clone();
-        }
-
-        info!("Returning {} wlroots socket(s)", result_sockets.len());
-        Ok(result_sockets)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    find_wlroots_sockets_impl(state.inner().clone()).await
 }
 
 // ============================================================================
@@ -399,23 +402,22 @@ pub fn maa_create_instance(state: State<Arc<MaaState>>, instance_id: String) -> 
     Ok(())
 }
 
-/// 销毁实例
-#[tauri::command]
-pub fn maa_destroy_instance(
-    state: State<Arc<MaaState>>,
-    instance_id: String,
-) -> Result<(), String> {
-    info!("maa_destroy_instance called, instance_id: {}", instance_id);
+/// 销毁实例的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub fn destroy_instance_impl(state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
+    info!("destroy_instance_impl called, instance_id: {}", instance_id);
 
     let cleanup_config = {
         let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
         let old_config = instances
-            .get(&instance_id)
+            .get(instance_id)
             .and_then(|inst| inst.controller_config.clone());
-        let removed = instances.remove(&instance_id).is_some();
+        let removed = instances.remove(instance_id).is_some();
 
         if removed {
-            info!("maa_destroy_instance success, instance_id: {}", instance_id);
+            info!(
+                "destroy_instance_impl success, instance_id: {}",
+                instance_id
+            );
             old_config.filter(|cfg| {
                 !instances
                     .values()
@@ -423,7 +425,7 @@ pub fn maa_destroy_instance(
             })
         } else {
             warn!(
-                "maa_destroy_instance: instance not found, instance_id: {}",
+                "destroy_instance_impl: instance not found, instance_id: {}",
                 instance_id
             );
             None
@@ -439,6 +441,16 @@ pub fn maa_destroy_instance(
     }
 
     Ok(())
+}
+
+/// 销毁实例
+#[tauri::command]
+pub fn maa_destroy_instance(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+) -> Result<(), String> {
+    info!("maa_destroy_instance called, instance_id: {}", instance_id);
+    destroy_instance_impl(&state, &instance_id)
 }
 
 // ============================================================================
@@ -671,9 +683,7 @@ pub fn load_resource_impl(
     );
 
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances
-        .get_mut(instance_id)
-        .ok_or("Instance not found")?;
+    let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
 
     // 创建或获取资源
     if instance.resource.is_none() {
@@ -786,9 +796,7 @@ pub fn run_task_impl(
     on_event: Arc<dyn Fn(&str, &str) + Send + Sync + 'static>,
 ) -> Result<i64, String> {
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances
-        .get_mut(instance_id)
-        .ok_or("Instance not found")?;
+    let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
 
     let resource = instance.resource.as_ref().ok_or("Resource not loaded")?;
     let controller = instance
@@ -901,9 +909,7 @@ pub fn maa_get_task_status(
 /// 停止任务的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
 pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String> {
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances
-        .get_mut(instance_id)
-        .ok_or("Instance not found")?;
+    let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
     let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
 
     if instance.stop_in_progress {
@@ -954,6 +960,23 @@ pub fn maa_stop_task(
 }
 
 /// 覆盖已提交任务的 Pipeline 配置（用于运行中修改尚未执行的任务选项）
+/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub fn override_pipeline_impl(
+    state: &Arc<MaaState>,
+    instance_id: &str,
+    task_id: i64,
+    pipeline_override: &str,
+) -> Result<bool, String> {
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(instance_id).ok_or("Instance not found")?;
+    let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
+
+    tasker
+        .override_pipeline(task_id, pipeline_override)
+        .map_err(|e| e.to_string())
+}
+
+/// 覆盖已提交任务的 Pipeline 配置（用于运行中修改尚未执行的任务选项）
 #[tauri::command]
 pub fn maa_override_pipeline(
     state: State<Arc<MaaState>>,
@@ -961,13 +984,7 @@ pub fn maa_override_pipeline(
     task_id: i64,
     pipeline_override: String,
 ) -> Result<bool, String> {
-    let instances = state.instances.lock().map_err(|e| e.to_string())?;
-    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
-    let tasker = instance.tasker.as_ref().ok_or("Tasker not created")?;
-
-    tasker
-        .override_pipeline(task_id, &pipeline_override)
-        .map_err(|e| e.to_string())
+    override_pipeline_impl(&state, &instance_id, task_id, &pipeline_override)
 }
 
 /// 检查是否正在运行
@@ -1063,7 +1080,8 @@ pub async fn maa_screenshot_unsubscribe(
     instance_id: String,
     subscriber_id: String,
 ) -> Result<(), String> {
-    state.screenshot_service.unsubscribe(&instance_id, &subscriber_id);
+    state
+        .screenshot_service
+        .unsubscribe(&instance_id, &subscriber_id);
     Ok(())
 }
-

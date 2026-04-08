@@ -1104,16 +1104,28 @@ function App() {
   // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // 追踪防抖窗口内收到的最高优先级 kind，task 相关事件表示需要同步 isRunning
+    let pendingTaskKind = false;
     let cleanup: (() => void) | undefined;
 
-    const handleStateChanged = () => {
+    const isTaskKind = (kind: string) =>
+      kind === 'task-started' || kind === 'task-stopped';
+
+    const handleStateChanged = (_instanceId: string, kind: string) => {
+      if (isTaskKind(kind)) pendingTaskKind = true;
       if (debounceTimer) clearTimeout(debounceTimer);
+      const shouldSyncRunning = pendingTaskKind;
       debounceTimer = setTimeout(async () => {
+        pendingTaskKind = false;
         try {
           const backendStates = await maaService.getAllStates();
           if (backendStates) {
-            restoreBackendStates(backendStates, { skipRunningState: true });
-            log.debug('收到 state-changed，已刷新运行时状态');
+            // task-started / task-stopped 事件需要同步 isRunning（跨端同步）
+            // 其他事件（connected / resource-loading）跳过，避免竞态覆盖前端已设置的状态
+            restoreBackendStates(backendStates, {
+              skipRunningState: !shouldSyncRunning,
+            });
+            log.debug('收到 state-changed，已刷新运行时状态, kind:', kind);
           }
         } catch (err) {
           log.warn('state-changed 后刷新状态失败:', err);
@@ -1124,7 +1136,10 @@ function App() {
     if (isTauri()) {
       let unlisten: (() => void) | null = null;
       import('@tauri-apps/api/event').then(({ listen }) => {
-        listen('state-changed', handleStateChanged).then((u) => {
+        listen<{ instance_id: string; kind: string }>(
+          'state-changed',
+          (event) => handleStateChanged(event.payload.instance_id, event.payload.kind),
+        ).then((u) => {
           unlisten = u;
         });
       });

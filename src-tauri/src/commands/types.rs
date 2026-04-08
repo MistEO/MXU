@@ -277,6 +277,8 @@ pub struct MaaState {
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）
     pub log_buffer: Mutex<LogBuffer>,
+    /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）
+    pub screenshot_service: crate::screenshot_service::ScreenshotService,
 }
 
 impl MaaState {

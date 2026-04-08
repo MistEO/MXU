@@ -1,5 +1,6 @@
 pub mod commands;
 mod mxu_actions;
+pub mod screenshot_service;
 mod tray;
 mod web_server;
 pub mod ws_broadcast;
@@ -212,6 +213,8 @@ pub fn run() {
             commands::maa_core::maa_is_running,
             commands::maa_core::maa_post_screencap,
             commands::maa_core::maa_get_cached_image,
+            commands::maa_core::maa_screenshot_subscribe,
+            commands::maa_core::maa_screenshot_unsubscribe,
             // Agent 命令
             commands::maa_agent::maa_start_tasks,
             commands::maa_agent::maa_stop_agent,

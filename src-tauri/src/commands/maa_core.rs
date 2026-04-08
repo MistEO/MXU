@@ -1032,3 +1032,38 @@ pub fn maa_get_cached_image(
     get_cached_image_impl(&state, &instance_id)
 }
 
+/// 订阅实例的实时截图（后端统一驱动截图循环）
+///
+/// 多个客户端可同时订阅同一实例，后端按最快订阅者的帧率驱动唯一一份截图循环。
+/// 前端通过 `maa_get_cached_image` 获取最新缓存截图，无需自行调用 `maa_post_screencap`。
+///
+/// 必须为 async command：确保在 tokio 上下文中运行，以便获取 Handle 用于 spawn 截图循环。
+#[tauri::command]
+pub async fn maa_screenshot_subscribe(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    subscriber_id: String,
+    interval_ms: u64,
+) -> Result<(), String> {
+    let handle = tokio::runtime::Handle::current();
+    state.screenshot_service.subscribe(
+        state.inner().clone(),
+        instance_id,
+        subscriber_id,
+        interval_ms,
+        handle,
+    );
+    Ok(())
+}
+
+/// 取消实例的实时截图订阅
+#[tauri::command]
+pub async fn maa_screenshot_unsubscribe(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    subscriber_id: String,
+) -> Result<(), String> {
+    state.screenshot_service.unsubscribe(&instance_id, &subscriber_id);
+    Ok(())
+}
+

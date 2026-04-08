@@ -77,38 +77,15 @@ export function ScreenshotPanel() {
     [instanceId, setInstanceScreenshotStreaming],
   );
 
-  // 获取单帧截图（任务未运行时使用）
+  // 获取最新缓存截图（后端截图循环负责更新缓存，前端无需主动触发 postScreencap）
   const captureFrame = useCallback(async (): Promise<string | null> => {
     if (!instanceId) return null;
 
     try {
-      const screencapId = await withTimeout(maaService.postScreencap(instanceId), API_TIMEOUT);
-      if (screencapId < 0) {
-        throw new Error('Failed to post screencap');
-      }
-
-      const success = await maaService.waitForScreencap(screencapId, 10000);
-      if (!success) {
-        throw new Error('Screencap failed');
-      }
-
       const imageData = await withTimeout(maaService.getCachedImage(instanceId), API_TIMEOUT);
       return imageData || null;
     } catch (err) {
-      log.warn('截图失败:', err);
-      throw err;
-    }
-  }, [instanceId]);
-
-  // 获取缓存截图（任务运行时直接获取）
-  const getCachedFrame = useCallback(async (): Promise<string | null> => {
-    if (!instanceId) return null;
-
-    try {
-      const imageData = await withTimeout(maaService.getCachedImage(instanceId), API_TIMEOUT);
-      return imageData || null;
-    } catch (err) {
-      log.warn('获取缓存截图失败:', err);
+      log.warn('获取截图失败:', err);
       throw err;
     }
   }, [instanceId]);
@@ -125,6 +102,20 @@ export function ScreenshotPanel() {
       streamingRef.current = false;
     };
   }, []);
+
+  // 订阅/退订后端截图循环（确保全局只有一份 post_screencap 在运行）
+  useEffect(() => {
+    if (!instanceId || !isStreaming) return;
+
+    const intervalMs = getFrameInterval(screenshotFrameRate);
+    maaService
+      .screenshotSubscribe(instanceId, `panel-${instanceId}`, intervalMs)
+      .catch((e) => log.warn('截图订阅失败:', e));
+
+    return () => {
+      maaService.screenshotUnsubscribe(instanceId, `panel-${instanceId}`).catch(() => {});
+    };
+  }, [instanceId, isStreaming, screenshotFrameRate]);
 
   // ESC 键退出全屏
   useEffect(() => {
@@ -187,17 +178,8 @@ export function ScreenshotPanel() {
       lastFrameTimeRef.current = Date.now();
 
       try {
-        const isRunning = await withTimeout(maaService.isRunning(loopInstanceId), API_TIMEOUT);
-
-        let imageData: string | null = null;
-
-        if (isRunning) {
-          // 任务运行中，直接获取缓存的截图（任务会自动更新缓存）
-          imageData = await getCachedFrame();
-        } else {
-          // 任务未运行，需要主动发起截图
-          imageData = await captureFrame();
-        }
+        // 后端截图循环已统一驱动 post_screencap，前端只需读取最新缓存
+        const imageData = await captureFrame();
 
         // 再次检查是否仍是活动实例，避免更新非活动 tab 的截图
         if (
@@ -223,7 +205,7 @@ export function ScreenshotPanel() {
     // 循环结束
     streamingRef.current = false;
     setIsStreaming(false);
-  }, [instanceId, captureFrame, getCachedFrame, setIsStreaming]);
+  }, [instanceId, captureFrame, setIsStreaming]);
 
   // 开始/停止截图流
   const toggleStreaming = useCallback(

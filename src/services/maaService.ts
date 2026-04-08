@@ -20,11 +20,10 @@ import * as wsService from '@/services/wsService';
 
 const log = loggers.maa;
 
-// 浏览器模式截图：instanceId -> 正在进行的截图 Promise（避免重复请求）
-const browserScreenshotPending = new Map<string, Promise<string>>();
-
 /**
- * 向后端发起截图请求，将 PNG 二进制转换为 base64 data URL（浏览器专用）
+ * 从后端获取最新缓存截图，转换为 base64 data URL（浏览器专用）
+ *
+ * 后端截图循环（ScreenshotService）负责驱动 post_screencap，此处仅读取缓存。
  */
 async function fetchScreenshotDataUrl(instanceId: string): Promise<string> {
   const resp = await fetch(`${getApiBase()}/maa/instances/${instanceId}/screenshot`);
@@ -472,13 +471,8 @@ export const maaService = {
    */
   async postScreencap(instanceId: string): Promise<number> {
     if (!isTauri()) {
-      // 浏览器模式：发起截图 HTTP 请求，将 Promise 存入 pending Map
-      // getCachedImage 会 await 这个 Promise 拿结果，不额外发请求
-      const promise = fetchScreenshotDataUrl(instanceId).finally(() => {
-        browserScreenshotPending.delete(instanceId);
-      });
-      browserScreenshotPending.set(instanceId, promise);
-      return 0; // 返回 0（非负）使 screencapId < 0 检查不触发
+      // 浏览器模式：截图由后端 ScreenshotService 统一驱动，此处无需额外触发
+      return 0;
     }
     const screencapId = await invoke<number>('maa_post_screencap', { instanceId });
     return screencapId;
@@ -491,12 +485,51 @@ export const maaService = {
    */
   async getCachedImage(instanceId: string): Promise<string> {
     if (!isTauri()) {
-      // 浏览器模式：等待 postScreencap 发起的 pending 请求，或发起新请求
-      const pending = browserScreenshotPending.get(instanceId);
-      if (pending) return (await pending) || '';
+      // 浏览器模式：后端截图循环已在运行，直接读取最新缓存
       return fetchScreenshotDataUrl(instanceId).catch(() => '');
     }
     return await invoke<string>('maa_get_cached_image', { instanceId });
+  },
+
+  /**
+   * 订阅实例的实时截图（后端统一驱动截图循环）
+   *
+   * 多个客户端可同时订阅同一实例，后端按最快订阅者的帧率驱动唯一截图循环。
+   * 订阅后应调用 getCachedImage 获取截图，无需手动调用 postScreencap。
+   *
+   * @param instanceId 实例 ID
+   * @param subscriberId 订阅者唯一标识（同一 ID 重复调用会更新 intervalMs）
+   * @param intervalMs 期望的截图间隔（毫秒）
+   */
+  async screenshotSubscribe(
+    instanceId: string,
+    subscriberId: string,
+    intervalMs: number,
+  ): Promise<void> {
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/screenshot/subscribe`, {
+        subscriber_id: subscriberId,
+        interval_ms: intervalMs,
+      });
+      return;
+    }
+    await invoke('maa_screenshot_subscribe', { instanceId, subscriberId, intervalMs });
+  },
+
+  /**
+   * 取消实例的实时截图订阅
+   *
+   * @param instanceId 实例 ID
+   * @param subscriberId 订阅时使用的唯一标识
+   */
+  async screenshotUnsubscribe(instanceId: string, subscriberId: string): Promise<void> {
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/screenshot/unsubscribe`, {
+        subscriber_id: subscriberId,
+      });
+      return;
+    }
+    await invoke('maa_screenshot_unsubscribe', { instanceId, subscriberId });
   },
 
   /**

@@ -345,27 +345,13 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     ],
   );
 
-  // 获取截图
+  // 获取最新缓存截图（后端截图循环负责更新缓存，前端无需主动触发 postScreencap）
   const captureFrame = useCallback(async (): Promise<string | null> => {
     if (!instanceId) return null;
 
     try {
-      const isRunning = await maaService.isRunning(instanceId);
-
-      if (isRunning) {
-        const imageData = await maaService.getCachedImage(instanceId);
-        return imageData || null;
-      } else {
-        const screencapId = await maaService.postScreencap(instanceId);
-        if (screencapId < 0) return null;
-
-        // 等待截图完成
-        const success = await maaService.waitForScreencap(screencapId, 10000);
-        if (!success) return null;
-
-        const imageData = await maaService.getCachedImage(instanceId);
-        return imageData || null;
-      }
+      const imageData = await maaService.getCachedImage(instanceId);
+      return imageData || null;
     } catch {
       return null;
     }
@@ -416,6 +402,20 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       streamingRef.current = false;
     };
   }, []);
+
+  // 订阅/退订后端截图循环（确保全局只有一份 post_screencap 在运行）
+  useEffect(() => {
+    if (!instanceId || !isStreaming) return;
+
+    const intervalMs = getFrameInterval(screenshotFrameRate);
+    maaService
+      .screenshotSubscribe(instanceId, `dashboard-${instanceId}`, intervalMs)
+      .catch(() => {});
+
+    return () => {
+      maaService.screenshotUnsubscribe(instanceId, `dashboard-${instanceId}`).catch(() => {});
+    };
+  }, [instanceId, isStreaming, screenshotFrameRate]);
 
   // 响应 store 中 isStreaming 状态变化
   useEffect(() => {

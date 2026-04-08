@@ -209,6 +209,14 @@ pub async fn start_web_server(
         .route("/maa/instances/:id/tasks/stop", axum::routing::post(handle_stop_task))
         .route("/maa/instances/:id/agent/stop", axum::routing::post(handle_stop_agent))
         .route("/maa/instances/:id/screenshot", get(handle_get_screenshot))
+        .route(
+            "/maa/instances/:id/screenshot/subscribe",
+            axum::routing::post(handle_screenshot_subscribe),
+        )
+        .route(
+            "/maa/instances/:id/screenshot/unsubscribe",
+            axum::routing::post(handle_screenshot_unsubscribe),
+        )
         // 运行日志（跨刷新持久化）
         .route("/logs", get(handle_get_all_logs))
         .route("/logs/:id", axum::routing::post(handle_push_log).delete(handle_clear_instance_logs))
@@ -812,30 +820,23 @@ async fn handle_stop_agent(
 }
 
 /// GET /api/maa/instances/:id/screenshot
-/// 同步截图：发起截图请求、等待完成（最多 15 秒）、返回 PNG 图片
+///
+/// 返回该实例的最新缓存截图（PNG 二进制）。
+///
+/// 若后端截图循环已运行（订阅者存在），缓存通常立即可用。
+/// 若缓存为空（从未截图），则回退到一次性触发 post_screencap 并等待（最多 10 秒），
+/// 保持对未订阅场景的兼容性。
 async fn handle_get_screenshot(
     State(state): State<WebState>,
     axum::extract::Path(instance_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    // 发起截图请求
-    let screencap_id = match post_screencap_impl(&state.maa_state, &instance_id) {
-        Ok(id) => id,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e })),
-            )
-                .into_response();
-        }
-    };
+    // 优先返回缓存，无缓存时触发一次兜底截图并等待（最多 10 秒）
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let mut fallback_triggered = false;
 
-    // 等待截图完成（轮询，最多 15 秒）
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
     loop {
-        // 尝试获取图像
         match get_cached_image_impl(&state.maa_state, &instance_id) {
             Ok(data_url) if !data_url.is_empty() => {
-                // 解码 base64 返回 PNG 二进制
                 if let Some(b64) = data_url.strip_prefix("data:image/png;base64,") {
                     use base64::{engine::general_purpose::STANDARD, Engine as _};
                     if let Ok(bytes) = STANDARD.decode(b64) {
@@ -847,7 +848,6 @@ async fn handle_get_screenshot(
                             .into_response();
                     }
                 }
-                // fallback: 返回 data URL
                 return Json(serde_json::json!({ "dataUrl": data_url })).into_response();
             }
             _ => {}
@@ -856,16 +856,81 @@ async fn handle_get_screenshot(
         if std::time::Instant::now() > deadline {
             return (
                 StatusCode::GATEWAY_TIMEOUT,
-                Json(serde_json::json!({
-                    "error": "截图超时",
-                    "screencapId": screencap_id
-                })),
+                Json(serde_json::json!({ "error": "截图超时" })),
             )
                 .into_response();
         }
 
+        // 缓存为空时兜底触发一次截图（兼容无订阅者场景）
+        if !fallback_triggered {
+            fallback_triggered = true;
+            let _ = post_screencap_impl(&state.maa_state, &instance_id);
+        }
+
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
+}
+
+/// POST /api/maa/instances/:id/screenshot/subscribe
+/// Body: `{ "subscriber_id": "...", "interval_ms": 200 }`
+///
+/// 注册截图订阅者。后端统一截图循环将按所有订阅者中最快的间隔驱动截图，
+/// 确保同一实例的 post_screencap 全局只有一份在运行。
+async fn handle_screenshot_subscribe(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let subscriber_id = match body.get("subscriber_id").and_then(|v| v.as_str()) {
+        Some(id) => id.to_string(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "missing subscriber_id" })),
+            )
+                .into_response();
+        }
+    };
+    let interval_ms = body
+        .get("interval_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1000);
+
+    let handle = tokio::runtime::Handle::current();
+    state.maa_state.screenshot_service.subscribe(
+        state.maa_state.clone(),
+        instance_id,
+        subscriber_id,
+        interval_ms,
+        handle,
+    );
+    Json(serde_json::json!({ "ok": true })).into_response()
+}
+
+/// POST /api/maa/instances/:id/screenshot/unsubscribe
+/// Body: `{ "subscriber_id": "..." }`
+///
+/// 取消截图订阅。若该实例无剩余订阅者，截图循环将自动停止。
+async fn handle_screenshot_unsubscribe(
+    State(state): State<WebState>,
+    axum::extract::Path(instance_id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let subscriber_id = match body.get("subscriber_id").and_then(|v| v.as_str()) {
+        Some(id) => id.to_string(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "missing subscriber_id" })),
+            )
+                .into_response();
+        }
+    };
+    state
+        .maa_state
+        .screenshot_service
+        .unsubscribe(&instance_id, &subscriber_id);
+    Json(serde_json::json!({ "ok": true })).into_response()
 }
 
 /// GET /api/background-image

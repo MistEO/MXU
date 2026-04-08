@@ -357,42 +357,45 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     }
   }, [instanceId]);
 
-  // 截图流循环
+  const loopRunningRef = useRef(false);
+
   const streamLoop = useCallback(async () => {
-    // 初始化下一帧时间
-    let nextFrameTime = Date.now();
+    if (loopRunningRef.current) return;
+    loopRunningRef.current = true;
 
-    while (streamingRef.current) {
-      // 计算需要等待的时间（sleep until 下一帧时间点）
-      const now = Date.now();
-      const sleepTime = nextFrameTime - now;
-      if (sleepTime > 0) {
-        await new Promise((resolve) => setTimeout(resolve, sleepTime));
-      }
+    try {
+      let nextFrameTime = Date.now();
 
-      // 计算下一帧时间
-      const frameInterval = frameIntervalRef.current;
-      if (frameInterval > 0) {
-        nextFrameTime += frameInterval;
-        // 如果已经落后太多，重置到当前时间
-        if (nextFrameTime < Date.now()) {
-          nextFrameTime = Date.now() + frameInterval;
+      while (streamingRef.current) {
+        const now = Date.now();
+        const sleepTime = nextFrameTime - now;
+        if (sleepTime > 0) {
+          await new Promise((resolve) => setTimeout(resolve, sleepTime));
         }
-      } else {
-        // unlimited 模式，立即执行下一帧
-        nextFrameTime = Date.now();
-      }
 
-      lastFrameTimeRef.current = Date.now();
-
-      try {
-        const imageData = await captureFrame();
-        if (imageData && streamingRef.current) {
-          setScreenshotUrl(imageData);
+        const frameInterval = frameIntervalRef.current;
+        if (frameInterval > 0) {
+          nextFrameTime += frameInterval;
+          if (nextFrameTime < Date.now()) {
+            nextFrameTime = Date.now() + frameInterval;
+          }
+        } else {
+          nextFrameTime = Date.now();
         }
-      } catch {
-        // 静默处理
+
+        lastFrameTimeRef.current = Date.now();
+
+        try {
+          const imageData = await captureFrame();
+          if (imageData && streamingRef.current) {
+            setScreenshotUrl(imageData);
+          }
+        } catch {
+          // 静默处理
+        }
       }
+    } finally {
+      loopRunningRef.current = false;
     }
   }, [instanceId, captureFrame]);
 

@@ -106,25 +106,32 @@ async fn serve_vite_proxy(uri: axum::http::Uri) -> impl IntoResponse {
     }
 }
 
-#[cfg(not(debug_assertions))]
-fn guess_mime(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("") {
+fn mime_from_extension(ext: &str) -> &'static str {
+    match ext {
         "html" | "htm" => "text/html; charset=utf-8",
         "css" => "text/css; charset=utf-8",
         "js" | "mjs" => "application/javascript; charset=utf-8",
-        "json" => "application/json; charset=utf-8",
+        "json" | "jsonc" => "application/json; charset=utf-8",
+        "txt" => "text/plain; charset=utf-8",
+        "md" => "text/markdown; charset=utf-8",
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
         "ico" => "image/x-icon",
+        "bmp" => "image/bmp",
         "woff" => "font/woff",
         "woff2" => "font/woff2",
         "ttf" => "font/ttf",
         "wasm" => "application/wasm",
         _ => "application/octet-stream",
     }
+}
+
+#[cfg(not(debug_assertions))]
+fn guess_mime(path: &str) -> &'static str {
+    mime_from_extension(path.rsplit('.').next().unwrap_or(""))
 }
 
 /// 从内嵌资源提供前端文件，支持 SPA 路由回退（未匹配路径返回 index.html）
@@ -1024,17 +1031,8 @@ async fn handle_get_background_image(State(state): State<WebState>) -> impl Into
     match image_path {
         Some(path) => match std::fs::read(&path) {
             Ok(data) => {
-                let content_type = if path.ends_with(".png") {
-                    "image/png"
-                } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
-                    "image/jpeg"
-                } else if path.ends_with(".gif") {
-                    "image/gif"
-                } else if path.ends_with(".webp") {
-                    "image/webp"
-                } else {
-                    "application/octet-stream"
-                };
+                let ext = path.rsplit('.').next().unwrap_or("");
+                let content_type = mime_from_extension(ext);
                 (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], data).into_response()
             }
             Err(e) => (StatusCode::NOT_FOUND, format!("背景图读取失败: {}", e)).into_response(),
@@ -1066,24 +1064,8 @@ async fn handle_serve_local_file(
             let ext = resolved
                 .extension()
                 .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_lowercase();
-            let content_type = match ext.as_str() {
-                "json" | "jsonc" => "application/json; charset=utf-8",
-                "txt" => "text/plain; charset=utf-8",
-                "md" => "text/markdown; charset=utf-8",
-                "html" | "htm" => "text/html; charset=utf-8",
-                "css" => "text/css; charset=utf-8",
-                "js" => "application/javascript; charset=utf-8",
-                "png" => "image/png",
-                "jpg" | "jpeg" => "image/jpeg",
-                "gif" => "image/gif",
-                "webp" => "image/webp",
-                "svg" => "image/svg+xml",
-                "ico" => "image/x-icon",
-                "bmp" => "image/bmp",
-                _ => "application/octet-stream",
-            };
+                .unwrap_or("");
+            let content_type = mime_from_extension(ext);
             (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], data).into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "文件不存在").into_response(),

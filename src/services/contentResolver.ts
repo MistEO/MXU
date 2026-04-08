@@ -353,14 +353,6 @@ export function resolveIconPath(
 }
 
 /**
- * 拼接路径（处理空 basePath 的情况）
- */
-function joinPath(basePath: string, relativePath: string): string {
-  if (!basePath) return relativePath;
-  return `${basePath}/${relativePath}`;
-}
-
-/**
  * 加载图标为 data URL（异步版本）
  * 在 Tauri 环境下读取本地文件并转换为 base64 data URL
  *

@@ -13,7 +13,6 @@ import {
   Check,
 } from 'lucide-react';
 
-import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '@/stores/appStore';
 import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
 import { isTauri } from '@/utils/paths';
@@ -52,22 +51,24 @@ export function GeneralSection() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    invoke<string>('get_os')
-      .then((os) => {
-        isWindowsRef.current = os === 'windows';
-        if (isWindowsRef.current) {
-          invoke<boolean>('autostart_is_enabled')
-            .then(setAutoStartEnabled)
-            .catch(() => {});
-        } else {
-          import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
-            isEnabled()
+    import('@tauri-apps/api/core').then(({ invoke: tauriInvoke }) => {
+      tauriInvoke<string>('get_os')
+        .then((os) => {
+          isWindowsRef.current = os === 'windows';
+          if (isWindowsRef.current) {
+            tauriInvoke<boolean>('autostart_is_enabled')
               .then(setAutoStartEnabled)
               .catch(() => {});
-          });
-        }
-      })
-      .catch(() => {});
+          } else {
+            import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+              isEnabled()
+                .then(setAutoStartEnabled)
+                .catch(() => {});
+            });
+          }
+        })
+        .catch(() => {});
+    });
   }, []);
 
   // 点击外部关闭下拉框
@@ -87,6 +88,7 @@ export function GeneralSection() {
     setAutoStartLoading(true);
     try {
       if (isWindowsRef.current) {
+        const { invoke } = await import('@tauri-apps/api/core');
         await invoke(enabled ? 'autostart_enable' : 'autostart_disable');
       } else {
         const { enable, disable } = await import('@tauri-apps/plugin-autostart');

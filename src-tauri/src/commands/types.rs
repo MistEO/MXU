@@ -2,7 +2,7 @@
 //!
 //! 包含 Tauri 命令使用的数据结构和枚举
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -214,7 +214,7 @@ const DEFAULT_MAX_LOGS: usize = 2000;
 
 /// 运行日志缓冲区（按实例隔离，支持容量限制）
 pub struct LogBuffer {
-    logs: HashMap<String, Vec<LogEntryDto>>,
+    logs: HashMap<String, VecDeque<LogEntryDto>>,
     max_per_instance: usize,
 }
 
@@ -237,14 +237,13 @@ impl LogBuffer {
 
     pub fn push(&mut self, instance_id: &str, entry: LogEntryDto) {
         let entries = self.logs.entry(instance_id.to_string()).or_default();
-        entries.push(entry);
-        if entries.len() > self.max_per_instance {
-            let overflow = entries.len() - self.max_per_instance;
-            entries.drain(..overflow);
+        entries.push_back(entry);
+        while entries.len() > self.max_per_instance {
+            entries.pop_front();
         }
     }
 
-    pub fn get_all(&self) -> &HashMap<String, Vec<LogEntryDto>> {
+    pub fn get_all(&self) -> &HashMap<String, VecDeque<LogEntryDto>> {
         &self.logs
     }
 

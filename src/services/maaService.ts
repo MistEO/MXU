@@ -683,36 +683,39 @@ export const maaService = {
       return true;
     }
 
-    return new Promise<boolean>((resolve) => {
-      let unlisten: UnlistenFn | null = null;
-      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let resolved = false;
+    const unlisten = await this.onCallback((message, details) => {
+      if (details.ctrl_id !== id) return;
 
-      const cleanup = () => {
-        if (unlisten) unlisten();
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-
-      // 设置超时
-      timeoutId = setTimeout(() => {
-        cleanup();
-        log.warn(`截图等待超时, ctrl_id=${id}`);
-        resolve(false);
-      }, timeout);
-
-      // 监听回调
-      this.onCallback((message, details) => {
-        if (details.ctrl_id !== id) return;
-
-        if (message === 'Controller.Action.Succeeded') {
-          cleanup();
-          resolve(true);
-        } else if (message === 'Controller.Action.Failed') {
-          cleanup();
-          resolve(false);
+      if (message === 'Controller.Action.Succeeded') {
+        if (!resolved) {
+          resolved = true;
+          settle(true);
         }
-      }).then((fn) => {
-        unlisten = fn;
-      });
+      } else if (message === 'Controller.Action.Failed') {
+        if (!resolved) {
+          resolved = true;
+          settle(false);
+        }
+      }
+    });
+
+    let settle!: (value: boolean) => void;
+    const promise = new Promise<boolean>((resolve) => {
+      settle = resolve;
+    });
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        log.warn(`截图等待超时, ctrl_id=${id}`);
+        settle(false);
+      }
+    }, timeout);
+
+    return promise.finally(() => {
+      clearTimeout(timeoutId);
+      unlisten();
     });
   },
 

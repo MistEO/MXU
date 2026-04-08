@@ -455,7 +455,7 @@ function handleCallback(
       addLog(instanceId, {
         type: 'error',
         message: t('logs.messages.resourceFailed', {
-          name: `${resourceName} ${details.path}` || '',
+          name: [resourceName, details.path].filter(Boolean).join(' ') || '',
         }),
       });
       break;

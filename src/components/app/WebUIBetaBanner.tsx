@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isTauri } from '@/utils/windowUtils';
+import { isTauri } from '@/utils/paths';
 
 const ISSUE_URL = 'https://github.com/MistEO/MXU/issues';
 

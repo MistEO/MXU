@@ -199,7 +199,13 @@ pub fn notify_config_changed(
 
 fn make_config_filename(project_name: Option<&str>) -> String {
     match project_name {
-        Some(name) => format!("mxu-{}.json", name),
+        Some(name) => {
+            let sanitized: String = name
+                .chars()
+                .map(|c| if c == '/' || c == '\\' || c == '.' || c == ':' { '_' } else { c })
+                .collect();
+            format!("mxu-{}.json", sanitized)
+        }
         None => "mxu.json".to_string(),
     }
 }

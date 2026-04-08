@@ -17,7 +17,8 @@ export function setBackendPort(port: number): void {
 
 export function getApiBase(): string {
   if (backendPort) {
-    return `http://${window.location.hostname}:${backendPort}/api`;
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${window.location.hostname}:${backendPort}/api`;
   }
   return '/api';
 }

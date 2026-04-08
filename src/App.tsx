@@ -196,18 +196,18 @@ function App() {
       return;
     }
 
+    let cancelled = false;
+
     const loadBackgroundImage = async () => {
       try {
         let fileData: Uint8Array;
         let ext: string;
 
         if (isTauri()) {
-          // Tauri 环境：直接读取本地文件
           const { readFile } = await import('@tauri-apps/plugin-fs');
           fileData = await readFile(backgroundImage);
           ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
         } else {
-          // 浏览器环境：通过后端 HTTP API 获取图片数据
           const resp = await fetch(`${getApiBase()}/background-image`);
           if (!resp.ok) {
             setBackgroundImageDataUrl(undefined);
@@ -215,10 +215,11 @@ function App() {
           }
           const buffer = await resp.arrayBuffer();
           fileData = new Uint8Array(buffer);
-          // 从 Content-Type 推断扩展名
           const ct = resp.headers.get('content-type') || 'image/png';
           ext = ct.split('/').pop()?.split(';')[0] || 'png';
         }
+
+        if (cancelled) return;
 
         const mimeMap: Record<string, string> = {
           png: 'image/png',
@@ -229,9 +230,9 @@ function App() {
         };
         const mimeType = mimeMap[ext] || 'image/png';
 
-        const blobBytes = new Uint8Array(fileData.length);
-        blobBytes.set(fileData);
-        const blob = new Blob([blobBytes.buffer], { type: mimeType });
+        const arrayBuffer = new ArrayBuffer(fileData.byteLength);
+        new Uint8Array(arrayBuffer).set(fileData);
+        const blob = new Blob([arrayBuffer], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
         if (blobUrlRef.current) {
@@ -240,15 +241,17 @@ function App() {
         blobUrlRef.current = blobUrl;
         setBackgroundImageDataUrl(blobUrl);
       } catch (err) {
-        log.warn('Failed to load background image:', err);
-        setBackgroundImageDataUrl(undefined);
+        if (!cancelled) {
+          log.warn('Failed to load background image:', err);
+          setBackgroundImageDataUrl(undefined);
+        }
       }
     };
 
     loadBackgroundImage();
 
-    // 清理函数：组件卸载时释放 blob URL
     return () => {
+      cancelled = true;
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = undefined;
@@ -430,7 +433,7 @@ function App() {
         downloadStartedRef.current = false;
       }
     },
-    [setDownloadStatus, setDownloadProgress, setDownloadSavePath],
+    [setDownloadStatus, setDownloadProgress, setDownloadSavePath, tryAutoInstallUpdate],
   );
 
   // 设置窗口标题（根据 ProjectInterface V2 协议）

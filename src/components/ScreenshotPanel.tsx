@@ -134,15 +134,17 @@ export function ScreenshotPanel() {
     };
   }, [isFullscreen]);
 
-  // 截图流循环
-  const streamLoop = useCallback(async () => {
-    // 保存启动时的实例 ID，用于检查是否仍是活动实例
-    const loopInstanceId = instanceId;
+  const loopRunningRef = useRef(false);
 
-    // 初始化下一帧时间
+  const streamLoop = useCallback(async () => {
+    if (loopRunningRef.current) return;
+    loopRunningRef.current = true;
+
+    const loopInstanceId = instanceId;
     let nextFrameTime = Date.now();
     let consecutiveFailures = 0;
 
+    try {
     while (streamingRef.current) {
       // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
       const currentActiveId = useAppStore.getState().activeInstanceId;
@@ -205,6 +207,9 @@ export function ScreenshotPanel() {
     // 循环结束
     streamingRef.current = false;
     setIsStreaming(false);
+    } finally {
+      loopRunningRef.current = false;
+    }
   }, [instanceId, captureFrame, setIsStreaming]);
 
   // 开始/停止截图流

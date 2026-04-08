@@ -149,7 +149,11 @@ pub fn get_all_logs(
     state: State<Arc<MaaState>>,
 ) -> Result<HashMap<String, Vec<super::types::LogEntryDto>>, String> {
     let buffer = state.log_buffer.lock().map_err(|e| e.to_string())?;
-    Ok(buffer.get_all().clone())
+    Ok(buffer
+        .get_all()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.iter().cloned().collect()))
+        .collect())
 }
 
 /// 清空指定实例的运行日志

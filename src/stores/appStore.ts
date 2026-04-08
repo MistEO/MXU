@@ -24,6 +24,7 @@ import type {
   Instance,
   OptionDefinition,
   OptionValue,
+  ProjectInterface,
   SelectedTask,
 } from '@/types/interface';
 import type { ConnectionStatus, TaskStatus } from '@/types/maa';
@@ -55,6 +56,31 @@ import {
 } from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
+
+function cleanOptionValues(
+  optionValues: Record<string, OptionValue>,
+  pi: ProjectInterface | null,
+): Record<string, OptionValue> {
+  const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+  const cleaned: Record<string, OptionValue> = {};
+  for (const [key, value] of Object.entries(optionValues)) {
+    if (!validOptionNames.has(key)) continue;
+
+    const optionDef = pi?.option?.[key];
+    if (optionDef) {
+      const expectedType = optionDef.type || 'select';
+      if (value.type !== expectedType) {
+        loggers.config.warn(
+          `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+        );
+        continue;
+      }
+    }
+
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
 
 function forwardLogToStdout(message: string) {
   const plain = message.replace(/<[^>]*>/g, '').trim();
@@ -142,10 +168,10 @@ export const useAppStore = create<AppState>()(
       if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
     updateCustomAccent: (id, accent) => {
+      const oldAccent = get().customAccents.find((a) => a.id === id);
       set((state) => ({
         customAccents: state.customAccents.map((a) => (a.id === id ? accent : a)),
       }));
-      const oldAccent = get().customAccents.find((a) => a.id === id);
       if (oldAccent) {
         unregisterCustomAccent(oldAccent.name);
       }
@@ -958,33 +984,6 @@ export const useAppStore = create<AppState>()(
         });
       }
 
-      // 获取当前 interface 中有效的 option 名称集合
-      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
-
-      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
-      const cleanOptionValues = (
-        optionValues: Record<string, OptionValue>,
-      ): Record<string, OptionValue> => {
-        const cleaned: Record<string, OptionValue> = {};
-        for (const [key, value] of Object.entries(optionValues)) {
-          if (!validOptionNames.has(key)) continue;
-
-          const optionDef = pi?.option?.[key];
-          if (optionDef) {
-            const expectedType = optionDef.type || 'select';
-            if (value.type !== expectedType) {
-              loggers.config.warn(
-                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
-              );
-              continue;
-            }
-          }
-
-          cleaned[key] = value;
-        }
-        return cleaned;
-      };
-
       // 获取有效的任务名称集合（包含 interface 任务和 MXU 特殊任务）
       const validTaskNames = new Set([
         ...(pi?.task.map((t) => t.name) || []),
@@ -1020,7 +1019,7 @@ export const useAppStore = create<AppState>()(
             }
 
             const taskDef = pi?.task.find((td) => td.name === t.taskName);
-            const cleanedValues = cleanOptionValues(t.optionValues);
+            const cleanedValues = cleanOptionValues(t.optionValues, pi);
             // 为缺失的 option 添加默认值（根据 default_case）
             const defaultValues =
               taskDef?.option && pi?.option
@@ -1568,7 +1567,7 @@ export const useAppStore = create<AppState>()(
     minimizeToTray: false,
     setMinimizeToTray: async (enabled) => {
       set({ minimizeToTray: enabled });
-      // 同步到后端
+      if (!isTauri()) return;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('set_minimize_to_tray', { enabled });
@@ -1637,33 +1636,7 @@ export const useAppStore = create<AppState>()(
       const closedInstance = state.recentlyClosed.find((i) => i.id === id);
       if (!closedInstance) return null;
 
-      // 获取当前 interface 中有效的 option 名称集合
       const pi = state.projectInterface;
-      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
-
-      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
-      const cleanOptionValues = (
-        optionValues: Record<string, OptionValue>,
-      ): Record<string, OptionValue> => {
-        const cleaned: Record<string, OptionValue> = {};
-        for (const [key, value] of Object.entries(optionValues)) {
-          if (!validOptionNames.has(key)) continue;
-
-          const optionDef = pi?.option?.[key];
-          if (optionDef) {
-            const expectedType = optionDef.type || 'select';
-            if (value.type !== expectedType) {
-              loggers.config.warn(
-                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
-              );
-              continue;
-            }
-          }
-
-          cleaned[key] = value;
-        }
-        return cleaned;
-      };
 
       const newId = generateId();
       const newInstance: Instance = {
@@ -1679,7 +1652,7 @@ export const useAppStore = create<AppState>()(
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
-          optionValues: cleanOptionValues(t.optionValues),
+          optionValues: cleanOptionValues(t.optionValues, pi),
           expanded: false,
         })),
         isRunning: false,

@@ -12,11 +12,11 @@ interface DesktopOnlyWrapperProps {
  * Tauri 桌面端下透传子元素，无额外 DOM。
  */
 export function DesktopOnlyWrapper({ children }: DesktopOnlyWrapperProps) {
+  const { t } = useTranslation();
+
   if (isTauri()) {
     return <>{children}</>;
   }
-
-  const { t } = useTranslation();
 
   return (
     <div className="relative">

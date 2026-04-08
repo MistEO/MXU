@@ -827,6 +827,13 @@ export default {
     reconnecting: '再接続中...',
   },
 
+  // WebUI ベータ版バナー
+  webuiBeta: {
+    message: 'Web UI は現在ベータ版です。一部の機能が不安定な場合があります。問題が発生した場合は、GitHub で',
+    reportIssue: 'Issue を報告',
+    desktopHint: 'より安定した環境には、デスクトップ版をご利用ください',
+  },
+
   // パス警告
   badPath: {
     title: 'プログラムの場所が正しくありません',

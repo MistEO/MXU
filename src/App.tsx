@@ -64,6 +64,7 @@ import {
 } from '@/utils/windowUtils';
 import { LoadingScreen } from './components/app';
 import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
+import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 
 const log = loggers.app;
@@ -1567,6 +1568,7 @@ function App() {
         <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
         <div className="relative z-10 h-full flex flex-col">
           <TitleBar />
+          <WebUIBetaBanner />
           {/* 安装确认模态框 - 在设置页面也需要能弹出 */}
           {showInstallConfirmModal && (
             <Suspense fallback={null}>
@@ -1651,6 +1653,9 @@ function App() {
 
         {/* 自定义标题栏 */}
         <TitleBar />
+
+        {/* WebUI 测试版提示横幅 */}
+        <WebUIBetaBanner />
 
         {/* 欢迎弹窗 */}
         {projectInterface.welcome && (

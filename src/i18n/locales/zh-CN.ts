@@ -820,6 +820,13 @@ export default {
     reconnecting: '重连中...',
   },
 
+  // WebUI 测试版横幅
+  webuiBeta: {
+    message: 'Web UI 当前为测试版本，部分功能可能不够稳定。如遇到问题，欢迎前往 GitHub',
+    reportIssue: '提交 Issue',
+    desktopHint: '如需更稳定的体验，建议使用桌面客户端',
+  },
+
   // 程序路径问题提示
   badPath: {
     title: '程序位置不对',

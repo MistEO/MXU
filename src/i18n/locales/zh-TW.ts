@@ -805,6 +805,13 @@ export default {
     reconnecting: '重連中...',
   },
 
+  // WebUI 測試版橫幅
+  webuiBeta: {
+    message: 'Web UI 目前為測試版本，部分功能可能不夠穩定。如遇到問題，歡迎前往 GitHub',
+    reportIssue: '提交 Issue',
+    desktopHint: '如需更穩定的體驗，建議使用桌面用戶端',
+  },
+
   // 程式路徑問題提示
   badPath: {
     title: '程式位置不對',

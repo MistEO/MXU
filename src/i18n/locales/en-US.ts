@@ -828,6 +828,13 @@ export default {
     reconnecting: 'Reconnecting...',
   },
 
+  // WebUI beta banner
+  webuiBeta: {
+    message: 'Web UI is currently in beta — some features may be unstable. If you encounter any issues, please',
+    reportIssue: 'submit an Issue on GitHub',
+    desktopHint: 'For a more stable experience, consider using the desktop client',
+  },
+
   // Bad path warning
   badPath: {
     title: 'Wrong Location',

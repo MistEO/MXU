@@ -117,7 +117,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   const translations = interfaceTranslations[langKey];
 
   const instanceId = instance?.id || '';
-  const isPreActionControlledInstance = Boolean(instanceId) && preActionControlledInstanceId === instanceId;
+  const isPreActionControlledInstance =
+    Boolean(instanceId) && preActionControlledInstanceId === instanceId;
   const isStartStopRunning = Boolean(instance?.isRunning) || isPreActionControlledInstance;
 
   // 检查是否有保存的设备和资源配置（用于权限检查等）
@@ -242,10 +243,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       }
 
       // 检查是否正在运行
-      if (
-        targetInstance.isRunning ||
-        preActionControlledInstanceIdRef.current === targetId
-      ) {
+      if (targetInstance.isRunning || preActionControlledInstanceIdRef.current === targetId) {
         log.warn(`实例 ${targetInstance.name} 正在运行中`);
         return false;
       }

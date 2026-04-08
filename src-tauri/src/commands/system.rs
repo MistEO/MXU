@@ -2,13 +2,13 @@
 //!
 //! 提供权限检查、系统信息查询、全局选项设置等功能
 
-use super::types::SystemInfo;
 use super::types::MaaState;
+use super::types::SystemInfo;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
 use log::{info, warn};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::State;
 use tokio::time::sleep;
@@ -494,14 +494,19 @@ pub fn is_autostart() -> bool {
 
 /// 检查命令行是否包含 -h/--help 参数
 pub fn has_help_flag() -> bool {
-    std::env::args().skip(1).any(|arg| arg == "-h" || arg == "--help")
+    std::env::args()
+        .skip(1)
+        .any(|arg| arg == "-h" || arg == "--help")
 }
 
 /// 生成命令行帮助文本
 pub fn get_cli_help_text() -> String {
     let exe_name = std::env::current_exe()
         .ok()
-        .and_then(|path| path.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "mxu".to_string());
 

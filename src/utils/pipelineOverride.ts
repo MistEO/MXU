@@ -58,7 +58,10 @@ const collectOptionOverrides = (
     return;
   }
 
-  const optionValue = optionValues[optionKey] || createDefaultOptionValue(optionDef);
+  const savedValue = optionValues[optionKey];
+  const expectedType = optionDef.type || 'select';
+  const optionValue =
+    savedValue && savedValue.type === expectedType ? savedValue : createDefaultOptionValue(optionDef);
 
   if (optionValue.type === 'checkbox' && optionDef.type === 'checkbox') {
     // v2.3.0: checkbox 多选类型，按 cases 定义顺序合并所有选中的 case

@@ -983,15 +983,26 @@ export const useAppStore = create<AppState>()(
       // 获取当前 interface 中有效的 option 名称集合
       const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
 
-      // 清理 optionValues 中已删除的 option
+      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
       const cleanOptionValues = (
         optionValues: Record<string, OptionValue>,
       ): Record<string, OptionValue> => {
         const cleaned: Record<string, OptionValue> = {};
         for (const [key, value] of Object.entries(optionValues)) {
-          if (validOptionNames.has(key)) {
-            cleaned[key] = value;
+          if (!validOptionNames.has(key)) continue;
+
+          const optionDef = pi?.option?.[key];
+          if (optionDef) {
+            const expectedType = optionDef.type || 'select';
+            if (value.type !== expectedType) {
+              loggers.config.warn(
+                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+              );
+              continue;
+            }
           }
+
+          cleaned[key] = value;
         }
         return cleaned;
       };
@@ -1612,15 +1623,26 @@ export const useAppStore = create<AppState>()(
       const pi = state.projectInterface;
       const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
 
-      // 清理 optionValues 中已删除的 option
+      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
       const cleanOptionValues = (
         optionValues: Record<string, OptionValue>,
       ): Record<string, OptionValue> => {
         const cleaned: Record<string, OptionValue> = {};
         for (const [key, value] of Object.entries(optionValues)) {
-          if (validOptionNames.has(key)) {
-            cleaned[key] = value;
+          if (!validOptionNames.has(key)) continue;
+
+          const optionDef = pi?.option?.[key];
+          if (optionDef) {
+            const expectedType = optionDef.type || 'select';
+            if (value.type !== expectedType) {
+              loggers.config.warn(
+                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+              );
+              continue;
+            }
           }
+
+          cleaned[key] = value;
         }
         return cleaned;
       };

@@ -904,7 +904,11 @@ pub fn register_all_mxu_actions(
             } else {
                 "Unknown panic payload".to_string()
             };
-            log::error!("[MXU] Custom action {} panicked: {}", MXU_KILLPROC_ACTION, msg);
+            log::error!(
+                "[MXU] Custom action {} panicked: {}",
+                MXU_KILLPROC_ACTION,
+                msg
+            );
             false
         })
     };

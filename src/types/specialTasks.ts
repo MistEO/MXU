@@ -8,6 +8,7 @@ import type {
   SwitchOption,
   SelectOption,
   OptionDefinition,
+  SelectedTask,
 } from './interface';
 
 /**
@@ -67,6 +68,7 @@ export const MXU_NOTIFY_ACTION = 'MXU_NOTIFY_ACTION';
 export const MXU_KILLPROC_TASK_NAME = '__MXU_KILLPROC__';
 export const MXU_KILLPROC_ENTRY = 'MXU_KILLPROC';
 export const MXU_KILLPROC_ACTION = 'MXU_KILLPROC_ACTION';
+export const MXU_KILLPROC_SELF_OPTION = '__MXU_KILLPROC_SELF_OPTION__';
 
 // MXU_POWER 特殊任务常量
 export const MXU_POWER_TASK_NAME = '__MXU_POWER__';
@@ -658,6 +660,20 @@ export function findMxuOptionByKey(optionKey: string): OptionDefinition | undefi
     if (optionDef) return optionDef;
   }
   return undefined;
+}
+
+/**
+ * 判断“关闭程序”特殊任务当前是否处于“关闭自身”模式
+ */
+export function isMxuKillProcSelfMode(
+  selectedTask: Pick<SelectedTask, 'taskName' | 'optionValues'>,
+): boolean {
+  if (selectedTask.taskName !== MXU_KILLPROC_TASK_NAME) {
+    return false;
+  }
+
+  const selfOption = selectedTask.optionValues[MXU_KILLPROC_SELF_OPTION];
+  return selfOption?.type === 'switch' ? selfOption.value : false;
 }
 
 /**

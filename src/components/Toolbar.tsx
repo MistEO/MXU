@@ -15,7 +15,7 @@ import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
-import { getMxuSpecialTask } from '@/types/specialTasks';
+import { getMxuSpecialTask, isMxuKillProcSelfMode } from '@/types/specialTasks';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
@@ -32,6 +32,12 @@ import {
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { isTauri } from '@/utils/paths';
+import {
+  clearExitAfterTaskQueueSettled,
+  exitAppDirectly,
+  scheduleExitAfterTaskQueueSettled,
+  splitSelfClosingTasks,
+} from '@/services/uiTaskService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
@@ -238,6 +244,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return false;
       }
 
+      const firstSelfManagedTaskIndex = enabledTasks.findIndex((task) => isMxuKillProcSelfMode(task));
+      const tasksBeforeSelfManaged =
+        firstSelfManagedTaskIndex >= 0
+          ? enabledTasks.slice(0, firstSelfManagedTaskIndex)
+          : enabledTasks;
+      const shouldExitAfterQueue = firstSelfManagedTaskIndex >= 0;
+
+      if (shouldExitAfterQueue && tasksBeforeSelfManaged.length === 0) {
+        log.info(`实例 ${targetInstance.name}: 执行前端关闭自身任务`);
+        return await exitAppDirectly();
+      }
+
       // 检查是否正在运行
       if (targetInstance.isRunning || preActionControlledInstanceIdRef.current === targetId) {
         log.warn(`实例 ${targetInstance.name} 正在运行中`);
@@ -249,14 +267,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const resourceName = selectedResource[targetId] || projectInterface?.resource[0]?.name;
 
       // 过滤掉不兼容当前控制器/资源的任务
-      const compatibleTasks = enabledTasks.filter((t) => {
+      const compatibleTasks = tasksBeforeSelfManaged.filter((t) => {
         const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
         return isTaskCompatible(taskDef, controllerName, resourceName);
       });
 
       // 如果有任务因不兼容被跳过，记录警告
       const compatibleTaskIds = new Set(compatibleTasks.map((t) => t.id));
-      const skippedTasks = enabledTasks.filter((t) => !compatibleTaskIds.has(t.id));
+      const skippedTasks = tasksBeforeSelfManaged.filter((t) => !compatibleTaskIds.has(t.id));
       if (skippedTasks.length > 0) {
         log.warn(
           `实例 ${targetInstance.name}: ${t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
@@ -296,6 +314,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
       // 如果所有启用的任务都被过滤掉了，则无法启动
       if (compatibleTasks.length === 0) {
+        if (shouldExitAfterQueue) {
+          log.info(`实例 ${targetInstance.name}: 前置任务为空，直接执行关闭自身`);
+          return await exitAppDirectly();
+        }
         log.warn(`实例 ${targetInstance.name}: ${t('taskList.noCompatibleTasks')}`);
         // 向用户显示明确的错误信息
         addLog(targetId, {
@@ -916,8 +938,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         if (runnableTasks.length === 0) {
+          if (shouldExitAfterQueue) {
+            log.info(`实例 ${targetInstance.name}: 没有需要连接执行的任务，直接关闭自身`);
+            return await exitAppDirectly();
+          }
           log.warn(`实例 ${targetInstance.name}: 没有可执行的任务`);
           return false;
+        }
+
+        if (shouldExitAfterQueue) {
+          scheduleExitAfterTaskQueueSettled(targetId);
         }
 
         log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, runnableTasks.length);
@@ -1013,6 +1043,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
         return true;
       } catch (err) {
+        clearExitAfterTaskQueueSettled(targetId);
         log.error(`实例 ${targetInstance.name}: 任务启动异常:`, err);
 
         const errMsg = err instanceof Error ? err.message : String(err);

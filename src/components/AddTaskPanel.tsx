@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
+import { scheduleExitAfterTaskQueueSettled } from '@/services/uiTaskService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import { getInterfaceLangKey } from '@/i18n';
@@ -27,6 +28,7 @@ import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import {
   getAllMxuSpecialTasks,
+  isMxuKillProcSelfMode,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
 } from '@/types/specialTasks';
@@ -288,6 +290,12 @@ export function AddTaskPanel() {
 
         if (!addedTask) {
           log.warn(`无法找到刚添加的特殊任务: ${specialTask.taskName}`);
+          return;
+        }
+
+        if (isMxuKillProcSelfMode(addedTask)) {
+          log.info(`运行中追加关闭自身模式任务，将在当前队列结束后关闭自身`);
+          scheduleExitAfterTaskQueueSettled(instance.id);
           return;
         }
 

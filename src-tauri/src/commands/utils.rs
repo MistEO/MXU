@@ -53,7 +53,7 @@ pub fn emit_state_changed(app: &AppHandle, instance_id: &str, kind: &str) {
 /// 处理 MaaFramework 任务回调，在 Rust 侧更新 TaskRunState（单一真相来源）
 ///
 /// 应在 tasker sink 中调用，在 `emit_callback_event` 之前处理任务状态变更。
-/// 负责跟踪 Tasker.Task.Started / Succeeded / Failed，并在所有任务完成后
+/// 负责跟踪 Tasker.Task.Starting / Succeeded / Failed，并在所有任务完成后
 /// 更新 `overall_status` 并发射 `tasks-completed` 事件。
 pub fn handle_task_callback(
     maa_state: &Arc<MaaState>,
@@ -62,7 +62,7 @@ pub fn handle_task_callback(
     message: &str,
     details: &str,
 ) {
-    let is_started = message == "Tasker.Task.Started";
+    let is_started = message == "Tasker.Task.Starting";
     let is_succeeded = message == "Tasker.Task.Succeeded";
     let is_failed = message == "Tasker.Task.Failed";
 

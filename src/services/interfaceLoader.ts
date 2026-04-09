@@ -409,16 +409,17 @@ export async function autoLoadInterface(): Promise<LoadResult> {
       url: string,
       timeoutMs = 3000,
     ): Promise<InterfaceApiResult | null> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
         const resp = await fetch(url, { signal: controller.signal });
-        clearTimeout(timer);
         if (!resp.ok) return null;
         const result = (await resp.json()) as InterfaceApiResult;
         return result?.interface ? result : null;
       } catch {
         return null;
+      } finally {
+        clearTimeout(timer);
       }
     };
 

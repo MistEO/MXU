@@ -121,11 +121,12 @@ export async function saveConfig(
   if (!isTauri()) {
     // 浏览器环境：优先通过后端 HTTP API 持久化（多端一致性）
     try {
-      await apiPut<{ ok: boolean }>('/config', config);
       markSelfSave();
+      await apiPut<{ ok: boolean }>('/config', config);
       log.debug('配置已通过后端 API 保存');
       return true;
     } catch {
+      consumeSelfSave();
       // API 不可用，回退到 localStorage（离线/开发预览模式）
     }
 
@@ -178,10 +179,11 @@ export async function saveConfig(
 
     // 通知 Rust 后端更新内存缓存并广播 config-changed 给所有其他客户端
     try {
+      markSelfSave();
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('notify_config_changed', { config });
-      markSelfSave();
     } catch (err) {
+      consumeSelfSave();
       log.debug('notify_config_changed 调用失败（不影响保存）:', err);
     }
 

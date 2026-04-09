@@ -23,6 +23,14 @@ export function getApiBase(): string {
   return '/api';
 }
 
+/** 安全解析 JSON 响应，204 / 空 body 时返回 undefined */
+async function parseJsonSafe<T>(resp: Response): Promise<T> {
+  if (resp.status === 204) return undefined as T;
+  const text = await resp.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
 /**
  * 向后端 HTTP API 发送 GET 请求
  */
@@ -33,7 +41,7 @@ export async function apiGet<T>(path: string): Promise<T> {
     const text = await resp.text().catch(() => resp.statusText);
     throw new Error(`API GET ${path} failed (${resp.status}): ${text}`);
   }
-  return resp.json() as Promise<T>;
+  return parseJsonSafe<T>(resp);
 }
 
 /**
@@ -50,7 +58,7 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
     const text = await resp.text().catch(() => resp.statusText);
     throw new Error(`API PUT ${path} failed (${resp.status}): ${text}`);
   }
-  return resp.json() as Promise<T>;
+  return parseJsonSafe<T>(resp);
 }
 
 /**
@@ -67,7 +75,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     const text = await resp.text().catch(() => resp.statusText);
     throw new Error(`API POST ${path} failed (${resp.status}): ${text}`);
   }
-  return resp.json() as Promise<T>;
+  return parseJsonSafe<T>(resp);
 }
 
 /**

@@ -9,6 +9,12 @@ import { maaService, type MaaCallbackDetails } from '@/services/maaService';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
+import {
+  isAprilFools,
+  transformLogMessage,
+  generateFakeThinkingEntries,
+  incrementTokens,
+} from '@/utils/aprilFools';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import {
   resolveI18nText,
@@ -284,6 +290,41 @@ function getTaskDisplayName(
   return undefined;
 }
 
+function aprilFoolsAddLog(
+  instanceId: string,
+  entry: { type: LogType; message: string; html?: string },
+  addLog: (instanceId: string, log: { type: LogType; message: string; html?: string }) => void,
+): void {
+  const lang = i18n.language;
+  const transformed = transformLogMessage(entry.type, entry.message, lang);
+  if (transformed) {
+    addLog(instanceId, {
+      type: transformed.type ?? entry.type,
+      message: transformed.message,
+      html: entry.html,
+    });
+  } else {
+    addLog(instanceId, entry);
+  }
+  incrementTokens(30, 200);
+}
+
+function injectFakeThinking(
+  instanceId: string,
+  addLog: (instanceId: string, log: { type: LogType; message: string; html?: string }) => void,
+): void {
+  const entries = generateFakeThinkingEntries(i18n.language);
+  for (const entry of entries) {
+    setTimeout(() => {
+      addLog(instanceId, {
+        type: entry.type,
+        message: entry.message,
+        html: entry.html,
+      });
+    }, entry.delay);
+  }
+}
+
 function handleCallback(
   instanceId: string,
   message: string,
@@ -357,6 +398,12 @@ function handleCallback(
     return;
   }
 
+  const _aprilFools = isAprilFools();
+  const _addLog = _aprilFools
+    ? (id: string, entry: { type: LogType; message: string; html?: string }) =>
+        aprilFoolsAddLog(id, entry, addLog)
+    : addLog;
+
   // 处理各种消息类型
   switch (message) {
     // ==================== 控制器连接消息 ====================
@@ -372,7 +419,7 @@ function handleCallback(
         const ctrlType = registeredType || inferred.type;
         const targetText =
           ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'info',
           message: `${t('logs.messages.connecting', { target: targetText })} ${deviceName}`,
         });
@@ -390,7 +437,7 @@ function handleCallback(
         const ctrlType = registeredType || inferred.type;
         const targetText =
           ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'success',
           message: `${t('logs.messages.connected', { target: targetText })} ${deviceName}`,
         });
@@ -408,7 +455,7 @@ function handleCallback(
         const ctrlType = registeredType || inferred.type;
         const targetText =
           ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'error',
           message: `${t('logs.messages.connectFailed', { target: targetText })} ${deviceName}`,
         });
@@ -423,7 +470,7 @@ function handleCallback(
       const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
       const inferredName = inferResInfoFromInstance(instanceId);
       const resourceName = registeredName || inferredName;
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'info',
         message: t('logs.messages.loadingResource', {
           name: resourceName || details.path || '',
@@ -439,7 +486,7 @@ function handleCallback(
       const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
       const inferredName = inferResInfoFromInstance(instanceId);
       const resourceName = registeredName || inferredName;
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'success',
         message: t('logs.messages.resourceLoaded', { name: resourceName || details.path || '' }),
       });
@@ -450,7 +497,7 @@ function handleCallback(
       const registeredName = details.res_id !== undefined ? getResName(details.res_id) : undefined;
       const inferredName = inferResInfoFromInstance(instanceId);
       const resourceName = registeredName || inferredName;
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'error',
         message: t('logs.messages.resourceFailed', {
           name: `${resourceName} ${details.path}` || '',
@@ -463,7 +510,7 @@ function handleCallback(
     case 'Tasker.Task.Starting': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'info',
           message: t('logs.messages.taskStarting', { name: t('logs.messages.stopTask') }),
         });
@@ -471,26 +518,29 @@ function handleCallback(
       }
       // 使用改进的任务名查找逻辑，避免 entry 覆盖和竞态问题
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'info',
         message: t('logs.messages.taskStarting', {
           name: taskName || details.entry || '',
         }),
       });
+      if (_aprilFools) {
+        injectFakeThinking(instanceId, addLog);
+      }
       break;
     }
 
     case 'Tasker.Task.Succeeded': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'success',
           message: t('logs.messages.taskSucceeded', { name: t('logs.messages.stopTask') }),
         });
         break;
       }
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'success',
         message: t('logs.messages.taskSucceeded', {
           name: taskName || details.entry || '',
@@ -502,14 +552,14 @@ function handleCallback(
     case 'Tasker.Task.Failed': {
       // 特殊处理内部停止任务
       if (details.entry === 'MaaTaskerPostStop') {
-        addLog(instanceId, {
+        _addLog(instanceId, {
           type: 'error',
           message: t('logs.messages.taskFailed', { name: t('logs.messages.stopTask') }),
         });
         break;
       }
       const taskName = getTaskDisplayName(instanceId, details.task_id, details.entry);
-      addLog(instanceId, {
+      _addLog(instanceId, {
         type: 'error',
         message: t('logs.messages.taskFailed', {
           name: taskName || details.entry || '',

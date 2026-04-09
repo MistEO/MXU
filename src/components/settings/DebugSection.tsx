@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide-react';
+import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive, Sparkles } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -9,6 +9,7 @@ import { isTauri, getDebugDir, getConfigDir, openDirectory } from '@/utils/paths
 import { useExportLogs } from '@/utils/useExportLogs';
 import { SwitchButton } from '@/components/FormControls';
 import { ExportLogsModal } from './ExportLogsModal';
+import { getAprilFoolsOverride, setAprilFoolsOverride } from '@/utils/aprilFools';
 
 export function DebugSection() {
   const { t } = useTranslation();
@@ -35,6 +36,8 @@ export function DebugSection() {
     tauriVersion: string;
   } | null>(null);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
+
+  const [aprilFoolsEnabled, setAprilFoolsEnabled] = useState(() => getAprilFoolsOverride() === true);
 
   const version = projectInterface?.version || '0.1.0';
 
@@ -274,6 +277,26 @@ export function DebugSection() {
           </div>
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
         </div>
+
+        {/* 愚人节彩蛋（仅开发模式可见） */}
+        {devMode && (
+          <div className="flex items-center justify-between pt-4 border-t border-border">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">{t('debug.aprilFools')}</span>
+                <p className="text-xs text-text-muted mt-0.5">{t('debug.aprilFoolsHint')}</p>
+              </div>
+            </div>
+            <SwitchButton
+              value={aprilFoolsEnabled}
+              onChange={(v) => {
+                setAprilFoolsEnabled(v);
+                setAprilFoolsOverride(v || null);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 导出日志 Modal */}

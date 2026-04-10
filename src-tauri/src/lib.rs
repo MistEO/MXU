@@ -93,15 +93,25 @@ pub fn run() {
                 let ws_clone = ws_broadcast.clone();
                 let app_handle = app.handle().clone();
 
-                // 从已加载的配置中读取 allowLanAccess 设置
-                let allow_lan_access = app_config
+                let settings = app_config
                     .config
                     .lock()
-                    .unwrap()
-                    .get("settings")
+                    .unwrap();
+                let settings_obj = settings.get("settings");
+
+                let allow_lan_access = settings_obj
                     .and_then(|s| s.get("allowLanAccess"))
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+
+                let web_port = settings_obj
+                    .and_then(|s| s.get("webServerPort"))
+                    .and_then(|v| v.as_u64())
+                    .and_then(|v| u16::try_from(v).ok())
+                    .filter(|&p| p > 0)
+                    .unwrap_or(web_server::DEFAULT_PORT);
+
+                drop(settings);
 
                 tauri::async_runtime::spawn(async move {
                     web_server::start_web_server(
@@ -109,7 +119,7 @@ pub fn run() {
                         maa_clone,
                         app_handle,
                         ws_clone,
-                        web_server::DEFAULT_PORT,
+                        web_port,
                         allow_lan_access,
                     )
                     .await;

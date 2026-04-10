@@ -521,11 +521,13 @@ export default {
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+    webServerPort: 'Web 서버 포트',
+    webServerPortHint: 'Web 서버 수신 포트를 사용자 지정합니다 (기본값 12701, 재시작 필요)',
     allowLanAccess: 'LAN 접근 허용',
     allowLanAccessHint:
       '활성화하면 Web UI가 0.0.0.0에서 수신하여 LAN 내 다른 기기에서 접근할 수 있습니다',
-    allowLanAccessRestartMessage:
-      'LAN 접근 설정 변경을 적용하려면 재시작이 필요합니다. 지금 재시작하시겠습니까?',
+    webServerRestartMessage:
+      'Web 서버 설정 변경을 적용하려면 재시작이 필요합니다. 지금 재시작하시겠습니까?',
     restartLater: '나중에',
     restartNow: '지금 재시작',
     webServerAddress: 'Web 서버 주소',

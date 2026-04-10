@@ -1170,6 +1170,7 @@ export const useAppStore = create<AppState>()(
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
         allowLanAccess: config.settings.allowLanAccess ?? false,
+        webServerPort: config.settings.webServerPort ?? 12701,
         autoStartInstanceId: config.settings.autoStartInstanceId,
         autoRunOnLaunch: config.settings.autoRunOnLaunch ?? false,
         autoStartRemovedInstanceName: config.settings.autoStartRemovedInstanceName,
@@ -1542,6 +1543,10 @@ export const useAppStore = create<AppState>()(
     allowLanAccess: false,
     setAllowLanAccess: (enabled) => set({ allowLanAccess: enabled }),
 
+    // Web 服务器端口（默认 12701，需重启生效）
+    webServerPort: 12701,
+    setWebServerPort: (port) => set({ webServerPort: port }),
+
     // 是否为开机自启动模式
     isAutoStartMode: false,
     setIsAutoStartMode: (mode) => set({ isAutoStartMode: mode }),
@@ -1906,6 +1911,7 @@ function generateConfig(): MxuConfig {
           devMode: state.devMode,
           tcpCompatMode: state.tcpCompatMode,
           allowLanAccess: state.allowLanAccess,
+          webServerPort: state.webServerPort,
           autoStartInstanceId: state.autoStartInstanceId,
           autoRunOnLaunch: state.autoRunOnLaunch,
           autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
@@ -1976,6 +1982,7 @@ useAppStore.subscribe(
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
     allowLanAccess: state.allowLanAccess,
+    webServerPort: state.webServerPort,
     autoStartInstanceId: state.autoStartInstanceId,
     autoRunOnLaunch: state.autoRunOnLaunch,
     autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,

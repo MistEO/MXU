@@ -358,7 +358,9 @@ pub async fn start_web_server(
         // Phase 2: 默认端口不可用，尝试递增端口
         if result.is_none() {
             for offset in 1..MAX_PORT_ATTEMPTS {
-                let try_port = port + offset;
+                let Some(try_port) = port.checked_add(offset) else {
+                    break;
+                };
                 let addr = format!("{}:{}", bind_host, try_port);
                 match tokio::net::TcpListener::bind(&addr).await {
                     Ok(l) => {
@@ -400,7 +402,7 @@ pub async fn start_web_server(
             log::error!(
                 "Web server failed to bind on any port in range {}-{}",
                 port,
-                port + MAX_PORT_ATTEMPTS - 1
+                port.saturating_add(MAX_PORT_ATTEMPTS - 1)
             );
         }
     }

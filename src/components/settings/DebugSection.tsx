@@ -52,6 +52,10 @@ export function DebugSection() {
   const [lanIp, setLanIp] = useState<string | null>(null);
   const [showRestartPrompt, setShowRestartPrompt] = useState(false);
   const [portInput, setPortInput] = useState(String(configuredPort));
+
+  useEffect(() => {
+    setPortInput(String(configuredPort));
+  }, [configuredPort]);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   const version = projectInterface?.version || '0.1.0';

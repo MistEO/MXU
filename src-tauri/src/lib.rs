@@ -108,6 +108,7 @@ pub fn run() {
                     .and_then(|s| s.get("webServerPort"))
                     .and_then(|v| v.as_u64())
                     .and_then(|v| u16::try_from(v).ok())
+                    .filter(|&p| p > 0)
                     .unwrap_or(web_server::DEFAULT_PORT);
 
                 drop(settings);

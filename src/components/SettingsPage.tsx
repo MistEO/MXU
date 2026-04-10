@@ -141,6 +141,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isMobile) setDrawerOpen(false);
+  }, [isMobile]);
+
   // 滚动到指定 section
   const scrollToSection = useCallback(
     (sectionId: string) => {
@@ -199,6 +203,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             onClick={() => setDrawerOpen(true)}
             className="p-2 rounded-lg hover:bg-bg-hover transition-colors"
             title={t('settings.openNav')}
+            aria-label={t('settings.openNav')}
           >
             <Menu className="w-5 h-5 text-text-secondary" />
           </button>
@@ -264,6 +269,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   onClick={() => setDrawerOpen(false)}
                   className="p-1 rounded-md hover:bg-bg-hover transition-colors"
                   title={t('settings.closeNav')}
+                  aria-label={t('settings.closeNav')}
                 >
                   <X className="w-4 h-4 text-text-secondary" />
                 </button>

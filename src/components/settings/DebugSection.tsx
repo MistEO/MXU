@@ -9,6 +9,7 @@ import {
   Archive,
   Globe,
   ExternalLink,
+  Server,
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
@@ -32,6 +33,8 @@ export function DebugSection() {
     setTcpCompatMode,
     allowLanAccess,
     setAllowLanAccess,
+    webServerPort: configuredPort,
+    setWebServerPort: setConfiguredPort,
   } = useAppStore();
 
   const [mxuVersion, setMxuVersion] = useState<string | null>(null);
@@ -48,6 +51,7 @@ export function DebugSection() {
   const [webServerPort, setWebServerPort] = useState<number>(0);
   const [lanIp, setLanIp] = useState<string | null>(null);
   const [showRestartPrompt, setShowRestartPrompt] = useState(false);
+  const [portInput, setPortInput] = useState(String(configuredPort));
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   const version = projectInterface?.version || '0.1.0';
@@ -158,6 +162,20 @@ export function DebugSection() {
     },
     [setAllowLanAccess],
   );
+
+  const handlePortBlur = useCallback(() => {
+    const parsed = parseInt(portInput, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+      setPortInput(String(configuredPort));
+      return;
+    }
+    if (parsed !== configuredPort) {
+      setConfiguredPort(parsed);
+      if (isTauri()) {
+        setShowRestartPrompt(true);
+      }
+    }
+  }, [portInput, configuredPort, setConfiguredPort]);
 
   const handleRestart = useCallback(async () => {
     try {
@@ -343,6 +361,27 @@ export function DebugSection() {
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
         </div>
 
+        {/* Web 服务器端口 */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div className="flex items-center gap-3">
+            <Server className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">{t('debug.webServerPort')}</span>
+              <p className="text-xs text-text-muted mt-0.5">{t('debug.webServerPortHint')}</p>
+            </div>
+          </div>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={portInput}
+            onChange={(e) => setPortInput(e.target.value)}
+            onBlur={handlePortBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            className="w-24 px-2.5 py-1.5 text-sm font-mono text-right bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+
         {/* 允许局域网访问 */}
         <div className="pt-4 border-t border-border space-y-3">
           <div className="flex items-center justify-between">
@@ -360,7 +399,7 @@ export function DebugSection() {
           {showRestartPrompt && (
             <div className="flex items-center justify-between ml-8 p-2.5 bg-bg-tertiary rounded-lg text-sm">
               <span className="text-text-secondary">
-                {t('debug.allowLanAccessRestartMessage')}
+                {t('debug.webServerRestartMessage')}
               </span>
               <div className="flex items-center gap-2 ml-4 shrink-0">
                 <button

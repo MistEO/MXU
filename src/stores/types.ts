@@ -355,6 +355,10 @@ export interface AppState {
   allowLanAccess: boolean;
   setAllowLanAccess: (enabled: boolean) => void;
 
+  /** Web 服务器监听端口（默认 12701，重启生效） */
+  webServerPort: number;
+  setWebServerPort: (port: number) => void;
+
   // 托盘设置
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;

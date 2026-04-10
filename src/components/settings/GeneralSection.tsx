@@ -278,9 +278,7 @@ export function GeneralSection() {
                 <span className="font-medium text-text-primary">
                   {t('settings.minimizeToTray')}
                 </span>
-                <p className="text-xs text-text-muted mt-0.5">
-                  {t('settings.minimizeToTrayHint')}
-                </p>
+                <p className="text-xs text-text-muted mt-0.5">{t('settings.minimizeToTrayHint')}</p>
               </div>
             </div>
             <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />

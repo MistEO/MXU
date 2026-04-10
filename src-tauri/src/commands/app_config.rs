@@ -202,7 +202,13 @@ fn make_config_filename(project_name: Option<&str>) -> String {
         Some(name) => {
             let sanitized: String = name
                 .chars()
-                .map(|c| if c == '/' || c == '\\' || c == '.' || c == ':' { '_' } else { c })
+                .map(|c| {
+                    if c == '/' || c == '\\' || c == '.' || c == ':' {
+                        '_'
+                    } else {
+                        c
+                    }
+                })
                 .collect();
             format!("mxu-{}.json", sanitized)
         }

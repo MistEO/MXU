@@ -107,12 +107,8 @@ export function HotkeySection() {
             <div className="flex items-center gap-3">
               <Globe className="w-5 h-5 text-accent" />
               <div>
-                <span className="font-medium text-text-primary">
-                  {t('settings.hotkeysGlobal')}
-                </span>
-                <p className="text-xs text-text-muted mt-0.5">
-                  {t('settings.hotkeysGlobalHint')}
-                </p>
+                <span className="font-medium text-text-primary">{t('settings.hotkeysGlobal')}</span>
+                <p className="text-xs text-text-muted mt-0.5">{t('settings.hotkeysGlobalHint')}</p>
               </div>
             </div>
             <SwitchButton

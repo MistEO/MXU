@@ -319,7 +319,8 @@ pub async fn start_web_server(
         .allow_headers(Any);
 
     #[cfg(not(debug_assertions))]
-    let cors = CorsLayer::new().allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+    let cors =
+        CorsLayer::new().allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
 
     let app = app.layer(cors);
 
@@ -440,7 +441,10 @@ fn is_same_origin_ws_request(headers: &HeaderMap) -> bool {
     origin
         .parse::<axum::http::Uri>()
         .ok()
-        .and_then(|uri| uri.authority().map(|a| a.as_str().eq_ignore_ascii_case(host)))
+        .and_then(|uri| {
+            uri.authority()
+                .map(|a| a.as_str().eq_ignore_ascii_case(host))
+        })
         .unwrap_or(false)
 }
 
@@ -1153,10 +1157,7 @@ async fn handle_serve_local_file(
 
     match std::fs::read(&resolved) {
         Ok(data) => {
-            let ext = resolved
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("");
+            let ext = resolved.extension().and_then(|e| e.to_str()).unwrap_or("");
             let content_type = mime_from_extension(ext);
             (StatusCode::OK, [(header::CONTENT_TYPE, content_type)], data).into_response()
         }

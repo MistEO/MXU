@@ -25,7 +25,10 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
-import { startGlobalCallbackListener, waitForResResult } from '@/components/connection/callbackCache';
+import {
+  startGlobalCallbackListener,
+  waitForResResult,
+} from '@/components/connection/callbackCache';
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { isTauri } from '@/utils/paths';
@@ -1368,7 +1371,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   };
 
   return (
-    <div className={clsx('flex items-center justify-between px-3 py-2 bg-bg-secondary border-t border-border', className)}>
+    <div
+      className={clsx(
+        'flex items-center justify-between px-3 py-2 bg-bg-secondary border-t border-border',
+        className,
+      )}
+    >
       {/* 左侧工具按钮 */}
       <div className="flex items-center gap-1">
         {/* 全选/取消全选 */}

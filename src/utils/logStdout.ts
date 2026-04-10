@@ -69,4 +69,3 @@ export function clearLogsOnBackend(instanceId: string) {
     }
   });
 }
-

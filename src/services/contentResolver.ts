@@ -127,9 +127,7 @@ export async function readLocalTextFile(filename: string): Promise<string> {
   if (isTauri()) {
     return await invoke<string>('read_local_file', { filename });
   } else {
-    const response = await fetch(
-      `${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`,
-    );
+    const response = await fetch(`${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -145,9 +143,7 @@ export async function readLocalFileBase64(filename: string): Promise<string> {
     return await invoke<string>('read_local_file_base64', { filename });
   } else {
     // 浏览器环境：通过后端本地文件代理 API 获取并转换为 base64
-    const response = await fetch(
-      `${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`,
-    );
+    const response = await fetch(`${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }

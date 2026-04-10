@@ -118,13 +118,16 @@ export function patchWebUILayout(patch: Partial<WebUILayout>): void {
 let _backendAppearance: Partial<WebUIAppearance> = {};
 let _backendLayout: Partial<WebUILayout> = {};
 
-export function cacheBackendAppearance(settings: {
-  theme?: Theme;
-  accentColor?: AccentColor;
-  language?: Language;
-  backgroundImage?: string;
-  backgroundOpacity?: number;
-}, customAccents?: CustomAccent[]): void {
+export function cacheBackendAppearance(
+  settings: {
+    theme?: Theme;
+    accentColor?: AccentColor;
+    language?: Language;
+    backgroundImage?: string;
+    backgroundOpacity?: number;
+  },
+  customAccents?: CustomAccent[],
+): void {
   _backendAppearance = {
     theme: settings.theme as Theme,
     accentColor: settings.accentColor as AccentColor,

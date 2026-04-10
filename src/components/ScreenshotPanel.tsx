@@ -150,68 +150,68 @@ export function ScreenshotPanel() {
     let consecutiveFailures = 0;
 
     try {
-    while (streamingRef.current) {
-      // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
-      const currentActiveId = useAppStore.getState().activeInstanceId;
-      if (loopInstanceId !== currentActiveId) {
-        break;
-      }
-
-      // 检查连接状态
-      const connStatus = useAppStore.getState().instanceConnectionStatus[loopInstanceId];
-      if (connStatus !== 'Connected') {
-        setError('连接已断开');
-        break;
-      }
-
-      // 等待下一帧时间
-      const now = Date.now();
-      const sleepTime = nextFrameTime - now;
-      if (sleepTime > 0) {
-        await new Promise((resolve) => setTimeout(resolve, sleepTime));
-      }
-
-      // 计算下一帧时间
-      const frameInterval = frameIntervalRef.current;
-      if (frameInterval > 0) {
-        nextFrameTime += frameInterval;
-        if (nextFrameTime < Date.now()) {
-          nextFrameTime = Date.now() + frameInterval;
-        }
-      } else {
-        nextFrameTime = Date.now();
-      }
-
-      lastFrameTimeRef.current = Date.now();
-
-      try {
-        // 后端截图循环已统一驱动 post_screencap，前端只需读取最新缓存
-        const imageData = await captureFrame();
-
-        // 再次检查是否仍是活动实例，避免更新非活动 tab 的截图
-        if (
-          imageData &&
-          streamingRef.current &&
-          loopInstanceId === useAppStore.getState().activeInstanceId
-        ) {
-          setScreenshotUrl(imageData);
-          setError(null);
-          consecutiveFailures = 0;
-        }
-      } catch (err) {
-        consecutiveFailures++;
-        log.warn(`截图失败 (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`, err);
-
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          setError('截图连续失败，已停止');
+      while (streamingRef.current) {
+        // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
+        const currentActiveId = useAppStore.getState().activeInstanceId;
+        if (loopInstanceId !== currentActiveId) {
           break;
         }
-      }
-    }
 
-    // 循环结束
-    streamingRef.current = false;
-    setIsStreaming(false);
+        // 检查连接状态
+        const connStatus = useAppStore.getState().instanceConnectionStatus[loopInstanceId];
+        if (connStatus !== 'Connected') {
+          setError('连接已断开');
+          break;
+        }
+
+        // 等待下一帧时间
+        const now = Date.now();
+        const sleepTime = nextFrameTime - now;
+        if (sleepTime > 0) {
+          await new Promise((resolve) => setTimeout(resolve, sleepTime));
+        }
+
+        // 计算下一帧时间
+        const frameInterval = frameIntervalRef.current;
+        if (frameInterval > 0) {
+          nextFrameTime += frameInterval;
+          if (nextFrameTime < Date.now()) {
+            nextFrameTime = Date.now() + frameInterval;
+          }
+        } else {
+          nextFrameTime = Date.now();
+        }
+
+        lastFrameTimeRef.current = Date.now();
+
+        try {
+          // 后端截图循环已统一驱动 post_screencap，前端只需读取最新缓存
+          const imageData = await captureFrame();
+
+          // 再次检查是否仍是活动实例，避免更新非活动 tab 的截图
+          if (
+            imageData &&
+            streamingRef.current &&
+            loopInstanceId === useAppStore.getState().activeInstanceId
+          ) {
+            setScreenshotUrl(imageData);
+            setError(null);
+            consecutiveFailures = 0;
+          }
+        } catch (err) {
+          consecutiveFailures++;
+          log.warn(`截图失败 (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`, err);
+
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            setError('截图连续失败，已停止');
+            break;
+          }
+        }
+      }
+
+      // 循环结束
+      streamingRef.current = false;
+      setIsStreaming(false);
     } finally {
       loopRunningRef.current = false;
     }

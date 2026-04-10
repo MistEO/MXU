@@ -827,7 +827,8 @@ export default {
 
   // WebUI 베타 배너
   webuiBeta: {
-    message: 'Web UI는 현재 베타 버전입니다. 일부 기능이 불안정할 수 있습니다. 문제가 발생하면 GitHub에서',
+    message:
+      'Web UI는 현재 베타 버전입니다. 일부 기능이 불안정할 수 있습니다. 문제가 발생하면 GitHub에서',
     reportIssue: 'Issue를 제출',
     desktopHint: '보다 안정적인 환경을 원하시면 데스크톱 클라이언트를 사용해 주세요',
   },

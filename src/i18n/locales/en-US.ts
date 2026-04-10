@@ -834,7 +834,8 @@ export default {
 
   // WebUI beta banner
   webuiBeta: {
-    message: 'Web UI is currently in beta — some features may be unstable. If you encounter any issues, please',
+    message:
+      'Web UI is currently in beta — some features may be unstable. If you encounter any issues, please',
     reportIssue: 'submit an Issue on GitHub',
     desktopHint: 'For a more stable experience, consider using the desktop client',
   },

@@ -453,9 +453,12 @@ export const maaService = {
           pipelineOverride,
         })
       : (
-          await apiPost<{ success: boolean }>(`/maa/instances/${instanceId}/tasks/${taskId}/pipeline`, {
-            pipelineOverride,
-          })
+          await apiPost<{ success: boolean }>(
+            `/maa/instances/${instanceId}/tasks/${taskId}/pipeline`,
+            {
+              pipelineOverride,
+            },
+          )
         ).success;
     log.info('覆盖 Pipeline 结果:', success);
     return success;

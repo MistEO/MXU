@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useAppStore, flushConfig, flushSaveConfig, type DownloadProgress } from '@/stores/appStore';
+import {
+  useAppStore,
+  flushConfig,
+  flushSaveConfig,
+  type DownloadProgress,
+} from '@/stores/appStore';
 import {
   TitleBar,
   TabBar,
@@ -668,7 +673,6 @@ function App() {
       } catch (err) {
         log.warn('恢复运行日志失败:', err);
       }
-
 
       // 检查 MaaFramework 版本兼容性
       // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作

@@ -525,7 +525,8 @@ export default {
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
     webServerPort: 'Web サーバーポート',
-    webServerPortHint: 'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
+    webServerPortHint:
+      'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
     allowLanAccess: 'LAN アクセスを許可',
     allowLanAccessHint:
       '有効にすると Web UI が 0.0.0.0 でリッスンし、LAN 内の他のデバイスからアクセスできます',
@@ -833,7 +834,8 @@ export default {
 
   // WebUI ベータ版バナー
   webuiBeta: {
-    message: 'Web UI は現在ベータ版です。一部の機能が不安定な場合があります。問題が発生した場合は、GitHub で',
+    message:
+      'Web UI は現在ベータ版です。一部の機能が不安定な場合があります。問題が発生した場合は、GitHub で',
     reportIssue: 'Issue を報告',
     desktopHint: 'より安定した環境には、デスクトップ版をご利用ください',
   },

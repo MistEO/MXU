@@ -86,16 +86,17 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo, webview2DirResult, port, localIp] = await Promise.all([
-            invoke<string>('get_exe_dir'),
-            invoke<string>('get_cwd'),
-            invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
-              'get_system_info',
-            ),
-            invoke<{ path: string; system: boolean }>('get_webview2_dir'),
-            invoke<number>('get_web_server_port'),
-            invoke<string | null>('get_local_lan_ip'),
-          ]);
+          const [exeDirResult, cwdResult, sysInfo, webview2DirResult, port, localIp] =
+            await Promise.all([
+              invoke<string>('get_exe_dir'),
+              invoke<string>('get_cwd'),
+              invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
+                'get_system_info',
+              ),
+              invoke<{ path: string; system: boolean }>('get_webview2_dir'),
+              invoke<number>('get_web_server_port'),
+              invoke<string | null>('get_local_lan_ip'),
+            ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
           setWebview2Dir(webview2DirResult);
@@ -141,7 +142,7 @@ export function DebugSection() {
   const webServerAddress = (() => {
     if (!webServerPort) return null;
     if (allowLanAccess) {
-      const host = isTauri() ? (lanIp || 'localhost') : window.location.hostname;
+      const host = isTauri() ? lanIp || 'localhost' : window.location.hostname;
       return `http://${host}:${webServerPort}`;
     }
     return `http://localhost:${webServerPort}`;
@@ -381,7 +382,9 @@ export function DebugSection() {
             value={portInput}
             onChange={(e) => setPortInput(e.target.value)}
             onBlur={handlePortBlur}
-            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
             className="w-24 px-2.5 py-1.5 text-sm font-mono text-right bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
@@ -402,9 +405,7 @@ export function DebugSection() {
           {/* 重启提示 */}
           {showRestartPrompt && (
             <div className="flex items-center justify-between ml-8 p-2.5 bg-bg-tertiary rounded-lg text-sm">
-              <span className="text-text-secondary">
-                {t('debug.webServerRestartMessage')}
-              </span>
+              <span className="text-text-secondary">{t('debug.webServerRestartMessage')}</span>
               <div className="flex items-center gap-2 ml-4 shrink-0">
                 <button
                   onClick={() => setShowRestartPrompt(false)}

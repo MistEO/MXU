@@ -88,7 +88,6 @@ function forwardLogToStdout(message: string) {
   logToStdout(plain);
 }
 
-
 // 重新导出类型供外部使用
 export type {
   DownloadProgress,
@@ -1111,7 +1110,8 @@ export const useAppStore = create<AppState>()(
       const effectiveBgImage = localAppearance
         ? localAppearance.backgroundImage
         : config.settings.backgroundImage;
-      const effectiveBgOpacity = localAppearance?.backgroundOpacity ?? config.settings.backgroundOpacity ?? 50;
+      const effectiveBgOpacity =
+        localAppearance?.backgroundOpacity ?? config.settings.backgroundOpacity ?? 50;
       const effectiveCustomAccents = localAppearance?.customAccents ?? config.customAccents ?? [];
 
       // 加载自定义强调色
@@ -1158,14 +1158,24 @@ export const useAppStore = create<AppState>()(
           return saved;
         })(),
         proxySettings: config.settings.proxy,
-        showOptionPreview: localLayout?.showOptionPreview ?? config.settings.showOptionPreview ?? true,
-        sidePanelExpanded: localLayout?.sidePanelExpanded ?? config.settings.sidePanelExpanded ?? true,
+        showOptionPreview:
+          localLayout?.showOptionPreview ?? config.settings.showOptionPreview ?? true,
+        sidePanelExpanded:
+          localLayout?.sidePanelExpanded ?? config.settings.sidePanelExpanded ?? true,
         rightPanelWidth: localLayout?.rightPanelWidth ?? config.settings.rightPanelWidth ?? 320,
-        rightPanelCollapsed: localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? false,
-        addTaskPanelHeight: normalizeAddTaskPanelHeight(localLayout?.addTaskPanelHeight ?? config.settings.addTaskPanelHeight),
-        connectionPanelExpanded: localLayout?.connectionPanelExpanded ?? config.settings.connectionPanelExpanded ?? true,
-        screenshotPanelExpanded: localLayout?.screenshotPanelExpanded ?? config.settings.screenshotPanelExpanded ?? true,
-        screenshotFrameRate: localLayout?.screenshotFrameRate ?? config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
+        rightPanelCollapsed:
+          localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? false,
+        addTaskPanelHeight: normalizeAddTaskPanelHeight(
+          localLayout?.addTaskPanelHeight ?? config.settings.addTaskPanelHeight,
+        ),
+        connectionPanelExpanded:
+          localLayout?.connectionPanelExpanded ?? config.settings.connectionPanelExpanded ?? true,
+        screenshotPanelExpanded:
+          localLayout?.screenshotPanelExpanded ?? config.settings.screenshotPanelExpanded ?? true,
+        screenshotFrameRate:
+          localLayout?.screenshotFrameRate ??
+          config.settings.screenshotFrameRate ??
+          defaultScreenshotFrameRate,
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
@@ -1363,9 +1373,7 @@ export const useAppStore = create<AppState>()(
         const updatedInstances = currentState.instances.map((instance) => {
           const backendState = states.instances[instance.id];
           if (backendState) {
-            const isRunning = skipRunning
-              ? instance.isRunning
-              : backendState.isRunning;
+            const isRunning = skipRunning ? instance.isRunning : backendState.isRunning;
             return { ...instance, isRunning };
           }
           return instance;

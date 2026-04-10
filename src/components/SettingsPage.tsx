@@ -146,21 +146,18 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   }, [isMobile]);
 
   // 滚动到指定 section
-  const scrollToSection = useCallback(
-    (sectionId: string) => {
-      const element = document.getElementById(`section-${sectionId}`);
-      if (element && scrollContainerRef.current) {
-        const container = scrollContainerRef.current;
-        const elementTop = element.offsetTop - container.offsetTop;
-        container.scrollTo({
-          top: elementTop - 16,
-          behavior: 'smooth',
-        });
-      }
-      setDrawerOpen(false);
-    },
-    [],
-  );
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(`section-${sectionId}`);
+    if (element && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const elementTop = element.offsetTop - container.offsetTop;
+      container.scrollTo({
+        top: elementTop - 16,
+        behavior: 'smooth',
+      });
+    }
+    setDrawerOpen(false);
+  }, []);
 
   // 监听滚动，更新当前高亮的 section
   useEffect(() => {
@@ -264,7 +261,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               )}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold text-text-primary">{t('settings.title')}</span>
+                <span className="text-sm font-semibold text-text-primary">
+                  {t('settings.title')}
+                </span>
                 <button
                   onClick={() => setDrawerOpen(false)}
                   className="p-1 rounded-md hover:bg-bg-hover transition-colors"

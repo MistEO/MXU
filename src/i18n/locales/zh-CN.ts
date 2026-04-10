@@ -18,6 +18,7 @@ export default {
     info: '提示',
     resizeOrCollapse: '拖动调整宽度，向右拖动到底可折叠',
     copySuffix: '（副本）',
+    desktopOnly: '仅桌面端可用',
   },
 
   // 标题栏
@@ -513,6 +514,12 @@ export default {
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
     tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+    allowLanAccess: '允许局域网访问',
+    allowLanAccessHint: '启用后 Web UI 将监听 0.0.0.0，允许局域网内其他设备访问',
+    allowLanAccessRestartMessage: '更改局域网访问设置需要重启才能生效，是否立即重启？',
+    restartLater: '稍后重启',
+    restartNow: '立即重启',
+    webServerAddress: 'Web 服务地址',
   },
 
   // 欢迎弹窗
@@ -804,6 +811,20 @@ export default {
     stillFailed: '安装完成，但加载仍然失败。请重启电脑后再试。',
     restartHint: '如果问题仍然存在，请重启电脑后再试。',
     retry: '重试',
+  },
+
+  // 连接断开提示（WebUI 模式）
+  connectionLost: {
+    title: '连接已断开',
+    message: '与后端服务的连接已中断，正在尝试重新连接...',
+    reconnecting: '重连中...',
+  },
+
+  // WebUI 测试版横幅
+  webuiBeta: {
+    message: 'Web UI 当前为测试版本，部分功能可能不够稳定。如遇到问题，欢迎前往 GitHub',
+    reportIssue: '提交 Issue',
+    desktopHint: '如需更稳定的体验，建议使用桌面客户端',
   },
 
   // 程序路径问题提示

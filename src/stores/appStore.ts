@@ -24,6 +24,7 @@ import type {
   Instance,
   OptionDefinition,
   OptionValue,
+  ProjectInterface,
   SelectedTask,
 } from '@/types/interface';
 import type { ConnectionStatus, TaskStatus } from '@/types/maa';
@@ -34,7 +35,18 @@ import { findSwitchCase } from '@/utils/optionHelpers';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
-import { logToStdout } from '@/utils/logStdout';
+import { logToStdout, pushLogToBackend, clearLogsOnBackend } from '@/utils/logStdout';
+import {
+  loadWebUIAppearance,
+  patchWebUIAppearance,
+  cacheBackendAppearance,
+  getBackendAppearance,
+  loadWebUILayout,
+  patchWebUILayout,
+  cacheBackendLayout,
+  getBackendLayout,
+} from '@/services/appearanceStorage';
+import { isTauri } from '@/utils/paths';
 import {
   generateId,
   initializeAllOptionValues,
@@ -45,11 +57,37 @@ import {
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
+function cleanOptionValues(
+  optionValues: Record<string, OptionValue>,
+  pi: ProjectInterface | null,
+): Record<string, OptionValue> {
+  const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
+  const cleaned: Record<string, OptionValue> = {};
+  for (const [key, value] of Object.entries(optionValues)) {
+    if (!validOptionNames.has(key)) continue;
+
+    const optionDef = pi?.option?.[key];
+    if (optionDef) {
+      const expectedType = optionDef.type || 'select';
+      if (value.type !== expectedType) {
+        loggers.config.warn(
+          `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+        );
+        continue;
+      }
+    }
+
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
 function forwardLogToStdout(message: string) {
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
   logToStdout(plain);
 }
+
 
 // 重新导出类型供外部使用
 export type {
@@ -89,20 +127,29 @@ export const useAppStore = create<AppState>()(
       set({ theme });
       const mode = resolveThemeMode(theme);
       applyTheme(mode, get().accentColor);
+      if (!isTauri()) patchWebUIAppearance({ theme });
     },
     setAccentColor: (accent) => {
       set({ accentColor: accent });
       const { theme } = get();
       const mode = resolveThemeMode(theme);
       applyTheme(mode, accent);
+      if (!isTauri()) patchWebUIAppearance({ accentColor: accent });
     },
     setLanguage: (lang) => {
       set({ language: lang });
       setI18nLanguage(lang);
+      if (!isTauri()) patchWebUIAppearance({ language: lang });
     },
-    setBackgroundImage: (path) => set({ backgroundImage: path }),
-    setBackgroundOpacity: (opacity) =>
-      set({ backgroundOpacity: Math.max(0, Math.min(100, opacity)) }),
+    setBackgroundImage: (path) => {
+      set({ backgroundImage: path });
+      if (!isTauri()) patchWebUIAppearance({ backgroundImage: path });
+    },
+    setBackgroundOpacity: (opacity) => {
+      const clamped = Math.max(0, Math.min(100, opacity));
+      set({ backgroundOpacity: clamped });
+      if (!isTauri()) patchWebUIAppearance({ backgroundOpacity: clamped });
+    },
     setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
     setMaxLogsPerInstance: (value) =>
       set({
@@ -113,29 +160,28 @@ export const useAppStore = create<AppState>()(
         customAccents: [...state.customAccents, accent],
       }));
       registerCustomAccent(accent);
-      // 如果当前使用的是这个自定义强调色，重新应用主题
       const { theme, accentColor } = get();
       if (accentColor === accent.name) {
         const mode = resolveThemeMode(theme);
         applyTheme(mode, accent.name);
       }
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
     updateCustomAccent: (id, accent) => {
+      const oldAccent = get().customAccents.find((a) => a.id === id);
       set((state) => ({
         customAccents: state.customAccents.map((a) => (a.id === id ? accent : a)),
       }));
-      // 先移除旧的，再注册新的
-      const oldAccent = get().customAccents.find((a) => a.id === id);
       if (oldAccent) {
         unregisterCustomAccent(oldAccent.name);
       }
       registerCustomAccent(accent);
-      // 如果当前使用的是这个自定义强调色，重新应用主题
       const { theme, accentColor } = get();
       if (accentColor === accent.name) {
         const mode = resolveThemeMode(theme);
         applyTheme(mode, accent.name);
       }
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
     removeCustomAccent: (id) => {
       const accent = get().customAccents.find((a) => a.id === id);
@@ -144,14 +190,15 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           customAccents: state.customAccents.filter((a) => a.id !== id),
         }));
-        // 如果当前使用的是这个自定义强调色，切换到默认强调色
         const { theme, accentColor } = get();
         if (accentColor === accent.name) {
           const defaultAccent: AccentColor = 'emerald';
           set({ accentColor: defaultAccent });
           const mode = resolveThemeMode(theme);
           applyTheme(mode, defaultAccent);
+          if (!isTauri()) patchWebUIAppearance({ accentColor: defaultAccent });
         }
+        if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
       }
     },
     reorderCustomAccents: (oldIndex, newIndex) => {
@@ -164,6 +211,7 @@ export const useAppStore = create<AppState>()(
         next.splice(newIndex, 0, moved);
         return { customAccents: next };
       });
+      if (!isTauri()) patchWebUIAppearance({ customAccents: get().customAccents });
     },
 
     // 快捷键设置（默认：F10 开始任务，F11 结束任务）
@@ -910,6 +958,17 @@ export const useAppStore = create<AppState>()(
     importConfig: (config) => {
       const pi = get().projectInterface;
 
+      // 保留当前各实例/任务的运行时状态（纯 UI 状态，不随配置同步）
+      // 这样当其他客户端修改配置触发 importConfig 时，不会意外重置运行状态或折叠任务
+      const prevRunningByInstance = new Map<string, boolean>();
+      const prevExpandedByTask = new Map<string, boolean>();
+      for (const inst of get().instances) {
+        prevRunningByInstance.set(inst.id, inst.isRunning);
+        for (const t of inst.selectedTasks) {
+          prevExpandedByTask.set(t.id, t.expanded);
+        }
+      }
+
       // 获取保存时的任务快照，用于判断哪些是真正新增的任务
       const snapshotTaskNames = new Set(config.interfaceTaskSnapshot || []);
 
@@ -924,33 +983,6 @@ export const useAppStore = create<AppState>()(
           }
         });
       }
-
-      // 获取当前 interface 中有效的 option 名称集合
-      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
-
-      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
-      const cleanOptionValues = (
-        optionValues: Record<string, OptionValue>,
-      ): Record<string, OptionValue> => {
-        const cleaned: Record<string, OptionValue> = {};
-        for (const [key, value] of Object.entries(optionValues)) {
-          if (!validOptionNames.has(key)) continue;
-
-          const optionDef = pi?.option?.[key];
-          if (optionDef) {
-            const expectedType = optionDef.type || 'select';
-            if (value.type !== expectedType) {
-              loggers.config.warn(
-                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
-              );
-              continue;
-            }
-          }
-
-          cleaned[key] = value;
-        }
-        return cleaned;
-      };
 
       // 获取有效的任务名称集合（包含 interface 任务和 MXU 特殊任务）
       const validTaskNames = new Set([
@@ -982,12 +1014,12 @@ export const useAppStore = create<AppState>()(
                 customName: t.customName,
                 enabled: t.enabled,
                 optionValues: t.optionValues,
-                expanded: false,
+                expanded: prevExpandedByTask.get(t.id) ?? false,
               };
             }
 
             const taskDef = pi?.task.find((td) => td.name === t.taskName);
-            const cleanedValues = cleanOptionValues(t.optionValues);
+            const cleanedValues = cleanOptionValues(t.optionValues, pi);
             // 为缺失的 option 添加默认值（根据 default_case）
             const defaultValues =
               taskDef?.option && pi?.option
@@ -1004,7 +1036,7 @@ export const useAppStore = create<AppState>()(
               customName: t.customName,
               enabled: t.enabled,
               optionValues: mergedValues,
-              expanded: false,
+              expanded: prevExpandedByTask.get(t.id) ?? false,
             };
           });
 
@@ -1017,7 +1049,7 @@ export const useAppStore = create<AppState>()(
           resourceName: inst.resourceName,
           savedDevice: inst.savedDevice,
           selectedTasks: savedTasks,
-          isRunning: false,
+          isRunning: prevRunningByInstance.get(inst.id) ?? false,
           schedulePolicies: inst.schedulePolicies,
           preAction: inst.preAction,
         };
@@ -1061,14 +1093,30 @@ export const useAppStore = create<AppState>()(
         }
       });
 
-      const accentColor = (config.settings.accentColor as AccentColor) || 'deepsea';
+      const configAccentColor = (config.settings.accentColor as AccentColor) || 'deepsea';
+
+      // WebUI 模式下：缓存后端外观 & 布局设置，使用 localStorage 本地值
+      const isWebUI = !isTauri();
+      if (isWebUI) {
+        cacheBackendAppearance(config.settings, config.customAccents);
+        cacheBackendLayout(config.settings);
+      }
+
+      // 确定实际使用的外观设置
+      const localAppearance = isWebUI ? loadWebUIAppearance() : null;
+      const localLayout = isWebUI ? loadWebUILayout() : null;
+      const effectiveTheme = localAppearance?.theme ?? config.settings.theme;
+      const effectiveAccentColor = localAppearance?.accentColor ?? configAccentColor;
+      const effectiveLanguage = localAppearance?.language ?? config.settings.language;
+      const effectiveBgImage = localAppearance
+        ? localAppearance.backgroundImage
+        : config.settings.backgroundImage;
+      const effectiveBgOpacity = localAppearance?.backgroundOpacity ?? config.settings.backgroundOpacity ?? 50;
+      const effectiveCustomAccents = localAppearance?.customAccents ?? config.customAccents ?? [];
 
       // 加载自定义强调色
-      const customAccents = config.customAccents || [];
-      // 清除旧的自定义强调色
       clearCustomAccents();
-      // 注册新的自定义强调色
-      customAccents.forEach((accent: CustomAccent) => {
+      effectiveCustomAccents.forEach((accent: CustomAccent) => {
         registerCustomAccent(accent);
       });
 
@@ -1085,19 +1133,19 @@ export const useAppStore = create<AppState>()(
       set({
         instances,
         activeInstanceId,
-        theme: config.settings.theme,
-        accentColor,
-        language: config.settings.language,
-        backgroundImage: config.settings.backgroundImage,
-        backgroundOpacity: config.settings.backgroundOpacity ?? 50,
+        theme: effectiveTheme,
+        accentColor: effectiveAccentColor,
+        language: effectiveLanguage,
+        backgroundImage: effectiveBgImage,
+        backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
-        customAccents,
+        customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
         nextInstanceNumber: maxNumber + 1,
-        windowSize: config.settings.windowSize || defaultWindowSize,
-        windowPosition: config.settings.windowPosition,
+        windowSize: localLayout?.windowSize ?? config.settings.windowSize ?? defaultWindowSize,
+        windowPosition: localLayout ? localLayout.windowPosition : config.settings.windowPosition,
         mirrorChyanSettings: (() => {
           const saved = config.settings.mirrorChyan || defaultMirrorChyanSettings;
           const piName = get().projectInterface?.name;
@@ -1110,17 +1158,18 @@ export const useAppStore = create<AppState>()(
           return saved;
         })(),
         proxySettings: config.settings.proxy,
-        showOptionPreview: config.settings.showOptionPreview ?? true,
-        sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
-        rightPanelWidth: config.settings.rightPanelWidth ?? 320,
-        rightPanelCollapsed: config.settings.rightPanelCollapsed ?? false,
-        addTaskPanelHeight: normalizeAddTaskPanelHeight(config.settings.addTaskPanelHeight),
-        connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
-        screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
-        screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
+        showOptionPreview: localLayout?.showOptionPreview ?? config.settings.showOptionPreview ?? true,
+        sidePanelExpanded: localLayout?.sidePanelExpanded ?? config.settings.sidePanelExpanded ?? true,
+        rightPanelWidth: localLayout?.rightPanelWidth ?? config.settings.rightPanelWidth ?? 320,
+        rightPanelCollapsed: localLayout?.rightPanelCollapsed ?? config.settings.rightPanelCollapsed ?? false,
+        addTaskPanelHeight: normalizeAddTaskPanelHeight(localLayout?.addTaskPanelHeight ?? config.settings.addTaskPanelHeight),
+        connectionPanelExpanded: localLayout?.connectionPanelExpanded ?? config.settings.connectionPanelExpanded ?? true,
+        screenshotPanelExpanded: localLayout?.screenshotPanelExpanded ?? config.settings.screenshotPanelExpanded ?? true,
+        screenshotFrameRate: localLayout?.screenshotFrameRate ?? config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
         welcomeShownHash: config.settings.welcomeShownHash ?? '',
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
+        allowLanAccess: config.settings.allowLanAccess ?? false,
         autoStartInstanceId: config.settings.autoStartInstanceId,
         autoRunOnLaunch: config.settings.autoRunOnLaunch ?? false,
         autoStartRemovedInstanceName: config.settings.autoStartRemovedInstanceName,
@@ -1141,17 +1190,19 @@ export const useAppStore = create<AppState>()(
       });
 
       // 应用主题（包括强调色）
-      const theme = config.settings.theme;
-      const mode = resolveThemeMode(theme);
-      applyTheme(mode, accentColor);
-      setI18nLanguage(config.settings.language);
+      const mode = resolveThemeMode(effectiveTheme);
+      applyTheme(mode, effectiveAccentColor);
+      setI18nLanguage(effectiveLanguage);
 
-      // 同步托盘设置到后端
+      // 同步托盘设置到后端（仅 Tauri 环境）
       const minimizeToTray = config.settings.minimizeToTray ?? false;
       if (minimizeToTray) {
-        import('@tauri-apps/api/core').then(({ invoke }) => {
-          invoke('set_minimize_to_tray', { enabled: minimizeToTray }).catch((err) => {
-            loggers.app.error('同步托盘设置失败:', err);
+        import('@/utils/paths').then(({ isTauri }) => {
+          if (!isTauri()) return;
+          import('@tauri-apps/api/core').then(({ invoke }) => {
+            invoke('set_minimize_to_tray', { enabled: minimizeToTray }).catch((err) => {
+              loggers.app.error('同步托盘设置失败:', err);
+            });
           });
         });
       }
@@ -1291,25 +1342,30 @@ export const useAppStore = create<AppState>()(
     setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
     setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
 
-    // 从后端恢复 MAA 运行时状态
-    restoreBackendStates: (states) =>
+    // 从后端恢复 MAA 运行时状态（后端是单一真相来源）
+    // skipRunningState: 运行时 state-changed 事件（connected/resource-loading）调用时
+    // 为 true，避免过时的后端状态覆盖前端已设置的 isRunning（竞态：connect/resource 事件
+    // 的防抖 getAllStates 可能在前端 setIsRunning(true) 之后、后端 startTasks 完成之前
+    // 返回 false）。任务相关事件和初始化恢复时不传此选项，以后端为准。
+    restoreBackendStates: (states, options) =>
       set((currentState) => {
+        const skipRunning = options?.skipRunningState ?? false;
         const connectionStatus: Record<string, ConnectionStatus> = {};
         const resourceLoaded: Record<string, boolean> = {};
         const taskStatus: Record<string, TaskStatus | null> = {};
+        const instanceTaskRunStatus: Record<string, Record<string, TaskRunStatus>> = {};
+        const maaTaskIdMapping: Record<string, Record<number, string>> = {};
+        const instancePendingTaskIds: Record<string, number[]> = {};
+        const instanceCurrentTaskIndex: Record<string, number> = {};
 
         // 更新实例的 isRunning 状态
         const updatedInstances = currentState.instances.map((instance) => {
           const backendState = states.instances[instance.id];
           if (backendState) {
-            // 只有当后端有正在运行的任务时，才恢复 isRunning 状态
-            // taskIds 为空表示用户已停止任务（MaaTaskerPostStop 清空了
-            // task_ids， 但 MaaTaskerRunning 可能在回调完成前仍返回 true）
-            const isRunning = backendState.isRunning && backendState.taskIds.length > 0;
-            return {
-              ...instance,
-              isRunning,
-            };
+            const isRunning = skipRunning
+              ? instance.isRunning
+              : backendState.isRunning;
+            return { ...instance, isRunning };
           }
           return instance;
         });
@@ -1317,9 +1373,40 @@ export const useAppStore = create<AppState>()(
         for (const [instanceId, state] of Object.entries(states.instances)) {
           connectionStatus[instanceId] = state.connected ? 'Connected' : 'Disconnected';
           resourceLoaded[instanceId] = state.resourceLoaded;
-          // 同样检查 taskIds，避免显示错误的运行状态
-          if (state.isRunning && state.taskIds.length > 0) {
-            taskStatus[instanceId] = 'Running';
+
+          // 从后端 task_run_state 恢复任务运行状态
+          const trs = state.taskRunState;
+          if (trs) {
+            // 转换 statuses（string -> TaskRunStatus）
+            const statuses: Record<string, TaskRunStatus> = {};
+            for (const [k, v] of Object.entries(trs.statuses)) {
+              statuses[k] = v as TaskRunStatus;
+            }
+            instanceTaskRunStatus[instanceId] = statuses;
+
+            // 转换 mappings（string keys -> number keys）
+            const mappings: Record<number, string> = {};
+            for (const [k, v] of Object.entries(trs.mappings)) {
+              mappings[Number(k)] = v;
+            }
+            maaTaskIdMapping[instanceId] = mappings;
+
+            instancePendingTaskIds[instanceId] = trs.pendingTaskIds ?? [];
+            instanceCurrentTaskIndex[instanceId] = trs.currentTaskIndex ?? 0;
+
+            // 映射 overall_status → instanceTaskStatus
+            if (skipRunning) {
+              const existing = currentState.instanceTaskStatus[instanceId];
+              if (existing) {
+                taskStatus[instanceId] = existing;
+              }
+            } else if (state.isRunning) {
+              taskStatus[instanceId] = 'Running';
+            } else if (trs.overallStatus === 'Succeeded') {
+              taskStatus[instanceId] = 'Succeeded';
+            } else if (trs.overallStatus === 'Failed') {
+              taskStatus[instanceId] = 'Failed';
+            }
           }
         }
 
@@ -1328,6 +1415,10 @@ export const useAppStore = create<AppState>()(
           instanceConnectionStatus: connectionStatus,
           instanceResourceLoaded: resourceLoaded,
           instanceTaskStatus: taskStatus,
+          instanceTaskRunStatus,
+          maaTaskIdMapping,
+          instancePendingTaskIds,
+          instanceCurrentTaskIndex,
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
           cachedWlrootsSockets: states.cachedWlrootsSockets,
@@ -1346,25 +1437,46 @@ export const useAppStore = create<AppState>()(
 
     // 右侧面板折叠状态
     sidePanelExpanded: true,
-    setSidePanelExpanded: (expanded) => set({ sidePanelExpanded: expanded }),
-    toggleSidePanelExpanded: () =>
-      set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded })),
+    setSidePanelExpanded: (expanded) => {
+      set({ sidePanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ sidePanelExpanded: expanded });
+    },
+    toggleSidePanelExpanded: () => {
+      set((state) => ({ sidePanelExpanded: !state.sidePanelExpanded }));
+      if (!isTauri()) patchWebUILayout({ sidePanelExpanded: get().sidePanelExpanded });
+    },
 
     // 右侧面板宽度和折叠状态
     rightPanelWidth: 320,
     rightPanelCollapsed: false,
-    setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
-    setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
+    setRightPanelWidth: (width) => {
+      set({ rightPanelWidth: width });
+      if (!isTauri()) patchWebUILayout({ rightPanelWidth: width });
+    },
+    setRightPanelCollapsed: (collapsed) => {
+      set({ rightPanelCollapsed: collapsed });
+      if (!isTauri()) patchWebUILayout({ rightPanelCollapsed: collapsed });
+    },
 
     // 添加任务面板高度
     addTaskPanelHeight: defaultAddTaskPanelHeight,
-    setAddTaskPanelHeight: (height) => set({ addTaskPanelHeight: clampAddTaskPanelHeight(height) }),
+    setAddTaskPanelHeight: (height) => {
+      const clamped = clampAddTaskPanelHeight(height);
+      set({ addTaskPanelHeight: clamped });
+      if (!isTauri()) patchWebUILayout({ addTaskPanelHeight: clamped });
+    },
 
     // 卡片展开状态
     connectionPanelExpanded: true,
     screenshotPanelExpanded: true,
-    setConnectionPanelExpanded: (expanded) => set({ connectionPanelExpanded: expanded }),
-    setScreenshotPanelExpanded: (expanded) => set({ screenshotPanelExpanded: expanded }),
+    setConnectionPanelExpanded: (expanded) => {
+      set({ connectionPanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ connectionPanelExpanded: expanded });
+    },
+    setScreenshotPanelExpanded: (expanded) => {
+      set({ screenshotPanelExpanded: expanded });
+      if (!isTauri()) patchWebUILayout({ screenshotPanelExpanded: expanded });
+    },
 
     // 中控台视图模式
     dashboardView: false,
@@ -1373,11 +1485,17 @@ export const useAppStore = create<AppState>()(
 
     // 窗口大小
     windowSize: defaultWindowSize,
-    setWindowSize: (size) => set({ windowSize: size }),
+    setWindowSize: (size) => {
+      set({ windowSize: size });
+      if (!isTauri()) patchWebUILayout({ windowSize: size });
+    },
 
     // 窗口位置
     windowPosition: undefined,
-    setWindowPosition: (position) => set({ windowPosition: position }),
+    setWindowPosition: (position) => {
+      set({ windowPosition: position });
+      if (!isTauri()) patchWebUILayout({ windowPosition: position });
+    },
 
     // MirrorChyan 更新设置
     mirrorChyanSettings: defaultMirrorChyanSettings,
@@ -1396,11 +1514,17 @@ export const useAppStore = create<AppState>()(
 
     // 任务选项预览显示设置
     showOptionPreview: true,
-    setShowOptionPreview: (show) => set({ showOptionPreview: show }),
+    setShowOptionPreview: (show) => {
+      set({ showOptionPreview: show });
+      if (!isTauri()) patchWebUILayout({ showOptionPreview: show });
+    },
 
     // 实时截图帧率设置
     screenshotFrameRate: defaultScreenshotFrameRate,
-    setScreenshotFrameRate: (rate) => set({ screenshotFrameRate: rate }),
+    setScreenshotFrameRate: (rate) => {
+      set({ screenshotFrameRate: rate });
+      if (!isTauri()) patchWebUILayout({ screenshotFrameRate: rate });
+    },
 
     // Welcome 弹窗显示记录
     welcomeShownHash: '',
@@ -1413,6 +1537,10 @@ export const useAppStore = create<AppState>()(
     // 通信兼容模式
     tcpCompatMode: false,
     setTcpCompatMode: (enabled) => set({ tcpCompatMode: enabled }),
+
+    // 局域网访问（Web UI 绑定 0.0.0.0，需重启生效）
+    allowLanAccess: false,
+    setAllowLanAccess: (enabled) => set({ allowLanAccess: enabled }),
 
     // 是否为开机自启动模式
     isAutoStartMode: false,
@@ -1439,7 +1567,7 @@ export const useAppStore = create<AppState>()(
     minimizeToTray: false,
     setMinimizeToTray: async (enabled) => {
       set({ minimizeToTray: enabled });
-      // 同步到后端
+      if (!isTauri()) return;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('set_minimize_to_tray', { enabled });
@@ -1508,33 +1636,7 @@ export const useAppStore = create<AppState>()(
       const closedInstance = state.recentlyClosed.find((i) => i.id === id);
       if (!closedInstance) return null;
 
-      // 获取当前 interface 中有效的 option 名称集合
       const pi = state.projectInterface;
-      const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
-
-      // 清理 optionValues：移除已删除的 option，并校验类型是否与当前定义匹配
-      const cleanOptionValues = (
-        optionValues: Record<string, OptionValue>,
-      ): Record<string, OptionValue> => {
-        const cleaned: Record<string, OptionValue> = {};
-        for (const [key, value] of Object.entries(optionValues)) {
-          if (!validOptionNames.has(key)) continue;
-
-          const optionDef = pi?.option?.[key];
-          if (optionDef) {
-            const expectedType = optionDef.type || 'select';
-            if (value.type !== expectedType) {
-              loggers.config.warn(
-                `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
-              );
-              continue;
-            }
-          }
-
-          cleaned[key] = value;
-        }
-        return cleaned;
-      };
 
       const newId = generateId();
       const newInstance: Instance = {
@@ -1550,7 +1652,7 @@ export const useAppStore = create<AppState>()(
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
-          optionValues: cleanOptionValues(t.optionValues),
+          optionValues: cleanOptionValues(t.optionValues, pi),
           expanded: false,
         })),
         isRunning: false,
@@ -1586,66 +1688,30 @@ export const useAppStore = create<AppState>()(
 
     clearRecentlyClosed: () => set({ recentlyClosed: [] }),
 
-    // 任务运行状态
+    // 任务运行状态（只读缓存，由 restoreBackendStates 填充）
     instanceTaskRunStatus: {},
     maaTaskIdMapping: {},
-
-    setTaskRunStatus: (instanceId, selectedTaskId, status) =>
-      set((state) => ({
-        instanceTaskRunStatus: {
-          ...state.instanceTaskRunStatus,
-          [instanceId]: {
-            ...state.instanceTaskRunStatus[instanceId],
-            [selectedTaskId]: status,
-          },
-        },
-      })),
-
-    setAllTasksRunStatus: (instanceId, taskIds, status) =>
-      set((state) => {
-        const taskStatus: Record<string, TaskRunStatus> = {};
-        taskIds.forEach((id) => {
-          taskStatus[id] = status;
-        });
-        return {
-          instanceTaskRunStatus: {
-            ...state.instanceTaskRunStatus,
-            [instanceId]: taskStatus,
-          },
-        };
-      }),
-
-    registerMaaTaskMapping: (instanceId, maaTaskId, selectedTaskId) =>
-      set((state) => ({
-        maaTaskIdMapping: {
-          ...state.maaTaskIdMapping,
-          [instanceId]: {
-            ...state.maaTaskIdMapping[instanceId],
-            [maaTaskId]: selectedTaskId,
-          },
-        },
-      })),
+    instancePendingTaskIds: {},
+    instanceCurrentTaskIndex: {},
 
     findSelectedTaskIdByMaaTaskId: (instanceId, maaTaskId) => {
       const state = get();
       const mapping = state.maaTaskIdMapping[instanceId];
-      return mapping?.[maaTaskId] || null;
+      return mapping?.[maaTaskId] ?? null;
     },
 
     findMaaTaskIdBySelectedTaskId: (instanceId, selectedTaskId) => {
-      const state = get();
-      const mapping = state.maaTaskIdMapping[instanceId];
+      const mapping = get().maaTaskIdMapping[instanceId];
       if (!mapping) return null;
-      // 反向查找：遍历 mapping 找到 value 等于 selectedTaskId 的 key
       for (const [maaTaskIdStr, taskId] of Object.entries(mapping)) {
         if (taskId === selectedTaskId) {
-          return parseInt(maaTaskIdStr, 10);
+          return Number(maaTaskIdStr);
         }
       }
       return null;
     },
 
-    clearTaskRunStatus: (instanceId) =>
+    clearTaskRunStatus: (instanceId) => {
       set((state) => ({
         instanceTaskRunStatus: {
           ...state.instanceTaskRunStatus,
@@ -1655,46 +1721,6 @@ export const useAppStore = create<AppState>()(
           ...state.maaTaskIdMapping,
           [instanceId]: {},
         },
-      })),
-
-    // 运行中任务队列管理
-    instancePendingTaskIds: {},
-    instanceCurrentTaskIndex: {},
-
-    setPendingTaskIds: (instanceId, taskIds) =>
-      set((state) => ({
-        instancePendingTaskIds: {
-          ...state.instancePendingTaskIds,
-          [instanceId]: taskIds,
-        },
-      })),
-
-    appendPendingTaskId: (instanceId, taskId) =>
-      set((state) => ({
-        instancePendingTaskIds: {
-          ...state.instancePendingTaskIds,
-          [instanceId]: [...(state.instancePendingTaskIds[instanceId] || []), taskId],
-        },
-      })),
-
-    setCurrentTaskIndex: (instanceId, index) =>
-      set((state) => ({
-        instanceCurrentTaskIndex: {
-          ...state.instanceCurrentTaskIndex,
-          [instanceId]: index,
-        },
-      })),
-
-    advanceCurrentTaskIndex: (instanceId) =>
-      set((state) => ({
-        instanceCurrentTaskIndex: {
-          ...state.instanceCurrentTaskIndex,
-          [instanceId]: (state.instanceCurrentTaskIndex[instanceId] || 0) + 1,
-        },
-      })),
-
-    clearPendingTasks: (instanceId) =>
-      set((state) => ({
         instancePendingTaskIds: {
           ...state.instancePendingTaskIds,
           [instanceId]: [],
@@ -1703,7 +1729,8 @@ export const useAppStore = create<AppState>()(
           ...state.instanceCurrentTaskIndex,
           [instanceId]: 0,
         },
-      })),
+      }));
+    },
 
     // 定时执行状态
     scheduleExecutions: {},
@@ -1730,16 +1757,23 @@ export const useAppStore = create<AppState>()(
     addLog: (instanceId, log) =>
       set((state) => {
         const logs = state.instanceLogs[instanceId] || [];
+        const now = new Date();
         const newLog: LogEntry = {
           id: generateId(),
-          timestamp: new Date(),
+          timestamp: now,
           ...log,
         };
 
         forwardLogToStdout(log.message);
-        // 限制每个实例最多保留 N 条日志（超出丢弃最旧的）。
-        // 这里也做归一化，避免配置错误导致无限增长；与 UI
-        // 限制保持一致：[100, 10000]，默认 2000。
+
+        pushLogToBackend(instanceId, {
+          id: newLog.id,
+          timestamp: now.toISOString(),
+          type: newLog.type,
+          message: newLog.message,
+          html: newLog.html,
+        });
+
         const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
         const rawLimit = Number.isFinite(state.maxLogsPerInstance)
           ? state.maxLogsPerInstance
@@ -1754,13 +1788,15 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-    clearLogs: (instanceId) =>
+    clearLogs: (instanceId) => {
+      clearLogsOnBackend(instanceId);
       set((state) => ({
         instanceLogs: {
           ...state.instanceLogs,
           [instanceId]: [],
         },
-      })),
+      }));
+    },
 
     // 回调 ID 与名称的映射
     ctrlIdToName: {},
@@ -1812,6 +1848,8 @@ export const useAppStore = create<AppState>()(
   })),
 );
 
+const _isWebUI = !isTauri();
+
 // 生成配置用于保存
 function generateConfig(): MxuConfig {
   const state = useAppStore.getState();
@@ -1835,49 +1873,53 @@ function generateConfig(): MxuConfig {
       schedulePolicies: inst.schedulePolicies,
       preAction: inst.preAction,
     })),
-    settings: {
-      theme: state.theme,
-      accentColor: state.accentColor,
-      language: state.language,
-      backgroundImage: state.backgroundImage,
-      backgroundOpacity: state.backgroundOpacity,
-      confirmBeforeDelete: state.confirmBeforeDelete,
-      maxLogsPerInstance: state.maxLogsPerInstance,
-      windowSize: state.windowSize,
-      windowPosition: state.windowPosition,
-      mirrorChyan: {
-        ...state.mirrorChyanSettings,
-        cdk: '',
-        cdkEncrypted: encryptCdk(state.mirrorChyanSettings.cdk, state.projectInterface?.name),
-      },
-      proxy: state.proxySettings,
-      showOptionPreview: state.showOptionPreview,
-      sidePanelExpanded: state.sidePanelExpanded,
-      rightPanelWidth: state.rightPanelWidth,
-      rightPanelCollapsed: state.rightPanelCollapsed,
-      addTaskPanelHeight: state.addTaskPanelHeight,
-      connectionPanelExpanded: state.connectionPanelExpanded,
-      screenshotPanelExpanded: state.screenshotPanelExpanded,
-      screenshotFrameRate: state.screenshotFrameRate,
-      welcomeShownHash: state.welcomeShownHash,
-      devMode: state.devMode,
-      tcpCompatMode: state.tcpCompatMode,
-      autoStartInstanceId: state.autoStartInstanceId,
-      autoRunOnLaunch: state.autoRunOnLaunch,
-      autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
-      minimizeToTray: state.minimizeToTray,
-      onboardingCompleted: state.onboardingCompleted,
-      preActionConnectDelaySec: state.preActionConnectDelaySec,
-      hotkeys: state.hotkeys,
-    },
+    // WebUI 模式下保留后端原始的外观 & 布局设置，避免覆盖桌面端偏好
+    ...(() => {
+      const ba = _isWebUI ? getBackendAppearance() : undefined;
+      const bl = _isWebUI ? getBackendLayout() : undefined;
+      return {
+        settings: {
+          theme: ba?.theme ?? state.theme,
+          accentColor: ba?.accentColor ?? state.accentColor,
+          language: ba?.language ?? state.language,
+          backgroundImage: ba?.backgroundImage ?? state.backgroundImage,
+          backgroundOpacity: ba?.backgroundOpacity ?? state.backgroundOpacity,
+          confirmBeforeDelete: state.confirmBeforeDelete,
+          maxLogsPerInstance: state.maxLogsPerInstance,
+          windowSize: bl?.windowSize ?? state.windowSize,
+          windowPosition: bl?.windowPosition ?? state.windowPosition,
+          showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
+          sidePanelExpanded: bl?.sidePanelExpanded ?? state.sidePanelExpanded,
+          rightPanelWidth: bl?.rightPanelWidth ?? state.rightPanelWidth,
+          rightPanelCollapsed: bl?.rightPanelCollapsed ?? state.rightPanelCollapsed,
+          addTaskPanelHeight: bl?.addTaskPanelHeight ?? state.addTaskPanelHeight,
+          connectionPanelExpanded: bl?.connectionPanelExpanded ?? state.connectionPanelExpanded,
+          screenshotPanelExpanded: bl?.screenshotPanelExpanded ?? state.screenshotPanelExpanded,
+          screenshotFrameRate: bl?.screenshotFrameRate ?? state.screenshotFrameRate,
+          mirrorChyan: {
+            ...state.mirrorChyanSettings,
+            cdk: '',
+            cdkEncrypted: encryptCdk(state.mirrorChyanSettings.cdk, state.projectInterface?.name),
+          },
+          proxy: state.proxySettings,
+          welcomeShownHash: state.welcomeShownHash,
+          devMode: state.devMode,
+          tcpCompatMode: state.tcpCompatMode,
+          allowLanAccess: state.allowLanAccess,
+          autoStartInstanceId: state.autoStartInstanceId,
+          autoRunOnLaunch: state.autoRunOnLaunch,
+          autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
+          minimizeToTray: state.minimizeToTray,
+          onboardingCompleted: state.onboardingCompleted,
+          preActionConnectDelaySec: state.preActionConnectDelaySec,
+          hotkeys: state.hotkeys,
+        },
+        customAccents: ba?.customAccents ?? state.customAccents,
+      };
+    })(),
     recentlyClosed: state.recentlyClosed,
-    // 保存当前 interface.json 的任务名列表快照，用于下次加载时检测新增任务
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
-    // 保存用户尚未查看的新增任务
     newTaskNames: state.newTaskNames,
-    // 保存自定义强调色
-    customAccents: state.customAccents,
-    // 保存最后激活的实例 ID
     lastActiveInstanceId: state.activeInstanceId || undefined,
     // 保存预设初始化标记
     presetInitialized: state.presetInitialized || undefined,
@@ -1905,30 +1947,35 @@ function debouncedSaveConfig() {
 }
 
 // 订阅需要保存的状态变化
+// WebUI 模式下外观 & 布局字段已独立存 localStorage，不参与 config 保存订阅
 useAppStore.subscribe(
   (state) => ({
     instances: state.instances,
     activeInstanceId: state.activeInstanceId,
-    theme: state.theme,
-    accentColor: state.accentColor,
-    language: state.language,
+    ...(!_isWebUI && {
+      theme: state.theme,
+      accentColor: state.accentColor,
+      language: state.language,
+      customAccents: state.customAccents,
+      windowSize: state.windowSize,
+      windowPosition: state.windowPosition,
+      showOptionPreview: state.showOptionPreview,
+      sidePanelExpanded: state.sidePanelExpanded,
+      rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
+      addTaskPanelHeight: state.addTaskPanelHeight,
+      connectionPanelExpanded: state.connectionPanelExpanded,
+      screenshotPanelExpanded: state.screenshotPanelExpanded,
+      screenshotFrameRate: state.screenshotFrameRate,
+    }),
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
-    windowSize: state.windowSize,
-    windowPosition: state.windowPosition,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
-    showOptionPreview: state.showOptionPreview,
-    sidePanelExpanded: state.sidePanelExpanded,
-    rightPanelWidth: state.rightPanelWidth,
-    rightPanelCollapsed: state.rightPanelCollapsed,
-    addTaskPanelHeight: state.addTaskPanelHeight,
-    connectionPanelExpanded: state.connectionPanelExpanded,
-    screenshotPanelExpanded: state.screenshotPanelExpanded,
-    screenshotFrameRate: state.screenshotFrameRate,
     welcomeShownHash: state.welcomeShownHash,
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
+    allowLanAccess: state.allowLanAccess,
     autoStartInstanceId: state.autoStartInstanceId,
     autoRunOnLaunch: state.autoRunOnLaunch,
     autoStartRemovedInstanceName: state.autoStartRemovedInstanceName,
@@ -1937,7 +1984,6 @@ useAppStore.subscribe(
     hotkeys: state.hotkeys,
     recentlyClosed: state.recentlyClosed,
     newTaskNames: state.newTaskNames,
-    customAccents: state.customAccents,
     presetInitialized: state.presetInitialized,
   }),
   () => {
@@ -1945,3 +1991,32 @@ useAppStore.subscribe(
   },
   { equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
 );
+
+/**
+ * 立即将当前状态序列化为 MxuConfig（不触发防抖保存）。
+ * 供 beforeunload 等需要同步获取快照的场景使用。
+ * 返回 null 表示当前状态不满足保存条件。
+ */
+export function flushConfig(): MxuConfig | null {
+  const state = useAppStore.getState();
+  if (!state.configPersistenceReady) return null;
+  if (!state.projectInterface?.name) return null;
+  return generateConfig();
+}
+
+/**
+ * 取消待执行的防抖保存并立即执行一次保存。
+ * 供 beforeunload 等需要确保最新状态落盘的场景使用。
+ */
+export function flushSaveConfig(): void {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  const state = useAppStore.getState();
+  if (!state.configPersistenceReady) return;
+  if (!state.projectInterface?.name || !state.dataPath || state.dataPath === '.') return;
+  const config = generateConfig();
+  const projectName = state.projectInterface.name;
+  saveConfig(state.dataPath, config, projectName);
+}

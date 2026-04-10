@@ -12,7 +12,8 @@ import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cachedFetch } from './cacheService';
-import { isTauri } from '@/utils/paths';
+import { isTauri, joinPath } from '@/utils/paths';
+import { getApiBase } from '@/utils/backendApi';
 
 const log = loggers.app;
 
@@ -89,16 +90,17 @@ function normalizeFilePath(filePath: string): string {
 /**
  * 从文件路径加载文本内容
  */
-async function loadFromFile(filePath: string, basePath: string): Promise<string> {
+async function loadFromFile(filePath: string, _basePath: string): Promise<string> {
   const normalizedPath = normalizeFilePath(filePath);
 
   if (isTauri()) {
     // Tauri 环境：使用 Rust 命令读取 exe 同目录的文件
     return await invoke<string>('read_local_file', { filename: normalizedPath });
   } else {
-    // 浏览器环境：使用 HTTP 请求
-    const fullPath = basePath ? `${basePath}/${normalizedPath}` : `/${normalizedPath}`;
-    const response = await fetch(fullPath);
+    // 浏览器环境：通过后端本地文件代理 API 读取
+    const response = await fetch(
+      `${getApiBase()}/local-file?path=${encodeURIComponent(normalizedPath)}`,
+    );
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -125,7 +127,9 @@ export async function readLocalTextFile(filename: string): Promise<string> {
   if (isTauri()) {
     return await invoke<string>('read_local_file', { filename });
   } else {
-    const response = await fetch(`/${filename}`);
+    const response = await fetch(
+      `${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`,
+    );
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -140,8 +144,10 @@ export async function readLocalFileBase64(filename: string): Promise<string> {
   if (isTauri()) {
     return await invoke<string>('read_local_file_base64', { filename });
   } else {
-    // 浏览器环境：通过 fetch 获取并转换为 base64
-    const response = await fetch(`/${filename}`);
+    // 浏览器环境：通过后端本地文件代理 API 获取并转换为 base64
+    const response = await fetch(
+      `${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`,
+    );
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -150,7 +156,6 @@ export async function readLocalFileBase64(filename: string): Promise<string> {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        // 移除 data URL 前缀，只返回 base64 部分
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -168,7 +173,10 @@ export async function localFileExists(filename: string): Promise<boolean> {
     return await invoke<boolean>('local_file_exists', { filename });
   } else {
     try {
-      const response = await fetch(`/${filename}`, { method: 'HEAD' });
+      const response = await fetch(
+        `${getApiBase()}/local-file?path=${encodeURIComponent(filename)}`,
+        { method: 'HEAD' },
+      );
       return response.ok;
     } catch {
       return false;
@@ -320,7 +328,7 @@ export async function resolveDescriptionContent(
  */
 export function resolveIconPath(
   iconPath: string | undefined,
-  basePath: string,
+  _basePath: string,
   translations?: Record<string, string>,
 ): string | undefined {
   if (!iconPath) return undefined;
@@ -336,22 +344,12 @@ export function resolveIconPath(
   // 规范化路径
   resolved = normalizeFilePath(resolved);
 
-  // 浏览器环境：构建 HTTP 路径
+  // 浏览器环境：通过后端本地文件代理 API 访问
   if (!isTauri()) {
-    if (!resolved.startsWith('/')) {
-      resolved = basePath ? `${basePath}/${resolved}` : `/${resolved}`;
-    }
+    resolved = `${getApiBase()}/local-file?path=${encodeURIComponent(resolved)}`;
   }
 
   return resolved;
-}
-
-/**
- * 拼接路径（处理空 basePath 的情况）
- */
-function joinPath(basePath: string, relativePath: string): string {
-  if (!basePath) return relativePath;
-  return `${basePath}/${relativePath}`;
 }
 
 /**
@@ -389,8 +387,8 @@ export async function loadIconAsDataUrl(
       const mimeType = getMimeType(ext);
       return `data:${mimeType};base64,${base64}`;
     } else {
-      // 浏览器环境：直接返回 HTTP 路径
-      return `/${fullPath}`;
+      // 浏览器环境：通过后端本地文件代理 API 访问
+      return `${getApiBase()}/local-file?path=${encodeURIComponent(fullPath)}`;
     }
   } catch (err) {
     log.warn(`加载图标失败 [${fullPath}]:`, err);

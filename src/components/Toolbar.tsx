@@ -25,10 +25,10 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
 import { ScheduleButton } from './toolbar/ScheduleButton';
-import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
-import { cancelTaskQueueMonitor, startTaskQueueMonitor } from '@/services/taskMonitor';
+import { startGlobalCallbackListener, waitForResResult } from '@/components/connection/callbackCache';
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
+import { isTauri } from '@/utils/paths';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
@@ -59,13 +59,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
     setInstanceResourceLoaded,
     selectedController,
     selectedResource,
-    // 任务运行状态管理
-    setAllTasksRunStatus,
-    registerMaaTaskMapping,
-    clearTaskRunStatus,
-    // 任务队列管理
-    setPendingTaskIds,
-    clearPendingTasks,
     // 定时执行状态
     scheduleExecutions,
     setScheduleExecution,
@@ -886,26 +879,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             registerResIdName(resId, resDisplayName);
           });
 
-          // 等待资源加载完成
-          const loadResult = await new Promise<boolean>((resolve) => {
-            const timeout = setTimeout(() => resolve(false), 60000);
-            let remaining = new Set(resIds);
-
-            maaService.onCallback((message, details) => {
-              if (details.res_id === undefined || !remaining.has(details.res_id)) return;
-              if (message === 'Resource.Loading.Succeeded') {
-                remaining.delete(details.res_id);
-                if (remaining.size === 0) {
-                  clearTimeout(timeout);
-                  setInstanceResourceLoaded(targetId, true);
-                  resolve(true);
-                }
-              } else if (message === 'Resource.Loading.Failed') {
-                clearTimeout(timeout);
-                resolve(false);
-              }
-            });
-          });
+          // 等待资源加载完成（通过 callbackCache 缓存机制，避免竞态丢失回调）
+          const results = await Promise.all(resIds.map((resId) => waitForResResult(resId, 60000)));
+          const loadResult = results.every((r) => r === 'succeeded');
+          if (loadResult) {
+            setInstanceResourceLoaded(targetId, true);
+          }
 
           if (!loadResult) {
             log.warn(`实例 ${targetInstance.name}: 资源加载失败`);
@@ -963,6 +942,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
                 controllerName,
                 resourceName,
               ),
+              // 传递 selectedTaskId，后端用于建立 maaTaskId -> selectedTaskId 映射
+              selected_task_id: selectedTask.id,
             };
           },
         );
@@ -1009,19 +990,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);
 
-        // 初始化任务运行状态（使用 runnableTasks 确保索引对齐）
-        const runnableTaskIds = runnableTasks.map((rt) => rt.selectedTask.id);
-        setAllTasksRunStatus(targetId, runnableTaskIds, 'pending');
-
-        // 开始任务时折叠所有任务
-        collapseAllTasks(targetId, false);
-
-        // 记录映射关系，并注册 task_id 与任务名的映射用于日志显示
+        // 注册 task_id 与任务名的映射（用于日志显示），后端管理状态
         taskIds.forEach((maaTaskId, index) => {
           const runnable = runnableTasks[index];
           if (runnable) {
             const { selectedTask, taskDef, specialTask } = runnable;
-            registerMaaTaskMapping(targetId, maaTaskId, selectedTask.id);
             // 注册 task_id 与任务名的映射（使用自定义名称或 label）
             // MXU 特殊任务的 label 需要用 t() 翻译
             const taskDisplayName =
@@ -1034,9 +1007,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
           }
         });
 
-        // 设置任务队列
-        setPendingTaskIds(targetId, taskIds);
-        startTaskQueueMonitor(targetId);
+        // 开始任务时折叠所有任务
+        collapseAllTasks(targetId, false);
 
         return true;
       } catch (err) {
@@ -1076,10 +1048,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
         updateInstance(targetId, { isRunning: false });
         setInstanceTaskStatus(targetId, cancelled ? null : 'Failed');
         setInstanceCurrentTaskId(targetId, null);
-        clearTaskRunStatus(targetId);
-        clearPendingTasks(targetId);
         clearScheduleExecution(targetId);
-        cancelTaskQueueMonitor(targetId);
         if (cancelled) {
           lastStartCancelledRef.current = true;
           setIsStopping(false);
@@ -1100,11 +1069,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       updateInstance,
       setInstanceTaskStatus,
       setInstanceCurrentTaskId,
-      setAllTasksRunStatus,
-      registerMaaTaskMapping,
-      setPendingTaskIds,
-      clearTaskRunStatus,
-      clearPendingTasks,
       setScheduleExecution,
       clearScheduleExecution,
       setShowAddTaskPanel,
@@ -1128,6 +1092,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   tRef.current = t;
 
   useEffect(() => {
+    if (!isTauri()) return;
+
     scheduleService.setTriggerCallback(async (inst, policyName, slotLabel, isCompensation) => {
       const currentT = tRef.current;
       const currentAddLog = addLogRef.current;

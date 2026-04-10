@@ -17,6 +17,7 @@ export default {
     info: '提示',
     resizeOrCollapse: '拖動調整寬度，向右拖動到底可摺疊',
     copySuffix: '（副本）',
+    desktopOnly: '僅桌面端可用',
   },
 
   // 標題列
@@ -509,6 +510,12 @@ export default {
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
     tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+    allowLanAccess: '允許區域網路存取',
+    allowLanAccessHint: '啟用後 Web UI 將監聽 0.0.0.0，允許區域網路內其他裝置存取',
+    allowLanAccessRestartMessage: '變更區域網路存取設定需要重啟才能生效，是否立即重啟？',
+    restartLater: '稍後重啟',
+    restartNow: '立即重啟',
+    webServerAddress: 'Web 服務地址',
   },
 
   // 欢迎彈窗
@@ -789,6 +796,20 @@ export default {
     stillFailed: '安裝完成，但載入仍然失敗。請重啟電腦後再試。',
     restartHint: '如果問題仍然存在，請重啟電腦後再試。',
     retry: '重試',
+  },
+
+  // 連線中斷提示（WebUI 模式）
+  connectionLost: {
+    title: '連線已中斷',
+    message: '與後端服務的連線已中斷，正在嘗試重新連線...',
+    reconnecting: '重連中...',
+  },
+
+  // WebUI 測試版橫幅
+  webuiBeta: {
+    message: 'Web UI 目前為測試版本，部分功能可能不夠穩定。如遇到問題，歡迎前往 GitHub',
+    reportIssue: '提交 Issue',
+    desktopHint: '如需更穩定的體驗，建議使用桌面用戶端',
   },
 
   // 程式路徑問題提示

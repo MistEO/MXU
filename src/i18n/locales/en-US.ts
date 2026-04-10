@@ -18,6 +18,7 @@ export default {
     info: 'Info',
     resizeOrCollapse: 'Drag to resize, drag to the right edge to collapse',
     copySuffix: ' (Copy)',
+    desktopOnly: 'Desktop only',
   },
 
   // Title bar
@@ -526,6 +527,14 @@ export default {
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+    allowLanAccess: 'Allow LAN Access',
+    allowLanAccessHint:
+      'When enabled, Web UI listens on 0.0.0.0, allowing other devices on the local network to access it',
+    allowLanAccessRestartMessage:
+      'Changing LAN access settings requires a restart to take effect. Restart now?',
+    restartLater: 'Later',
+    restartNow: 'Restart Now',
+    webServerAddress: 'Web Server Address',
   },
 
   // Welcome dialog
@@ -810,6 +819,20 @@ export default {
       'Installation complete, but loading still failed. Please restart your computer and try again.',
     restartHint: 'If the problem persists, please restart your computer and try again.',
     retry: 'Retry',
+  },
+
+  // Connection lost (WebUI mode)
+  connectionLost: {
+    title: 'Connection Lost',
+    message: 'The connection to the backend has been lost. Attempting to reconnect...',
+    reconnecting: 'Reconnecting...',
+  },
+
+  // WebUI beta banner
+  webuiBeta: {
+    message: 'Web UI is currently in beta — some features may be unstable. If you encounter any issues, please',
+    reportIssue: 'submit an Issue on GitHub',
+    desktopHint: 'For a more stable experience, consider using the desktop client',
   },
 
   // Bad path warning

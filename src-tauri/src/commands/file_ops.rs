@@ -238,7 +238,7 @@ fn is_image_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
+pub fn resolve_local_file_path(filename: &str) -> Result<PathBuf, String> {
     let exe_dir = get_exe_directory()?;
     let file_path = normalize_path(&exe_dir.join(filename).to_string_lossy());
     // 防止路径穿越，确保仍在 exe 目录下

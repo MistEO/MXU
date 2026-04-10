@@ -17,6 +17,7 @@ export default {
     info: '알림',
     resizeOrCollapse: '드래그하여 너비 조정, 오른쪽 끝까지 드래그하면 접기',
     copySuffix: ' (복사)',
+    desktopOnly: '데스크톱 전용',
   },
 
   // 타이틀바
@@ -520,6 +521,14 @@ export default {
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+    allowLanAccess: 'LAN 접근 허용',
+    allowLanAccessHint:
+      '활성화하면 Web UI가 0.0.0.0에서 수신하여 LAN 내 다른 기기에서 접근할 수 있습니다',
+    allowLanAccessRestartMessage:
+      'LAN 접근 설정 변경을 적용하려면 재시작이 필요합니다. 지금 재시작하시겠습니까?',
+    restartLater: '나중에',
+    restartNow: '지금 재시작',
+    webServerAddress: 'Web 서버 주소',
   },
 
   // 환영 대화상자
@@ -803,6 +812,20 @@ export default {
       '설치가 완료되었지만 로드에 실패했습니다. 컴퓨터를 다시 시작한 후 다시 시도하세요.',
     restartHint: '문제가 지속되면 컴퓨터를 다시 시작한 후 다시 시도하세요.',
     retry: '다시 시도',
+  },
+
+  // 연결 끊김 (WebUI 모드)
+  connectionLost: {
+    title: '연결이 끊어졌습니다',
+    message: '백엔드 서비스와의 연결이 끊어졌습니다. 재연결을 시도하고 있습니다...',
+    reconnecting: '재연결 중...',
+  },
+
+  // WebUI 베타 배너
+  webuiBeta: {
+    message: 'Web UI는 현재 베타 버전입니다. 일부 기능이 불안정할 수 있습니다. 문제가 발생하면 GitHub에서',
+    reportIssue: 'Issue를 제출',
+    desktopHint: '보다 안정적인 환경을 원하시면 데스크톱 클라이언트를 사용해 주세요',
   },
 
   // 경로 경고

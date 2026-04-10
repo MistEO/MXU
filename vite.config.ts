@@ -2,10 +2,31 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
+
+/**
+ * 从 mxu 配置文件读取 allowLanAccess 设置，与 Rust 后端保持一致。
+ * 读取失败时静默返回 false（不影响启动）。
+ */
+function readAllowLanAccess(): boolean {
+  try {
+    const configDir = path.resolve(__dirname, "src-tauri/target/debug/config");
+    const files = readdirSync(configDir).filter(
+      (f) => f.startsWith("mxu-") && f.endsWith(".json")
+    );
+    if (files.length === 0) return false;
+    const content = readFileSync(path.join(configDir, files[0]), "utf-8");
+    const config = JSON.parse(content);
+    return config?.settings?.allowLanAccess === true;
+  } catch {
+    return false;
+  }
+}
+
+const allowLanAccess = readAllowLanAccess();
 
 const pkg = JSON.parse(
   readFileSync(new URL("./package.json", import.meta.url), "utf-8")
@@ -83,7 +104,7 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    host: host || (allowLanAccess ? "0.0.0.0" : false),
     hmr: host
       ? {
           protocol: "ws",
@@ -94,6 +115,19 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+    // 开发时将 /api 代理到 axum 后端（port 12701）
+    // 用于浏览器直接打开 localhost:1420 时访问后端 API
+    proxy: {
+      "/api/ws": {
+        target: "ws://localhost:12701",
+        ws: true,
+        changeOrigin: true,
+      },
+      "/api": {
+        target: "http://localhost:12701",
+        changeOrigin: true,
+      },
     },
   },
 }));

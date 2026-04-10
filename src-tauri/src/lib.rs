@@ -1,11 +1,15 @@
 pub mod commands;
 mod mxu_actions;
+pub mod screenshot_service;
 mod tray;
+mod web_server;
+pub mod ws_broadcast;
 
-use commands::MaaState;
+use commands::{AppConfigState, MaaState};
 use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+use ws_broadcast::WsBroadcast;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -51,7 +55,66 @@ pub fn run() {
         .setup(|app| {
             // 创建 MaaState 并注册为 Tauri 管理状态
             let maa_state = Arc::new(MaaState::default());
-            app.manage(maa_state);
+
+            // 创建 AppConfigState：加载 interface.json 和配置文件
+            let app_config = Arc::new(AppConfigState::default());
+
+            // 创建 WebSocket 广播器（容量 256，被 emit_callback_event/emit_agent_output 共用）
+            let ws_broadcast = Arc::new(WsBroadcast::new(256));
+
+            // 加载 interface.json（含 import 处理和翻译）
+            match commands::utils::get_exe_directory() {
+                Ok(exe_dir) => {
+                    app_config.load_interface(&exe_dir);
+                }
+                Err(e) => {
+                    log::warn!("AppConfigState: could not get exe dir: {}", e);
+                }
+            }
+
+            // 加载配置文件
+            match commands::utils::get_app_data_dir() {
+                Ok(data_dir) => {
+                    app_config.load_config(&data_dir);
+                }
+                Err(e) => {
+                    log::warn!("AppConfigState: could not get data dir: {}", e);
+                }
+            }
+
+            // 先注册共享状态，再启动依赖这些状态的后台任务，避免启动竞态
+            app.manage(ws_broadcast.clone());
+            app.manage(app_config.clone());
+
+            // 启动 HTTP Web 服务器（后台 tokio 任务，不阻塞 Tauri 启动）
+            {
+                let maa_clone = maa_state.clone();
+                let cfg_clone = app_config.clone();
+                let ws_clone = ws_broadcast.clone();
+                let app_handle = app.handle().clone();
+
+                // 从已加载的配置中读取 allowLanAccess 设置
+                let allow_lan_access = app_config
+                    .config
+                    .lock()
+                    .unwrap()
+                    .get("settings")
+                    .and_then(|s| s.get("allowLanAccess"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                tauri::async_runtime::spawn(async move {
+                    web_server::start_web_server(
+                        cfg_clone,
+                        maa_clone,
+                        app_handle,
+                        ws_clone,
+                        web_server::DEFAULT_PORT,
+                        allow_lan_access,
+                    )
+                    .await;
+                });
+            }
 
             // Windows 下移除系统标题栏（使用自定义标题栏）
             // macOS/Linux 保留完整的原生标题栏
@@ -94,7 +157,11 @@ pub fn run() {
                     let dll_path = maafw_dir.join("libMaaFramework.so");
 
                     match maa_framework::load_library(&dll_path) {
-                        Ok(()) => log::info!("MaaFramework loaded from {:?}", dll_path),
+                        Ok(()) => {
+                            log::info!("MaaFramework loaded from {:?}", dll_path);
+                            // 预先设置 lib_dir，使 HTTP /api/maa/initialized 立即反映加载状态
+                            *maa_state.lib_dir.lock().unwrap() = Some(maafw_dir.clone());
+                        }
                         Err(e) => {
                             log::error!("Failed to load MaaFramework: {}", e);
                             // 检查是否是 DLL 存在但加载失败的情况（可能是运行库缺失）
@@ -112,6 +179,9 @@ pub fn run() {
                     log::warn!("MaaFramework directory not found: {:?}", maafw_dir);
                 }
             }
+
+            // DLL 加载完成后再注册 maa_state（确保 lib_dir 已设置）
+            app.manage(maa_state);
 
             // 初始化系统托盘
             if let Err(e) = tray::init_tray(app.handle()) {
@@ -143,6 +213,8 @@ pub fn run() {
             commands::maa_core::maa_is_running,
             commands::maa_core::maa_post_screencap,
             commands::maa_core::maa_get_cached_image,
+            commands::maa_core::maa_screenshot_subscribe,
+            commands::maa_core::maa_screenshot_unsubscribe,
             // Agent 命令
             commands::maa_agent::maa_start_tasks,
             commands::maa_agent::maa_stop_agent,
@@ -163,6 +235,9 @@ pub fn run() {
             commands::state::maa_get_cached_win32_windows,
             commands::state::maa_get_cached_wlroots_sockets,
             commands::state::log_to_stdout,
+            commands::state::push_log,
+            commands::state::get_all_logs,
+            commands::state::clear_instance_logs,
             // 更新安装命令
             commands::update::extract_zip,
             commands::update::check_changes_json,
@@ -196,12 +271,16 @@ pub fn run() {
             commands::system::get_arch,
             commands::system::get_os,
             commands::system::get_system_info,
+            commands::system::get_web_server_port,
+            commands::system::get_local_lan_ip,
             commands::system::get_webview2_dir,
             // 托盘相关命令
             commands::tray::set_minimize_to_tray,
             commands::tray::get_minimize_to_tray,
             commands::tray::update_tray_icon,
             commands::tray::update_tray_tooltip,
+            // 配置同步命令（WebUI 实时同步）
+            commands::app_config::notify_config_changed,
         ])
         .on_window_event(|window, event| {
             match event {

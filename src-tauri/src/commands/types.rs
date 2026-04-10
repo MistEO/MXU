@@ -2,7 +2,7 @@
 //!
 //! 包含 Tauri 命令使用的数据结构和枚举
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -112,6 +112,21 @@ pub enum TaskStatus {
     Failed,
 }
 
+/// 任务运行状态（后端管理，作为单一真相来源）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TaskRunState {
+    /// selectedTaskId → status ("idle"/"pending"/"running"/"succeeded"/"failed")
+    pub statuses: HashMap<String, String>,
+    /// maaTaskId → selectedTaskId
+    pub mappings: HashMap<i64, String>,
+    /// 任务队列（maaTaskId 列表，执行顺序）
+    pub pending_task_ids: Vec<i64>,
+    /// 当前执行到的任务索引
+    pub current_task_index: usize,
+    /// 实例级整体状态（None/"Running"/"Succeeded"/"Failed"）
+    pub overall_status: Option<String>,
+}
+
 /// 实例运行时状态（用于前端查询）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstanceState {
@@ -123,8 +138,8 @@ pub struct InstanceState {
     pub tasker_inited: bool,
     /// 是否有任务正在运行（通过 MaaTaskerRunning API 查询）
     pub is_running: bool,
-    /// 当前运行的任务 ID 列表
-    pub task_ids: Vec<i64>,
+    /// 任务运行状态（后端管理，包含逐任务状态、映射、队列）
+    pub task_run_state: TaskRunState,
 }
 
 /// 所有实例状态的快照
@@ -152,6 +167,8 @@ pub struct InstanceRuntime {
     pub stop_in_progress: bool,
     /// stop 请求的起始时间（用于节流/重试）
     pub stop_started_at: Option<Instant>,
+    /// 任务运行状态（后端管理，单一真相来源）
+    pub task_run_state: TaskRunState,
 }
 
 impl Drop for InstanceRuntime {
@@ -180,6 +197,67 @@ impl Drop for InstanceRuntime {
     }
 }
 
+/// 前端运行日志条目（用于跨页面刷新持久化）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogEntryDto {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "type")]
+    pub log_type: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+}
+
+/// 每个实例的日志缓冲区默认上限
+const DEFAULT_MAX_LOGS: usize = 2000;
+
+/// 运行日志缓冲区（按实例隔离，支持容量限制）
+pub struct LogBuffer {
+    logs: HashMap<String, VecDeque<LogEntryDto>>,
+    max_per_instance: usize,
+}
+
+impl Default for LogBuffer {
+    fn default() -> Self {
+        Self {
+            logs: HashMap::new(),
+            max_per_instance: DEFAULT_MAX_LOGS,
+        }
+    }
+}
+
+impl LogBuffer {
+    pub fn new(max_per_instance: usize) -> Self {
+        Self {
+            logs: HashMap::new(),
+            max_per_instance: max_per_instance.max(100),
+        }
+    }
+
+    pub fn push(&mut self, instance_id: &str, entry: LogEntryDto) {
+        let entries = self.logs.entry(instance_id.to_string()).or_default();
+        entries.push_back(entry);
+        while entries.len() > self.max_per_instance {
+            entries.pop_front();
+        }
+    }
+
+    pub fn get_all(&self) -> &HashMap<String, VecDeque<LogEntryDto>> {
+        &self.logs
+    }
+
+    pub fn clear_instance(&mut self, instance_id: &str) {
+        if let Some(entries) = self.logs.get_mut(instance_id) {
+            entries.clear();
+        }
+    }
+
+    pub fn set_max(&mut self, max: usize) {
+        self.max_per_instance = max.max(100);
+    }
+}
+
 /// MaaFramework 运行时状态
 #[derive(Default)]
 pub struct MaaState {
@@ -196,6 +274,10 @@ pub struct MaaState {
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
     /// 缓存的 WlRoots socket 列表（全局共享）
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
+    /// 运行日志缓冲区（前端推送，页面刷新后恢复）
+    pub log_buffer: Mutex<LogBuffer>,
+    /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）
+    pub screenshot_service: crate::screenshot_service::ScreenshotService,
 }
 
 impl MaaState {
@@ -227,6 +309,13 @@ pub struct MaaCallbackEvent {
     pub details: String,
 }
 
+/// 实例状态变更事件（用于 Tauri WebView 端监听）
+#[derive(Clone, Serialize, Deserialize)]
+pub struct StateChangedEvent {
+    pub instance_id: String,
+    pub kind: String,
+}
+
 /// Agent 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -242,6 +331,9 @@ pub struct AgentConfig {
 pub struct TaskConfig {
     pub entry: String,
     pub pipeline_override: String,
+    /// 对应的前端选中任务 ID（用于后端跟踪 per-task 状态）
+    #[serde(default)]
+    pub selected_task_id: Option<String>,
 }
 
 /// 版本检查结果

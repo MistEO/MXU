@@ -17,6 +17,7 @@
 pub mod types;
 pub mod utils;
 
+pub mod app_config;
 pub mod download;
 pub mod file_ops;
 pub mod maa_agent;
@@ -27,6 +28,7 @@ pub mod tray;
 pub mod update;
 
 // 重新导出类型（供 lib.rs 使用）
+pub use app_config::AppConfigState;
 pub use types::MaaState;
 
 // 重新导出辅助函数（供 lib.rs 使用）

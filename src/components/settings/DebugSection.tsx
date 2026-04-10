@@ -1,6 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide-react';
+import {
+  Bug,
+  RefreshCw,
+  FolderOpen,
+  ScrollText,
+  Network,
+  Archive,
+  Globe,
+  ExternalLink,
+} from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -21,6 +30,8 @@ export function DebugSection() {
     setSaveDraw,
     tcpCompatMode,
     setTcpCompatMode,
+    allowLanAccess,
+    setAllowLanAccess,
   } = useAppStore();
 
   const [mxuVersion, setMxuVersion] = useState<string | null>(null);
@@ -34,6 +45,9 @@ export function DebugSection() {
     arch: string;
     tauriVersion: string;
   } | null>(null);
+  const [webServerPort, setWebServerPort] = useState<number>(0);
+  const [lanIp, setLanIp] = useState<string | null>(null);
+  const [showRestartPrompt, setShowRestartPrompt] = useState(false);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   const version = projectInterface?.version || '0.1.0';
@@ -53,14 +67,10 @@ export function DebugSection() {
         setMxuVersion(__MXU_VERSION__ || null);
       }
 
-      // maafw 版本（仅在 Tauri 环境有意义）
-      if (isTauri()) {
-        try {
-          setMaafwVersion(await maaService.getVersion());
-        } catch {
-          setMaafwVersion(null);
-        }
-      } else {
+      // maafw 版本（Tauri 直接调用，浏览器走 HTTP API）
+      try {
+        setMaafwVersion(await maaService.getVersion());
+      } catch {
         setMaafwVersion(null);
       }
 
@@ -68,17 +78,21 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] = await Promise.all([
+          const [exeDirResult, cwdResult, sysInfo, webview2DirResult, port, localIp] = await Promise.all([
             invoke<string>('get_exe_dir'),
             invoke<string>('get_cwd'),
             invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
               'get_system_info',
             ),
             invoke<{ path: string; system: boolean }>('get_webview2_dir'),
+            invoke<number>('get_web_server_port'),
+            invoke<string | null>('get_local_lan_ip'),
           ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
           setWebview2Dir(webview2DirResult);
+          setWebServerPort(port);
+          setLanIp(localIp);
           setSystemInfo({
             os: sysInfo.os,
             osVersion: sysInfo.os_version,
@@ -90,6 +104,10 @@ export function DebugSection() {
           setCwd(null);
           setSystemInfo(null);
         }
+      } else {
+        // 浏览器环境：从当前 URL 推导端口
+        const port = parseInt(window.location.port, 10);
+        if (port) setWebServerPort(port);
       }
     };
 
@@ -111,6 +129,44 @@ export function DebugSection() {
       loggers.ui.error('打开配置目录失败:', err);
     }
   };
+
+  const webServerAddress = (() => {
+    if (!webServerPort) return null;
+    if (allowLanAccess) {
+      const host = isTauri() ? (lanIp || 'localhost') : window.location.hostname;
+      return `http://${host}:${webServerPort}`;
+    }
+    return `http://localhost:${webServerPort}`;
+  })();
+
+  const handleOpenWebServer = useCallback(async () => {
+    if (!webServerAddress) return;
+    if (isTauri()) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(webServerAddress);
+    } else {
+      window.open(webServerAddress, '_blank');
+    }
+  }, [webServerAddress]);
+
+  const handleLanAccessToggle = useCallback(
+    (v: boolean) => {
+      setAllowLanAccess(v);
+      if (isTauri()) {
+        setShowRestartPrompt(true);
+      }
+    },
+    [setAllowLanAccess],
+  );
+
+  const handleRestart = useCallback(async () => {
+    try {
+      const { restartApp } = await import('@/services/updateService');
+      await restartApp();
+    } catch (err) {
+      loggers.ui.error('重启失败:', err);
+    }
+  }, []);
 
   // 调试：打开日志目录
   const handleOpenLogDir = async () => {
@@ -163,6 +219,18 @@ export function DebugSection() {
               {isTauri() ? t('debug.envTauri') : t('debug.envBrowser')}
             </span>
           </p>
+          {webServerAddress && (
+            <p>
+              {t('debug.webServerAddress')}:{' '}
+              <button
+                onClick={handleOpenWebServer}
+                className="inline-flex items-center gap-1 font-mono text-accent hover:text-accent/80 hover:underline transition-colors"
+              >
+                {webServerAddress}
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </p>
+          )}
         </div>
 
         {/* 系统信息 */}
@@ -273,6 +341,43 @@ export function DebugSection() {
             </div>
           </div>
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
+        </div>
+
+        {/* 允许局域网访问 */}
+        <div className="pt-4 border-t border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">{t('debug.allowLanAccess')}</span>
+                <p className="text-xs text-text-muted mt-0.5">{t('debug.allowLanAccessHint')}</p>
+              </div>
+            </div>
+            <SwitchButton value={allowLanAccess} onChange={handleLanAccessToggle} />
+          </div>
+
+          {/* 重启提示 */}
+          {showRestartPrompt && (
+            <div className="flex items-center justify-between ml-8 p-2.5 bg-bg-tertiary rounded-lg text-sm">
+              <span className="text-text-secondary">
+                {t('debug.allowLanAccessRestartMessage')}
+              </span>
+              <div className="flex items-center gap-2 ml-4 shrink-0">
+                <button
+                  onClick={() => setShowRestartPrompt(false)}
+                  className="px-3 py-1 text-text-muted hover:text-text-primary rounded transition-colors"
+                >
+                  {t('debug.restartLater')}
+                </button>
+                <button
+                  onClick={handleRestart}
+                  className="px-3 py-1 bg-accent text-white rounded hover:bg-accent/90 transition-colors"
+                >
+                  {t('debug.restartNow')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { useAppStore, type DownloadProgress } from '@/stores/appStore';
+import { useAppStore, flushConfig, flushSaveConfig, type DownloadProgress } from '@/stores/appStore';
 import {
   TitleBar,
   TabBar,
@@ -16,12 +16,16 @@ import {
   autoLoadInterface,
   loadConfig,
   loadConfigFromStorage,
+  consumeSelfSave,
+  markSelfSave,
   resolveI18nText,
   checkAndPrepareDownload,
   maaService,
   proxySettingsForUpdateDownload,
   stopInstanceTasksAndExitApp,
 } from '@/services';
+import { loadIconAsDataUrl } from '@/services/contentResolver';
+import * as wsService from '@/services/wsService';
 import {
   downloadUpdate,
   getUpdateSavePath,
@@ -33,11 +37,23 @@ import {
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
+import { useShallow } from 'zustand/react/shallow';
+// register/unregisterAll 在 useEffect 内动态导入，此处仅声明类型引用
+// （动态导入可避免浏览器环境加载失败）
+let _globalShortcutModule: typeof import('@tauri-apps/plugin-global-shortcut') | null = null;
+async function getGlobalShortcut() {
+  if (!_globalShortcutModule) {
+    _globalShortcutModule = await import('@tauri-apps/plugin-global-shortcut');
+  }
+  return _globalShortcutModule;
+}
 import { loggers } from '@/utils/logger';
+import { setBackendPort, getApiBase, apiGet } from '@/utils/backendApi';
+import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
-import { applyTheme, resolveThemeMode } from '@/themes';
+import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
+import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
   isTauri,
   isValidWindowSize,
@@ -51,6 +67,8 @@ import {
   MIN_LEFT_PANEL_WIDTH,
 } from '@/utils/windowUtils';
 import { LoadingScreen } from './components/app';
+import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
+import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 
 const log = loggers.app;
@@ -168,56 +186,118 @@ function App() {
     onboardingCompleted,
     backgroundImage,
     backgroundOpacity,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((state) => ({
+      setProjectInterface: state.setProjectInterface,
+      setInterfaceTranslations: state.setInterfaceTranslations,
+      setBasePath: state.setBasePath,
+      setDataPath: state.setDataPath,
+      setConfigPersistenceReady: state.setConfigPersistenceReady,
+      basePath: state.basePath,
+      importConfig: state.importConfig,
+      createInstance: state.createInstance,
+      theme: state.theme,
+      currentPage: state.currentPage,
+      setCurrentPage: state.setCurrentPage,
+      projectInterface: state.projectInterface,
+      interfaceTranslations: state.interfaceTranslations,
+      language: state.language,
+      sidePanelExpanded: state.sidePanelExpanded,
+      dashboardView: state.dashboardView,
+      setDashboardView: state.setDashboardView,
+      setWindowSize: state.setWindowSize,
+      setWindowPosition: state.setWindowPosition,
+      setUpdateInfo: state.setUpdateInfo,
+      restoreBackendStates: state.restoreBackendStates,
+      setDownloadStatus: state.setDownloadStatus,
+      setDownloadProgress: state.setDownloadProgress,
+      setDownloadSavePath: state.setDownloadSavePath,
+      setJustUpdatedInfo: state.setJustUpdatedInfo,
+      setShowInstallConfirmModal: state.setShowInstallConfirmModal,
+      showInstallConfirmModal: state.showInstallConfirmModal,
+      updateInfo: state.updateInfo,
+      downloadStatus: state.downloadStatus,
+      setShowUpdateDialog: state.setShowUpdateDialog,
+      showAddTaskPanel: state.showAddTaskPanel,
+      setShowAddTaskPanel: state.setShowAddTaskPanel,
+      rightPanelWidth: state.rightPanelWidth,
+      rightPanelCollapsed: state.rightPanelCollapsed,
+      setRightPanelWidth: state.setRightPanelWidth,
+      setRightPanelCollapsed: state.setRightPanelCollapsed,
+      onboardingCompleted: state.onboardingCompleted,
+      backgroundImage: state.backgroundImage,
+      backgroundOpacity: state.backgroundOpacity,
+    })),
+  );
 
   // 转换背景图片为 Blob URL
   useEffect(() => {
-    if (!backgroundImage || !isTauri()) {
-      // 清理旧的 blob URL
+    if (!backgroundImage) {
+      // 无背景图：清理旧 blob URL
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = undefined;
       }
-      setBackgroundImageDataUrl(backgroundImage);
+      setBackgroundImageDataUrl(undefined);
       return;
     }
 
+    let cancelled = false;
+
     const loadBackgroundImage = async () => {
       try {
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const fileData = await readFile(backgroundImage);
+        let fileData: Uint8Array;
+        let ext: string;
 
-        // 获取 MIME 类型
-        const ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
+        if (isTauri()) {
+          const { readFile } = await import('@tauri-apps/plugin-fs');
+          fileData = await readFile(backgroundImage);
+          ext = backgroundImage.split('.').pop()?.toLowerCase() || 'png';
+        } else {
+          const resp = await fetch(`${getApiBase()}/background-image`);
+          if (!resp.ok) {
+            setBackgroundImageDataUrl(undefined);
+            return;
+          }
+          const buffer = await resp.arrayBuffer();
+          fileData = new Uint8Array(buffer);
+          const ct = resp.headers.get('content-type') || 'image/png';
+          ext = ct.split('/').pop()?.split(';')[0] || 'png';
+        }
+
+        if (cancelled) return;
+
         const mimeMap: Record<string, string> = {
           png: 'image/png',
           jpg: 'image/jpeg',
           jpeg: 'image/jpeg',
           webp: 'image/webp',
+          gif: 'image/gif',
         };
         const mimeType = mimeMap[ext] || 'image/png';
 
-        // 创建 Blob 和 URL
-        const blob = new Blob([fileData], { type: mimeType });
+        const arrayBuffer = new ArrayBuffer(fileData.byteLength);
+        new Uint8Array(arrayBuffer).set(fileData);
+        const blob = new Blob([arrayBuffer], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
-        // 清理旧的 blob URL
         if (blobUrlRef.current) {
           URL.revokeObjectURL(blobUrlRef.current);
         }
-
         blobUrlRef.current = blobUrl;
         setBackgroundImageDataUrl(blobUrl);
       } catch (err) {
-        log.warn('Failed to load background image:', err);
-        setBackgroundImageDataUrl(undefined);
+        if (!cancelled) {
+          log.warn('Failed to load background image:', err);
+          setBackgroundImageDataUrl(undefined);
+        }
       }
     };
 
     loadBackgroundImage();
 
-    // 清理函数：组件卸载时释放 blob URL
     return () => {
+      cancelled = true;
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = undefined;
@@ -399,7 +479,7 @@ function App() {
         downloadStartedRef.current = false;
       }
     },
-    [setDownloadStatus, setDownloadProgress, setDownloadSavePath],
+    [setDownloadStatus, setDownloadProgress, setDownloadSavePath, tryAutoInstallUpdate],
   );
 
   // 设置窗口标题（根据 ProjectInterface V2 协议）
@@ -431,7 +511,7 @@ function App() {
 
   // 设置窗口图标（根据 ProjectInterface V2 协议）
   useEffect(() => {
-    if (!projectInterface?.icon || !isTauri()) return;
+    if (!projectInterface?.icon) return;
 
     const langKey = getInterfaceLangKey(language);
     const translations = interfaceTranslations[langKey];
@@ -440,28 +520,41 @@ function App() {
     const iconPath = resolveI18nText(projectInterface.icon, translations);
     if (!iconPath) return;
 
-    // 拼接完整路径（相对于 basePath）
-    const fullIconPath = `${basePath}/${iconPath}`;
+    if (isTauri()) {
+      // Tauri 环境：设置窗口图标和托盘图标
+      const fullIconPath = `${basePath}/${iconPath}`;
 
-    const setIcon = async () => {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const currentWindow = getCurrentWindow();
-        await currentWindow.setIcon(fullIconPath);
-        log.info('窗口图标已设置:', fullIconPath);
-      } catch (err) {
-        log.warn('设置窗口图标失败:', err);
-      }
+      const setIcon = async () => {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const currentWindow = getCurrentWindow();
+          await currentWindow.setIcon(fullIconPath);
+          log.info('窗口图标已设置:', fullIconPath);
+        } catch (err) {
+          log.warn('设置窗口图标失败:', err);
+        }
 
-      // 同时更新托盘图标
-      try {
-        await invoke('update_tray_icon', { iconPath: fullIconPath });
-      } catch (err) {
-        log.warn('设置托盘图标失败:', err);
-      }
-    };
+        try {
+          await invoke('update_tray_icon', { iconPath: fullIconPath });
+        } catch (err) {
+          log.warn('设置托盘图标失败:', err);
+        }
+      };
 
-    setIcon();
+      setIcon();
+    } else {
+      // 浏览器环境：更新 <link rel="icon"> favicon
+      loadIconAsDataUrl(projectInterface.icon, basePath, translations).then((url) => {
+        if (!url) return;
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.href = url;
+      });
+    }
   }, [projectInterface, language, interfaceTranslations, basePath]);
 
   // 加载 interface.json 和配置文件
@@ -504,7 +597,7 @@ function App() {
       if (config.settings.windowSize) {
         await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
       }
-      if (config.settings.windowPosition) {
+      if (config.settings.windowPosition && isTauri()) {
         const { x, y } = config.settings.windowPosition;
         // 先检查位置是否在可见显示器范围内
         try {
@@ -527,8 +620,12 @@ function App() {
           }
         } catch (err) {
           log.warn('检查窗口位置失败，居中显示:', err);
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          await getCurrentWindow().center();
+          try {
+            const { getCurrentWindow } = await import('@tauri-apps/api/window');
+            await getCurrentWindow().center();
+          } catch {
+            // 浏览器环境忽略
+          }
         }
       }
 
@@ -545,6 +642,31 @@ function App() {
       } catch (err) {
         log.warn('恢复后端状态失败:', err);
       }
+
+      // 从后端恢复运行日志（跨页面刷新持久化）
+      try {
+        const backendLogs = await getAllLogsFromBackend();
+        if (backendLogs && Object.keys(backendLogs).length > 0) {
+          const store = useAppStore.getState();
+          const restoredLogs: Record<string, import('@/stores/types').LogEntry[]> = {};
+          for (const [instanceId, entries] of Object.entries(backendLogs)) {
+            restoredLogs[instanceId] = entries.map((e) => ({
+              id: e.id,
+              timestamp: new Date(e.timestamp),
+              type: e.type as import('@/stores/types').LogType,
+              message: e.message,
+              html: e.html,
+            }));
+          }
+          useAppStore.setState({
+            instanceLogs: { ...store.instanceLogs, ...restoredLogs },
+          });
+          log.info('已恢复运行日志:', Object.keys(restoredLogs).length, '个实例');
+        }
+      } catch (err) {
+        log.warn('恢复运行日志失败:', err);
+      }
+
 
       // 检查 MaaFramework 版本兼容性
       // 注意：即使完整库加载失败（旧版本缺少某些函数），版本检查仍应工作
@@ -578,6 +700,15 @@ function App() {
       setLoadingState('success');
       // 完成配置加载后，允许后续状态变更自动保存
       setConfigPersistenceReady(true);
+
+      // 浏览器环境：设置后端直连端口并建立 WebSocket 连接
+      if (!isTauri() && result.webServerPort) {
+        setBackendPort(result.webServerPort);
+        wsService.setServerPort(result.webServerPort);
+        wsService.connect();
+      } else if (!isTauri()) {
+        wsService.connect();
+      }
 
       // 检查是否缺少 VC++ 运行库
       checkVCRedistMissing();
@@ -843,7 +974,37 @@ function App() {
     if (initialized.current) return;
     initialized.current = true;
 
-    // 应用默认主题（包括模式和强调色）
+    // WebUI 模式从 localStorage 加载独立的外观 & 布局偏好
+    if (!isTauri()) {
+      const localAppearance = loadWebUIAppearance();
+      if (localAppearance) {
+        clearCustomAccents();
+        localAppearance.customAccents?.forEach((a) => registerCustomAccent(a));
+        useAppStore.setState({
+          theme: localAppearance.theme,
+          accentColor: localAppearance.accentColor,
+          language: localAppearance.language,
+          backgroundImage: localAppearance.backgroundImage,
+          backgroundOpacity: localAppearance.backgroundOpacity,
+          customAccents: localAppearance.customAccents || [],
+        });
+      }
+      const localLayout = loadWebUILayout();
+      if (localLayout) {
+        useAppStore.setState({
+          sidePanelExpanded: localLayout.sidePanelExpanded,
+          rightPanelWidth: localLayout.rightPanelWidth,
+          rightPanelCollapsed: localLayout.rightPanelCollapsed,
+          addTaskPanelHeight: localLayout.addTaskPanelHeight,
+          connectionPanelExpanded: localLayout.connectionPanelExpanded,
+          screenshotPanelExpanded: localLayout.screenshotPanelExpanded,
+          showOptionPreview: localLayout.showOptionPreview,
+          screenshotFrameRate: localLayout.screenshotFrameRate,
+          ...(localLayout.windowSize && { windowSize: localLayout.windowSize }),
+          ...(localLayout.windowPosition && { windowPosition: localLayout.windowPosition }),
+        });
+      }
+    }
     const { theme: initialTheme, accentColor: initialAccent } = useAppStore.getState();
     const mode = resolveThemeMode(initialTheme);
     applyTheme(mode, initialAccent);
@@ -872,6 +1033,174 @@ function App() {
 
     initApp();
   }, []);
+
+  // beforeunload：刷新/关闭前强制保存一次配置，防止防抖窗口内的修改丢失
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isTauri()) {
+        // Tauri 环境：取消防抖、立即同步触发保存
+        flushSaveConfig();
+      } else {
+        // 浏览器环境：优先用 sendBeacon，失败时回退 keepalive fetch
+        const config = flushConfig();
+        if (!config) return;
+        const payload = JSON.stringify(config);
+        const url = `${getApiBase()}/config`;
+        const blob = new Blob([payload], { type: 'application/json' });
+        markSelfSave();
+        const sent = navigator.sendBeacon?.(url, blob) ?? false;
+        if (!sent) {
+          void fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {
+            // 页面即将关闭，此处无法可靠恢复，静默忽略即可
+          });
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // 监听 config-changed 事件（其他客户端修改配置后重新拉取）
+  // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const handleConfigChanged = async () => {
+      if (consumeSelfSave()) {
+        log.debug('跳过本客户端自身触发的 config-changed');
+        return;
+      }
+      log.info('收到 config-changed（来自其他客户端），重新拉取配置...');
+      try {
+        if (isTauri()) {
+          const pi = useAppStore.getState().projectInterface;
+          const dataPath = useAppStore.getState().dataPath;
+          const config = await loadConfig(dataPath, pi?.name);
+          if (config) {
+            useAppStore.getState().importConfig(config);
+            log.info('配置已从磁盘重新同步');
+          }
+        } else {
+          const config = await apiGet<import('@/types/config').MxuConfig>('/config');
+          if (config) {
+            useAppStore.getState().importConfig(config);
+            log.info('配置已从后端重新同步');
+          }
+        }
+        // importConfig 会重置 isRunning，需立即从后端刷新真实状态
+        const backendStates = await maaService.getAllStates();
+        if (backendStates) {
+          useAppStore.getState().restoreBackendStates(backendStates);
+        }
+      } catch (err) {
+        log.warn('重新拉取配置失败:', err);
+      }
+    };
+
+    if (isTauri()) {
+      let cancelled = false;
+      let unlisten: (() => void) | null = null;
+      void (async () => {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          const dispose = await listen('config-changed-external', handleConfigChanged);
+          if (cancelled) {
+            dispose();
+            return;
+          }
+          unlisten = dispose;
+        } catch (err) {
+          log.warn('注册 config-changed 监听失败:', err);
+        }
+      })();
+      cleanup = () => {
+        cancelled = true;
+        unlisten?.();
+      };
+    } else {
+      const unlisten = wsService.onConfigChanged(handleConfigChanged);
+      cleanup = unlisten;
+    }
+
+    return () => cleanup?.();
+  }, []);
+
+  // 监听 state-changed 事件（后端状态变更后通知刷新，包含任务进度更新）
+  // Tauri 桌面端通过 Tauri 事件接收，浏览器 WebUI 通过 WebSocket 接收
+  // 后端是单一真相来源，所有 kind 统一触发 getAllStates + restoreBackendStates
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // 追踪防抖窗口内是否收到过任务相关事件（需要同步 isRunning 的事件）
+    let pendingTaskKind = false;
+    let cleanup: (() => void) | undefined;
+
+    const isTaskKind = (kind: string) =>
+      kind === 'task-started' ||
+      kind === 'task-stopped' ||
+      kind === 'task-progress' ||
+      kind === 'tasks-completed';
+
+    const handleStateChanged = (_instanceId: string, kind: string) => {
+      if (isTaskKind(kind)) pendingTaskKind = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      const shouldSyncRunning = pendingTaskKind;
+      debounceTimer = setTimeout(async () => {
+        pendingTaskKind = false;
+        try {
+          const backendStates = await maaService.getAllStates();
+          if (backendStates) {
+            // 任务相关事件需要同步 isRunning（跨端同步 + 任务自然完成）
+            // 其他事件（connected/resource-loading）跳过，避免竞态覆盖
+            // 前端已设置的 isRunning（start 流程中前端先于后端设置状态）
+            restoreBackendStates(backendStates, {
+              skipRunningState: !shouldSyncRunning,
+            });
+            log.debug('收到 state-changed，已刷新运行时状态, kind:', kind);
+          }
+        } catch (err) {
+          log.warn('state-changed 后刷新状态失败:', err);
+        }
+      }, 300);
+    };
+
+    if (isTauri()) {
+      let cancelled = false;
+      let unlisten: (() => void) | null = null;
+      void (async () => {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          const dispose = await listen<{ instance_id: string; kind: string }>(
+            'state-changed',
+            (event) => handleStateChanged(event.payload.instance_id, event.payload.kind),
+          );
+          if (cancelled) {
+            dispose();
+            return;
+          }
+          unlisten = dispose;
+        } catch (err) {
+          log.warn('注册 state-changed 监听失败:', err);
+        }
+      })();
+      cleanup = () => {
+        cancelled = true;
+        unlisten?.();
+      };
+    } else {
+      const unlisten = wsService.onStateChanged(handleStateChanged);
+      cleanup = unlisten;
+    }
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      cleanup?.();
+    };
+  }, [restoreBackendStates]);
 
   // 检查 VC++ 运行库缺失（在加载完成后检查）
   const checkVCRedistMissing = useCallback(async () => {
@@ -1178,6 +1507,7 @@ function App() {
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
     if (!hotkeys?.globalEnabled) return;
+    if (!isTauri()) return; // 浏览器环境不支持全局快捷键
 
     const startKey = hotkeys.startTasks || 'F10';
     const stopKey = hotkeys.stopTasks || 'F11';
@@ -1189,6 +1519,7 @@ function App() {
     let lastStartTime = 0;
     const registerKeys = async () => {
       try {
+        const { register } = await getGlobalShortcut();
         await register(toTauriKey(startKey), () => {
           const now = Date.now();
           if (now - lastStartTime < GLOBAL_HOTKEY_THROTTLE_MS) return;
@@ -1217,7 +1548,9 @@ function App() {
 
     registerKeys();
     return () => {
-      unregisterAll().catch(() => {});
+      getGlobalShortcut()
+        .then(({ unregisterAll }) => unregisterAll())
+        .catch(() => {});
     };
   }, [hotkeys?.globalEnabled, hotkeys?.startTasks, hotkeys?.stopTasks]);
 
@@ -1296,7 +1629,9 @@ function App() {
       >
         <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
         <div className="relative z-10 h-full flex flex-col">
+          <ConnectionLostOverlay />
           <TitleBar />
+          <WebUIBetaBanner />
           {/* 安装确认模态框 - 在设置页面也需要能弹出 */}
           {showInstallConfirmModal && (
             <Suspense fallback={null}>
@@ -1376,8 +1711,14 @@ function App() {
     >
       <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
       <div className="relative z-10 h-full flex flex-col">
+        {/* WebUI 模式下的连接断开覆盖层 */}
+        <ConnectionLostOverlay />
+
         {/* 自定义标题栏 */}
         <TitleBar />
+
+        {/* WebUI 测试版提示横幅 */}
+        <WebUIBetaBanner />
 
         {/* 欢迎弹窗 */}
         {projectInterface.welcome && (

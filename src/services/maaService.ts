@@ -15,8 +15,33 @@ import type {
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/paths';
+import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
+import * as wsService from '@/services/wsService';
 
 const log = loggers.maa;
+
+/**
+ * 从后端获取最新缓存截图，转换为 base64 data URL（浏览器专用）
+ *
+ * 后端截图循环（ScreenshotService）负责驱动 post_screencap，此处仅读取缓存。
+ */
+async function fetchScreenshotDataUrl(instanceId: string): Promise<string> {
+  const resp = await fetch(`${getApiBase()}/maa/instances/${instanceId}/screenshot`);
+  if (!resp.ok) return '';
+  const ct = resp.headers.get('content-type') ?? '';
+  if (ct.includes('image/')) {
+    const blob = await resp.blob();
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  }
+  // fallback: JSON { dataUrl: string }
+  const json = (await resp.json()) as { dataUrl?: string };
+  return json.dataUrl ?? '';
+}
 
 async function syncMaaVersionToStore(version: string): Promise<void> {
   try {
@@ -63,6 +88,22 @@ export const maaService = {
    */
   async init(libDir?: string): Promise<string> {
     log.info('初始化 MaaFramework, libDir:', libDir || '(默认)');
+
+    if (!isTauri()) {
+      // 浏览器模式：查询后端是否已初始化，直接复用 Tauri WebView 的初始化结果
+      const result = await apiGet<{ initialized: boolean; version: string | null }>(
+        '/maa/initialized',
+      );
+      const version = result.version ?? '';
+      if (result.initialized) {
+        await syncMaaVersionToStore(version || 'unknown');
+        log.info('MaaFramework 已初始化 (HTTP)，版本:', version || '(未知)');
+      } else {
+        log.warn('MaaFramework 后端尚未初始化');
+      }
+      return version;
+    }
+
     const version = await invoke<string>('maa_init', { libDir: libDir || null });
     await syncMaaVersionToStore(version);
     log.info('MaaFramework 版本:', version);
@@ -85,6 +126,14 @@ export const maaService = {
    */
   async getVersion(): Promise<string> {
     log.debug('获取 MaaFramework 版本...');
+    if (!isTauri()) {
+      const result = await apiGet<{ initialized: boolean; version: string | null }>(
+        '/maa/initialized',
+      );
+      const version = result.version ?? '';
+      if (version) await syncMaaVersionToStore(version);
+      return version;
+    }
     const version = await invoke<string>('maa_get_version');
     await syncMaaVersionToStore(version);
     log.info('MaaFramework 版本:', version);
@@ -96,6 +145,17 @@ export const maaService = {
    */
   async checkVersion(): Promise<{ current: string; minimum: string; is_compatible: boolean }> {
     log.debug('检查 MaaFramework 版本...');
+    if (!isTauri()) {
+      // 浏览器模式：从已初始化信息推断版本（后端已完成版本校验）
+      const result = await apiGet<{ initialized: boolean; version: string | null }>(
+        '/maa/initialized',
+      );
+      return {
+        current: result.version ?? '',
+        minimum: '',
+        is_compatible: result.initialized,
+      };
+    }
     const result = await invoke<{ current: string; minimum: string; is_compatible: boolean }>(
       'maa_check_version',
     );
@@ -108,7 +168,9 @@ export const maaService = {
    */
   async findAdbDevices(): Promise<AdbDevice[]> {
     log.info('搜索 ADB 设备...');
-    const devices = await invoke<AdbDevice[]>('maa_find_adb_devices');
+    const devices = isTauri()
+      ? await invoke<AdbDevice[]>('maa_find_adb_devices')
+      : await apiGet<AdbDevice[]>('/maa/devices');
     log.info('找到 ADB 设备:', devices.length, '个');
     devices.forEach((device, i) => {
       log.debug(
@@ -130,10 +192,19 @@ export const maaService = {
       ', windowRegex:',
       windowRegex || '(无)',
     );
-    const windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
-      classRegex: classRegex || null,
-      windowRegex: windowRegex || null,
-    });
+    let windows: Win32Window[];
+    if (isTauri()) {
+      windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
+        classRegex: classRegex || null,
+        windowRegex: windowRegex || null,
+      });
+    } else {
+      const params = new URLSearchParams();
+      if (classRegex) params.set('class_regex', classRegex);
+      if (windowRegex) params.set('window_regex', windowRegex);
+      const query = params.toString();
+      windows = await apiGet<Win32Window[]>(`/maa/windows${query ? `?${query}` : ''}`);
+    }
     log.info('找到 Win32 窗口:', windows.length, '个');
     windows.forEach((win, i) => {
       log.debug(
@@ -148,7 +219,9 @@ export const maaService = {
    */
   async findWlrootsSockets(): Promise<string[]> {
     log.info('搜索 WlRoots socket...');
-    const sockets = await invoke<string[]>('maa_find_wlroots_sockets');
+    const sockets = isTauri()
+      ? await invoke<string[]>('maa_find_wlroots_sockets')
+      : await apiGet<string[]>('/maa/wlroots-sockets');
     log.info('找到 WlRoots socket:', sockets.length, '个');
     sockets.forEach((socket, i) => {
       log.debug(`  socket[${i}]: ${socket}`);
@@ -161,8 +234,12 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async createInstance(instanceId: string): Promise<void> {
-    if (!isTauri()) return;
     log.info('创建实例:', instanceId);
+    if (!isTauri()) {
+      await apiPut(`/maa/instances/${instanceId}`, {});
+      log.info('创建实例成功 (HTTP):', instanceId);
+      return;
+    }
     await invoke('maa_create_instance', { instanceId });
     log.info('创建实例成功:', instanceId);
   },
@@ -172,8 +249,12 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async destroyInstance(instanceId: string): Promise<void> {
-    if (!isTauri()) return;
     log.info('销毁实例:', instanceId);
+    if (!isTauri()) {
+      await apiDelete(`/maa/instances/${instanceId}`);
+      log.info('销毁实例成功 (HTTP):', instanceId);
+      return;
+    }
     await invoke('maa_destroy_instance', { instanceId });
     log.info('销毁实例成功:', instanceId);
   },
@@ -189,8 +270,12 @@ export const maaService = {
     log.debug('控制器配置:', config);
 
     if (!isTauri()) {
-      log.warn('非 Tauri 环境，模拟连接');
-      return Math.floor(Math.random() * 10000);
+      log.info('浏览器环境，调用 HTTP API 连接控制器');
+      const result = await apiPost<{ connId: number }>(
+        `/maa/instances/${instanceId}/connect`,
+        config,
+      );
+      return result.connId;
     }
 
     try {
@@ -211,7 +296,10 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async getConnectionStatus(instanceId: string): Promise<ConnectionStatus> {
-    if (!isTauri()) return 'Disconnected';
+    if (!isTauri()) {
+      const state = await this.getInstanceState(instanceId);
+      return state?.connectionStatus ?? 'Disconnected';
+    }
     log.debug('获取连接状态, 实例:', instanceId);
     const status = await invoke<ConnectionStatus>('maa_get_connection_status', { instanceId });
     log.debug('连接状态:', instanceId, '->', status);
@@ -230,7 +318,13 @@ export const maaService = {
       log.debug(`  路径[${i}]: ${path}`);
     });
     if (!isTauri()) {
-      return paths.map((_, i) => i + 1);
+      const result = await apiPost<{ resIds: number[] }>(
+        `/maa/instances/${instanceId}/resource/load`,
+        { paths },
+      );
+      const resIds = result.resIds ?? [];
+      log.info('资源加载请求已发送 (HTTP), resIds:', resIds);
+      return resIds;
     }
     const resIds = await invoke<number[]>('maa_load_resource', { instanceId, paths });
     log.info('资源加载请求已发送, resIds:', resIds);
@@ -242,7 +336,10 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async isResourceLoaded(instanceId: string): Promise<boolean> {
-    if (!isTauri()) return false;
+    if (!isTauri()) {
+      const state = await this.getInstanceState(instanceId);
+      return state?.resourceLoaded ?? false;
+    }
     log.debug('检查资源是否已加载, 实例:', instanceId);
     const loaded = await invoke<boolean>('maa_is_resource_loaded', { instanceId });
     log.debug('资源加载状态:', instanceId, '->', loaded);
@@ -265,12 +362,14 @@ export const maaService = {
    * @param instanceId 实例 ID
    * @param entry 任务入口
    * @param pipelineOverride Pipeline 覆盖 JSON
+   * @param selectedTaskId 对应的前端任务 ID（用于后端跟踪任务状态）
    * @returns 任务 ID
    */
   async runTask(
     instanceId: string,
     entry: string,
     pipelineOverride: string = '{}',
+    selectedTaskId?: string,
   ): Promise<number> {
     log.info(
       '运行任务, 实例:',
@@ -281,12 +380,19 @@ export const maaService = {
       pipelineOverride,
     );
     if (!isTauri()) {
-      return Math.floor(Math.random() * 10000);
+      const result = await apiPost<{ taskIds: number[] }>(
+        `/maa/instances/${instanceId}/tasks/run`,
+        [{ entry, pipeline_override: pipelineOverride, selected_task_id: selectedTaskId }],
+      );
+      const taskId = result.taskIds[0] ?? 0;
+      log.info('任务已提交 (HTTP), taskId:', taskId);
+      return taskId;
     }
     const taskId = await invoke<number>('maa_run_task', {
       instanceId,
       entry,
       pipelineOverride,
+      selectedTaskId: selectedTaskId ?? null,
     });
     log.info('任务已提交, taskId:', taskId);
     return taskId;
@@ -311,7 +417,11 @@ export const maaService = {
    */
   async stopTask(instanceId: string): Promise<void> {
     log.info('停止任务, 实例:', instanceId);
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/tasks/stop`);
+      log.info('停止任务请求已发送 (HTTP)');
+      return;
+    }
     await invoke('maa_stop_task', { instanceId });
     log.info('停止任务请求已发送');
   },
@@ -336,12 +446,17 @@ export const maaService = {
       ', override:',
       pipelineOverride,
     );
-    if (!isTauri()) return false;
-    const success = await invoke<boolean>('maa_override_pipeline', {
-      instanceId,
-      taskId,
-      pipelineOverride,
-    });
+    const success = isTauri()
+      ? await invoke<boolean>('maa_override_pipeline', {
+          instanceId,
+          taskId,
+          pipelineOverride,
+        })
+      : (
+          await apiPost<{ success: boolean }>(`/maa/instances/${instanceId}/tasks/${taskId}/pipeline`, {
+            pipelineOverride,
+          })
+        ).success;
     log.info('覆盖 Pipeline 结果:', success);
     return success;
   },
@@ -351,22 +466,25 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async isRunning(instanceId: string): Promise<boolean> {
-    if (!isTauri()) return false;
-    // log.debug('检查是否正在运行, 实例:', instanceId);
+    if (!isTauri()) {
+      const state = await this.getInstanceState(instanceId);
+      return state?.isRunning ?? false;
+    }
     const running = await invoke<boolean>('maa_is_running', { instanceId });
-    // log.debug('运行状态:', instanceId, '->', running);
     return running;
   },
 
   /**
    * 发起截图请求（异步，通过回调通知完成状态）
    * @param instanceId 实例 ID
-   * @returns 截图请求 ID，通过监听 maa-callback 事件获取完成状态
+   * @returns 截图请求 ID（Tauri）或 0（浏览器，实际截图异步进行并写入缓存）
    */
   async postScreencap(instanceId: string): Promise<number> {
-    if (!isTauri()) return -1;
+    if (!isTauri()) {
+      // 浏览器模式：截图由后端 ScreenshotService 统一驱动，此处无需额外触发
+      return 0;
+    }
     const screencapId = await invoke<number>('maa_post_screencap', { instanceId });
-    // log.debug('截图请求已发送, screencapId:', screencapId);
     return screencapId;
   },
 
@@ -376,8 +494,52 @@ export const maaService = {
    * @returns base64 编码的图像 data URL
    */
   async getCachedImage(instanceId: string): Promise<string> {
-    if (!isTauri()) return '';
+    if (!isTauri()) {
+      // 浏览器模式：后端截图循环已在运行，直接读取最新缓存
+      return fetchScreenshotDataUrl(instanceId).catch(() => '');
+    }
     return await invoke<string>('maa_get_cached_image', { instanceId });
+  },
+
+  /**
+   * 订阅实例的实时截图（后端统一驱动截图循环）
+   *
+   * 多个客户端可同时订阅同一实例，后端按最快订阅者的帧率驱动唯一截图循环。
+   * 订阅后应调用 getCachedImage 获取截图，无需手动调用 postScreencap。
+   *
+   * @param instanceId 实例 ID
+   * @param subscriberId 订阅者唯一标识（同一 ID 重复调用会更新 intervalMs）
+   * @param intervalMs 期望的截图间隔（毫秒）
+   */
+  async screenshotSubscribe(
+    instanceId: string,
+    subscriberId: string,
+    intervalMs: number,
+  ): Promise<void> {
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/screenshot/subscribe`, {
+        subscriber_id: subscriberId,
+        interval_ms: intervalMs,
+      });
+      return;
+    }
+    await invoke('maa_screenshot_subscribe', { instanceId, subscriberId, intervalMs });
+  },
+
+  /**
+   * 取消实例的实时截图订阅
+   *
+   * @param instanceId 实例 ID
+   * @param subscriberId 订阅时使用的唯一标识
+   */
+  async screenshotUnsubscribe(instanceId: string, subscriberId: string): Promise<void> {
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/screenshot/unsubscribe`, {
+        subscriber_id: subscriberId,
+      });
+      return;
+    }
+    await invoke('maa_screenshot_unsubscribe', { instanceId, subscriberId });
   },
 
   /**
@@ -413,7 +575,18 @@ export const maaService = {
       );
     }
     if (!isTauri()) {
-      return tasks.map((_, i) => i + 1);
+      const result = await apiPost<{ taskIds: number[] }>(
+        `/maa/instances/${instanceId}/tasks/start`,
+        {
+          tasks,
+          agent_configs: agentConfigs && agentConfigs.length > 0 ? agentConfigs : null,
+          cwd: cwd || null,
+          tcp_compat_mode: tcpCompatMode || false,
+          pi_envs: agentConfigs && agentConfigs.length > 0 && piEnvs ? piEnvs : null,
+        },
+      );
+      log.info('任务已提交 (HTTP), taskIds:', result.taskIds);
+      return result.taskIds;
     }
     const hasAgent = (agentConfigs?.length ?? 0) > 0;
     const taskIds = await invoke<number[]>('maa_start_tasks', {
@@ -434,7 +607,11 @@ export const maaService = {
    */
   async stopAgent(instanceId: string): Promise<void> {
     log.info('停止 Agent, 实例:', instanceId);
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      await apiPost(`/maa/instances/${instanceId}/agent/stop`, {});
+      log.info('停止 Agent 成功 (HTTP)');
+      return;
+    }
     await invoke('maa_stop_agent', { instanceId });
     log.info('停止 Agent 成功');
   },
@@ -455,13 +632,20 @@ export const maaService = {
     callback: (message: string, details: MaaCallbackDetails) => void,
   ): Promise<UnlistenFn> {
     if (!isTauri()) {
-      // 非 Tauri 环境返回空函数
-      return () => {};
+      // 浏览器环境：通过 WebSocket 接收 maa-callback 事件
+      return wsService.onMaaCallback((message, details) => {
+        try {
+          const parsedDetails = JSON.parse(details) as MaaCallbackDetails;
+          callback(message, parsedDetails);
+        } catch {
+          log.warn('Failed to parse WS callback details:', details);
+          callback(message, {});
+        }
+      });
     }
 
     return await listen<MaaCallbackEvent>('maa-callback', (event) => {
       const { message, details } = event.payload;
-      //   log.debug('MaaCallback:', message, details);
 
       try {
         const parsedDetails = JSON.parse(details) as MaaCallbackDetails;
@@ -499,36 +683,39 @@ export const maaService = {
       return true;
     }
 
-    return new Promise<boolean>((resolve) => {
-      let unlisten: UnlistenFn | null = null;
-      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let resolved = false;
+    const unlisten = await this.onCallback((message, details) => {
+      if (details.ctrl_id !== id) return;
 
-      const cleanup = () => {
-        if (unlisten) unlisten();
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-
-      // 设置超时
-      timeoutId = setTimeout(() => {
-        cleanup();
-        log.warn(`截图等待超时, ctrl_id=${id}`);
-        resolve(false);
-      }, timeout);
-
-      // 监听回调
-      this.onCallback((message, details) => {
-        if (details.ctrl_id !== id) return;
-
-        if (message === 'Controller.Action.Succeeded') {
-          cleanup();
-          resolve(true);
-        } else if (message === 'Controller.Action.Failed') {
-          cleanup();
-          resolve(false);
+      if (message === 'Controller.Action.Succeeded') {
+        if (!resolved) {
+          resolved = true;
+          settle(true);
         }
-      }).then((fn) => {
-        unlisten = fn;
-      });
+      } else if (message === 'Controller.Action.Failed') {
+        if (!resolved) {
+          resolved = true;
+          settle(false);
+        }
+      }
+    });
+
+    let settle!: (value: boolean) => void;
+    const promise = new Promise<boolean>((resolve) => {
+      settle = resolve;
+    });
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        log.warn(`截图等待超时, ctrl_id=${id}`);
+        settle(false);
+      }
+    }, timeout);
+
+    return promise.finally(() => {
+      clearTimeout(timeoutId);
+      unlisten();
     });
   },
 
@@ -537,21 +724,34 @@ export const maaService = {
    * @param instanceId 实例 ID
    */
   async getInstanceState(instanceId: string): Promise<InstanceRuntimeInfo | null> {
-    if (!isTauri()) return null;
+    if (!isTauri()) {
+      try {
+        const allStates = await this.getAllStates();
+        if (!allStates) return null;
+        const state = allStates.instances[instanceId];
+        if (!state) return null;
+        return {
+          connectionStatus: state.connected ? 'Connected' : 'Disconnected',
+          resourceLoaded: state.resourceLoaded,
+          isRunning: state.isRunning,
+          currentTaskId: null,
+        };
+      } catch {
+        return null;
+      }
+    }
     try {
       const state = await invoke<{
         connected: boolean;
         resource_loaded: boolean;
         tasker_inited: boolean;
         is_running: boolean;
-        task_ids: number[];
       }>('maa_get_instance_state', { instanceId });
       return {
         connectionStatus: state.connected ? 'Connected' : 'Disconnected',
         resourceLoaded: state.resource_loaded,
         isRunning: state.is_running,
         currentTaskId: null,
-        taskIds: state.task_ids,
       };
     } catch {
       return null;
@@ -569,32 +769,47 @@ export const maaService = {
         resourceLoaded: boolean;
         taskerInited: boolean;
         isRunning: boolean;
-        taskIds: number[];
+        taskRunState: {
+          statuses: Record<string, string>;
+          mappings: Record<string, string>;
+          pendingTaskIds: number[];
+          currentTaskIndex: number;
+          overallStatus: string | null;
+        };
       }
     >;
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
     cachedWlrootsSockets: string[];
   } | null> {
-    if (!isTauri()) return null;
     try {
-      const states = await invoke<{
-        instances: Record<
-          string,
-          {
-            connected: boolean;
-            resource_loaded: boolean;
-            tasker_inited: boolean;
-            is_running: boolean;
-            task_ids: number[];
-          }
-        >;
+      type RawTaskRunState = {
+        statuses: Record<string, string>;
+        mappings: Record<string, string>;
+        pending_task_ids: number[];
+        current_task_index: number;
+        overall_status: string | null;
+      };
+      type RawInstanceState = {
+        connected: boolean;
+        resource_loaded: boolean;
+        tasker_inited: boolean;
+        is_running: boolean;
+        task_run_state: RawTaskRunState;
+      };
+      type RawAllStates = {
+        instances: Record<string, RawInstanceState>;
         cached_adb_devices: AdbDevice[];
         cached_win32_windows: Win32Window[];
         cached_wlroots_sockets: string[];
-      }>('maa_get_all_states');
+      };
 
-      // 转换字段名
+      // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
+      const states = isTauri()
+        ? await invoke<RawAllStates>('maa_get_all_states')
+        : await apiGet<RawAllStates>('/maa/state');
+
+      // 转换字段名（snake_case -> camelCase）
       const instances: Record<
         string,
         {
@@ -602,17 +817,30 @@ export const maaService = {
           resourceLoaded: boolean;
           taskerInited: boolean;
           isRunning: boolean;
-          taskIds: number[];
+          taskRunState: {
+            statuses: Record<string, string>;
+            mappings: Record<string, string>;
+            pendingTaskIds: number[];
+            currentTaskIndex: number;
+            overallStatus: string | null;
+          };
         }
       > = {};
 
       for (const [id, state] of Object.entries(states.instances)) {
+        const trs = state.task_run_state ?? {};
         instances[id] = {
           connected: state.connected,
           resourceLoaded: state.resource_loaded,
           taskerInited: state.tasker_inited,
           isRunning: state.is_running,
-          taskIds: state.task_ids,
+          taskRunState: {
+            statuses: trs.statuses ?? {},
+            mappings: trs.mappings ?? {},
+            pendingTaskIds: trs.pending_task_ids ?? [],
+            currentTaskIndex: trs.current_task_index ?? 0,
+            overallStatus: trs.overall_status ?? null,
+          },
         };
       }
 
@@ -668,9 +896,12 @@ export const maaService = {
    * 检查当前进程是否以管理员权限运行
    */
   async isElevated(): Promise<boolean> {
-    if (!isTauri()) return false;
     try {
-      return await invoke<boolean>('is_elevated');
+      if (isTauri()) {
+        return await invoke<boolean>('is_elevated');
+      }
+      const resp = await apiGet<{ elevated: boolean }>('/system/is-elevated');
+      return resp.elevated;
     } catch {
       return false;
     }
@@ -682,7 +913,8 @@ export const maaService = {
    */
   async restartAsAdmin(): Promise<void> {
     if (!isTauri()) {
-      throw new Error('此功能仅在 Tauri 环境中可用');
+      await apiPost('/system/restart-as-admin');
+      return;
     }
     await invoke('restart_as_admin');
   },

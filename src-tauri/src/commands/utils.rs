@@ -2,18 +2,150 @@
 //!
 //! 提供路径处理和其他通用工具函数
 
-use super::types::MaaCallbackEvent;
+use super::types::{MaaCallbackEvent, MaaState, StateChangedEvent};
+use crate::ws_broadcast::{WsBroadcast, WsEvent};
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
-/// 发送回调事件到前端
+/// 发送回调事件到前端（Tauri WebView + WebSocket 浏览器客户端）
 pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details: S) {
-    let event = MaaCallbackEvent {
-        message: message.into(),
-        details: details.into(),
-    };
+    let message = message.into();
+    let details = details.into();
+
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::MaaCallback {
+            message: message.clone(),
+            details: details.clone(),
+        });
+    }
+
+    // 发送到 Tauri WebView
+    let event = MaaCallbackEvent { message, details };
     if let Err(e) = app.emit("maa-callback", event) {
         log::error!("Failed to emit maa-callback: {}", e);
+    }
+}
+
+/// 发送实例状态变更事件（双通道：WS 浏览器客户端 + Tauri WebView）
+///
+/// Tauri 端和 WebUI 端都会收到此事件，用于刷新 `isRunning`、连接状态等运行时信息。
+pub fn emit_state_changed(app: &AppHandle, instance_id: &str, kind: &str) {
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::StateChanged {
+            instance_id: instance_id.to_string(),
+            kind: kind.to_string(),
+        });
+    }
+
+    // 发送到 Tauri WebView
+    let event = StateChangedEvent {
+        instance_id: instance_id.to_string(),
+        kind: kind.to_string(),
+    };
+    if let Err(e) = app.emit("state-changed", event) {
+        log::error!("Failed to emit state-changed: {}", e);
+    }
+}
+
+/// 处理 MaaFramework 任务回调，在 Rust 侧更新 TaskRunState（单一真相来源）
+///
+/// 应在 tasker sink 中调用，在 `emit_callback_event` 之前处理任务状态变更。
+/// 负责跟踪 Tasker.Task.Starting / Succeeded / Failed，并在所有任务完成后
+/// 更新 `overall_status` 并发射 `tasks-completed` 事件。
+pub fn handle_task_callback(
+    maa_state: &Arc<MaaState>,
+    app: &AppHandle,
+    instance_id: &str,
+    message: &str,
+    details: &str,
+) {
+    let is_started = message == "Tasker.Task.Starting";
+    let is_succeeded = message == "Tasker.Task.Succeeded";
+    let is_failed = message == "Tasker.Task.Failed";
+
+    if !is_started && !is_succeeded && !is_failed {
+        return;
+    }
+
+    // 解析 task_id
+    let task_id: i64 = match serde_json::from_str::<serde_json::Value>(details)
+        .ok()
+        .and_then(|v| v.get("task_id").and_then(|id| id.as_i64()))
+    {
+        Some(id) => id,
+        None => return,
+    };
+
+    let all_done = {
+        let mut instances = match maa_state.instances.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let instance = match instances.get_mut(instance_id) {
+            Some(i) => i,
+            None => return,
+        };
+        let state = &mut instance.task_run_state;
+
+        if is_started {
+            // 任务开始：定位该任务在队列中的索引，更新当前索引和状态
+            if let Some(idx) = state.pending_task_ids.iter().position(|&id| id == task_id) {
+                state.current_task_index = idx;
+            }
+            if let Some(selected_id) = state.mappings.get(&task_id).cloned() {
+                state.statuses.insert(selected_id, "running".to_string());
+            }
+            false // 未完成
+        } else {
+            // 任务成功或失败
+            let status_str = if is_succeeded { "succeeded" } else { "failed" };
+            if let Some(selected_id) = state.mappings.get(&task_id).cloned() {
+                state.statuses.insert(selected_id, status_str.to_string());
+            }
+
+            // 检查所有已入队任务是否均已完成
+            let all_completed = state.pending_task_ids.iter().all(|id| {
+                state
+                    .mappings
+                    .get(id)
+                    .and_then(|sel_id| state.statuses.get(sel_id))
+                    .map(|s| s == "succeeded" || s == "failed")
+                    .unwrap_or(false)
+            });
+
+            if all_completed {
+                let has_failed = state.statuses.values().any(|s| s == "failed");
+                state.overall_status =
+                    Some(if has_failed { "Failed" } else { "Succeeded" }.to_string());
+                instance.task_ids.clear();
+            }
+
+            all_completed
+        }
+    }; // 锁在此处释放
+
+    // 通知前端刷新状态
+    emit_state_changed(app, instance_id, "task-progress");
+    if all_done {
+        emit_state_changed(app, instance_id, "tasks-completed");
+    }
+}
+
+/// 发送配置变更事件（双通道：WS 浏览器客户端 + Tauri WebView）
+///
+/// 各客户端收到后应重新拉取配置并 `importConfig`（需配合 `consumeSelfSave` 跳过自身触发）。
+pub fn emit_config_changed(app: &AppHandle) {
+    // 广播到所有 WebSocket 客户端
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::ConfigChanged);
+    }
+
+    // 发送到 Tauri WebView
+    if let Err(e) = app.emit("config-changed-external", ()) {
+        log::error!("Failed to emit config-changed-external: {}", e);
     }
 }
 

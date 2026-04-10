@@ -10,6 +10,7 @@ import type {
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
+import { setBackendPort } from '@/utils/backendApi';
 
 const log = loggers.app;
 
@@ -30,6 +31,7 @@ export interface LoadResult {
   translations: Record<string, Record<string, string>>;
   basePath: string;
   dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
+  webServerPort?: number; // 后端 Web 服务器实际监听端口（浏览器模式下用于 WS 直连）
 }
 
 /**
@@ -393,7 +395,77 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     return { interface: pi, translations, basePath, dataPath };
   }
 
-  // 浏览器环境：通过 HTTP 加载
+  // 浏览器环境：尝试后端 HTTP API（先走 Vite proxy，失败则探测端口直连）
+  {
+    type InterfaceApiResult = {
+      interface: ProjectInterface;
+      translations: Record<string, Record<string, string>>;
+      basePath: string;
+      dataPath: string;
+      webServerPort?: number;
+    };
+
+    const tryFetchInterface = async (
+      url: string,
+      timeoutMs = 3000,
+    ): Promise<InterfaceApiResult | null> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const resp = await fetch(url, { signal: controller.signal });
+        if (!resp.ok) return null;
+        const result = (await resp.json()) as InterfaceApiResult;
+        return result?.interface ? result : null;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    // 1. 先通过 Vite proxy（相对路径）尝试（短超时，proxy 正常时应很快）
+    let apiResult = await tryFetchInterface('/api/interface', 2000);
+
+    // 2. proxy 失败时，并行探测后端端口范围（使用页面 hostname 而非 localhost，以支持局域网访问）
+    if (!apiResult) {
+      const DEFAULT_PORT = 12701;
+      const MAX_PROBE = 10;
+      const probeHost = window.location.hostname || 'localhost';
+      const probes = Array.from({ length: MAX_PROBE }, (_, i) => {
+        const port = DEFAULT_PORT + i;
+        return tryFetchInterface(`http://${probeHost}:${port}/api/interface`, 3000).then(
+          (result) => {
+            if (result) return { result, port };
+            throw new Error('not available');
+          },
+        );
+      });
+
+      try {
+        const found = await Promise.any(probes);
+        apiResult = found.result;
+        log.info(`探测到后端在端口 ${found.port}`);
+        setBackendPort(found.port);
+      } catch {
+        // 所有端口探测均失败
+      }
+    }
+
+    if (apiResult) {
+      log.info('从后端 HTTP API 加载 interface.json');
+      filterControllersByPlatform(apiResult.interface);
+      return {
+        interface: apiResult.interface,
+        translations: apiResult.translations ?? {},
+        basePath: apiResult.basePath ?? '',
+        dataPath: apiResult.dataPath ?? '',
+        webServerPort: apiResult.webServerPort,
+      };
+    }
+    log.info('后端 HTTP API 不可用，回退到静态文件加载');
+  }
+
+  // 回退：从 public 目录加载（纯前端开发预览模式）
   const httpPath = `/${interfacePath}`;
   if (await httpFileExists(httpPath)) {
     const pi = await loadInterfaceFromHttp(httpPath);

@@ -13,11 +13,11 @@ import {
   Check,
 } from 'lucide-react';
 
-import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '@/stores/appStore';
 import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
 import { isTauri } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
+import { DesktopOnlyWrapper } from '@/components/ui/DesktopOnlyWrapper';
 import { FrameRateSelector } from '../FrameRateSelector';
 
 export function GeneralSection() {
@@ -51,22 +51,24 @@ export function GeneralSection() {
 
   useEffect(() => {
     if (!isTauri()) return;
-    invoke<string>('get_os')
-      .then((os) => {
-        isWindowsRef.current = os === 'windows';
-        if (isWindowsRef.current) {
-          invoke<boolean>('autostart_is_enabled')
-            .then(setAutoStartEnabled)
-            .catch(() => {});
-        } else {
-          import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
-            isEnabled()
+    import('@tauri-apps/api/core').then(({ invoke: tauriInvoke }) => {
+      tauriInvoke<string>('get_os')
+        .then((os) => {
+          isWindowsRef.current = os === 'windows';
+          if (isWindowsRef.current) {
+            tauriInvoke<boolean>('autostart_is_enabled')
               .then(setAutoStartEnabled)
               .catch(() => {});
-          });
-        }
-      })
-      .catch(() => {});
+          } else {
+            import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+              isEnabled()
+                .then(setAutoStartEnabled)
+                .catch(() => {});
+            });
+          }
+        })
+        .catch(() => {});
+    });
   }, []);
 
   // 点击外部关闭下拉框
@@ -86,6 +88,7 @@ export function GeneralSection() {
     setAutoStartLoading(true);
     try {
       if (isWindowsRef.current) {
+        const { invoke } = await import('@tauri-apps/api/core');
         await invoke(enabled ? 'autostart_enable' : 'autostart_disable');
       } else {
         const { enable, disable } = await import('@tauri-apps/plugin-autostart');
@@ -161,111 +164,129 @@ export function GeneralSection() {
       )}
 
       {/* ② 启动后自动执行（独立卡片 + 自定义下拉框） */}
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center gap-3 mb-3">
-          <Play className="w-5 h-5 text-accent" />
-          <div>
-            <span className="font-medium text-text-primary">{t('settings.autoStartInstance')}</span>
-            <p className="text-xs text-text-muted mt-0.5">{t('settings.autoStartInstanceHint')}</p>
+      <DesktopOnlyWrapper>
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center gap-3 mb-3">
+            <Play className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.autoStartInstance')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.autoStartInstanceHint')}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* 自定义下拉框 */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setInstanceDropdownOpen((prev) => !prev)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setInstanceDropdownOpen(false);
-            }}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border flex items-center justify-between gap-2 bg-bg-tertiary border-border text-text-primary hover:bg-bg-hover transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
-            aria-haspopup="listbox"
-            aria-expanded={instanceDropdownOpen}
-          >
-            <span className="truncate">
-              {selectedOption?.name ?? t('settings.autoStartInstanceNone')}
-            </span>
-            <ChevronDown
-              className={`w-4 h-4 text-text-muted shrink-0 transition-transform ${instanceDropdownOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {instanceDropdownOpen && (
-            <div
-              className="absolute right-0 z-20 mt-1 w-full min-w-[160px] max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg"
-              role="listbox"
+          {/* 自定义下拉框 */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setInstanceDropdownOpen((prev) => !prev)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setInstanceDropdownOpen(false);
+              }}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border flex items-center justify-between gap-2 bg-bg-tertiary border-border text-text-primary hover:bg-bg-hover transition-colors focus:outline-none focus:ring-2 focus:ring-accent/50"
+              aria-haspopup="listbox"
+              aria-expanded={instanceDropdownOpen}
             >
-              {dropdownOptions.map((opt) => {
-                const isSelected = opt.id === (autoStartInstanceId ?? '');
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 transition-colors ${
-                      isSelected
-                        ? 'bg-accent/10 text-accent font-medium'
-                        : 'text-text-primary hover:bg-bg-hover'
-                    }`}
-                    onClick={() => {
-                      setAutoStartInstanceId(opt.id || undefined);
-                      setInstanceDropdownOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={`w-4 h-4 shrink-0 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
-                    />
-                    <span className="truncate">{opt.name}</span>
-                  </button>
-                );
-              })}
+              <span className="truncate">
+                {selectedOption?.name ?? t('settings.autoStartInstanceNone')}
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-text-muted shrink-0 transition-transform ${instanceDropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {instanceDropdownOpen && (
+              <div
+                className="absolute right-0 z-20 mt-1 w-full min-w-[160px] max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg"
+                role="listbox"
+              >
+                {dropdownOptions.map((opt) => {
+                  const isSelected = opt.id === (autoStartInstanceId ?? '');
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 transition-colors ${
+                        isSelected
+                          ? 'bg-accent/10 text-accent font-medium'
+                          : 'text-text-primary hover:bg-bg-hover'
+                      }`}
+                      onClick={() => {
+                        setAutoStartInstanceId(opt.id || undefined);
+                        setInstanceDropdownOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={`w-4 h-4 shrink-0 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+                      />
+                      <span className="truncate">{opt.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 被删除的自动执行配置提示 */}
+          {autoStartRemovedInstanceName && (
+            <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>
+                {t('settings.autoStartInstanceRemoved', { name: autoStartRemovedInstanceName })}
+              </span>
             </div>
           )}
         </div>
-
-        {/* 被删除的自动执行配置提示 */}
-        {autoStartRemovedInstanceName && (
-          <div className="flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
-            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>
-              {t('settings.autoStartInstanceRemoved', { name: autoStartRemovedInstanceName })}
-            </span>
-          </div>
-        )}
-      </div>
+      </DesktopOnlyWrapper>
 
       {/* ③ 手动启动时也自动执行 */}
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Rocket className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('settings.autoRunOnLaunch')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.autoRunOnLaunchHint')}</p>
+      <DesktopOnlyWrapper>
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Rocket className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">
+                  {t('settings.autoRunOnLaunch')}
+                </span>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {t('settings.autoRunOnLaunchHint')}
+                </p>
+              </div>
             </div>
+            <SwitchButton
+              value={autoRunOnLaunch}
+              onChange={(v) => setAutoRunOnLaunch(v)}
+              disabled={!autoStartInstanceId}
+            />
           </div>
-          <SwitchButton
-            value={autoRunOnLaunch}
-            onChange={(v) => setAutoRunOnLaunch(v)}
-            disabled={!autoStartInstanceId}
-          />
         </div>
-      </div>
+      </DesktopOnlyWrapper>
 
       {/* ④ 最小化到托盘 */}
-      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AppWindowMac className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('settings.minimizeToTray')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('settings.minimizeToTrayHint')}</p>
+      <DesktopOnlyWrapper>
+        <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AppWindowMac className="w-5 h-5 text-accent" />
+              <div>
+                <span className="font-medium text-text-primary">
+                  {t('settings.minimizeToTray')}
+                </span>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {t('settings.minimizeToTrayHint')}
+                </p>
+              </div>
             </div>
+            <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
           </div>
-          <SwitchButton value={minimizeToTray} onChange={(v) => setMinimizeToTray(v)} />
         </div>
-      </div>
+      </DesktopOnlyWrapper>
 
       {/* ⑤ 显示选项预览 */}
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">

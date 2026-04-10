@@ -17,6 +17,7 @@ export default {
     info: 'お知らせ',
     resizeOrCollapse: 'ドラッグして幅を調整、右端までドラッグで折りたたみ',
     copySuffix: '（コピー）',
+    desktopOnly: 'デスクトップ版のみ',
   },
 
   // タイトルバー
@@ -521,6 +522,14 @@ export default {
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
+    allowLanAccess: 'LAN アクセスを許可',
+    allowLanAccessHint:
+      '有効にすると Web UI が 0.0.0.0 でリッスンし、LAN 内の他のデバイスからアクセスできます',
+    allowLanAccessRestartMessage:
+      'LAN アクセス設定の変更を反映するには再起動が必要です。今すぐ再起動しますか？',
+    restartLater: '後で',
+    restartNow: '今すぐ再起動',
+    webServerAddress: 'Web サーバーアドレス',
   },
 
   // ウェルカムダイアログ
@@ -809,6 +818,20 @@ export default {
       'インストールは完了しましたが、読み込みに失敗しました。コンピュータを再起動してから再試行してください。',
     restartHint: '問題が解決しない場合は、コンピュータを再起動してから再試行してください。',
     retry: '再試行',
+  },
+
+  // 接続切断（WebUI モード）
+  connectionLost: {
+    title: '接続が切断されました',
+    message: 'バックエンドサービスとの接続が切断されました。再接続を試みています...',
+    reconnecting: '再接続中...',
+  },
+
+  // WebUI ベータ版バナー
+  webuiBeta: {
+    message: 'Web UI は現在ベータ版です。一部の機能が不安定な場合があります。問題が発生した場合は、GitHub で',
+    reportIssue: 'Issue を報告',
+    desktopHint: 'より安定した環境には、デスクトップ版をご利用ください',
   },
 
   // パス警告

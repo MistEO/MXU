@@ -447,8 +447,8 @@ export function TabBar() {
         </button>
       </div>
 
-      {/* 项目名称（根据协议，label 是 UI 显示名称，title 是窗口标题） */}
-      <div className="px-4 text-sm font-medium text-text-secondary">
+      {/* 项目名称（根据协议，label 是 UI 显示名称，title 是窗口标题；移动端隐藏节省空间） */}
+      <div className="hidden md:block px-4 text-sm font-medium text-text-secondary">
         {resolveI18nText(projectInterface?.label, langKey) || projectInterface?.name || 'MXU'}
       </div>
 

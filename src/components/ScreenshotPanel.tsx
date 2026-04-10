@@ -18,6 +18,7 @@ import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { getFrameInterval } from './FrameRateSelector';
 import { loggers } from '@/utils/logger';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const log = loggers.ui;
 
@@ -34,6 +35,7 @@ const API_TIMEOUT = 30000;
 
 export function ScreenshotPanel() {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const {
     activeInstanceId,
     instanceConnectionStatus,
@@ -45,6 +47,9 @@ export function ScreenshotPanel() {
     setScreenshotPanelExpanded,
     screenshotFrameRate,
   } = useAppStore();
+
+  // 在移动端单列布局中，截图面板始终可见，不受 sidePanelExpanded 影响
+  const isPanelVisible = isMobile || sidePanelExpanded;
 
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -275,7 +280,7 @@ export function ScreenshotPanel() {
 
   // 面板折叠时暂停截图，展开时自动开始（如果已连接）
   useEffect(() => {
-    if (!screenshotPanelExpanded || !sidePanelExpanded) {
+    if (!screenshotPanelExpanded || !isPanelVisible) {
       // 折叠时暂停截图流，同步更新状态和图标
       streamingRef.current = false;
       setIsStreaming(false);
@@ -286,7 +291,7 @@ export function ScreenshotPanel() {
       setError(null);
       streamLoop();
     }
-  }, [screenshotPanelExpanded, sidePanelExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [screenshotPanelExpanded, isPanelVisible]); // eslint-disable-line react-hooks/exhaustive-deps
   const prevConnectionStatusRef = useRef<typeof connectionStatus>(undefined);
   const hasAutoStartedRef = useRef(false);
 
@@ -296,7 +301,7 @@ export function ScreenshotPanel() {
     if (hasAutoStartedRef.current) return;
 
     const isConnected = connectionStatus === 'Connected';
-    if (isConnected && !isStreaming && screenshotPanelExpanded && sidePanelExpanded && instanceId) {
+    if (isConnected && !isStreaming && screenshotPanelExpanded && isPanelVisible && instanceId) {
       hasAutoStartedRef.current = true;
       streamingRef.current = true;
       setIsStreaming(true);
@@ -307,7 +312,7 @@ export function ScreenshotPanel() {
     connectionStatus,
     instanceId,
     screenshotPanelExpanded,
-    sidePanelExpanded,
+    isPanelVisible,
     isStreaming,
     setIsStreaming,
     streamLoop,
@@ -471,7 +476,7 @@ export function ScreenshotPanel() {
       !wasConnected &&
       !isStreaming &&
       screenshotPanelExpanded &&
-      sidePanelExpanded &&
+      isPanelVisible &&
       instanceId
     ) {
       streamingRef.current = true;
@@ -483,7 +488,7 @@ export function ScreenshotPanel() {
     connectionStatus,
     instanceId,
     screenshotPanelExpanded,
-    sidePanelExpanded,
+    isPanelVisible,
     isStreaming,
     setIsStreaming,
     streamLoop,

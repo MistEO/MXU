@@ -69,6 +69,8 @@ export default {
     noCustomAccents: 'カスタムアクセントはまだありません',
     customAccentNameRequired: '名前を入力してください',
     deleteCustomAccentConfirm: 'このカスタムアクセントを削除してもよろしいですか？',
+    openNav: 'ナビゲーションを開く',
+    closeNav: 'ナビゲーションを閉じる',
     customAccentDeleted: '{{name}} を削除しました',
     accentName: '名前',
     accentNamePlaceholder: '例：ダークバイオレット',

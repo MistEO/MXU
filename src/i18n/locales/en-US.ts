@@ -70,6 +70,8 @@ export default {
     noCustomAccents: 'No custom accents yet',
     customAccentNameRequired: 'Please enter a name',
     deleteCustomAccentConfirm: 'Are you sure you want to delete this custom accent?',
+    openNav: 'Open navigation menu',
+    closeNav: 'Close navigation menu',
     customAccentDeleted: 'Deleted {{name}}',
     accentName: 'Name',
     accentNamePlaceholder: 'e.g. Dark Violet',

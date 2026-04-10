@@ -37,12 +37,13 @@ const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
 interface ToolbarProps {
   showAddPanel: boolean;
   onToggleAddPanel: () => void;
+  className?: string;
 }
 
 // 自动连接阶段
 type AutoConnectPhase = 'idle' | 'searching' | 'connecting' | 'loading_resource';
 
-export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
+export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarProps) {
   const { t } = useTranslation();
   const {
     getActiveInstance,
@@ -1367,7 +1368,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
   };
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-bg-secondary border-t border-border">
+    <div className={clsx('flex items-center justify-between px-3 py-2 bg-bg-secondary border-t border-border', className)}>
       {/* 左侧工具按钮 */}
       <div className="flex items-center gap-1">
         {/* 全选/取消全选 */}

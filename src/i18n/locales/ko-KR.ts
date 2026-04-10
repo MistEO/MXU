@@ -69,6 +69,8 @@ export default {
     noCustomAccents: '사용자 지정 강조 색상이 없습니다',
     customAccentNameRequired: '이름을 입력하세요',
     deleteCustomAccentConfirm: '이 사용자 지정 강조 색상을 삭제하시겠습니까?',
+    openNav: '내비게이션 열기',
+    closeNav: '내비게이션 닫기',
     customAccentDeleted: '{{name}} 삭제됨',
     accentName: '이름',
     accentNamePlaceholder: '예: 다크 바이올렛',

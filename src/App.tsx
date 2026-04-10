@@ -70,6 +70,7 @@ import { LoadingScreen } from './components/app';
 import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
 import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const log = loggers.app;
 
@@ -137,6 +138,7 @@ function App() {
   const [isDashboardExiting, setIsDashboardExiting] = useState(false);
 
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   // 启用 MAA 回调日志监听
   useMaaCallbackLogger();
@@ -1782,8 +1784,48 @@ function App() {
               <LazyDashboardView onClose={closeDashboardWithAnimation} />
             </Suspense>
           </div>
+        ) : isMobile ? (
+          /* 移动端竖屏布局：单列纵向堆叠 */
+          <div key="main-view-mobile" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {/* 可滚动主内容区 */}
+            <div className="flex-1 overflow-y-auto">
+              {/* 连接设置 */}
+              <div className="p-2">
+                <ConnectionPanel />
+              </div>
+
+              {/* 实时截图 */}
+              <div className="p-2">
+                <ScreenshotPanel />
+              </div>
+
+              {/* 任务列表 */}
+              <TaskList />
+
+              {/* 添加任务面板 */}
+              <div
+                className="grid transition-[grid-template-rows] duration-150 ease-out"
+                style={{ gridTemplateRows: showAddTaskPanel ? '1fr' : '0fr' }}
+              >
+                <div className="overflow-hidden min-h-0">
+                  <AddTaskPanel />
+                </div>
+              </div>
+
+              {/* 工具栏（任务列表下方） */}
+              <Toolbar
+                showAddPanel={showAddTaskPanel}
+                onToggleAddPanel={() => setShowAddTaskPanel(!showAddTaskPanel)}
+              />
+
+              {/* 运行日志 */}
+              <div className="p-2">
+                <LogsPanel />
+              </div>
+            </div>
+          </div>
         ) : (
-          /* 主内容区 */
+          /* 桌面端横向分栏布局 */
           <div key="main-view" className="flex-1 flex overflow-hidden">
             {/* 左侧任务列表区 */}
             <div

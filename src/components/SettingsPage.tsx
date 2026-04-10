@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Paintbrush, Key, Settings2, Download, Bug, Info } from 'lucide-react';
+import { ArrowLeft, Paintbrush, Key, Settings2, Download, Bug, Info, Menu, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { useAppStore } from '@/stores/appStore';
 import type { CustomAccent } from '@/themes';
@@ -137,19 +138,25 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   // 当前高亮的 section
   const [activeSection, setActiveSection] = useState('appearance');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // 滚动到指定 section
-  const scrollToSection = useCallback((sectionId: string) => {
-    const element = document.getElementById(`section-${sectionId}`);
-    if (element && scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const elementTop = element.offsetTop - container.offsetTop;
-      container.scrollTo({
-        top: elementTop - 16,
-        behavior: 'smooth',
-      });
-    }
-  }, []);
+  const scrollToSection = useCallback(
+    (sectionId: string) => {
+      const element = document.getElementById(`section-${sectionId}`);
+      if (element && scrollContainerRef.current) {
+        const container = scrollContainerRef.current;
+        const elementTop = element.offsetTop - container.offsetTop;
+        container.scrollTo({
+          top: elementTop - 16,
+          behavior: 'smooth',
+        });
+      }
+      setDrawerOpen(false);
+    },
+    [],
+  );
 
   // 监听滚动，更新当前高亮的 section
   useEffect(() => {
@@ -186,6 +193,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     <div className="flex-1 min-h-0 flex flex-col bg-bg-primary">
       {/* 顶部导航 */}
       <div className="flex items-center gap-3 px-4 py-3 bg-bg-secondary border-b border-border">
+        {/* 移动端：汉堡菜单按钮 */}
+        {isMobile && (
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="p-2 rounded-lg hover:bg-bg-hover transition-colors"
+            title={t('settings.openNav')}
+          >
+            <Menu className="w-5 h-5 text-text-secondary" />
+          </button>
+        )}
         <button
           onClick={onClose ?? (() => setCurrentPage('main'))}
           className="p-2 rounded-lg hover:bg-bg-hover transition-colors"
@@ -196,29 +213,83 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       </div>
 
       {/* 主体区域：左侧目录 + 右侧内容 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* 左侧固定目录索引 */}
-        <nav className="w-40 flex-shrink-0 bg-bg-secondary border-r border-border p-4 space-y-1">
-          {tocItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => scrollToSection(item.id)}
-                className={clsx(
-                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left',
-                  isActive
-                    ? 'bg-accent text-white'
-                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
-                )}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">{t(item.labelKey)}</span>
-              </button>
-            );
-          })}
-        </nav>
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* 桌面端：左侧固定目录索引 */}
+        {!isMobile && (
+          <nav className="w-40 flex-shrink-0 bg-bg-secondary border-r border-border p-4 space-y-1">
+            {tocItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => scrollToSection(item.id)}
+                  className={clsx(
+                    'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left',
+                    isActive
+                      ? 'bg-accent text-white'
+                      : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                  )}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{t(item.labelKey)}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* 移动端：抽屉式导航 */}
+        {isMobile && (
+          <>
+            {/* 半透明遮罩 */}
+            <div
+              className={clsx(
+                'absolute inset-0 z-40 bg-black/40 transition-opacity duration-200',
+                drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
+              )}
+              onClick={() => setDrawerOpen(false)}
+            />
+            {/* 滑入面板 */}
+            <nav
+              className={clsx(
+                'absolute left-0 top-0 bottom-0 z-50 w-48 bg-bg-secondary border-r border-border p-4 space-y-1',
+                'transform transition-transform duration-200 ease-out',
+                drawerOpen ? 'translate-x-0' : '-translate-x-full',
+              )}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-text-primary">{t('settings.title')}</span>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="p-1 rounded-md hover:bg-bg-hover transition-colors"
+                  title={t('settings.closeNav')}
+                >
+                  <X className="w-4 h-4 text-text-secondary" />
+                </button>
+              </div>
+              {tocItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollToSection(item.id)}
+                    className={clsx(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left',
+                      isActive
+                        ? 'bg-accent text-white'
+                        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                    )}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{t(item.labelKey)}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </>
+        )}
 
         {/* 右侧设置内容 */}
         <div className="flex-1 overflow-y-auto" ref={scrollContainerRef}>

@@ -69,6 +69,8 @@ export default {
     noCustomAccents: '暫無自訂強調色',
     customAccentNameRequired: '請輸入名稱',
     deleteCustomAccentConfirm: '確定要刪除這個自訂強調色嗎？',
+    openNav: '開啟導覽選單',
+    closeNav: '關閉導覽選單',
     customAccentDeleted: '已刪除 {{name}}',
     accentName: '名稱',
     accentNamePlaceholder: '例如：小黑紫',

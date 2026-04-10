@@ -7,9 +7,11 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export function LogsPanel() {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
     useAppStore();
@@ -123,18 +125,26 @@ export function LogsPanel() {
 
   return (
     <div className="flex-1 flex flex-col bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden min-h-50">
-      {/* 标题栏（可点击展开/折叠上方面板） */}
+      {/* 标题栏（桌面端可点击展开/折叠上方面板，移动端仅显示标题） */}
       <div
-        role="button"
-        tabIndex={0}
-        onClick={toggleSidePanelExpanded}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggleSidePanelExpanded();
-          }
-        }}
-        className="flex items-center justify-between px-3 py-2 border-b border-border hover:bg-bg-hover transition-colors cursor-pointer shrink-0 rounded-t-lg focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none"
+        role={isMobile ? undefined : 'button'}
+        tabIndex={isMobile ? undefined : 0}
+        onClick={isMobile ? undefined : toggleSidePanelExpanded}
+        onKeyDown={
+          isMobile
+            ? undefined
+            : (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleSidePanelExpanded();
+                }
+              }
+        }
+        className={clsx(
+          'flex items-center justify-between px-3 py-2 border-b border-border transition-colors shrink-0 rounded-t-lg',
+          !isMobile &&
+            'hover:bg-bg-hover cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 outline-none',
+        )}
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
         <div className="flex items-center gap-2">
@@ -172,27 +182,32 @@ export function LogsPanel() {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          {/* 展开/折叠上方面板 */}
-          <span
-            className={clsx(
-              'p-0.5 rounded transition-colors',
-              !sidePanelExpanded ? 'text-accent bg-accent-light' : 'text-text-muted',
-            )}
-          >
-            <ChevronDown
+          {/* 展开/折叠上方面板（仅桌面端） */}
+          {!isMobile && (
+            <span
               className={clsx(
-                'w-4 h-4 transition-transform duration-150 ease-out',
-                sidePanelExpanded && 'rotate-180',
+                'p-0.5 rounded transition-colors',
+                !sidePanelExpanded ? 'text-accent bg-accent-light' : 'text-text-muted',
               )}
-            />
-          </span>
+            >
+              <ChevronDown
+                className={clsx(
+                  'w-4 h-4 transition-transform duration-150 ease-out',
+                  sidePanelExpanded && 'rotate-180',
+                )}
+              />
+            </span>
+          )}
         </div>
       </div>
 
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
+        className={clsx(
+          'flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary',
+          isMobile && 'max-h-64',
+        )}
         onContextMenu={handleContextMenu}
       >
         {logs.length === 0 ? (

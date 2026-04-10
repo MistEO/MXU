@@ -70,6 +70,8 @@ export default {
     noCustomAccents: '暂无自定义强调色',
     customAccentNameRequired: '请输入名称',
     deleteCustomAccentConfirm: '确定要删除这个自定义强调色吗？',
+    openNav: '打开导航菜单',
+    closeNav: '关闭导航菜单',
     customAccentDeleted: '已删除 {{name}}',
     accentName: '名称',
     accentNamePlaceholder: '例如：小黑紫',

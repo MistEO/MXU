@@ -432,6 +432,7 @@ export default {
     copyAll: 'Copy All',
     expand: 'Expand panels above',
     collapse: 'Collapse panels above',
+    scrollToLogs: 'View logs',
     // Log messages
     messages: {
       // Connection messages

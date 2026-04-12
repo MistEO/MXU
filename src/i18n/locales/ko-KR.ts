@@ -427,6 +427,7 @@ export default {
     copyAll: '모두 복사',
     expand: '상단 패널 펼치기',
     collapse: '상단 패널 접기',
+    scrollToLogs: '로그 보기',
     // 로그 메시지
     messages: {
       // 연결 메시지

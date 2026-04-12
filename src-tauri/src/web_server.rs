@@ -18,7 +18,7 @@ use axum::{
 };
 #[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::commands::{
     app_config::AppConfigState,

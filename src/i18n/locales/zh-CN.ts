@@ -423,6 +423,7 @@ export default {
     copyAll: '复制全部',
     expand: '展开上方面板',
     collapse: '折叠上方面板',
+    scrollToLogs: '查看日志',
     // 日志消息
     messages: {
       // 连接消息

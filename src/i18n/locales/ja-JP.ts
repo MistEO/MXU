@@ -429,6 +429,7 @@ export default {
     copyAll: 'すべてコピー',
     expand: '上部パネルを展開',
     collapse: '上部パネルを折りたたむ',
+    scrollToLogs: 'ログを表示',
     // ログメッセージ
     messages: {
       // 接続メッセージ

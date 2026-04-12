@@ -419,6 +419,7 @@ export default {
     copyAll: '複製全部',
     expand: '展開上方面板',
     collapse: '摺疊上方面板',
+    scrollToLogs: '查看日誌',
     // 日誌訊息
     messages: {
       // 連接訊息

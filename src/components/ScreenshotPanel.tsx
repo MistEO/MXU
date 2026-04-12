@@ -395,6 +395,8 @@ export function ScreenshotPanel() {
       if (!img) return;
 
       const rect = img.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
 

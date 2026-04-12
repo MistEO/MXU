@@ -1001,15 +1001,29 @@ async fn handle_stop_agent(
 /// POST /api/maa/instances/:id/click
 ///
 /// Body: `{ "x": 100, "y": 200 }`
+#[derive(serde::Deserialize)]
+struct PostClickRequest {
+    x: i32,
+    y: i32,
+}
+
 async fn handle_post_click(
     State(state): State<WebState>,
     axum::extract::Path(instance_id): axum::extract::Path<String>,
-    Json(body): Json<serde_json::Value>,
+    body: Result<Json<PostClickRequest>, axum::extract::rejection::JsonRejection>,
 ) -> impl IntoResponse {
-    let x = body.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-    let y = body.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    let body = match body {
+        Ok(Json(b)) => b,
+        Err(err) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": err.body_text() })),
+            )
+                .into_response();
+        }
+    };
 
-    match post_click_impl(&state.maa_state, &instance_id, x, y) {
+    match post_click_impl(&state.maa_state, &instance_id, body.x, body.y) {
         Ok(id) => (StatusCode::OK, Json(serde_json::json!({ "clickId": id }))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

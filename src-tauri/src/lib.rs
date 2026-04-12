@@ -8,7 +8,7 @@ pub mod ws_broadcast;
 use commands::{AppConfigState, MaaState};
 use std::sync::Arc;
 use tauri::Manager;
-use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use ws_broadcast::WsBroadcast;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,6 +37,9 @@ pub fn run() {
         ))
         .plugin(
             tauri_plugin_log::Builder::new()
+                // 默认约 40KB + KeepOne 会整文件删除，不便排查；改为单文件更大且保留多份轮转档
+                .max_file_size(1 * 1024 * 1024)
+                .rotation_strategy(RotationStrategy::KeepSome(8))
                 .targets({
                     #[allow(unused_mut)]
                     let mut targets = vec![Target::new(TargetKind::Folder {

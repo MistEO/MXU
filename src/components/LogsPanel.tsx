@@ -128,6 +128,7 @@ export function LogsPanel() {
       id="logs-panel"
       className={clsx(
         'flex flex-col bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden',
+        // 2.5rem = TabBar h-10；若 TabBar 高度变更需同步更新
         isMobile ? 'h-[calc(100dvh-2.5rem)]' : 'flex-1 min-h-50',
       )}
     >

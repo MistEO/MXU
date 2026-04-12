@@ -124,7 +124,13 @@ export function LogsPanel() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden min-h-50">
+    <div
+      id="logs-panel"
+      className={clsx(
+        'flex flex-col bg-bg-secondary rounded-lg ring-1 ring-inset ring-border overflow-hidden',
+        isMobile ? 'h-[calc(100dvh-2.5rem)]' : 'flex-1 min-h-50',
+      )}
+    >
       {/* 标题栏（桌面端可点击展开/折叠上方面板，移动端仅显示标题） */}
       <div
         role={isMobile ? undefined : 'button'}
@@ -204,10 +210,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className={clsx(
-          'flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary',
-          isMobile && 'max-h-64',
-        )}
+        className="flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
         onContextMenu={handleContextMenu}
       >
         {logs.length === 0 ? (

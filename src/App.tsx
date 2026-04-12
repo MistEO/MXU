@@ -76,6 +76,7 @@ import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
 import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { ScrollText } from 'lucide-react';
 
 const log = loggers.app;
 
@@ -1827,6 +1828,17 @@ function App() {
                 <LogsPanel />
               </div>
             </div>
+
+            {/* 浮动按钮：定位到运行日志 */}
+            <button
+              onClick={() =>
+                document.getElementById('logs-panel')?.scrollIntoView({ behavior: 'smooth' })
+              }
+              className="fixed bottom-4 right-4 z-50 p-3 rounded-full bg-accent text-white shadow-lg active:bg-accent-hover transition-colors"
+              title={t('logs.scrollToLogs')}
+            >
+              <ScrollText className="w-5 h-5" />
+            </button>
           </div>
         ) : (
           /* 桌面端横向分栏布局 */

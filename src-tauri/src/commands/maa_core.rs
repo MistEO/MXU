@@ -1029,6 +1029,28 @@ pub fn maa_is_running(state: State<Arc<MaaState>>, instance_id: String) -> Resul
 // 截图命令
 // ============================================================================
 
+/// 发起点击请求（内部实现）
+pub fn post_click_impl(state: &MaaState, instance_id: &str, x: i32, y: i32) -> Result<i64, String> {
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(instance_id).ok_or("Instance not found")?;
+    let controller = instance
+        .controller
+        .as_ref()
+        .ok_or("Controller not connected")?;
+    controller.post_click(x, y).map_err(|e| e.to_string())
+}
+
+/// 发起点击请求
+#[tauri::command]
+pub fn maa_post_click(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+    x: i32,
+    y: i32,
+) -> Result<i64, String> {
+    post_click_impl(&state, &instance_id, x, y)
+}
+
 /// 发起截图请求（内部实现）
 pub fn post_screencap_impl(state: &MaaState, instance_id: &str) -> Result<i64, String> {
     let instances = state.instances.lock().map_err(|e| e.to_string())?;

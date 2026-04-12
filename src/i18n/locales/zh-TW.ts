@@ -398,6 +398,7 @@ export default {
     connectFirst: '請先連接裝置',
     fullscreen: '全螢幕顯示',
     exitFullscreen: '退出全螢幕',
+    clickHint: '點擊畫面可向裝置發送點擊',
     // 幀率設定
     frameRate: {
       title: '即時截圖幀率',

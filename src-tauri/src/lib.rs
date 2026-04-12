@@ -224,6 +224,7 @@ pub fn run() {
             commands::maa_core::maa_stop_task,
             commands::maa_core::maa_override_pipeline,
             commands::maa_core::maa_is_running,
+            commands::maa_core::maa_post_click,
             commands::maa_core::maa_post_screencap,
             commands::maa_core::maa_get_cached_image,
             commands::maa_core::maa_screenshot_subscribe,

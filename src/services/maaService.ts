@@ -478,6 +478,24 @@ export const maaService = {
   },
 
   /**
+   * 发起点击请求
+   * @param instanceId 实例 ID
+   * @param x X 坐标（设备原始分辨率）
+   * @param y Y 坐标（设备原始分辨率）
+   * @returns 点击请求 ID
+   */
+  async postClick(instanceId: string, x: number, y: number): Promise<number> {
+    if (!isTauri()) {
+      const result = await apiPost<{ clickId: number }>(
+        `/maa/instances/${instanceId}/click`,
+        { x, y },
+      );
+      return result.clickId;
+    }
+    return await invoke<number>('maa_post_click', { instanceId, x, y });
+  },
+
+  /**
    * 发起截图请求（异步，通过回调通知完成状态）
    * @param instanceId 实例 ID
    * @returns 截图请求 ID（Tauri）或 0（浏览器，实际截图异步进行并写入缓存）

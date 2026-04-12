@@ -408,6 +408,7 @@ export default {
     connectFirst: '先にデバイスを接続してください',
     fullscreen: '全画面表示',
     exitFullscreen: '全画面を終了',
+    clickHint: '画面をクリックするとデバイスにタップを送信します',
     // フレームレート設定
     frameRate: {
       title: 'スクリーンショットのフレームレート',

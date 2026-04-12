@@ -402,6 +402,7 @@ export default {
     connectFirst: '请先连接设备',
     fullscreen: '全屏显示',
     exitFullscreen: '退出全屏',
+    clickHint: '点击画面可向设备发送点击',
     // 帧率设置
     frameRate: {
       title: '实时截图帧率',

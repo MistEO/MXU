@@ -406,6 +406,7 @@ export default {
     connectFirst: '먼저 기기를 연결하세요',
     fullscreen: '전체 화면',
     exitFullscreen: '전체 화면 종료',
+    clickHint: '화면을 클릭하면 기기에 탭을 전송합니다',
     // 프레임률 설정
     frameRate: {
       title: '스크린샷 프레임률',

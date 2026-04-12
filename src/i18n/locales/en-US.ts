@@ -411,6 +411,7 @@ export default {
     connectFirst: 'Please connect a device first',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit Fullscreen',
+    clickHint: 'Click on the image to send a tap to the device',
     // Frame rate settings
     frameRate: {
       title: 'Screenshot Frame Rate',

@@ -11,6 +11,7 @@ import {
   Download,
   Copy,
   Unplug,
+  MousePointerClick,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { maaService } from '@/services/maaService';
@@ -56,6 +57,7 @@ export function ScreenshotPanel() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  const fullscreenImgRef = useRef<HTMLImageElement>(null);
 
   // 用于控制截图流的引用
   const streamingRef = useRef(false);
@@ -384,6 +386,32 @@ export function ScreenshotPanel() {
     }
   }, [instanceId, setIsStreaming]);
 
+  // 全屏模态框中点击图片 → 向设备发送点击
+  const handleFullscreenClick = useCallback(
+    (e: React.MouseEvent<HTMLImageElement>) => {
+      if (!instanceId || connectionStatus !== 'Connected') return;
+
+      const img = fullscreenImgRef.current;
+      if (!img) return;
+
+      const rect = img.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const naturalW = img.naturalWidth;
+      const naturalH = img.naturalHeight;
+      if (naturalW === 0 || naturalH === 0) return;
+
+      const x = Math.round((clickX / rect.width) * naturalW);
+      const y = Math.round((clickY / rect.height) * naturalH);
+
+      maaService.postClick(instanceId, x, y).catch((err) => {
+        log.warn('点击失败:', err);
+      });
+    },
+    [instanceId, connectionStatus],
+  );
+
   // 右键菜单处理
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -652,12 +680,20 @@ export function ScreenshotPanel() {
             </div>
 
             {/* 图片内容区 */}
-            <div className="p-4 bg-bg-primary flex items-center justify-center overflow-auto">
+            <div className="p-4 pb-2 bg-bg-primary flex flex-col items-center justify-center overflow-auto">
               <img
+                ref={fullscreenImgRef}
                 src={screenshotUrl}
                 alt="Screenshot"
-                className="max-w-full max-h-[calc(90vh-80px)] object-contain rounded-md"
+                className="max-w-full max-h-[calc(90vh-100px)] object-contain rounded-md cursor-crosshair"
+                onClick={handleFullscreenClick}
               />
+              {connectionStatus === 'Connected' && (
+                <div className="flex items-center gap-1 mt-2 text-xs text-text-muted select-none">
+                  <MousePointerClick className="w-3 h-3" />
+                  <span>{t('screenshot.clickHint')}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

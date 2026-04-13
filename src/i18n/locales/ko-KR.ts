@@ -522,6 +522,9 @@ export default {
     saveDraw: '디버그 이미지 저장',
     saveDrawHint:
       '인식 및 작업의 디버그 이미지를 로그 폴더에 저장합니다 (재시작 후 자동으로 비활성화됨)',
+    retainTodayLogsAfterRestart: '재시작 후 오늘 로그 유지',
+    retainTodayLogsAfterRestartHint:
+      '오늘의 실행 로그를 로컬에 저장하여 앱을 다시 시작한 뒤에도 계속 확인할 수 있습니다',
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',

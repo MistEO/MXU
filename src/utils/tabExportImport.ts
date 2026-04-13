@@ -148,9 +148,9 @@ function decodePayload(wire: WirePayload): TabExportPayload {
 
 // ── gzip helpers ─────────────────────────────────────────────────────────────
 
-async function gzipCompress(str: string): Promise<Uint8Array> {
+async function compress(str: string): Promise<Uint8Array> {
   const encoded = new TextEncoder().encode(str);
-  const cs = new CompressionStream('gzip');
+  const cs = new CompressionStream('deflate-raw');
   const writer = cs.writable.getWriter();
   writer.write(encoded);
   writer.close();
@@ -171,8 +171,8 @@ async function gzipCompress(str: string): Promise<Uint8Array> {
   return result;
 }
 
-async function gzipDecompress(bytes: Uint8Array): Promise<string> {
-  const ds = new DecompressionStream('gzip');
+async function decompress(bytes: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('deflate-raw');
   const writer = ds.writable.getWriter();
   writer.write(bytes as Uint8Array<ArrayBuffer>);
   writer.close();
@@ -243,7 +243,7 @@ export async function exportTabConfig(
 
   const wire = encodePayload(payload);
   const jsonStr = JSON.stringify(wire);
-  const compressed = await gzipCompress(jsonStr);
+  const compressed = await compress(jsonStr);
   const base64 = toBase64Url(compressed);
   const tabNameEncoded = encodeURIComponent(instance.name);
 
@@ -292,7 +292,7 @@ export async function importTabConfigFromClipboard(
   let payload: TabExportPayload;
   try {
     const compressed = fromBase64Url(base64Data);
-    const jsonStr = await gzipDecompress(compressed);
+    const jsonStr = await decompress(compressed);
     const wire: WirePayload = JSON.parse(jsonStr);
     payload = decodePayload(wire);
   } catch {

@@ -188,7 +188,12 @@ export function clearPersistedRuntimeLogs(
   if (!instanceId) {
     clearPendingPersistedLogsWrite();
     pendingPersistedLogsPayload = null;
-    window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
+    try {
+      window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
+    } catch {
+      // Best-effort cleanup; ignore storage removal failures for consistency.
+      return;
+    }
     return;
   }
 
@@ -197,7 +202,12 @@ export function clearPersistedRuntimeLogs(
 
   const { [instanceId]: _, ...rest } = existing;
   if (Object.keys(rest).length === 0) {
-    window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
+    try {
+      window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
+    } catch {
+      // Best-effort cleanup; ignore storage removal failures for consistency.
+      return;
+    }
     return;
   }
 

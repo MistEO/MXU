@@ -10,10 +10,10 @@ import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { SwitchButton } from '@/components/FormControls';
-import { getBootLogDirSize, getCurrentLogFileName, LOG_RESET_KEY, loggers } from '@/utils/logger';
+import { getCurrentLogFileName, LOG_RESET_KEY, loggers } from '@/utils/logger';
 
 export function LogsPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -25,8 +25,8 @@ export function LogsPanel() {
     return `${value.toFixed(value >= 100 || idx === 0 ? 0 : value >= 10 ? 1 : 2)} ${units[idx]}`;
   }
 
-  function formatLogTime(date: Date) {
-    return date.toLocaleTimeString('zh-CN', {
+  function formatLogTime(date: Date, locale?: string) {
+    return date.toLocaleTimeString(locale || undefined, {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
@@ -34,16 +34,14 @@ export function LogsPanel() {
     });
   }
 
-  const [logDirSize, setLogDirSize] = useState<string>(() => {
-    const bootSize = getBootLogDirSize();
-    return bootSize === null ? '--' : formatBytes(bootSize);
-  });
+  const [logDirSize, setLogDirSize] = useState<string>('0 B');
   const {
     sidePanelExpanded,
     toggleSidePanelExpanded,
     activeInstanceId,
     instanceLogs,
     autoClearLogsOnLaunch,
+    clearLogs,
     setAutoClearLogsOnLaunch,
   } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
@@ -117,8 +115,11 @@ export function LogsPanel() {
   }, [refreshLogDirSize]);
 
   const handleClear = useCallback(() => {
+    if (activeInstanceId) {
+      clearLogs(activeInstanceId);
+    }
     clearLogFiles();
-  }, [clearLogFiles]);
+  }, [activeInstanceId, clearLogFiles, clearLogs]);
 
   const handleCopyAll = useCallback(() => {
     const text = logs
@@ -344,7 +345,7 @@ export function LogsPanel() {
                   )}
                 >
                   <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
-                    {formatLogTime(log.timestamp)}
+                    {formatLogTime(log.timestamp, i18n.language)}
                   </span>
                   <span
                     className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5 focus-content"
@@ -361,7 +362,7 @@ export function LogsPanel() {
                   )}
                 >
                   <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
-                    {formatLogTime(log.timestamp)}
+                    {formatLogTime(log.timestamp, i18n.language)}
                   </span>
                   <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
                     {getLogPrefix(log.type)}

@@ -17,8 +17,6 @@ const defaultLevel: LogLevel = isDev ? 'trace' : 'debug';
 let logsDir: string | null = null;
 let logFileName: string | null = null;
 export const LOG_RESET_KEY = 'mxu.log-reset-date';
-const LOG_DIR_SIZE_KEY = 'mxu.log-dir-size-on-boot';
-let bootLogDirSize: number | null = null;
 
 /**
  * 初始化文件日志（自动获取数据目录）
@@ -74,14 +72,6 @@ async function initFileLogger(): Promise<void> {
       } catch {
         entries = [];
       }
-    }
-    bootLogDirSize = null;
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem(LOG_DIR_SIZE_KEY);
-      }
-    } catch {
-      // ignore localStorage failures
     }
     try {
       if (!forceReset) {
@@ -258,21 +248,6 @@ export function getLogLevel(): LogLevel {
 
 export function getCurrentLogFileName(): string | null {
   return logFileName;
-}
-
-export function getBootLogDirSize(): number | null {
-  if (bootLogDirSize !== null) return bootLogDirSize;
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem(LOG_DIR_SIZE_KEY);
-      if (!raw) return null;
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
 }
 
 // 预创建常用模块的日志器

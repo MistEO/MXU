@@ -274,9 +274,10 @@ export function TaskList() {
       if (!instance) return;
 
       const tasks = instance.selectedTasks;
-      const hasEnabledTasks = tasks.some((t) => t.enabled);
+      const preActions = instance.preActions ?? [];
+      const hasEnabledTasks = tasks.some((t) => t.enabled) || preActions.some((a) => a.enabled);
       const hasExpandedTasks = tasks.some((t) => t.expanded);
-      const hasTasks = tasks.length > 0;
+      const hasTasks = tasks.length > 0 || preActions.length > 0;
 
       const menuItems: MenuItem[] = [
         {

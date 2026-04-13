@@ -353,6 +353,10 @@ pub fn get_process_path_from_hwnd(hwnd: u64) -> Result<String, String> {
         use winsafe::co::{PROCESS, PROCESS_NAME};
         use winsafe::{HPROCESS, HWND};
 
+        if hwnd == 0 {
+            return Err("Invalid window handle (null)".to_string());
+        }
+
         let hwnd = unsafe { HWND::from_ptr(hwnd as *mut _) };
         let (_, pid) = hwnd.GetWindowThreadProcessId();
 

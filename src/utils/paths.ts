@@ -84,6 +84,13 @@ export async function getCacheDir(): Promise<string> {
 }
 
 /**
+ * 从完整路径中提取文件名（进程名）
+ */
+export function getProcessNameFromPath(path: string): string {
+  return path.split(/[/\\]/).pop() || path;
+}
+
+/**
  * 打开指定目录（仅 Tauri 环境有效）
  */
 export async function openDirectory(dirPath: string): Promise<void> {

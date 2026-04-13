@@ -23,6 +23,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { computeResourcePaths } from '@/utils/resourcePath';
+import { getProcessNameFromPath } from '@/utils/paths';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
 import { generateId } from '@/stores/helpers';
@@ -828,13 +829,13 @@ export function ConnectionPanel() {
       const programPath = await maaService.getProcessPathFromHwnd(hwnd);
       if (!programPath) return;
 
+      const inst = useAppStore.getState().instances.find((i) => i.id === instanceId);
       setInstanceSavedDevice(instanceId, {
-        ...activeInstance?.savedDevice,
+        ...inst?.savedDevice,
         connectedProgramPath: programPath,
       });
 
-      const processName = programPath.split(/[/\\]/).pop() || programPath;
-      const inst = useAppStore.getState().instances.find((i) => i.id === instanceId);
+      const processName = getProcessNameFromPath(programPath);
 
       // 自动添加禁用的前置程序（启动进程）
       const hasPreAction = inst?.preActions?.some(

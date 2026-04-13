@@ -31,6 +31,7 @@ import {
   MXU_KILLPROC_TASK_NAME,
 } from '@/types/specialTasks';
 import { generateId } from '@/stores/helpers';
+import { getProcessNameFromPath } from '@/utils/paths';
 import clsx from 'clsx';
 
 const log = loggers.task;
@@ -271,7 +272,7 @@ export function AddTaskPanel() {
       if (specialTask.taskName === MXU_LAUNCH_TASK_NAME) {
         initialValues = { program: connectedPath };
       } else if (specialTask.taskName === MXU_KILLPROC_TASK_NAME) {
-        initialValues = { process_name: connectedPath.split(/[/\\]/).pop() || connectedPath };
+        initialValues = { process_name: getProcessNameFromPath(connectedPath) };
       }
     }
 

@@ -12,6 +12,7 @@ import {
 } from '@/themes';
 import type { MxuConfig, RecentlyClosedInstance, LegacyActionConfig } from '@/types/config';
 import {
+  DEFAULT_MAX_LOGS_PER_INSTANCE,
   clampAddTaskPanelHeight,
   defaultAddTaskPanelHeight,
   defaultMirrorChyanSettings,
@@ -134,7 +135,7 @@ export const useAppStore = create<AppState>()(
     backgroundImage: undefined,
     backgroundOpacity: 50,
     confirmBeforeDelete: false,
-    maxLogsPerInstance: 2000,
+    maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     retainTodayLogsAfterRestart: false,
     customAccents: [],
     setTheme: (theme) => {
@@ -1183,7 +1184,7 @@ export const useAppStore = create<AppState>()(
         backgroundImage: effectiveBgImage,
         backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
-        maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
+        maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
         retainTodayLogsAfterRestart: config.settings.retainTodayLogsAfterRestart ?? false,
         customAccents: effectiveCustomAccents,
         selectedController,
@@ -1899,7 +1900,6 @@ export const useAppStore = create<AppState>()(
           html: newLog.html,
         });
 
-        const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
         const rawLimit = Number.isFinite(state.maxLogsPerInstance)
           ? state.maxLogsPerInstance
           : DEFAULT_MAX_LOGS_PER_INSTANCE;

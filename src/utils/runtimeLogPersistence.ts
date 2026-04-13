@@ -1,8 +1,13 @@
 import type { LogEntry } from '@/stores/types';
+import { DEFAULT_MAX_LOGS_PER_INSTANCE } from '@/types/config';
 
 const RUNTIME_LOG_STORAGE_KEY = 'mxu.runtime-logs.v1';
 const STORAGE_VERSION = 1;
-const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
+const STORAGE_WRITE_DEBOUNCE_MS = 250;
+
+let pendingPersistedLogsPayload: string | null = null;
+let pendingPersistedLogsTimeout: ReturnType<typeof window.setTimeout> | null = null;
+let pendingPersistedLogsIdleCallback: number | null = null;
 
 interface PersistedLogEntry {
   id: string;
@@ -20,6 +25,59 @@ interface PersistedRuntimeLogs {
 
 function canUseLocalStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function clearPendingPersistedLogsWrite(): void {
+  if (pendingPersistedLogsTimeout !== null) {
+    window.clearTimeout(pendingPersistedLogsTimeout);
+    pendingPersistedLogsTimeout = null;
+  }
+
+  if (
+    pendingPersistedLogsIdleCallback !== null &&
+    typeof window !== 'undefined' &&
+    'cancelIdleCallback' in window
+  ) {
+    window.cancelIdleCallback(pendingPersistedLogsIdleCallback);
+    pendingPersistedLogsIdleCallback = null;
+  }
+}
+
+function flushPersistedLogsWrite(): void {
+  if (!canUseLocalStorage() || pendingPersistedLogsPayload === null) return;
+
+  const payload = pendingPersistedLogsPayload;
+  pendingPersistedLogsPayload = null;
+  pendingPersistedLogsTimeout = null;
+  pendingPersistedLogsIdleCallback = null;
+
+  try {
+    window.localStorage.setItem(RUNTIME_LOG_STORAGE_KEY, payload);
+  } catch {
+    try {
+      window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures. Persistence is best-effort only.
+    }
+  }
+}
+
+function schedulePersistedLogsWrite(payload: PersistedRuntimeLogs): void {
+  pendingPersistedLogsPayload = JSON.stringify(payload);
+  clearPendingPersistedLogsWrite();
+
+  pendingPersistedLogsTimeout = window.setTimeout(() => {
+    pendingPersistedLogsTimeout = null;
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      pendingPersistedLogsIdleCallback = window.requestIdleCallback(() => {
+        flushPersistedLogsWrite();
+      });
+      return;
+    }
+
+    flushPersistedLogsWrite();
+  }, STORAGE_WRITE_DEBOUNCE_MS);
 }
 
 function normalizeLimit(limit: number): number {
@@ -130,7 +188,7 @@ export function persistRuntimeLogs(
     ),
   };
 
-  window.localStorage.setItem(RUNTIME_LOG_STORAGE_KEY, JSON.stringify(payload));
+  schedulePersistedLogsWrite(payload);
 }
 
 export function clearPersistedRuntimeLogs(
@@ -140,6 +198,8 @@ export function clearPersistedRuntimeLogs(
   if (!canUseLocalStorage()) return;
 
   if (!instanceId) {
+    clearPendingPersistedLogsWrite();
+    pendingPersistedLogsPayload = null;
     window.localStorage.removeItem(RUNTIME_LOG_STORAGE_KEY);
     return;
   }

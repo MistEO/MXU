@@ -107,7 +107,7 @@ export default {
     autoRunOnLaunchHint:
       'Automatically execute the selected configuration when manually opening the app (if disabled, only triggers on system startup)',
     confirmBeforeDelete: 'Confirm delete actions',
-    confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
+    confirmBeforeDeleteHint: 'Show a confirmation dialog before delete/clear list and other dangerous actions.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
@@ -198,24 +198,6 @@ export default {
     addTask: 'Add Task',
     noTasks: 'No tasks',
     dragToReorder: 'Drag to reorder',
-    importConfirmTitle: 'Import task list',
-    importConfirmMessageOverwrite:
-      'Import will overwrite the current instance task list. Continue?',
-    importConfirmMessageMerge:
-      'Import will be merged into the current instance task list. Continue?',
-    importConfirmAction: 'Import',
-    importPreviewCount: 'Import content: {{count}} tasks',
-    importModeLabel: 'Import mode',
-    importModeOverwrite: 'Import and overwrite',
-    importModeOverwriteHint: 'Overwrite the current instance task list with imported content',
-    importModeMerge: 'Import without overwrite (merge)',
-    importModeMergeHint: 'Keep current tasks and only add non-duplicate imported tasks',
-    exportConfirmTitle: 'Export task list',
-    exportConfirmHint: 'You are about to export {{count}} tasks from the current instance',
-    exportConfirmAction: 'Confirm export',
-    selectNone: 'Select none',
-    selectionCount: 'Selected: {{selected}} / {{total}}',
-    mustSelectAtLeastOne: 'Please select at least 1 task',
     startTasks: 'Start Tasks',
     stopTasks: 'Stop Tasks',
     startingTasks: 'Starting...',
@@ -356,6 +338,15 @@ export default {
     hint: 'Apply a predefined task configuration to get started quickly',
     taskCount: 'tasks',
     skipToManual: 'Skip, add tasks manually',
+    importConfig: 'Import config from clipboard',
+    importSuccess: 'Config imported successfully',
+    importFailed: 'Import failed: invalid format',
+    importProjectMismatch: 'Import failed: project mismatch',
+    importVersionUnsupported: 'Import failed: unsupported version',
+    exportSuccess: 'Config copied to clipboard',
+    exportFailed: 'Export failed: unable to write to clipboard',
+    exportShareHint: 'Sharing my {{projectName}} config "{{tabName}}" with you~',
+    exportShareFooter: '👆 Copy this message, open {{projectName}}, create a new tab, and tap "Import Config" to use it instantly',
   },
 
   // Controller
@@ -757,6 +748,7 @@ export default {
     closeOtherTabs: 'Close Other Tabs',
     closeAllTabs: 'Close All Tabs',
     closeTabsToRight: 'Close Tabs to the Right',
+    exportConfig: 'Export Config',
 
     // Pre-action context menu
     duplicateAction: 'Duplicate',
@@ -771,8 +763,6 @@ export default {
     addTask: 'Add Task',
     duplicateTask: 'Duplicate Task',
     deleteTask: 'Delete Task',
-    exportTasks: 'Export task list',
-    importTasks: 'Import task list',
     renameTask: 'Rename Task',
     enableTask: 'Enable Task',
     disableTask: 'Disable Task',

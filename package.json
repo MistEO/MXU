@@ -41,6 +41,7 @@
     "react-dom": "^19.1.0",
     "react-i18next": "^16.5.3",
     "semver": "^7.7.3",
+    "sonner": "^2.0.7",
     "tailwindcss": "^4.1.18",
     "zustand": "^5.0.10"
   },

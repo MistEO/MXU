@@ -106,8 +106,7 @@ export default {
     autoRunOnLaunchHint:
       '앱을 수동으로 열 때도 위에서 선택한 구성을 자동 실행합니다 (비활성화 시 시스템 시작 시에만 실행)',
     confirmBeforeDelete: '삭제 작업 확인',
-    confirmBeforeDeleteHint:
-      '삭제/목록 비우기/가져오기 덮어쓰기 등 전에 확인 대화 상자를 표시합니다',
+    confirmBeforeDeleteHint: '삭제/목록 비우기 등 위험한 작업 전에 확인 대화 상자를 표시합니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
     resetWindowLayout: '창 레이아웃 초기화',
@@ -197,24 +196,6 @@ export default {
     addTask: '작업 추가',
     noTasks: '작업이 없습니다',
     dragToReorder: '드래그하여 순서 변경',
-    importConfirmTitle: '작업 목록 가져오기',
-    importConfirmMessageOverwrite:
-      '가져오기는 현재 인스턴스의 작업 목록을 덮어씁니다. 계속하시겠습니까?',
-    importConfirmMessageMerge:
-      '가져온 내용을 현재 인스턴스의 작업 목록에 병합합니다. 계속하시겠습니까?',
-    importConfirmAction: '가져오기',
-    importPreviewCount: '가져오기 내용: {{count}}개 작업',
-    importModeLabel: '가져오기 방식',
-    importModeOverwrite: '가져오기 및 덮어쓰기',
-    importModeOverwriteHint: '가져온 내용으로 현재 인스턴스 작업 목록을 덮어씁니다',
-    importModeMerge: '덮어쓰기 없이 가져오기(병합)',
-    importModeMergeHint: '현재 작업을 유지하고 중복되지 않는 작업만 추가합니다',
-    exportConfirmTitle: '작업 목록 내보내기',
-    exportConfirmHint: '현재 인스턴스의 {{count}}개 작업을 내보냅니다',
-    exportConfirmAction: '내보내기 확인',
-    selectNone: '선택 해제',
-    selectionCount: '선택됨: {{selected}} / {{total}}',
-    mustSelectAtLeastOne: '최소 1개의 작업을 선택해 주세요',
     startTasks: '실행 시작',
     stopTasks: '실행 중지',
     startingTasks: '시작 중...',
@@ -350,6 +331,15 @@ export default {
     hint: '미리 정의된 작업 구성을 원클릭으로 적용하여 빠르게 시작하세요',
     taskCount: '개 작업',
     skipToManual: '건너뛰고 수동으로 작업 추가',
+    importConfig: '클립보드에서 설정 가져오기',
+    importSuccess: '설정 가져오기 성공',
+    importFailed: '가져오기 실패: 잘못된 형식',
+    importProjectMismatch: '가져오기 실패: 프로젝트 불일치',
+    importVersionUnsupported: '가져오기 실패: 지원되지 않는 버전',
+    exportSuccess: '설정이 클립보드에 복사되었습니다',
+    exportFailed: '내보내기 실패: 클립보드에 쓸 수 없습니다',
+    exportShareHint: '{{projectName}} 의 「{{tabName}}」 설정 공유해요~',
+    exportShareFooter: '👆 이 메시지를 복사해서 {{projectName}} 에서 새 탭을 만들고 「설정 가져오기」를 누르면 바로 사용할 수 있어요',
   },
 
   // 컨트롤러
@@ -751,6 +741,7 @@ export default {
     closeOtherTabs: '다른 탭 닫기',
     closeAllTabs: '모든 탭 닫기',
     closeTabsToRight: '오른쪽 탭 닫기',
+    exportConfig: '설정 내보내기',
 
     // 전처리 프로그램 컨텍스트 메뉴
     duplicateAction: '복제',
@@ -765,8 +756,6 @@ export default {
     addTask: '작업 추가',
     duplicateTask: '작업 복제',
     deleteTask: '작업 삭제',
-    exportTasks: '작업 목록 내보내기',
-    importTasks: '작업 목록 가져오기',
     renameTask: '작업 이름 변경',
     enableTask: '작업 활성화',
     disableTask: '작업 비활성화',

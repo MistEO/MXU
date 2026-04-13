@@ -20,11 +20,13 @@ import {
   PanelRightClose,
   Bell,
   History,
+  Share2,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
+import { exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
 const LazyUpdatePanel = lazy(async () => {
@@ -178,6 +180,24 @@ export function TabBar() {
           onClick: () => duplicateInstance(instanceId),
         },
         {
+          id: 'export',
+          label: t('contextMenu.exportConfig'),
+          icon: Share2,
+          onClick: () => {
+            const inst = instances.find((i) => i.id === instanceId);
+            const projectName = projectInterface?.name;
+            if (inst && projectName) {
+              exportWithToast(
+                inst,
+                projectName,
+                t('preset.exportShareHint', { projectName, tabName: inst.name }),
+                t('preset.exportShareFooter', { projectName }),
+                { success: t('preset.exportSuccess'), failed: t('preset.exportFailed') },
+              );
+            }
+          },
+        },
+        {
           id: 'rename',
           label: t('contextMenu.renameTab'),
           icon: Edit3,
@@ -258,7 +278,7 @@ export function TabBar() {
 
       showMenu(e, menuItems);
     },
-    [instances, t, createInstance, duplicateInstance, removeInstance, reorderInstances, showMenu],
+    [instances, t, createInstance, duplicateInstance, removeInstance, reorderInstances, showMenu, projectInterface, confirmBeforeDelete, startTabCloseAnimation],
   );
 
   // 基于鼠标事件的拖拽实现（更可靠，兼容 Tauri）

@@ -58,6 +58,7 @@ import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
+import { Toaster } from 'sonner';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import { loadPersistedRuntimeLogs, mergeRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 import {
@@ -1650,6 +1651,16 @@ function App() {
     };
   }, []);
 
+  const toaster = (
+    <Toaster
+      theme={resolveThemeMode(theme)}
+      position="bottom-center"
+      toastOptions={{
+        className: '!bg-bg-secondary !text-text-primary !border-border',
+      }}
+    />
+  );
+
   // 设置页面
   if (currentPage === 'settings') {
     return (
@@ -1687,6 +1698,7 @@ function App() {
             />
           </div>
         </div>
+        {toaster}
       </div>
     );
   }
@@ -1934,6 +1946,7 @@ function App() {
           </div>
         )}
       </div>
+      {toaster}
     </div>
   );
 }

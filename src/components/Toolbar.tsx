@@ -128,15 +128,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
     (c) => c.name === currentControllerName,
   );
 
-  // 全选状态仅考虑兼容当前控制器/资源的任务
+  const preActions = instance?.preActions ?? [];
+
+  // 全选状态同时考虑兼容当前控制器/资源的任务和前置程序
   const allEnabled = useMemo(() => {
-    if (tasks.length === 0) return false;
     const compatibleTasks = tasks.filter((t) => {
       const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
       return isTaskCompatible(taskDef, currentControllerName, currentResourceName);
     });
-    return compatibleTasks.length > 0 && compatibleTasks.every((t) => t.enabled);
-  }, [tasks, projectInterface, currentControllerName, currentResourceName]);
+    const allItems = [...compatibleTasks, ...preActions];
+    if (allItems.length === 0) return false;
+    return allItems.every((t) => t.enabled);
+  }, [tasks, preActions, projectInterface, currentControllerName, currentResourceName]);
 
   // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
   const canRun = tasks.some((t) => t.enabled);
@@ -1379,10 +1382,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         {/* 全选/取消全选 */}
         <button
           onClick={handleSelectAll}
-          disabled={tasks.length === 0}
+          disabled={tasks.length === 0 && preActions.length === 0}
           className={clsx(
             'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm transition-colors',
-            tasks.length === 0
+            tasks.length === 0 && preActions.length === 0
               ? 'text-text-muted cursor-not-allowed'
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
           )}

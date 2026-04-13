@@ -719,13 +719,13 @@ export const useAppStore = create<AppState>()(
               ...i,
               selectedTasks: i.selectedTasks.map((t) => {
                 if (!enabled) return { ...t, enabled: false };
-                // 全选时不兼容的任务显式禁用
                 const taskDef = state.projectInterface?.task.find((td) => td.name === t.taskName);
                 if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
                   return { ...t, enabled: false };
                 }
                 return { ...t, enabled: true };
               }),
+              preActions: (i.preActions ?? []).map((a) => ({ ...a, enabled })),
             };
           }),
         };

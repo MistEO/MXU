@@ -133,7 +133,10 @@ export function persistRuntimeLogs(
   window.localStorage.setItem(RUNTIME_LOG_STORAGE_KEY, JSON.stringify(payload));
 }
 
-export function clearPersistedRuntimeLogs(instanceId?: string): void {
+export function clearPersistedRuntimeLogs(
+  instanceId?: string,
+  maxLogsPerInstance: number = DEFAULT_MAX_LOGS_PER_INSTANCE,
+): void {
   if (!canUseLocalStorage()) return;
 
   if (!instanceId) {
@@ -141,7 +144,7 @@ export function clearPersistedRuntimeLogs(instanceId?: string): void {
     return;
   }
 
-  const existing = loadPersistedRuntimeLogs(DEFAULT_MAX_LOGS_PER_INSTANCE);
+  const existing = loadPersistedRuntimeLogs(maxLogsPerInstance);
   if (!(instanceId in existing)) return;
 
   const { [instanceId]: _, ...rest } = existing;
@@ -150,7 +153,7 @@ export function clearPersistedRuntimeLogs(instanceId?: string): void {
     return;
   }
 
-  persistRuntimeLogs(rest, DEFAULT_MAX_LOGS_PER_INSTANCE);
+  persistRuntimeLogs(rest, maxLogsPerInstance);
 }
 
 export function mergeRuntimeLogs(

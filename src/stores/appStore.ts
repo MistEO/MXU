@@ -1927,7 +1927,7 @@ export const useAppStore = create<AppState>()(
         if (state.retainTodayLogsAfterRestart) {
           persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
         } else {
-          clearPersistedRuntimeLogs(instanceId);
+          clearPersistedRuntimeLogs(instanceId, state.maxLogsPerInstance);
         }
         return {
           instanceLogs: nextLogs,

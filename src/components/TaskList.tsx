@@ -132,6 +132,7 @@ export function TaskList() {
     getActiveInstance,
     updateInstance,
     reorderTasks,
+    reorderPreActions,
     selectAllTasks,
     collapseAllTasks,
     setShowAddTaskPanel,
@@ -336,15 +337,22 @@ export function TaskList() {
   });
 
   const handleDragEnd = (event: DragEndEvent) => {
-    // 运行时禁止重新排序
     if (isInstanceRunning) return;
-
     const { active, over } = event;
-
     if (over && active.id !== over.id && instance) {
       const oldIndex = instance.selectedTasks.findIndex((t) => t.id === active.id);
       const newIndex = instance.selectedTasks.findIndex((t) => t.id === over.id);
       reorderTasks(instance.id, oldIndex, newIndex);
+    }
+  };
+
+  const handlePreActionDragEnd = (event: DragEndEvent) => {
+    if (isInstanceRunning) return;
+    const { active, over } = event;
+    if (over && active.id !== over.id && instance?.preActions) {
+      const oldIndex = instance.preActions.findIndex((a) => a.id === active.id);
+      const newIndex = instance.preActions.findIndex((a) => a.id === over.id);
+      reorderPreActions(instance.id, oldIndex, newIndex);
     }
   };
 
@@ -429,11 +437,13 @@ export function TaskList() {
 
   const tasks = instance.selectedTasks;
 
-  const showPreAction = !!instance.preAction;
+  const preActions = instance.preActions ?? [];
+  const showPreActions = preActions.length > 0;
+  const canReorderPreActions = !isInstanceRunning && preActions.length > 1;
   const hasPresets =
     (projectInterface?.preset?.length ?? 0) > 0 && !skippedPresetInstanceIds.has(instance.id);
 
-  if (tasks.length === 0 && !showPreAction) {
+  if (tasks.length === 0 && !showPreActions) {
     return (
       <>
         <div className="flex-1 overflow-y-auto" onContextMenu={handleListContextMenu}>
@@ -461,12 +471,32 @@ export function TaskList() {
           className="flex-1 flex flex-col overflow-y-auto p-3 gap-2"
           onContextMenu={handleListContextMenu}
         >
-          {showPreAction && (
-            <ActionItem
-              instanceId={instance.id}
-              action={instance.preAction}
-              disabled={isInstanceRunning}
-            />
+          {showPreActions && (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handlePreActionDragEnd}
+              modifiers={[restrictHorizontalMovement]}
+            >
+              <SortableContext
+                items={preActions.map((a) => a.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {preActions.map((action, idx) => (
+                    <ActionItem
+                      key={action.id}
+                      instanceId={instance.id}
+                      action={action}
+                      disabled={isInstanceRunning}
+                      canReorder={canReorderPreActions}
+                      index={idx}
+                      total={preActions.length}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
 
           {hasPresets ? (
@@ -495,13 +525,31 @@ export function TaskList() {
         onContextMenu={handleListContextMenu}
       >
         <div className="space-y-2">
-          {/* 前置动作（只在已配置时显示） */}
-          {showPreAction && (
-            <ActionItem
-              instanceId={instance.id}
-              action={instance.preAction}
-              disabled={isInstanceRunning}
-            />
+          {/* 前置动作列表（支持拖拽排序） */}
+          {showPreActions && (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handlePreActionDragEnd}
+              modifiers={[restrictHorizontalMovement]}
+            >
+              <SortableContext
+                items={preActions.map((a) => a.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {preActions.map((action, idx) => (
+                  <ActionItem
+                    key={action.id}
+                    instanceId={instance.id}
+                    action={action}
+                    disabled={isInstanceRunning}
+                    canReorder={canReorderPreActions}
+                    index={idx}
+                    total={preActions.length}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
 
           {/* 任务列表 */}

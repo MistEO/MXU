@@ -324,7 +324,9 @@ export default {
     deviceWaitTimeout: 'Device wait timeout',
     windowWaitTimeout: 'Window wait timeout',
     preActionStarting: 'Running pre-program...',
+    preActionStartingNamed: 'Running pre-program: {{name}}...',
     preActionCompleted: 'Pre-program completed',
+    preActionCompletedNamed: 'Pre-program {{name}} completed',
     preActionFailed: 'Pre-program failed: {{error}}',
     preActionExitCode: 'Pre-program exit code: {{code}}',
     preActionConnectDelay: 'Waiting {{seconds}} seconds before connecting...',
@@ -747,6 +749,15 @@ export default {
     closeOtherTabs: 'Close Other Tabs',
     closeAllTabs: 'Close All Tabs',
     closeTabsToRight: 'Close Tabs to the Right',
+
+    // Pre-action context menu
+    duplicateAction: 'Duplicate',
+    deleteAction: 'Delete',
+    renameAction: 'Rename',
+    enableAction: 'Enable',
+    disableAction: 'Disable',
+    expandAction: 'Expand Settings',
+    collapseAction: 'Collapse Settings',
 
     // Task context menu
     addTask: 'Add Task',

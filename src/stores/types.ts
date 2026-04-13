@@ -244,7 +244,12 @@ export interface AppState {
   // 设备信息保存
   setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
 
-  setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) => void;
+  addPreAction: (instanceId: string, action: ActionConfig) => void;
+  updatePreAction: (instanceId: string, actionId: string, updates: Partial<ActionConfig>) => void;
+  removePreAction: (instanceId: string, actionId: string) => void;
+  reorderPreActions: (instanceId: string, oldIndex: number, newIndex: number) => void;
+  renamePreAction: (instanceId: string, actionId: string, name: string) => void;
+  duplicatePreAction: (instanceId: string, actionId: string) => void;
 
   // 设备列表缓存
   cachedAdbDevices: AdbDevice[];

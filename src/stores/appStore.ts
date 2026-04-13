@@ -10,7 +10,7 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type { MxuConfig, RecentlyClosedInstance } from '@/types/config';
+import type { MxuConfig, RecentlyClosedInstance, LegacyActionConfig } from '@/types/config';
 import {
   clampAddTaskPanelHeight,
   defaultAddTaskPanelHeight,
@@ -56,6 +56,19 @@ import {
 } from './helpers';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
+
+/** 向后兼容：将旧版单个 preAction 迁移为 preActions 数组 */
+function migratePreActions(
+  inst: { preActions?: ActionConfig[]; preAction?: LegacyActionConfig },
+): ActionConfig[] | undefined {
+  if (inst.preActions && inst.preActions.length > 0) {
+    return inst.preActions.map((a) => (a.id ? a : { ...a, id: generateId() }));
+  }
+  if (inst.preAction) {
+    return [{ ...inst.preAction, id: generateId() }];
+  }
+  return undefined;
+}
 
 function cleanOptionValues(
   optionValues: Record<string, OptionValue>,
@@ -368,7 +381,7 @@ export const useAppStore = create<AppState>()(
               optionValues: t.optionValues,
             })),
             schedulePolicies: instanceToClose.schedulePolicies,
-            preAction: instanceToClose.preAction,
+            preActions: instanceToClose.preActions,
           };
           // 添加到列表头部，并限制最大条目数
           newRecentlyClosed = [closedRecord, ...state.recentlyClosed].slice(0, MAX_RECENTLY_CLOSED);
@@ -847,7 +860,7 @@ export const useAppStore = create<AppState>()(
           optionValues: { ...t.optionValues },
         })),
         isRunning: false,
-        preAction: sourceInstance.preAction ? { ...sourceInstance.preAction } : undefined,
+        preActions: sourceInstance.preActions?.map((a) => ({ ...a, id: generateId() })),
       };
 
       // 复制源实例的控制器和资源选择
@@ -1050,7 +1063,7 @@ export const useAppStore = create<AppState>()(
           selectedTasks: savedTasks,
           isRunning: prevRunningByInstance.get(inst.id) ?? false,
           schedulePolicies: inst.schedulePolicies,
-          preAction: inst.preAction,
+          preActions: migratePreActions(inst),
         };
       });
 
@@ -1338,11 +1351,75 @@ export const useAppStore = create<AppState>()(
         instances: state.instances.map((i) => (i.id === instanceId ? { ...i, savedDevice } : i)),
       })),
 
-    setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) =>
+    addPreAction: (instanceId: string, action: ActionConfig) =>
       set((state) => ({
         instances: state.instances.map((i) =>
-          i.id === instanceId ? { ...i, preAction: action } : i,
+          i.id === instanceId
+            ? { ...i, preActions: [...(i.preActions || []), action] }
+            : i,
         ),
+      })),
+
+    updatePreAction: (instanceId: string, actionId: string, updates: Partial<ActionConfig>) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
+                preActions: i.preActions?.map((a) =>
+                  a.id === actionId ? { ...a, ...updates } : a,
+                ),
+              }
+            : i,
+        ),
+      })),
+
+    removePreAction: (instanceId: string, actionId: string) =>
+      set((state) => ({
+        instances: state.instances.map((i) => {
+          if (i.id !== instanceId) return i;
+          const filtered = i.preActions?.filter((a) => a.id !== actionId);
+          return { ...i, preActions: filtered?.length ? filtered : undefined };
+        }),
+      })),
+
+    reorderPreActions: (instanceId: string, oldIndex: number, newIndex: number) =>
+      set((state) => ({
+        instances: state.instances.map((i) => {
+          if (i.id !== instanceId || !i.preActions) return i;
+          const items = [...i.preActions];
+          const [removed] = items.splice(oldIndex, 1);
+          items.splice(newIndex, 0, removed);
+          return { ...i, preActions: items };
+        }),
+      })),
+
+    renamePreAction: (instanceId: string, actionId: string, name: string) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
+                preActions: i.preActions?.map((a) =>
+                  a.id === actionId ? { ...a, customName: name || undefined } : a,
+                ),
+              }
+            : i,
+        ),
+      })),
+
+    duplicatePreAction: (instanceId: string, actionId: string) =>
+      set((state) => ({
+        instances: state.instances.map((i) => {
+          if (i.id !== instanceId || !i.preActions) return i;
+          const idx = i.preActions.findIndex((a) => a.id === actionId);
+          if (idx === -1) return i;
+          const source = i.preActions[idx];
+          const copy: ActionConfig = { ...source, id: generateId() };
+          const items = [...i.preActions];
+          items.splice(idx + 1, 0, copy);
+          return { ...i, preActions: items };
+        }),
       })),
 
     // 设备列表缓存
@@ -1670,7 +1747,7 @@ export const useAppStore = create<AppState>()(
         })),
         isRunning: false,
         schedulePolicies: closedInstance.schedulePolicies,
-        preAction: closedInstance.preAction,
+        preActions: migratePreActions(closedInstance),
       };
 
       // 恢复选中的控制器和资源状态
@@ -1884,7 +1961,7 @@ function generateConfig(): MxuConfig {
         optionValues: t.optionValues,
       })),
       schedulePolicies: inst.schedulePolicies,
-      preAction: inst.preAction,
+      preActions: inst.preActions,
     })),
     // WebUI 模式下保留后端原始的外观 & 布局设置，避免覆盖桌面端偏好
     ...(() => {

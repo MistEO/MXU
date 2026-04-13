@@ -311,7 +311,9 @@ export default {
     deviceWaitTimeout: '等待裝置逾時',
     windowWaitTimeout: '等待視窗逾時',
     preActionStarting: '正在執行前置程式...',
+    preActionStartingNamed: '正在執行前置程式: {{name}}...',
     preActionCompleted: '前置程式執行完成',
+    preActionCompletedNamed: '前置程式 {{name}} 執行完成',
     preActionFailed: '前置程式執行失敗: {{error}}',
     preActionExitCode: '前置程式結束碼: {{code}}',
     preActionConnectDelay: '等待 {{seconds}} 秒後連線...',
@@ -727,6 +729,15 @@ export default {
     closeOtherTabs: '關閉其他標籤頁',
     closeAllTabs: '關閉所有標籤頁',
     closeTabsToRight: '關閉右側標籤頁',
+
+    // 前置程式右鍵選單
+    duplicateAction: '複製',
+    deleteAction: '刪除',
+    renameAction: '重新命名',
+    enableAction: '啟用',
+    disableAction: '停用',
+    expandAction: '展開設定',
+    collapseAction: '摺疊設定',
 
     // 任務右鍵選單
     addTask: '新增任務',

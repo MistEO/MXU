@@ -332,67 +332,76 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       }
 
       try {
-        // 前置程序重启应用后需要强制重连（旧窗口句柄已失效）
         let needsReconnect = false;
 
-        // 先执行前置动作（在连接设备之前）
-        // 检查是否应跳过已运行的前置程序
-        const preAction = targetInstance.preAction;
-        let shouldRunPreAction = Boolean(preAction?.enabled && preAction.program.trim());
-
-        if (shouldRunPreAction && preAction?.skipIfRunning) {
-          const programPath = preAction.program.trim();
-          const processName = programPath.split(/[/\\]/).pop() || programPath;
-          if (await maaService.isProcessRunning(programPath)) {
-            log.info(`实例 ${targetInstance.name}: 前置程序已在运行，跳过执行:`, processName);
-            addLog(targetId, {
-              type: 'info',
-              message: t('action.preActionSkipped', { name: processName }),
-            });
-            shouldRunPreAction = false;
-          }
-        }
-
+        // 收集所有启用且有程序路径的前置程序，按列表顺序执行
+        const allPreActions = (targetInstance.preActions ?? []).filter(
+          (a) => a.enabled && a.program.trim(),
+        );
+        let hasNonWaitForExit = false;
         let preActionControlStarted = false;
-        if (shouldRunPreAction && preAction) {
+
+        if (allPreActions.length > 0) {
           preActionControlStarted = true;
           await beginPreActionControl(targetId);
-          log.info(`实例 ${targetInstance.name}: 执行前置动作:`, preAction.program);
-          addLog(targetId, {
-            type: 'info',
-            message: t('action.preActionStarting'),
-          });
+
           try {
-            throwIfPreActionStopped(targetId);
-            const exitCode = await maaService.runAction(
-              targetId,
-              preAction.program,
-              preAction.args,
-              basePath,
-              preAction.waitForExit ?? true,
-              preAction.useCmd ?? false,
-            );
-            throwIfPreActionStopped(targetId);
-            if (exitCode !== 0) {
-              log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
+            for (const preAction of allPreActions) {
+              const programPath = preAction.program.trim();
+              const processName = programPath.split(/[/\\]/).pop() || programPath;
+
+              // 检查是否应跳过已运行的前置程序
+              if (preAction.skipIfRunning) {
+                if (await maaService.isProcessRunning(programPath)) {
+                  log.info(`实例 ${targetInstance.name}: 前置程序已在运行，跳过执行:`, processName);
+                  addLog(targetId, {
+                    type: 'info',
+                    message: t('action.preActionSkipped', { name: processName }),
+                  });
+                  continue;
+                }
+              }
+
+              log.info(`实例 ${targetInstance.name}: 执行前置动作:`, programPath);
               addLog(targetId, {
-                type: 'warning',
-                message: t('action.preActionExitCode', { code: exitCode }),
+                type: 'info',
+                message: t('action.preActionStartingNamed', { name: processName }),
               });
-            } else {
-              addLog(targetId, {
-                type: 'success',
-                message: t('action.preActionCompleted'),
-              });
+
+              throwIfPreActionStopped(targetId);
+              const exitCode = await maaService.runAction(
+                targetId,
+                programPath,
+                preAction.args,
+                basePath,
+                preAction.waitForExit ?? true,
+                preAction.useCmd ?? false,
+              );
+              throwIfPreActionStopped(targetId);
+
+              if (exitCode !== 0) {
+                log.warn(`实例 ${targetInstance.name}: 前置动作退出码非零:`, exitCode);
+                addLog(targetId, {
+                  type: 'warning',
+                  message: t('action.preActionExitCode', { code: exitCode }),
+                });
+              } else {
+                addLog(targetId, {
+                  type: 'success',
+                  message: t('action.preActionCompletedNamed', { name: processName }),
+                });
+              }
+
+              if (!(preAction.waitForExit ?? true)) {
+                hasNonWaitForExit = true;
+              }
             }
 
-            // 如果没勾选等待进程退出，则循环查找设备直到找到
-            // 注意：即使没有保存的设备配置，也需要等待（等待任意匹配的设备/窗口出现）
-            if (!(preAction.waitForExit ?? true) && controller) {
+            // 所有前置程序执行完毕后，如果有任何非等待退出的动作，则等待设备/窗口就绪
+            if (hasNonWaitForExit && controller) {
               const controllerType = controller.type;
               const isWindowType = controllerType === 'Win32' || controllerType === 'Gamepad';
               log.info(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}就绪...`);
-              // 根据是否有保存的设备名，输出不同的等待提示
               if (isWindowType) {
                 addLog(targetId, {
                   type: 'info',
@@ -410,7 +419,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               }
               let deviceFound = false;
               let attempts = 0;
-              const maxAttempts = 300; // 最多等待 5 分钟
+              const maxAttempts = 300;
 
               while (!deviceFound && attempts < maxAttempts) {
                 throwIfPreActionStopped(targetId);
@@ -418,10 +427,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   if (controllerType === 'Adb') {
                     const devices = await maaService.findAdbDevices();
                     if (savedDevice?.adbDeviceName) {
-                      // 有保存的设备名，精确匹配
                       deviceFound = devices.some((d) => d.name === savedDevice.adbDeviceName);
                     } else {
-                      // 没有保存的设备，等待任意设备出现
                       deviceFound = devices.length > 0;
                     }
                   } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
@@ -431,23 +438,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                       controller.win32?.window_regex || controller.gamepad?.window_regex;
                     const windows = await maaService.findWin32Windows(classRegex, windowRegex);
                     if (savedDevice?.windowName) {
-                      // 有保存的窗口名，精确匹配
                       deviceFound = windows.some((w) => w.window_name === savedDevice.windowName);
                     } else {
-                      // 没有保存的窗口，等待任意匹配窗口出现
                       deviceFound = windows.length > 0;
                     }
                   } else if (controllerType === 'WlRoots') {
                     const sockets = await maaService.findWlrootsSockets();
                     if (savedDevice?.wlrSocketPath) {
-                      // 有保存的套接字路径，精确匹配
                       deviceFound = sockets.includes(savedDevice.wlrSocketPath);
                     } else {
-                      // 没有保存的套接字路径，等待任意匹配的套接字出现
                       deviceFound = sockets.length > 0;
                     }
                   } else {
-                    // 无法确定控制器类型，跳过等待
                     deviceFound = true;
                   }
                 } catch (searchErr) {
@@ -469,14 +471,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   type: 'success',
                   message: isWindowType ? t('action.windowReady') : t('action.deviceReady'),
                 });
-                // 如果没有 savedDevice，说明是自动匹配的，需要给用户提示
                 if (
                   !savedDevice?.windowName &&
                   !savedDevice?.adbDeviceName &&
                   !savedDevice?.wlrSocketPath &&
                   !savedDevice?.playcoverAddress
                 ) {
-                  // 尝试找出实际匹配到的名称用于提示
                   try {
                     if (controllerType === 'Adb') {
                       const devices = await maaService.findAdbDevices();
@@ -518,7 +518,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   }
                 }
 
-                // 设备就绪后额外延迟，等待应用完全初始化
                 const delaySec = useAppStore.getState().preActionConnectDelaySec ?? 5;
                 if (delaySec > 0) {
                   log.info(`实例 ${targetInstance.name}: 等待 ${delaySec} 秒后再连接...`);
@@ -529,7 +528,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   await waitWithStopCheck(delaySec * 1000, targetId);
                 }
 
-                // 前置程序（重新）启动了应用，旧窗口句柄已失效，必须重新连接
                 needsReconnect = true;
               } else {
                 log.warn(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}超时`);
@@ -550,7 +548,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               type: 'error',
               message: t('action.preActionFailed', { error: String(err) }),
             });
-            // 前置动作失败不阻止任务执行，继续
           } finally {
             if (preActionControlStarted) {
               await endPreActionControl(targetId);

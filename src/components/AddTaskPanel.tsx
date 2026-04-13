@@ -27,6 +27,7 @@ import { Tooltip } from './ui/Tooltip';
 import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import { getAllMxuSpecialTasks } from '@/types/specialTasks';
+import { generateId } from '@/stores/helpers';
 import clsx from 'clsx';
 
 const log = loggers.task;
@@ -142,15 +143,18 @@ function TaskButton({
   );
 }
 
-// 默认动作配置
-const defaultAction: ActionConfig = {
-  enabled: true,
-  program: '',
-  args: '',
-  waitForExit: false,
-  skipIfRunning: true,
-  useCmd: false,
-};
+// 生成带新 id 的默认动作配置
+function createDefaultAction(): ActionConfig {
+  return {
+    id: generateId(),
+    enabled: true,
+    program: '',
+    args: '',
+    waitForExit: false,
+    skipIfRunning: true,
+    useCmd: false,
+  };
+}
 
 export function AddTaskPanel() {
   const { t } = useTranslation();
@@ -167,7 +171,7 @@ export function AddTaskPanel() {
     // 新增任务标记
     newTaskNames,
     removeNewTaskName,
-    setInstancePreAction,
+    addPreAction,
     // 添加任务面板
     setShowAddTaskPanel,
     addTaskPanelHeight,
@@ -716,24 +720,22 @@ export function AddTaskPanel() {
                 )}
                 {specialExpanded && (
                   <div id={specialContentId} className="mt-1 flex gap-2 flex-wrap">
-                    {/* 前置任务按钮：仅在未添加时显示 */}
-                    {!instance.preAction && (
-                      <button
-                        onClick={() => {
-                          setInstancePreAction(instance.id, defaultAction);
-                          setShowAddTaskPanel(false);
-                        }}
-                        disabled={instance.isRunning}
-                        className={clsx(
-                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-                          'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
-                          instance.isRunning && 'opacity-50 cursor-not-allowed',
-                        )}
-                      >
-                        <Play className="w-3.5 h-3.5 text-success/80" />
-                        <span>{t('action.preAction')}</span>
-                      </button>
-                    )}
+                    {/* 前置任务按钮：可添加多个 */}
+                    <button
+                      onClick={() => {
+                        addPreAction(instance.id, createDefaultAction());
+                        setShowAddTaskPanel(false);
+                      }}
+                      disabled={instance.isRunning}
+                      className={clsx(
+                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
+                        'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
+                        instance.isRunning && 'opacity-50 cursor-not-allowed',
+                      )}
+                    >
+                      <Play className="w-3.5 h-3.5 text-success/80" />
+                      <span>{t('action.preAction')}</span>
+                    </button>
                     {/* 动态渲染所有注册的特殊任务按钮 */}
                     {specialTasks.map((specialTask) => {
                       return (

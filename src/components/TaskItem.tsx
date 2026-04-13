@@ -2,33 +2,16 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import {
-  GripVertical,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  ChevronsUp,
-  ChevronsDown,
-  Check,
-  X,
-  Copy,
-  Edit3,
-  Trash2,
-  ToggleLeft,
-  ToggleRight,
-  Loader2,
-  FileText,
-  Link,
-  AlertCircle,
-} from 'lucide-react';
+import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor';
-import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { ContextMenu, useContextMenu } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
+import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
 import type { SelectedTask } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { getInterfaceLangKey } from '@/i18n';
@@ -654,14 +637,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     setEditName('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    } else if (e.key === 'Escape') {
-      handleCancelEdit();
-    }
-  };
-
   // 右键菜单处理
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -673,91 +648,46 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
       const tasks = instance.selectedTasks;
       const taskIndex = tasks.findIndex((t) => t.id === task.id);
-      const isFirst = taskIndex === 0;
-      const isLast = taskIndex === tasks.length - 1;
 
-      const menuItems: MenuItem[] = [
-        {
-          id: 'duplicate',
-          label: t('contextMenu.duplicateTask'),
-          icon: Copy,
-          disabled: isInstanceRunning,
-          onClick: () => duplicateTask(instanceId, task.id),
+      const menuItems = buildListItemMenuItems({
+        labels: {
+          duplicate: t('contextMenu.duplicateTask'),
+          rename: t('contextMenu.renameTask'),
+          enable: t('contextMenu.enableTask'),
+          disable: t('contextMenu.disableTask'),
+          expand: t('contextMenu.expandOptions'),
+          collapse: t('contextMenu.collapseOptions'),
+          moveUp: t('contextMenu.moveUp'),
+          moveDown: t('contextMenu.moveDown'),
+          moveToTop: t('contextMenu.moveToTop'),
+          moveToBottom: t('contextMenu.moveToBottom'),
+          delete: t('contextMenu.deleteTask'),
         },
-        {
-          id: 'rename',
-          label: t('contextMenu.renameTask'),
-          icon: Edit3,
-          onClick: () => {
-            setEditName(task.customName || '');
-            setIsEditing(true);
-          },
+        isEnabled: task.enabled,
+        isExpanded: !!task.expanded,
+        canExpand,
+        isFirst: taskIndex === 0,
+        isLast: taskIndex === tasks.length - 1,
+        isLocked: isInstanceRunning,
+        onDuplicate: () => duplicateTask(instanceId, task.id),
+        onRename: () => {
+          setEditName(task.customName || '');
+          setIsEditing(true);
         },
-        { id: 'divider-1', label: '', divider: true },
-        {
-          id: 'toggle',
-          label: task.enabled ? t('contextMenu.disableTask') : t('contextMenu.enableTask'),
-          icon: task.enabled ? ToggleLeft : ToggleRight,
-          disabled: isInstanceRunning,
-          onClick: () => toggleTaskEnabled(instanceId, task.id),
+        onToggle: () => toggleTaskEnabled(instanceId, task.id),
+        onExpand: () => toggleTaskExpanded(instanceId, task.id),
+        onMoveUp: () => moveTaskUp(instanceId, task.id),
+        onMoveDown: () => moveTaskDown(instanceId, task.id),
+        onMoveToTop: () => moveTaskToTop(instanceId, task.id),
+        onMoveToBottom: () => moveTaskToBottom(instanceId, task.id),
+        onDelete: () => {
+          if (!confirmBeforeDelete) {
+            removeTaskFromInstance(instanceId, task.id);
+            return;
+          }
+          setShowDeleteConfirm(true);
         },
-        ...(canExpand
-          ? [
-              {
-                id: 'expand',
-                label: task.expanded
-                  ? t('contextMenu.collapseOptions')
-                  : t('contextMenu.expandOptions'),
-                icon: task.expanded ? ChevronUp : ChevronDown,
-                onClick: () => toggleTaskExpanded(instanceId, task.id),
-              },
-            ]
-          : []),
-        { id: 'divider-2', label: '', divider: true },
-        {
-          id: 'move-up',
-          label: t('contextMenu.moveUp'),
-          icon: ChevronUp,
-          disabled: isFirst || !canReorder,
-          onClick: () => moveTaskUp(instanceId, task.id),
-        },
-        {
-          id: 'move-down',
-          label: t('contextMenu.moveDown'),
-          icon: ChevronDown,
-          disabled: isLast || !canReorder,
-          onClick: () => moveTaskDown(instanceId, task.id),
-        },
-        {
-          id: 'move-top',
-          label: t('contextMenu.moveToTop'),
-          icon: ChevronsUp,
-          disabled: isFirst || !canReorder,
-          onClick: () => moveTaskToTop(instanceId, task.id),
-        },
-        {
-          id: 'move-bottom',
-          label: t('contextMenu.moveToBottom'),
-          icon: ChevronsDown,
-          disabled: isLast || !canReorder,
-          onClick: () => moveTaskToBottom(instanceId, task.id),
-        },
-        { id: 'divider-3', label: '', divider: true },
-        {
-          id: 'delete',
-          label: t('contextMenu.deleteTask'),
-          icon: Trash2,
-          danger: true,
-          disabled: !canDelete,
-          onClick: () => {
-            if (!confirmBeforeDelete) {
-              removeTaskFromInstance(instanceId, task.id);
-              return;
-            }
-            setShowDeleteConfirm(true);
-          },
-        },
-      ];
+      });
 
       showMenu(e, menuItems);
     },
@@ -775,10 +705,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       moveTaskToTop,
       moveTaskToBottom,
       removeTaskFromInstance,
+      confirmBeforeDelete,
       showMenu,
       isInstanceRunning,
-      canReorder,
-      canDelete,
     ],
   );
 
@@ -900,42 +829,13 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         {/* 任务名称 + 展开区域容器 */}
         <div className="flex-1 flex items-center min-w-0">
           {isEditing ? (
-            <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={handleSaveEdit}
-                placeholder={originalLabel}
-                autoFocus
-                className={clsx(
-                  'flex-1 px-2 py-1 text-sm rounded border border-accent',
-                  'bg-bg-primary text-text-primary',
-                  'focus:outline-none focus:ring-1 focus:ring-accent/20',
-                )}
-              />
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSaveEdit();
-                }}
-                className="p-1 rounded hover:bg-success/10 text-success"
-              >
-                <Check className="w-4 h-4" />
-              </button>
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCancelEdit();
-                }}
-                className="p-1 rounded hover:bg-error/10 text-error"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <InlineNameEditor
+              value={editName}
+              onChange={setEditName}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
+              placeholder={originalLabel}
+            />
           ) : (
             <>
               {/* 任务名称：单击切换选中 */}

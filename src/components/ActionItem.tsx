@@ -1,26 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ChevronRight,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUp,
-  ChevronsDown,
-  X,
-  Check,
-  Play,
-  GripVertical,
-  Copy,
-  Edit3,
-  Trash2,
-  ToggleLeft,
-  ToggleRight,
-} from 'lucide-react';
+import { ChevronRight, X, Play, GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/stores/appStore';
-import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { ContextMenu, useContextMenu } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
+import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
 import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
 import { FileField, TextField, SwitchField } from './FormControls';
@@ -30,9 +16,7 @@ interface ActionItemProps {
   action: ActionConfig;
   disabled?: boolean;
   canReorder?: boolean;
-  /** 在前置程序列表中的索引 */
   index: number;
-  /** 前置程序总数 */
   total: number;
 }
 
@@ -129,7 +113,6 @@ export function ActionItem({
     updateAction({ enabled: !currentAction.enabled });
   };
 
-  // 重命名
   const handleSaveEdit = () => {
     renamePreAction(instanceId, action.id, editName.trim());
     setIsEditing(false);
@@ -140,93 +123,44 @@ export function ActionItem({
     setEditName('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSaveEdit();
-    else if (e.key === 'Escape') handleCancelEdit();
-  };
-
   // 右键菜单
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
 
-      const isFirst = index === 0;
-      const isLast = index === total - 1;
-      const canMove = !disabled && total > 1;
-
-      const menuItems: MenuItem[] = [
-        {
-          id: 'duplicate',
-          label: t('contextMenu.duplicateAction'),
-          icon: Copy,
-          disabled: !!disabled,
-          onClick: () => duplicatePreAction(instanceId, action.id),
+      const menuItems = buildListItemMenuItems({
+        labels: {
+          duplicate: t('contextMenu.duplicateAction'),
+          rename: t('contextMenu.renameAction'),
+          enable: t('contextMenu.enableAction'),
+          disable: t('contextMenu.disableAction'),
+          expand: t('contextMenu.expandAction'),
+          collapse: t('contextMenu.collapseAction'),
+          moveUp: t('contextMenu.moveUp'),
+          moveDown: t('contextMenu.moveDown'),
+          moveToTop: t('contextMenu.moveToTop'),
+          moveToBottom: t('contextMenu.moveToBottom'),
+          delete: t('contextMenu.deleteAction'),
         },
-        {
-          id: 'rename',
-          label: t('contextMenu.renameAction'),
-          icon: Edit3,
-          onClick: () => {
-            setEditName(currentAction.customName || '');
-            setIsEditing(true);
-          },
+        isEnabled: currentAction.enabled,
+        isExpanded: expanded,
+        isFirst: index === 0,
+        isLast: index === total - 1,
+        isLocked: !!disabled,
+        onDuplicate: () => duplicatePreAction(instanceId, action.id),
+        onRename: () => {
+          setEditName(currentAction.customName || '');
+          setIsEditing(true);
         },
-        { id: 'divider-1', label: '', divider: true },
-        {
-          id: 'toggle',
-          label: currentAction.enabled
-            ? t('contextMenu.disableAction')
-            : t('contextMenu.enableAction'),
-          icon: currentAction.enabled ? ToggleLeft : ToggleRight,
-          disabled: !!disabled,
-          onClick: () => updateAction({ enabled: !currentAction.enabled }),
-        },
-        {
-          id: 'expand',
-          label: expanded ? t('contextMenu.collapseAction') : t('contextMenu.expandAction'),
-          icon: expanded ? ChevronUp : ChevronDown,
-          onClick: () => setExpanded(!expanded),
-        },
-        { id: 'divider-2', label: '', divider: true },
-        {
-          id: 'move-up',
-          label: t('contextMenu.moveUp'),
-          icon: ChevronUp,
-          disabled: isFirst || !canMove,
-          onClick: () => reorderPreActions(instanceId, index, index - 1),
-        },
-        {
-          id: 'move-down',
-          label: t('contextMenu.moveDown'),
-          icon: ChevronDown,
-          disabled: isLast || !canMove,
-          onClick: () => reorderPreActions(instanceId, index, index + 1),
-        },
-        {
-          id: 'move-top',
-          label: t('contextMenu.moveToTop'),
-          icon: ChevronsUp,
-          disabled: isFirst || !canMove,
-          onClick: () => reorderPreActions(instanceId, index, 0),
-        },
-        {
-          id: 'move-bottom',
-          label: t('contextMenu.moveToBottom'),
-          icon: ChevronsDown,
-          disabled: isLast || !canMove,
-          onClick: () => reorderPreActions(instanceId, index, total - 1),
-        },
-        { id: 'divider-3', label: '', divider: true },
-        {
-          id: 'delete',
-          label: t('contextMenu.deleteAction'),
-          icon: Trash2,
-          danger: true,
-          disabled: !!disabled,
-          onClick: handleRemove,
-        },
-      ];
+        onToggle: () => updateAction({ enabled: !currentAction.enabled }),
+        onExpand: () => setExpanded(!expanded),
+        onMoveUp: () => reorderPreActions(instanceId, index, index - 1),
+        onMoveDown: () => reorderPreActions(instanceId, index, index + 1),
+        onMoveToTop: () => reorderPreActions(instanceId, index, 0),
+        onMoveToBottom: () => reorderPreActions(instanceId, index, total - 1),
+        onDelete: handleRemove,
+      });
 
       showMenu(e, menuItems);
     },
@@ -298,42 +232,13 @@ export function ActionItem({
         {/* 名称 + 展开区域 */}
         <div className="flex-1 flex items-center min-w-0">
           {isEditing ? (
-            <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={handleSaveEdit}
-                placeholder={defaultTitle}
-                autoFocus
-                className={clsx(
-                  'flex-1 px-2 py-1 text-sm rounded border border-accent',
-                  'bg-bg-primary text-text-primary',
-                  'focus:outline-none focus:ring-1 focus:ring-accent/20',
-                )}
-              />
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSaveEdit();
-                }}
-                className="p-1 rounded hover:bg-success/10 text-success"
-              >
-                <Check className="w-4 h-4" />
-              </button>
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCancelEdit();
-                }}
-                className="p-1 rounded hover:bg-error/10 text-error"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <InlineNameEditor
+              value={editName}
+              onChange={setEditName}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
+              placeholder={defaultTitle}
+            />
           ) : (
             <>
               {/* 名称：点击切换启用 */}
@@ -344,7 +249,7 @@ export function ActionItem({
                 )}
                 onClick={handleToggleEnabled}
               >
-                <Play className={clsx('w-4 h-4 mr-0.5 flex-shrink-0 text-success')} />
+                <Play className="w-4 h-4 mr-0.5 flex-shrink-0 text-success" />
                 <span
                   className={clsx(
                     'min-w-0 text-sm font-medium truncate',
@@ -365,7 +270,6 @@ export function ActionItem({
                 onClick={() => setExpanded(!expanded)}
                 className="flex-1 min-w-0 flex items-center self-stretch min-h-[28px] cursor-pointer"
               >
-                {/* 参数预览标签 - 未展开时显示 */}
                 {!expanded && (
                   <div className="flex-1 flex items-center gap-1.5 mx-2 overflow-hidden">
                     {hasConfig ? (
@@ -385,8 +289,6 @@ export function ActionItem({
                     ) : null}
                   </div>
                 )}
-
-                {/* 展开/折叠箭头 */}
                 <div className="flex shrink-0 items-center justify-end pl-2 ml-auto">
                   <ChevronRight
                     className={clsx(

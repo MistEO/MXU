@@ -29,8 +29,6 @@ export function DebugSection() {
     setDevMode,
     saveDraw,
     setSaveDraw,
-    retainTodayLogsAfterRestart,
-    setRetainTodayLogsAfterRestart,
     tcpCompatMode,
     setTcpCompatMode,
     allowLanAccess,
@@ -354,24 +352,6 @@ export function DebugSection() {
             </div>
           </div>
           <SwitchButton value={saveDraw} onChange={(v) => setSaveDraw(v)} />
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <div className="flex items-center gap-3">
-            <ScrollText className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">
-                {t('debug.retainTodayLogsAfterRestart')}
-              </span>
-              <p className="text-xs text-text-muted mt-0.5">
-                {t('debug.retainTodayLogsAfterRestartHint')}
-              </p>
-            </div>
-          </div>
-          <SwitchButton
-            value={retainTodayLogsAfterRestart}
-            onChange={(v) => setRetainTodayLogsAfterRestart(v)}
-          />
         </div>
 
         {/* 通信兼容模式 */}

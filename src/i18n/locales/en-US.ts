@@ -436,6 +436,8 @@ export default {
   logs: {
     title: 'Logs',
     clear: 'Clear',
+    autoClearOnLaunch: 'Auto-clear on launch',
+    logDirSize: 'Logs: {{size}}',
     autoscroll: 'Auto Scroll',
     noLogs: 'No logs',
     copyAll: 'Copy All',
@@ -536,9 +538,6 @@ export default {
     saveDraw: 'Save Debug Images',
     saveDrawHint:
       'Save recognition and action debug images to log directory (auto-disabled on restart)',
-    retainTodayLogsAfterRestart: 'Retain today logs after restart',
-    retainTodayLogsAfterRestartHint:
-      "Keep today's runtime logs locally so they are still visible after restarting the app",
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',

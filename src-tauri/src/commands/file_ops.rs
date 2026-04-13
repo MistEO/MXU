@@ -295,6 +295,98 @@ pub fn get_data_dir() -> Result<String, String> {
     Ok(data_dir.to_string_lossy().to_string())
 }
 
+/// 统计 debug 目录下 .log 文件总大小，可排除当前正在写入的日志文件
+#[tauri::command]
+pub fn get_log_dir_size(exclude_file_name: Option<String>) -> Result<u64, String> {
+    let debug_dir = get_app_data_dir()?.join("debug");
+
+    if !debug_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut total = 0_u64;
+    let entries =
+        std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+
+        if !name.ends_with(".log") {
+            continue;
+        }
+
+        if exclude_file_name.as_deref() == Some(name) {
+            continue;
+        }
+
+        match path.metadata() {
+            Ok(metadata) => {
+                total = total.saturating_add(metadata.len());
+            }
+            Err(e) => {
+                log::debug!("Failed to read log file size [{}]: {}", path.display(), e);
+            }
+        }
+    }
+
+    Ok(total)
+}
+
+/// 删除 debug 目录中的 .log 文件，可选择排除一个当前正在使用的日志文件
+#[tauri::command]
+pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String> {
+    let debug_dir = get_app_data_dir()?.join("debug");
+
+    if !debug_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut deleted = 0_u64;
+    let entries =
+        std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+
+        if !name.ends_with(".log") {
+            continue;
+        }
+
+        if exclude_file_name.as_deref() == Some(name) {
+            continue;
+        }
+
+        match std::fs::remove_file(&path) {
+            Ok(()) => deleted = deleted.saturating_add(1),
+            Err(e) => log::debug!("Failed to delete log file [{}]: {}", path.display(), e),
+        }
+    }
+
+    Ok(deleted)
+}
+
 /// 获取当前工作目录
 #[tauri::command]
 pub fn get_cwd() -> Result<String, String> {

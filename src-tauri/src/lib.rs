@@ -238,6 +238,8 @@ pub fn run() {
             commands::file_ops::local_file_exists,
             commands::file_ops::get_exe_dir,
             commands::file_ops::get_data_dir,
+            commands::file_ops::get_log_dir_size,
+            commands::file_ops::clear_log_files,
             commands::file_ops::get_cwd,
             commands::file_ops::check_exe_path,
             commands::file_ops::set_executable,

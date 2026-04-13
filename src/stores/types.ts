@@ -98,7 +98,7 @@ export interface AppState {
   confirmBeforeDelete: boolean;
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
   maxLogsPerInstance: number;
-  retainTodayLogsAfterRestart: boolean;
+  autoClearLogsOnLaunch: boolean;
   customAccents: CustomAccent[];
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
@@ -107,7 +107,7 @@ export interface AppState {
   setBackgroundOpacity: (opacity: number) => void;
   setConfirmBeforeDelete: (enabled: boolean) => void;
   setMaxLogsPerInstance: (value: number) => void;
-  setRetainTodayLogsAfterRestart: (enabled: boolean) => void;
+  setAutoClearLogsOnLaunch: (enabled: boolean) => void;
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;

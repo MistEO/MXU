@@ -433,6 +433,8 @@ export default {
   logs: {
     title: '実行ログ',
     clear: 'クリア',
+    autoClearOnLaunch: '起動時に自動クリア',
+    logDirSize: 'ログ：{{size}}',
     autoscroll: '自動スクロール',
     noLogs: 'ログがありません',
     copyAll: 'すべてコピー',
@@ -531,9 +533,6 @@ export default {
     saveDraw: 'デバッグ画像を保存',
     saveDrawHint:
       '認識と操作のデバッグ画像をログフォルダに保存します（再起動後は自動的にオフになります）',
-    retainTodayLogsAfterRestart: '再起動後も当日のログを保持',
-    retainTodayLogsAfterRestartHint:
-      '当日の実行ログをローカルに保存し、アプリを再起動した後も引き続き確認できるようにします',
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',

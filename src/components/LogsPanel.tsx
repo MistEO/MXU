@@ -1,20 +1,51 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
-import { isTauri } from '@/utils/paths';
+import { getDebugDir, isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { SwitchButton } from '@/components/FormControls';
+import { getBootLogDirSize, getCurrentLogFileName, LOG_RESET_KEY, loggers } from '@/utils/logger';
 
 export function LogsPanel() {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
-  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
-    useAppStore();
+
+  function formatBytes(bytes: number) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / Math.pow(1024, idx);
+    return `${value.toFixed(value >= 100 || idx === 0 ? 0 : value >= 10 ? 1 : 2)} ${units[idx]}`;
+  }
+
+  function formatLogTime(date: Date) {
+    return date.toLocaleTimeString('zh-CN', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+
+  const [logDirSize, setLogDirSize] = useState<string>(() => {
+    const bootSize = getBootLogDirSize();
+    return bootSize === null ? '--' : formatBytes(bootSize);
+  });
+  const {
+    sidePanelExpanded,
+    toggleSidePanelExpanded,
+    activeInstanceId,
+    instanceLogs,
+    autoClearLogsOnLaunch,
+    setAutoClearLogsOnLaunch,
+  } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
@@ -28,11 +59,66 @@ export function LogsPanel() {
     }
   }, [logs]);
 
-  const handleClear = useCallback(() => {
-    if (activeInstanceId) {
-      clearLogs(activeInstanceId);
+  const refreshLogDirSize = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      const logDir = await getDebugDir();
+      const { exists } = await import('@tauri-apps/plugin-fs');
+      const present = await exists(logDir);
+      if (!present) {
+        loggers.ui.debug('[Logs] log dir missing:', logDir);
+        setLogDirSize('0 B');
+        return;
+      }
+      const size = await invoke<number>('get_log_dir_size', {
+        excludeFileName: getCurrentLogFileName(),
+      });
+      loggers.ui.debug(
+        '[Logs] dir size',
+        size,
+        'bytes; current log',
+        getCurrentLogFileName(),
+        'dir',
+        logDir,
+      );
+      setLogDirSize(formatBytes(size));
+    } catch (err) {
+      loggers.ui.debug('[Logs] failed to read log dir size:', err);
+      setLogDirSize('0 B');
     }
-  }, [activeInstanceId, clearLogs]);
+  }, []);
+
+  const clearLogFiles = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      const currentLogName = getCurrentLogFileName();
+      const deleted = await invoke<number>('clear_log_files', {
+        excludeFileName: currentLogName,
+      });
+      loggers.ui.debug('[Logs] cleared log files:', deleted, 'excluded:', currentLogName);
+      if (deleted > 0) {
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            const today = new Date();
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const resetDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(
+              today.getDate(),
+            )}`;
+            window.localStorage.setItem(LOG_RESET_KEY, resetDate);
+          }
+        } catch {
+          // ignore localStorage failures
+        }
+      }
+    } finally {
+      setLogDirSize('0 B');
+      refreshLogDirSize();
+    }
+  }, [refreshLogDirSize]);
+
+  const handleClear = useCallback(() => {
+    clearLogFiles();
+  }, [clearLogFiles]);
 
   const handleCopyAll = useCallback(() => {
     const text = logs
@@ -123,6 +209,15 @@ export function LogsPanel() {
     }
   };
 
+  useEffect(() => {
+    if (!isTauri()) return;
+    refreshLogDirSize();
+    const timer = window.setInterval(refreshLogDirSize, 15000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refreshLogDirSize]);
+
   return (
     <div
       id="logs-panel"
@@ -178,10 +273,10 @@ export function LogsPanel() {
               e.stopPropagation();
               handleClear();
             }}
-            disabled={logs.length === 0}
+            disabled={!isTauri()}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              logs.length === 0
+              !isTauri()
                 ? 'text-text-muted cursor-not-allowed'
                 : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}
@@ -189,6 +284,23 @@ export function LogsPanel() {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 text-[10px] text-text-muted select-none"
+            title={t('logs.autoClearOnLaunch')}
+          >
+            <span>{t('logs.autoClearOnLaunch')}</span>
+            <SwitchButton
+              value={autoClearLogsOnLaunch}
+              onChange={(value) => setAutoClearLogsOnLaunch(value)}
+            />
+          </div>
+          <span
+            className="text-[10px] text-text-muted select-none"
+            title={t('logs.logDirSize', { size: logDirSize })}
+          >
+            {t('logs.logDirSize', { size: logDirSize })}
+          </span>
           {/* 展开/折叠上方面板（仅桌面端） */}
           {!isMobile && (
             <span
@@ -211,7 +323,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
+        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-5 bg-bg-tertiary"
         onContextMenu={handleContextMenu}
       >
         {logs.length === 0 ? (
@@ -223,21 +335,35 @@ export function LogsPanel() {
             {logs.map((log) =>
               log.html ? (
                 // 富文本内容（focus 消息支持 Markdown/HTML）
-                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
-                  <span className="text-text-muted flex-shrink-0">
-                    [{log.timestamp.toLocaleTimeString()}]
+                <div
+                  key={log.id}
+                  className={clsx(
+                    'py-1.5 px-2 rounded-md flex items-start gap-3',
+                    'odd:bg-black/0 even:bg-black/5',
+                    getLogColor(log.type),
+                  )}
+                >
+                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    {formatLogTime(log.timestamp)}
                   </span>
                   <span
-                    className="break-all focus-content"
+                    className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5 focus-content"
                     dangerouslySetInnerHTML={{ __html: log.html }}
                   />
                 </div>
               ) : (
-                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
-                  <span className="text-text-muted flex-shrink-0">
-                    [{log.timestamp.toLocaleTimeString()}]
+                <div
+                  key={log.id}
+                  className={clsx(
+                    'py-1.5 px-2 rounded-md flex items-start gap-3',
+                    'odd:bg-black/0 even:bg-black/5',
+                    getLogColor(log.type),
+                  )}
+                >
+                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    {formatLogTime(log.timestamp)}
                   </span>
-                  <span className="break-all whitespace-pre-wrap">
+                  <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
                     {getLogPrefix(log.type)}
                     {log.message}
                   </span>

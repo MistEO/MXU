@@ -15,6 +15,10 @@ const defaultLevel: LogLevel = isDev ? 'trace' : 'debug';
 
 // 文件日志配置
 let logsDir: string | null = null;
+let logFileName: string | null = null;
+export const LOG_RESET_KEY = 'mxu.log-reset-date';
+const LOG_DIR_SIZE_KEY = 'mxu.log-dir-size-on-boot';
+let bootLogDirSize: number | null = null;
 
 /**
  * 初始化文件日志（自动获取数据目录）
@@ -25,9 +29,83 @@ async function initFileLogger(): Promise<void> {
   try {
     logsDir = await getDebugDir();
 
-    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
+    const { mkdir, exists, readDir, remove } = await import('@tauri-apps/plugin-fs');
     if (!(await exists(logsDir))) {
       await mkdir(logsDir, { recursive: true });
+    }
+    const today = formatLocalDateTime(new Date(), 'date');
+    let maxIndex = 0;
+    let forceReset = false;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const resetDate = window.localStorage.getItem(LOG_RESET_KEY);
+        if (resetDate === today) {
+          forceReset = true;
+        }
+      }
+    } catch {
+      // ignore localStorage issues
+    }
+    let entries: Awaited<ReturnType<typeof readDir>> = [];
+    try {
+      entries = await readDir(logsDir);
+    } catch {
+      entries = [];
+    }
+    try {
+      if (forceReset) {
+        for (const entry of entries) {
+          if (!entry.isFile) continue;
+          const name = entry.name ?? '';
+          if (!name.endsWith('.log')) continue;
+          try {
+            await remove(`${logsDir}/${name}`);
+          } catch {
+            continue;
+          }
+        }
+      }
+    } catch {
+      // ignore cleanup failures
+    }
+    if (forceReset) {
+      try {
+        entries = await readDir(logsDir);
+      } catch {
+        entries = [];
+      }
+    }
+    bootLogDirSize = null;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(LOG_DIR_SIZE_KEY);
+      }
+    } catch {
+      // ignore localStorage failures
+    }
+    try {
+      if (!forceReset) {
+        for (const entry of entries) {
+          if (!entry.isFile) continue;
+          const name = entry.name ?? '';
+          if (!name.startsWith(`${today}-`) || !name.endsWith('.log')) continue;
+          const idxText = name.slice(`${today}-`.length, -'.log'.length);
+          const idx = Number.parseInt(idxText, 10);
+          if (Number.isFinite(idx) && idx > maxIndex) {
+            maxIndex = idx;
+          }
+        }
+      }
+    } catch {
+      // ignore scan failures
+    }
+    logFileName = `${today}-${maxIndex + 1}.log`;
+    try {
+      if (forceReset && typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(LOG_RESET_KEY);
+      }
+    } catch {
+      // ignore localStorage failures
     }
     console.log('[Logger] File logger initialized, logs dir:', logsDir);
   } catch (err) {
@@ -44,23 +122,33 @@ if (checkTauri()) {
 /**
  * 格式化本地日期时间
  * @param date 日期对象
- * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss
+ * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss，'file' 适用于文件名
  */
-function formatLocalDateTime(date: Date, format: 'date' | 'datetime' = 'datetime'): string {
+function formatLocalDateTime(
+  date: Date,
+  format: 'date' | 'datetime' | 'file' = 'datetime',
+): string {
   const pad = (n: number) => String(n).padStart(2, '0');
+  const padMs = (n: number) => String(n).padStart(3, '0');
   const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   if (format === 'date') return datePart;
-  return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  if (format === 'file') {
+    return `${datePart}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(
+      date.getSeconds(),
+    )}.${padMs(date.getMilliseconds())}`;
+  }
+  return `${datePart} ${timePart}`;
 }
 
 /**
  * 直接写入日志到文件
  */
 async function writeLogToFile(line: string): Promise<void> {
-  if (!logsDir) return;
+  if (!logsDir || !logFileName) return;
 
-  // 日志文件名：mxu-web-YYYY-MM-DD.log（使用本地日期）
-  const logFile = `${logsDir}/mxu-web-${formatLocalDateTime(new Date(), 'date')}.log`;
+  // 日志文件名：YYYY-MM-DD-<n>.log（按当日启动次数递增）
+  const logFile = `${logsDir}/${logFileName}`;
 
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
@@ -166,6 +254,25 @@ export function getLogLevel(): LogLevel {
     5: 'silent',
   };
   return levels[log.getLevel()] || 'warn';
+}
+
+export function getCurrentLogFileName(): string | null {
+  return logFileName;
+}
+
+export function getBootLogDirSize(): number | null {
+  if (bootLogDirSize !== null) return bootLogDirSize;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(LOG_DIR_SIZE_KEY);
+      if (!raw) return null;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 // 预创建常用模块的日志器

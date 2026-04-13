@@ -55,7 +55,7 @@ import {
   getCurrentControllerAndResource,
   isTaskCompatible,
 } from './helpers';
-import { clearPersistedRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -136,7 +136,7 @@ export const useAppStore = create<AppState>()(
     backgroundOpacity: 50,
     confirmBeforeDelete: false,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
-    retainTodayLogsAfterRestart: false,
+    autoClearLogsOnLaunch: true,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -171,18 +171,10 @@ export const useAppStore = create<AppState>()(
         maxLogsPerInstance: Math.max(100, Math.min(10000, Math.floor(value))),
       });
       const state = get();
-      if (state.retainTodayLogsAfterRestart) {
-        persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
-      }
+      persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
     },
-    setRetainTodayLogsAfterRestart: (enabled) => {
-      set({ retainTodayLogsAfterRestart: enabled });
-      const state = get();
-      if (enabled) {
-        persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
-      } else {
-        clearPersistedRuntimeLogs();
-      }
+    setAutoClearLogsOnLaunch: (enabled) => {
+      set({ autoClearLogsOnLaunch: enabled });
     },
     addCustomAccent: (accent) => {
       set((state) => ({
@@ -1185,7 +1177,7 @@ export const useAppStore = create<AppState>()(
         backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
-        retainTodayLogsAfterRestart: config.settings.retainTodayLogsAfterRestart ?? false,
+        autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? true,
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -1909,9 +1901,7 @@ export const useAppStore = create<AppState>()(
           ...state.instanceLogs,
           [instanceId]: updatedLogs,
         };
-        if (state.retainTodayLogsAfterRestart) {
-          persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
-        }
+        persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
         return {
           instanceLogs: nextLogs,
         };
@@ -1924,11 +1914,7 @@ export const useAppStore = create<AppState>()(
           ...state.instanceLogs,
           [instanceId]: [],
         };
-        if (state.retainTodayLogsAfterRestart) {
-          persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
-        } else {
-          clearPersistedRuntimeLogs(instanceId, state.maxLogsPerInstance);
-        }
+        persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
         return {
           instanceLogs: nextLogs,
         };
@@ -2023,7 +2009,7 @@ function generateConfig(): MxuConfig {
           backgroundOpacity: ba?.backgroundOpacity ?? state.backgroundOpacity,
           confirmBeforeDelete: state.confirmBeforeDelete,
           maxLogsPerInstance: state.maxLogsPerInstance,
-          retainTodayLogsAfterRestart: state.retainTodayLogsAfterRestart,
+          autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -2109,7 +2095,7 @@ useAppStore.subscribe(
     }),
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
-    retainTodayLogsAfterRestart: state.retainTodayLogsAfterRestart,
+    autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

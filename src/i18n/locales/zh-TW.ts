@@ -423,6 +423,8 @@ export default {
   logs: {
     title: '執行日誌',
     clear: '清空',
+    autoClearOnLaunch: '啟動時自動清理',
+    logDirSize: '日誌：{{size}}',
     autoscroll: '自動捲動',
     noLogs: '暫無日誌',
     copyAll: '複製全部',
@@ -520,9 +522,6 @@ export default {
     devModeHint: '啟用後允許按 F5 重新整理 UI',
     saveDraw: '儲存除錯圖像',
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
-    retainTodayLogsAfterRestart: '重啟後保留當天日誌',
-    retainTodayLogsAfterRestartHint:
-      '將當天執行日誌保存在本機，這樣重啟應用後仍然可以繼續查看',
     tcpCompatMode: '通訊相容模式',
     tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
     webServerPort: 'Web 服務連接埠',

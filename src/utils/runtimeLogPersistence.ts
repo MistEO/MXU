@@ -85,24 +85,15 @@ function normalizeLimit(limit: number): number {
   return Math.min(10000, Math.max(100, Math.floor(limit)));
 }
 
-function isSameLocalDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 function sanitizeLogEntries(
   entries: readonly (LogEntry | PersistedLogEntry)[],
   limit: number,
-  now: Date,
 ): LogEntry[] {
   const deduped = new Map<string, LogEntry>();
 
   for (const entry of entries) {
     const timestamp = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
-    if (Number.isNaN(timestamp.getTime()) || !isSameLocalDay(timestamp, now)) continue;
+    if (Number.isNaN(timestamp.getTime())) continue;
 
     deduped.set(entry.id, {
       id: entry.id,
@@ -121,14 +112,11 @@ function sanitizeLogEntries(
 function sanitizeRuntimeLogs(
   logs: Record<string, readonly (LogEntry | PersistedLogEntry)[]>,
   maxLogsPerInstance: number,
-  now: Date = new Date(),
 ): Record<string, LogEntry[]> {
   const limit = normalizeLimit(maxLogsPerInstance);
   return Object.fromEntries(
     Object.entries(logs)
-      .map(
-        ([instanceId, entries]) => [instanceId, sanitizeLogEntries(entries, limit, now)] as const,
-      )
+      .map(([instanceId, entries]) => [instanceId, sanitizeLogEntries(entries, limit)] as const)
       .filter(([, entries]) => entries.length > 0),
   );
 }

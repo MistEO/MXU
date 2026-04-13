@@ -10,7 +10,7 @@ import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { SwitchButton } from '@/components/FormControls';
-import { getCurrentLogFileName, LOG_RESET_KEY, loggers } from '@/utils/logger';
+import { getCurrentLogFileName, LOG_RESET_KEY } from '@/utils/logger';
 
 export function LogsPanel() {
   const { t, i18n } = useTranslation();
@@ -64,24 +64,14 @@ export function LogsPanel() {
       const { exists } = await import('@tauri-apps/plugin-fs');
       const present = await exists(logDir);
       if (!present) {
-        loggers.ui.debug('[Logs] log dir missing:', logDir);
         setLogDirSize('0 B');
         return;
       }
       const size = await invoke<number>('get_log_dir_size', {
         excludeFileName: getCurrentLogFileName(),
       });
-      loggers.ui.debug(
-        '[Logs] dir size',
-        size,
-        'bytes; current log',
-        getCurrentLogFileName(),
-        'dir',
-        logDir,
-      );
       setLogDirSize(formatBytes(size));
-    } catch (err) {
-      loggers.ui.debug('[Logs] failed to read log dir size:', err);
+    } catch {
       setLogDirSize('0 B');
     }
   }, []);
@@ -93,7 +83,6 @@ export function LogsPanel() {
       const deleted = await invoke<number>('clear_log_files', {
         excludeFileName: currentLogName,
       });
-      loggers.ui.debug('[Logs] cleared log files:', deleted, 'excluded:', currentLogName);
       if (deleted > 0) {
         try {
           if (typeof window !== 'undefined' && window.localStorage) {

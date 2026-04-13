@@ -338,6 +338,14 @@ export default {
     hint: 'Apply a predefined task configuration to get started quickly',
     taskCount: 'tasks',
     skipToManual: 'Skip, add tasks manually',
+    importConfig: 'Import config from clipboard',
+    importSuccess: 'Config imported successfully',
+    importFailed: 'Import failed: invalid format',
+    importProjectMismatch: 'Import failed: project mismatch',
+    importVersionUnsupported: 'Import failed: unsupported version',
+    exportSuccess: 'Config copied to clipboard',
+    exportShareHint: 'Sharing my {{projectName}} config "{{tabName}}" with you~',
+    exportShareFooter: '👆 Copy this message, open {{projectName}}, create a new tab, and tap "Import Config" to use it instantly',
   },
 
   // Controller
@@ -737,6 +745,7 @@ export default {
     closeOtherTabs: 'Close Other Tabs',
     closeAllTabs: 'Close All Tabs',
     closeTabsToRight: 'Close Tabs to the Right',
+    exportConfig: 'Export Config',
 
     // Pre-action context menu
     duplicateAction: 'Duplicate',

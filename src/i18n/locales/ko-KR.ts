@@ -331,6 +331,14 @@ export default {
     hint: '미리 정의된 작업 구성을 원클릭으로 적용하여 빠르게 시작하세요',
     taskCount: '개 작업',
     skipToManual: '건너뛰고 수동으로 작업 추가',
+    importConfig: '클립보드에서 설정 가져오기',
+    importSuccess: '설정 가져오기 성공',
+    importFailed: '가져오기 실패: 잘못된 형식',
+    importProjectMismatch: '가져오기 실패: 프로젝트 불일치',
+    importVersionUnsupported: '가져오기 실패: 지원되지 않는 버전',
+    exportSuccess: '설정이 클립보드에 복사되었습니다',
+    exportShareHint: '{{projectName}} 의 「{{tabName}}」 설정 공유해요~',
+    exportShareFooter: '👆 이 메시지를 복사해서 {{projectName}} 에서 새 탭을 만들고 「설정 가져오기」를 누르면 바로 사용할 수 있어요',
   },
 
   // 컨트롤러
@@ -730,6 +738,7 @@ export default {
     closeOtherTabs: '다른 탭 닫기',
     closeAllTabs: '모든 탭 닫기',
     closeTabsToRight: '오른쪽 탭 닫기',
+    exportConfig: '설정 내보내기',
 
     // 전처리 프로그램 컨텍스트 메뉴
     duplicateAction: '복제',

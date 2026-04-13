@@ -331,6 +331,14 @@ export default {
     hint: '一键应用预定义的任务配置，快速开始',
     taskCount: '个任务',
     skipToManual: '跳过，手动添加任务',
+    importConfig: '从剪贴板导入配置',
+    importSuccess: '配置导入成功',
+    importFailed: '导入失败：格式无效',
+    importProjectMismatch: '导入失败：项目不匹配',
+    importVersionUnsupported: '导入失败：不支持的版本',
+    exportSuccess: '配置已复制到剪贴板',
+    exportShareHint: '「{{tabName}}」的 {{projectName}} 配置，发给你啦~',
+    exportShareFooter: '👆 复制这段文字，在 {{projectName}} 里新建标签页，点「导入配置」就能直接用',
   },
 
   // 控制器
@@ -734,6 +742,7 @@ export default {
     closeOtherTabs: '关闭其他标签页',
     closeAllTabs: '关闭所有标签页',
     closeTabsToRight: '关闭右侧标签页',
+    exportConfig: '导出配置',
 
     // 前置程序右键菜单
     duplicateAction: '复制',

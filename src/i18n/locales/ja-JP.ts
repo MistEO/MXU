@@ -333,6 +333,14 @@ export default {
     hint: 'ワンクリックでタスク構成を適用し、すぐに開始できます',
     taskCount: 'タスク',
     skipToManual: 'スキップして手動でタスクを追加',
+    importConfig: 'クリップボードから設定をインポート',
+    importSuccess: '設定のインポートに成功しました',
+    importFailed: 'インポート失敗：無効な形式',
+    importProjectMismatch: 'インポート失敗：プロジェクトが一致しません',
+    importVersionUnsupported: 'インポート失敗：サポートされていないバージョン',
+    exportSuccess: '設定をクリップボードにコピーしました',
+    exportShareHint: '{{projectName}} の「{{tabName}}」設定をシェアするよ～',
+    exportShareFooter: '👆 このメッセージをコピーして、{{projectName}} で新しいタブを開き「設定をインポート」を押すだけでOK',
   },
 
   // コントローラー
@@ -736,6 +744,7 @@ export default {
     closeOtherTabs: '他のタブを閉じる',
     closeAllTabs: 'すべてのタブを閉じる',
     closeTabsToRight: '右側のタブを閉じる',
+    exportConfig: '設定をエクスポート',
 
     // 前処理プログラムのコンテキストメニュー
     duplicateAction: '複製',

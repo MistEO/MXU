@@ -24,6 +24,8 @@ import {
   ChevronUp,
   Sparkles,
   Loader2,
+  Share2,
+  ClipboardPaste,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { TaskItem } from './TaskItem';
@@ -32,6 +34,9 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import type { PresetItem } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { useResolvedContent } from '@/services/contentResolver';
+import { exportTabConfig, importTabConfigFromClipboard, getImportErrorType } from '@/utils/tabExportImport';
+import { generateId } from '@/stores/helpers';
+import { toast } from 'sonner';
 import clsx from 'clsx';
 
 /** 单个预设卡片 */
@@ -81,6 +86,65 @@ function PresetCard({ preset, onApply }: { preset: PresetItem; onApply: () => vo
   );
 }
 
+/** 导入按钮 */
+function ImportConfigButton({ instanceId }: { instanceId: string }) {
+  const { projectInterface, updateInstance, renameInstance, setSelectedController, setSelectedResource } =
+    useAppStore();
+  const { t } = useTranslation();
+
+  const handleImport = async () => {
+    const projectName = projectInterface?.name;
+    if (!projectName) return;
+
+    try {
+      const { tabName, payload } = await importTabConfigFromClipboard(projectName);
+
+      const importedTasks = payload.selectedTasks.map((task) => ({
+        ...task,
+        id: generateId(),
+        expanded: true,
+      }));
+
+      // 任务写入后 PresetSelector 自动消失，无需调用 skipPreset（避免触发 showAddTaskPanel）
+      updateInstance(instanceId, {
+        selectedTasks: importedTasks,
+        controllerName: payload.controllerName,
+        resourceName: payload.resourceName,
+        preActions: payload.preActions,
+      });
+
+      if (payload.controllerName) {
+        setSelectedController(instanceId, payload.controllerName);
+      }
+      if (payload.resourceName) {
+        setSelectedResource(instanceId, payload.resourceName);
+      }
+
+      renameInstance(instanceId, tabName);
+      toast.success(t('preset.importSuccess'));
+    } catch (err) {
+      const errorType = getImportErrorType(err);
+      if (errorType === 'project_mismatch') {
+        toast.error(t('preset.importProjectMismatch'));
+      } else if (errorType === 'unsupported_version') {
+        toast.error(t('preset.importVersionUnsupported'));
+      } else {
+        toast.error(t('preset.importFailed'));
+      }
+    }
+  };
+
+  return (
+    <button
+      onClick={handleImport}
+      className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-accent transition-colors"
+    >
+      <ClipboardPaste className="w-3.5 h-3.5" />
+      {t('preset.importConfig')}
+    </button>
+  );
+}
+
 /** 预设选择器 - 任务列表为空时显示 */
 function PresetSelector({ instanceId }: { instanceId: string }) {
   const { projectInterface, applyPreset, skipPreset, renameInstance, resolveI18nText, language } =
@@ -111,12 +175,16 @@ function PresetSelector({ instanceId }: { instanceId: string }) {
           />
         ))}
       </div>
-      <button
-        onClick={() => skipPreset(instanceId)}
-        className="text-xs text-text-muted hover:text-accent transition-colors"
-      >
-        {t('preset.skipToManual')}
-      </button>
+      <div className="flex items-center gap-4">
+        <ImportConfigButton instanceId={instanceId} />
+        <span className="text-text-muted/30 text-xs">|</span>
+        <button
+          onClick={() => skipPreset(instanceId)}
+          className="text-xs text-text-muted hover:text-accent transition-colors"
+        >
+          {t('preset.skipToManual')}
+        </button>
+      </div>
     </div>
   );
 }
@@ -236,11 +304,32 @@ export function TaskList() {
               },
             ]
           : []),
+        { id: 'divider-export', label: '', divider: true },
+        {
+          id: 'export',
+          label: t('contextMenu.exportConfig'),
+          icon: Share2,
+          disabled: !hasTasks,
+          onClick: () => {
+            const projectName = projectInterface?.name;
+            if (projectName) {
+              const hint = t('preset.exportShareHint', {
+                projectName,
+                tabName: instance.name,
+              });
+              const footer = t('preset.exportShareFooter', { projectName });
+              exportTabConfig(instance, projectName, hint, footer).then(
+                () => toast.success(t('preset.exportSuccess')),
+                () => toast.error(t('preset.importFailed')),
+              );
+            }
+          },
+        },
       ];
 
       showMenu(e, menuItems);
     },
-    [t, instance, showAddTaskPanel, setShowAddTaskPanel, selectAllTasks, collapseAllTasks, showMenu],
+    [t, instance, showAddTaskPanel, setShowAddTaskPanel, selectAllTasks, collapseAllTasks, showMenu, projectInterface],
   );
 
   if (!instance) {
@@ -270,6 +359,7 @@ export function TaskList() {
               <ListTodo className="w-12 h-12 opacity-30" />
               <p className="text-sm">{t('taskList.noTasks')}</p>
               <p className="text-xs">{t('taskList.dragToReorder')}</p>
+              <ImportConfigButton instanceId={instance.id} />
             </div>
           )}
         </div>
@@ -322,6 +412,7 @@ export function TaskList() {
               <ListTodo className="w-12 h-12 opacity-30" />
               <p className="text-sm">{t('taskList.noTasks')}</p>
               <p className="text-xs">{t('taskList.dragToReorder')}</p>
+              <ImportConfigButton instanceId={instance.id} />
             </div>
           )}
         </div>

@@ -58,6 +58,7 @@ import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
+import { Toaster } from 'sonner';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
   isTauri,
@@ -1665,6 +1666,13 @@ function App() {
             />
           </div>
         </div>
+        <Toaster
+          theme={resolveThemeMode(theme)}
+          position="bottom-center"
+          toastOptions={{
+            className: '!bg-bg-secondary !text-text-primary !border-border',
+          }}
+        />
       </div>
     );
   }
@@ -1912,6 +1920,13 @@ function App() {
           </div>
         )}
       </div>
+      <Toaster
+        theme={resolveThemeMode(theme)}
+        position="bottom-center"
+        toastOptions={{
+          className: '!bg-bg-secondary !text-text-primary !border-border',
+        }}
+      />
     </div>
   );
 }

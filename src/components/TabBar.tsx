@@ -20,11 +20,14 @@ import {
   PanelRightClose,
   Bell,
   History,
+  Share2,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
+import { exportTabConfig } from '@/utils/tabExportImport';
+import { toast } from 'sonner';
 import clsx from 'clsx';
 
 const LazyUpdatePanel = lazy(async () => {
@@ -176,6 +179,26 @@ export function TabBar() {
           label: t('contextMenu.duplicateTab'),
           icon: Copy,
           onClick: () => duplicateInstance(instanceId),
+        },
+        {
+          id: 'export',
+          label: t('contextMenu.exportConfig'),
+          icon: Share2,
+          onClick: () => {
+            const inst = instances.find((i) => i.id === instanceId);
+            const projectName = projectInterface?.name;
+            if (inst && projectName) {
+              const hint = t('preset.exportShareHint', {
+                projectName,
+                tabName: inst.name,
+              });
+              const footer = t('preset.exportShareFooter', { projectName });
+              exportTabConfig(inst, projectName, hint, footer).then(
+                () => toast.success(t('preset.exportSuccess')),
+                () => toast.error(t('preset.importFailed')),
+              );
+            }
+          },
         },
         {
           id: 'rename',

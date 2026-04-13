@@ -327,6 +327,14 @@ export default {
     hint: '一鍵套用預定義的任務設定，快速開始',
     taskCount: '個任務',
     skipToManual: '跳過，手動新增任務',
+    importConfig: '從剪貼簿匯入設定',
+    importSuccess: '設定匯入成功',
+    importFailed: '匯入失敗：格式無效',
+    importProjectMismatch: '匯入失敗：專案不匹配',
+    importVersionUnsupported: '匯入失敗：不支援的版本',
+    exportSuccess: '設定已複製到剪貼簿',
+    exportShareHint: '「{{tabName}}」的 {{projectName}} 設定，分享給你囉~',
+    exportShareFooter: '👆 複製這段文字，在 {{projectName}} 裡新建標籤頁，點「匯入設定」就能直接用',
   },
 
   // 控制器
@@ -719,6 +727,7 @@ export default {
     closeOtherTabs: '關閉其他標籤頁',
     closeAllTabs: '關閉所有標籤頁',
     closeTabsToRight: '關閉右側標籤頁',
+    exportConfig: '匯出設定',
 
     // 前置程式右鍵選單
     duplicateAction: '複製',

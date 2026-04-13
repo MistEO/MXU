@@ -107,7 +107,7 @@ export default {
     autoRunOnLaunchHint:
       'Automatically execute the selected configuration when manually opening the app (if disabled, only triggers on system startup)',
     confirmBeforeDelete: 'Confirm delete actions',
-    confirmBeforeDeleteHint: 'Show confirmation before delete/clear list/import overwrite, etc.',
+    confirmBeforeDeleteHint: 'Show a confirmation dialog before delete/clear list and other dangerous actions.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',

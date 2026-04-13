@@ -105,7 +105,7 @@ export default {
     autoRunOnLaunchHint:
       '每次手動開啟程式時，也自動執行上方選定的配置（關閉則僅在開機自啟動時觸發）',
     confirmBeforeDelete: '刪除操作需要二次確認',
-    confirmBeforeDeleteHint: '刪除任務、清空列表、匯入覆蓋等操作會先彈出確認對話框',
+    confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',

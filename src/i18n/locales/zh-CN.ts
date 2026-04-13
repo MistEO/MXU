@@ -106,7 +106,7 @@ export default {
     autoRunOnLaunchHint:
       '每次手动打开程序时，也自动执行上方选定的配置（关闭则仅在开机自启动时触发）',
     confirmBeforeDelete: '删除操作需要二次确认',
-    confirmBeforeDeleteHint: '删除任务、清空列表、导入覆盖等操作会先弹出确认对话框',
+    confirmBeforeDeleteHint: '删除任务、清空列表等危险操作会先弹出确认对话框',
     maxLogsPerInstance: '每个实例保留的日志上限',
     maxLogsPerInstanceHint: '超过上限会自动丢弃最旧的日志（建议 500～2000）',
     resetWindowLayout: '重置窗口布局',

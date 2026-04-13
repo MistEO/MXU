@@ -34,7 +34,7 @@ import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import type { PresetItem } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { useResolvedContent } from '@/services/contentResolver';
-import { exportTabConfig, importTabConfigFromClipboard, getImportErrorType } from '@/utils/tabExportImport';
+import { exportWithToast, importTabConfigFromClipboard, getImportErrorType } from '@/utils/tabExportImport';
 import { generateId } from '@/stores/helpers';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -313,14 +313,12 @@ export function TaskList() {
           onClick: () => {
             const projectName = projectInterface?.name;
             if (projectName) {
-              const hint = t('preset.exportShareHint', {
+              exportWithToast(
+                instance,
                 projectName,
-                tabName: instance.name,
-              });
-              const footer = t('preset.exportShareFooter', { projectName });
-              exportTabConfig(instance, projectName, hint, footer).then(
-                () => toast.success(t('preset.exportSuccess')),
-                () => toast.error(t('preset.importFailed')),
+                t('preset.exportShareHint', { projectName, tabName: instance.name }),
+                t('preset.exportShareFooter', { projectName }),
+                { success: t('preset.exportSuccess'), failed: t('preset.exportFailed') },
               );
             }
           },

@@ -26,8 +26,7 @@ import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
-import { exportTabConfig } from '@/utils/tabExportImport';
-import { toast } from 'sonner';
+import { exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
 const LazyUpdatePanel = lazy(async () => {
@@ -188,14 +187,12 @@ export function TabBar() {
             const inst = instances.find((i) => i.id === instanceId);
             const projectName = projectInterface?.name;
             if (inst && projectName) {
-              const hint = t('preset.exportShareHint', {
+              exportWithToast(
+                inst,
                 projectName,
-                tabName: inst.name,
-              });
-              const footer = t('preset.exportShareFooter', { projectName });
-              exportTabConfig(inst, projectName, hint, footer).then(
-                () => toast.success(t('preset.exportSuccess')),
-                () => toast.error(t('preset.importFailed')),
+                t('preset.exportShareHint', { projectName, tabName: inst.name }),
+                t('preset.exportShareFooter', { projectName }),
+                { success: t('preset.exportSuccess'), failed: t('preset.exportFailed') },
               );
             }
           },
@@ -281,7 +278,7 @@ export function TabBar() {
 
       showMenu(e, menuItems);
     },
-    [instances, t, createInstance, duplicateInstance, removeInstance, reorderInstances, showMenu],
+    [instances, t, createInstance, duplicateInstance, removeInstance, reorderInstances, showMenu, projectInterface, confirmBeforeDelete, startTabCloseAnimation],
   );
 
   // 基于鼠标事件的拖拽实现（更可靠，兼容 Tauri）

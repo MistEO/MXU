@@ -337,6 +337,7 @@ export default {
     importProjectMismatch: '导入失败：项目不匹配',
     importVersionUnsupported: '导入失败：不支持的版本',
     exportSuccess: '配置已复制到剪贴板',
+    exportFailed: '导出失败：无法写入剪贴板',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 配置，发给你啦~',
     exportShareFooter: '👆 复制这段文字，在 {{projectName}} 里新建标签页，点「导入配置」就能直接用',
   },

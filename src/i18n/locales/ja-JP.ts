@@ -339,6 +339,7 @@ export default {
     importProjectMismatch: 'インポート失敗：プロジェクトが一致しません',
     importVersionUnsupported: 'インポート失敗：サポートされていないバージョン',
     exportSuccess: '設定をクリップボードにコピーしました',
+    exportFailed: 'エクスポート失敗：クリップボードに書き込めません',
     exportShareHint: '{{projectName}} の「{{tabName}}」設定をシェアするよ～',
     exportShareFooter: '👆 このメッセージをコピーして、{{projectName}} で新しいタブを開き「設定をインポート」を押すだけでOK',
   },

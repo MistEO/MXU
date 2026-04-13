@@ -333,6 +333,7 @@ export default {
     importProjectMismatch: '匯入失敗：專案不匹配',
     importVersionUnsupported: '匯入失敗：不支援的版本',
     exportSuccess: '設定已複製到剪貼簿',
+    exportFailed: '匯出失敗：無法寫入剪貼簿',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 設定，分享給你囉~',
     exportShareFooter: '👆 複製這段文字，在 {{projectName}} 裡新建標籤頁，點「匯入設定」就能直接用',
   },

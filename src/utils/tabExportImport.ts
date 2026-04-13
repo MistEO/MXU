@@ -1,5 +1,6 @@
 import type { SavedTask } from '@/types/config';
 import type { ActionConfig, Instance, OptionValue } from '@/types/interface';
+import { toast } from 'sonner';
 
 const PROTOCOL_SEGMENT = 'tab-sharing';
 const CURRENT_VERSION = 'v1';
@@ -109,6 +110,7 @@ function decodeOptionValue(w: WireOptionValue): OptionValue {
     case 'cb': return { type: 'checkbox', caseNames: w.c };
     case 'sw': return { type: 'switch',   value:     w.v };
     case 'in': return { type: 'input',    values:    w.v };
+    default:   throw new Error('invalid_format');
   }
 }
 
@@ -146,7 +148,7 @@ function decodePayload(wire: WirePayload): TabExportPayload {
   };
 }
 
-// ── gzip helpers ─────────────────────────────────────────────────────────────
+// ── deflate helpers ──────────────────────────────────────────────────────────
 
 async function compress(str: string): Promise<Uint8Array> {
   const encoded = new TextEncoder().encode(str);
@@ -194,11 +196,12 @@ async function decompress(bytes: Uint8Array): Promise<string> {
 }
 
 function toBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const chunkSize = 0x8000;
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
   }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(chunks.join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function fromBase64Url(str: string): Uint8Array {
@@ -219,7 +222,7 @@ function fromBase64Url(str: string): Uint8Array {
  * 将当前 Tab 的配置序列化并写入剪贴板。
  * 格式（三行）：
  *   {hint}          ← 开头说明（调用方传入，本地化）
- *   {projectName}://tab-sharing/v1/{tabName}/{base64url(gzip(JSON))}
+ *   {projectName}://tab-sharing/v1/{tabName}/{base64url(deflate(JSON))}
  *   {footer}        ← 结尾签名（调用方传入，本地化）
  */
 export async function exportTabConfig(
@@ -262,13 +265,15 @@ export async function importTabConfigFromClipboard(
 ): Promise<TabImportResult> {
   const rawText = (await navigator.clipboard.readText()).trim();
 
-  // 从任意行里提取协议行（忽略前缀说明文字）
-  const dataLineMatch = rawText.match(/(.+:\/\/tab-sharing\/.+)/m);
+  const escapedSegment = PROTOCOL_SEGMENT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const dataLineRegex = new RegExp(`(.+://${escapedSegment}/.+)`, 'm');
+  const dataLineMatch = rawText.match(dataLineRegex);
   const text = dataLineMatch ? dataLineMatch[1].trim() : rawText;
 
   const protocolPrefix = `${projectName}://${PROTOCOL_SEGMENT}/`;
   if (!text.startsWith(protocolPrefix)) {
-    if (/^.+:\/\/tab-sharing\//.test(text)) {
+    const mismatchRegex = new RegExp(`^.+://${escapedSegment}/`);
+    if (mismatchRegex.test(text)) {
       throw createImportError('project_mismatch');
     }
     throw createImportError('invalid_format');
@@ -317,4 +322,17 @@ export function getImportErrorType(err: unknown): ImportError | undefined {
     return (err as Error & { importErrorType: ImportError }).importErrorType;
   }
   return undefined;
+}
+
+export function exportWithToast(
+  instance: Instance,
+  projectName: string,
+  hint: string,
+  footer: string,
+  messages: { success: string; failed: string },
+): void {
+  exportTabConfig(instance, projectName, hint, footer).then(
+    () => toast.success(messages.success),
+    () => toast.error(messages.failed),
+  );
 }

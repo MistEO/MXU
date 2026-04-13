@@ -1629,6 +1629,16 @@ function App() {
     };
   }, []);
 
+  const toaster = (
+    <Toaster
+      theme={resolveThemeMode(theme)}
+      position="bottom-center"
+      toastOptions={{
+        className: '!bg-bg-secondary !text-text-primary !border-border',
+      }}
+    />
+  );
+
   // 设置页面
   if (currentPage === 'settings') {
     return (
@@ -1666,13 +1676,7 @@ function App() {
             />
           </div>
         </div>
-        <Toaster
-          theme={resolveThemeMode(theme)}
-          position="bottom-center"
-          toastOptions={{
-            className: '!bg-bg-secondary !text-text-primary !border-border',
-          }}
-        />
+        {toaster}
       </div>
     );
   }
@@ -1920,13 +1924,7 @@ function App() {
           </div>
         )}
       </div>
-      <Toaster
-        theme={resolveThemeMode(theme)}
-        position="bottom-center"
-        toastOptions={{
-          className: '!bg-bg-secondary !text-text-primary !border-border',
-        }}
-      />
+      {toaster}
     </div>
   );
 }

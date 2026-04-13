@@ -337,6 +337,7 @@ export default {
     importProjectMismatch: '가져오기 실패: 프로젝트 불일치',
     importVersionUnsupported: '가져오기 실패: 지원되지 않는 버전',
     exportSuccess: '설정이 클립보드에 복사되었습니다',
+    exportFailed: '내보내기 실패: 클립보드에 쓸 수 없습니다',
     exportShareHint: '{{projectName}} 의 「{{tabName}}」 설정 공유해요~',
     exportShareFooter: '👆 이 메시지를 복사해서 {{projectName}} 에서 새 탭을 만들고 「설정 가져오기」를 누르면 바로 사용할 수 있어요',
   },

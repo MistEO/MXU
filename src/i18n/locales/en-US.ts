@@ -344,6 +344,7 @@ export default {
     importProjectMismatch: 'Import failed: project mismatch',
     importVersionUnsupported: 'Import failed: unsupported version',
     exportSuccess: 'Config copied to clipboard',
+    exportFailed: 'Export failed: unable to write to clipboard',
     exportShareHint: 'Sharing my {{projectName}} config "{{tabName}}" with you~',
     exportShareFooter: '👆 Copy this message, open {{projectName}}, create a new tab, and tap "Import Config" to use it instantly',
   },

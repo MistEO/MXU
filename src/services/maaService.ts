@@ -1018,6 +1018,21 @@ export const maaService = {
       return false;
     }
   },
+
+  /**
+   * 根据窗口句柄获取对应进程的可执行文件路径（仅 Windows）
+   */
+  async getProcessPathFromHwnd(hwnd: number): Promise<string> {
+    if (!isTauri()) {
+      return '';
+    }
+    try {
+      return await invoke<string>('get_process_path_from_hwnd', { hwnd });
+    } catch (err) {
+      log.warn('获取窗口进程路径失败:', err);
+      return '';
+    }
+  },
 };
 
 export default maaService;

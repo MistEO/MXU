@@ -31,6 +31,8 @@ export interface SavedDeviceInfo {
   wlrSocketPath?: string;
   // PlayCover：保存地址
   playcoverAddress?: string;
+  /** Win32 连接窗口对应的进程可执行文件路径 */
+  connectedProgramPath?: string;
 }
 
 /** 旧版单个前置程序配置（不含 id，用于向后兼容读取） */

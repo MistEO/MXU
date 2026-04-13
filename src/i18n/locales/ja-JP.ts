@@ -325,6 +325,7 @@ export default {
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
     preActionConnectDelay: '{{seconds}} 秒後に接続します...',
+    autoPreActionAdded: '前処理プログラムを自動追加しました: {{name}}（デフォルトでは無効）',
     removeConfirmTitle: '前処理プログラムを削除',
     removeConfirmMessage: 'この前処理プログラムを削除してもよろしいですか？',
   },

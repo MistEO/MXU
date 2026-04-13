@@ -26,7 +26,11 @@ import {
 import { Tooltip } from './ui/Tooltip';
 import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
-import { getAllMxuSpecialTasks } from '@/types/specialTasks';
+import {
+  getAllMxuSpecialTasks,
+  MXU_LAUNCH_TASK_NAME,
+  MXU_KILLPROC_TASK_NAME,
+} from '@/types/specialTasks';
 import { generateId } from '@/stores/helpers';
 import clsx from 'clsx';
 
@@ -144,11 +148,11 @@ function TaskButton({
 }
 
 // 生成带新 id 的默认动作配置
-function createDefaultAction(): ActionConfig {
+function createDefaultAction(defaultProgram?: string): ActionConfig {
   return {
     id: generateId(),
     enabled: true,
-    program: '',
+    program: defaultProgram || '',
     args: '',
     waitForExit: false,
     skipIfRunning: true,
@@ -261,8 +265,19 @@ export function AddTaskPanel() {
     // 收起添加任务面板
     setShowAddTaskPanel(false);
 
+    // 根据 connectedProgramPath 为特定任务提供默认值
+    const connectedPath = instance.savedDevice?.connectedProgramPath;
+    let initialValues: Record<string, string> | undefined;
+    if (connectedPath) {
+      if (specialTask.taskName === MXU_LAUNCH_TASK_NAME) {
+        initialValues = { program: connectedPath };
+      } else if (specialTask.taskName === MXU_KILLPROC_TASK_NAME) {
+        initialValues = { process_name: connectedPath.split(/[/\\]/).pop() || connectedPath };
+      }
+    }
+
     // 添加特殊任务到列表
-    const taskId = addMxuSpecialTask(instance.id, specialTask.taskName);
+    const taskId = addMxuSpecialTask(instance.id, specialTask.taskName, initialValues);
 
     // 如果实例正在运行，立即调用 PostTask 追加到执行队列
     if (instance.isRunning) {
@@ -723,7 +738,10 @@ export function AddTaskPanel() {
                     {/* 前置任务按钮：可添加多个 */}
                     <button
                       onClick={() => {
-                        addPreAction(instance.id, createDefaultAction());
+                        addPreAction(
+                          instance.id,
+                          createDefaultAction(instance.savedDevice?.connectedProgramPath),
+                        );
                         setShowAddTaskPanel(false);
                       }}
                       disabled={instance.isRunning}

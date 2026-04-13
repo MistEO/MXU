@@ -277,6 +277,7 @@ pub fn run() {
             commands::system::set_pre_action_stop,
             commands::system::run_action,
             commands::system::is_process_running,
+            commands::system::get_process_path_from_hwnd,
             commands::system::retry_load_maa_library,
             commands::system::check_vcredist_missing,
             commands::system::autostart_enable,

@@ -317,6 +317,7 @@ export default {
     preActionFailed: '前置程式執行失敗: {{error}}',
     preActionExitCode: '前置程式結束碼: {{code}}',
     preActionConnectDelay: '等待 {{seconds}} 秒後連線...',
+    autoPreActionAdded: '已自動新增前置程式: {{name}}（預設未啟用）',
     removeConfirmTitle: '刪除前置程式',
     removeConfirmMessage: '確定要刪除這個前置程式嗎？',
   },

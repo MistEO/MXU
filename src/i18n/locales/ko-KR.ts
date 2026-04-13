@@ -324,6 +324,7 @@ export default {
     preActionFailed: '전처리 프로그램 실패: {{error}}',
     preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
     preActionConnectDelay: '{{seconds}}초 후 연결합니다...',
+    autoPreActionAdded: '전처리 프로그램 자동 추가: {{name}} (기본적으로 비활성화)',
     removeConfirmTitle: '전처리 프로그램 삭제',
     removeConfirmMessage: '이 전처리 프로그램을 삭제하시겠습니까?',
   },

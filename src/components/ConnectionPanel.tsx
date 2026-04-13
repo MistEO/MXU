@@ -25,6 +25,7 @@ import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { computeResourcePaths } from '@/utils/resourcePath';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
 import { getInterfaceLangKey } from '@/i18n';
+import { generateId } from '@/stores/helpers';
 import {
   startGlobalCallbackListener,
   waitForCtrlResult,
@@ -62,6 +63,7 @@ export function ConnectionPanel() {
     registerResIdName,
     registerResBatch,
     addLog,
+    addPreAction,
   } = useAppStore();
 
   // 获取当前活动实例
@@ -818,6 +820,42 @@ export function ConnectionPanel() {
     }
   };
 
+  // 连接成功后尝试获取窗口进程路径并自动添加前置程序
+  const fetchAndStoreProcessPath = async (hwnd: number) => {
+    try {
+      const programPath = await maaService.getProcessPathFromHwnd(hwnd);
+      if (!programPath) return;
+
+      setInstanceSavedDevice(instanceId, {
+        ...activeInstance?.savedDevice,
+        connectedProgramPath: programPath,
+      });
+
+      const inst = useAppStore.getState().instances.find((i) => i.id === instanceId);
+      const alreadyHas = inst?.preActions?.some(
+        (a) => a.program.toLowerCase() === programPath.toLowerCase(),
+      );
+      if (!alreadyHas) {
+        addPreAction(instanceId, {
+          id: generateId(),
+          enabled: false,
+          program: programPath,
+          args: '',
+          waitForExit: false,
+          skipIfRunning: true,
+          useCmd: false,
+        });
+        const processName = programPath.split(/[/\\]/).pop() || programPath;
+        addLog(instanceId, {
+          type: 'info',
+          message: t('action.autoPreActionAdded', { name: processName }),
+        });
+      }
+    } catch {
+      // best-effort, 静默忽略
+    }
+  };
+
   // 选择 Win32 窗口并自动连接（如已连接会先断开旧连接）
   const handleSelectWindow = async (win: Win32Window) => {
     setSelectedWindow(win);
@@ -862,6 +900,9 @@ export function ConnectionPanel() {
       }
 
       await connectControllerInternal(config, win.window_name || win.class_name, 'window');
+
+      // 连接成功后异步获取进程路径（Win32 和 Gamepad 都基于窗口句柄）
+      void fetchAndStoreProcessPath(win.handle);
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
       setIsConnected(false);

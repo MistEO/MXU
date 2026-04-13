@@ -239,6 +239,8 @@ export interface SavedDeviceInfo {
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
+  /** Win32 连接窗口对应的进程可执行文件路径 */
+  connectedProgramPath?: string;
 }
 
 // 定时执行策略

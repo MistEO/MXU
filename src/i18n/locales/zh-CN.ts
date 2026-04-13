@@ -321,6 +321,8 @@ export default {
     preActionFailed: '前置程序执行失败: {{error}}',
     preActionExitCode: '前置程序退出码: {{code}}',
     preActionConnectDelay: '等待 {{seconds}} 秒后连接...',
+    removeConfirmTitle: '删除前置程序',
+    removeConfirmMessage: '确定要删除这个前置程序吗？',
   },
 
   // 选项编辑器

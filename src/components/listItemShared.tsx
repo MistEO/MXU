@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -153,7 +154,7 @@ export function InlineNameEditor({
   onCancel,
   placeholder,
 }: InlineNameEditorProps) {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') onSave();
     else if (e.key === 'Escape') onCancel();
   };

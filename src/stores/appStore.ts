@@ -592,6 +592,9 @@ export const useAppStore = create<AppState>()(
       set((state) => ({
         instances: state.instances.map((i) => {
           if (i.id !== instanceId) return i;
+          const len = i.selectedTasks.length;
+          if (oldIndex < 0 || oldIndex >= len || newIndex < 0 || newIndex >= len) return i;
+          if (oldIndex === newIndex) return i;
 
           const tasks = [...i.selectedTasks];
           const [removed] = tasks.splice(oldIndex, 1);
@@ -1387,6 +1390,9 @@ export const useAppStore = create<AppState>()(
       set((state) => ({
         instances: state.instances.map((i) => {
           if (i.id !== instanceId || !i.preActions) return i;
+          const len = i.preActions.length;
+          if (oldIndex < 0 || oldIndex >= len || newIndex < 0 || newIndex >= len) return i;
+          if (oldIndex === newIndex) return i;
           const items = [...i.preActions];
           const [removed] = items.splice(oldIndex, 1);
           items.splice(newIndex, 0, removed);

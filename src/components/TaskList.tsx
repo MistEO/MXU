@@ -342,6 +342,7 @@ export function TaskList() {
     if (over && active.id !== over.id && instance) {
       const oldIndex = instance.selectedTasks.findIndex((t) => t.id === active.id);
       const newIndex = instance.selectedTasks.findIndex((t) => t.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
       reorderTasks(instance.id, oldIndex, newIndex);
     }
   };
@@ -352,6 +353,7 @@ export function TaskList() {
     if (over && active.id !== over.id && instance?.preActions) {
       const oldIndex = instance.preActions.findIndex((a) => a.id === active.id);
       const newIndex = instance.preActions.findIndex((a) => a.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
       reorderPreActions(instance.id, oldIndex, newIndex);
     }
   };

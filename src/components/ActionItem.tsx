@@ -376,8 +376,8 @@ export function ActionItem({
       {/* 删除确认弹窗 */}
       <ConfirmDialog
         open={showDeleteConfirm}
-        title={t('taskItem.removeConfirmTitle')}
-        message={t('taskItem.removeConfirmMessage')}
+        title={t('action.removeConfirmTitle')}
+        message={t('action.removeConfirmMessage')}
         cancelText={t('common.cancel')}
         confirmText={t('common.delete')}
         destructive

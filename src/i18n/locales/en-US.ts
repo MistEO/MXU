@@ -330,6 +330,8 @@ export default {
     preActionFailed: 'Pre-program failed: {{error}}',
     preActionExitCode: 'Pre-program exit code: {{code}}',
     preActionConnectDelay: 'Waiting {{seconds}} seconds before connecting...',
+    removeConfirmTitle: 'Delete pre-action',
+    removeConfirmMessage: 'Are you sure you want to delete this pre-action?',
   },
 
   // Option Editor

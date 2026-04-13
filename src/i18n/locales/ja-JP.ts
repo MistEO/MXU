@@ -290,7 +290,7 @@ export default {
   },
 
   action: {
-    preAction: '前処理プログラム',
+    preAction: '▶️ 前処理プログラム',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
     args: '追加引数',
@@ -325,7 +325,10 @@ export default {
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
     preActionConnectDelay: '{{seconds}} 秒後に接続します...',
+    autoPreActionName: '▶️ {{name}} を起動',
     autoPreActionAdded: '前処理プログラムを自動追加しました: {{name}}（デフォルトでは無効）',
+    autoKillTaskName: '⛔ {{name}} を終了',
+    autoKillTaskAdded: 'プロセス終了タスクを自動追加しました: {{name}}（デフォルトでは無効）',
     removeConfirmTitle: '前処理プログラムを削除',
     removeConfirmMessage: 'この前処理プログラムを削除してもよろしいですか？',
   },

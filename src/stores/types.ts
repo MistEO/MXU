@@ -164,6 +164,13 @@ export interface AppState {
     instanceId: string,
     taskName: string,
     initialValues?: Record<string, string>,
+    taskOptions?: {
+      enabled?: boolean;
+      expanded?: boolean;
+      customName?: string;
+      /** 覆盖 switch 选项的初始值（key 为选项 key，value 为 boolean） */
+      switchOverrides?: Record<string, boolean>;
+    },
   ) => string;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;

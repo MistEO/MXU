@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, X, Play, GripVertical } from 'lucide-react';
+import { ChevronRight, X, GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/stores/appStore';
@@ -249,7 +249,6 @@ export function ActionItem({
                 )}
                 onClick={handleToggleEnabled}
               >
-                <Play className="w-4 h-4 mr-0.5 flex-shrink-0 text-success" />
                 <span
                   className={clsx(
                     'min-w-0 text-sm font-medium truncate',

@@ -295,7 +295,7 @@ export default {
   },
 
   action: {
-    preAction: 'Pre-Program',
+    preAction: '▶️ Pre-Program',
     program: 'Program Path',
     programPlaceholder: 'Enter program path or browse...',
     args: 'Arguments',
@@ -330,7 +330,10 @@ export default {
     preActionFailed: 'Pre-program failed: {{error}}',
     preActionExitCode: 'Pre-program exit code: {{code}}',
     preActionConnectDelay: 'Waiting {{seconds}} seconds before connecting...',
+    autoPreActionName: '▶️ Launch {{name}}',
     autoPreActionAdded: 'Auto-added pre-action: {{name}} (disabled by default)',
+    autoKillTaskName: '⛔ Kill {{name}}',
+    autoKillTaskAdded: 'Auto-added kill process task: {{name}} (disabled by default)',
     removeConfirmTitle: 'Delete pre-action',
     removeConfirmMessage: 'Are you sure you want to delete this pre-action?',
   },

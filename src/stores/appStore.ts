@@ -520,6 +520,12 @@ export const useAppStore = create<AppState>()(
       instanceId: string,
       taskName: string,
       initialValues?: Record<string, string>,
+      taskOptions?: {
+        enabled?: boolean;
+        expanded?: boolean;
+        customName?: string;
+        switchOverrides?: Record<string, boolean>;
+      },
     ) => {
       // 从注册表获取特殊任务定义
       const specialTask = getMxuSpecialTask(taskName);
@@ -543,9 +549,14 @@ export const useAppStore = create<AppState>()(
           }
           optionValues[optionKey] = { type: 'input', values };
         } else if (optionDef.type === 'switch') {
-          const defaultCase = optionDef.default_case;
-          const isOn = defaultCase === 'Yes' || defaultCase === optionDef.cases[0]?.name;
-          optionValues[optionKey] = { type: 'switch', value: isOn };
+          const overridden = taskOptions?.switchOverrides?.[optionKey];
+          if (overridden !== undefined) {
+            optionValues[optionKey] = { type: 'switch', value: overridden };
+          } else {
+            const defaultCase = optionDef.default_case;
+            const isOn = defaultCase === 'Yes' || defaultCase === optionDef.cases[0]?.name;
+            optionValues[optionKey] = { type: 'switch', value: isOn };
+          }
         } else if (optionDef.type === 'checkbox') {
           const defaultCases = optionDef.default_case || [];
           optionValues[optionKey] = { type: 'checkbox', caseNames: [...defaultCases] };
@@ -560,9 +571,10 @@ export const useAppStore = create<AppState>()(
       const newTask: SelectedTask = {
         id: generateId(),
         taskName,
-        enabled: true,
+        customName: taskOptions?.customName,
+        enabled: taskOptions?.enabled ?? true,
         optionValues,
-        expanded: true,
+        expanded: taskOptions?.expanded ?? true,
       };
 
       set((state) => ({

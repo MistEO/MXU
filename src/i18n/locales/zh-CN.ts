@@ -287,7 +287,7 @@ export default {
   },
 
   action: {
-    preAction: '前置程序',
+    preAction: '▶️ 前置程序',
     program: '程序路径',
     programPlaceholder: '输入程序路径或点击右侧浏览...',
     args: '附加参数',
@@ -321,7 +321,10 @@ export default {
     preActionFailed: '前置程序执行失败: {{error}}',
     preActionExitCode: '前置程序退出码: {{code}}',
     preActionConnectDelay: '等待 {{seconds}} 秒后连接...',
+    autoPreActionName: '▶️ 启动 {{name}}',
     autoPreActionAdded: '已自动添加前置程序: {{name}}（默认未启用）',
+    autoKillTaskName: '⛔ 结束 {{name}}',
+    autoKillTaskAdded: '已自动添加结束进程任务: {{name}}（默认未启用）',
     removeConfirmTitle: '删除前置程序',
     removeConfirmMessage: '确定要删除这个前置程序吗？',
   },

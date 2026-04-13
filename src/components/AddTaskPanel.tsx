@@ -7,7 +7,6 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
-  Play,
   ChevronsDown,
   ChevronDown,
   ChevronRight,
@@ -751,7 +750,6 @@ export function AddTaskPanel() {
                         instance.isRunning && 'opacity-50 cursor-not-allowed',
                       )}
                     >
-                      <Play className="w-3.5 h-3.5 text-success/80" />
                       <span>{t('action.preAction')}</span>
                     </button>
                     {/* 动态渲染所有注册的特殊任务按钮 */}

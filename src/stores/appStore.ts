@@ -54,6 +54,7 @@ import {
   getCurrentControllerAndResource,
   isTaskCompatible,
 } from './helpers';
+import { clearPersistedRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -121,6 +122,7 @@ export const useAppStore = create<AppState>()(
     backgroundOpacity: 50,
     confirmBeforeDelete: false,
     maxLogsPerInstance: 2000,
+    retainTodayLogsAfterRestart: false,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -150,10 +152,24 @@ export const useAppStore = create<AppState>()(
       if (!isTauri()) patchWebUIAppearance({ backgroundOpacity: clamped });
     },
     setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
-    setMaxLogsPerInstance: (value) =>
+    setMaxLogsPerInstance: (value) => {
       set({
         maxLogsPerInstance: Math.max(100, Math.min(10000, Math.floor(value))),
-      }),
+      });
+      const state = get();
+      if (state.retainTodayLogsAfterRestart) {
+        persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
+      }
+    },
+    setRetainTodayLogsAfterRestart: (enabled) => {
+      set({ retainTodayLogsAfterRestart: enabled });
+      const state = get();
+      if (enabled) {
+        persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
+      } else {
+        clearPersistedRuntimeLogs();
+      }
+    },
     addCustomAccent: (accent) => {
       set((state) => ({
         customAccents: [...state.customAccents, accent],
@@ -1140,6 +1156,7 @@ export const useAppStore = create<AppState>()(
         backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
+        retainTodayLogsAfterRestart: config.settings.retainTodayLogsAfterRestart ?? false,
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -1793,22 +1810,34 @@ export const useAppStore = create<AppState>()(
           : DEFAULT_MAX_LOGS_PER_INSTANCE;
         const limit = Math.min(10000, Math.max(100, Math.floor(rawLimit)));
         const updatedLogs = [...logs, newLog].slice(-limit);
+        const nextLogs = {
+          ...state.instanceLogs,
+          [instanceId]: updatedLogs,
+        };
+        if (state.retainTodayLogsAfterRestart) {
+          persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
+        }
         return {
-          instanceLogs: {
-            ...state.instanceLogs,
-            [instanceId]: updatedLogs,
-          },
+          instanceLogs: nextLogs,
         };
       }),
 
     clearLogs: (instanceId) => {
       clearLogsOnBackend(instanceId);
-      set((state) => ({
-        instanceLogs: {
+      set((state) => {
+        const nextLogs = {
           ...state.instanceLogs,
           [instanceId]: [],
-        },
-      }));
+        };
+        if (state.retainTodayLogsAfterRestart) {
+          persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
+        } else {
+          clearPersistedRuntimeLogs(instanceId);
+        }
+        return {
+          instanceLogs: nextLogs,
+        };
+      });
     },
 
     // 回调 ID 与名称的映射
@@ -1899,6 +1928,7 @@ function generateConfig(): MxuConfig {
           backgroundOpacity: ba?.backgroundOpacity ?? state.backgroundOpacity,
           confirmBeforeDelete: state.confirmBeforeDelete,
           maxLogsPerInstance: state.maxLogsPerInstance,
+          retainTodayLogsAfterRestart: state.retainTodayLogsAfterRestart,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -1984,6 +2014,7 @@ useAppStore.subscribe(
     }),
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
+    retainTodayLogsAfterRestart: state.retainTodayLogsAfterRestart,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

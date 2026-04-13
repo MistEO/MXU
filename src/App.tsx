@@ -60,6 +60,11 @@ import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
+  loadPersistedRuntimeLogs,
+  mergeRuntimeLogs,
+  persistRuntimeLogs,
+} from '@/utils/runtimeLogPersistence';
+import {
   isTauri,
   isValidWindowSize,
   setWindowTitle,
@@ -654,22 +659,34 @@ function App() {
       // 从后端恢复运行日志（跨页面刷新持久化）
       try {
         const backendLogs = await getAllLogsFromBackend();
-        if (backendLogs && Object.keys(backendLogs).length > 0) {
-          const store = useAppStore.getState();
-          const restoredLogs: Record<string, import('@/stores/types').LogEntry[]> = {};
-          for (const [instanceId, entries] of Object.entries(backendLogs)) {
-            restoredLogs[instanceId] = entries.map((e) => ({
-              id: e.id,
-              timestamp: new Date(e.timestamp),
-              type: e.type as import('@/stores/types').LogType,
-              message: e.message,
-              html: e.html,
-            }));
-          }
+        const store = useAppStore.getState();
+        const restoredBackendLogs: Record<string, import('@/stores/types').LogEntry[]> = {};
+        for (const [instanceId, entries] of Object.entries(backendLogs || {})) {
+          restoredBackendLogs[instanceId] = entries.map((e) => ({
+            id: e.id,
+            timestamp: new Date(e.timestamp),
+            type: e.type as import('@/stores/types').LogType,
+            message: e.message,
+            html: e.html,
+          }));
+        }
+        const restoredPersistentLogs = store.retainTodayLogsAfterRestart
+          ? loadPersistedRuntimeLogs(store.maxLogsPerInstance)
+          : {};
+        const mergedLogs = mergeRuntimeLogs(
+          store.maxLogsPerInstance,
+          store.instanceLogs,
+          restoredBackendLogs,
+          restoredPersistentLogs,
+        );
+        if (Object.keys(mergedLogs).length > 0) {
           useAppStore.setState({
-            instanceLogs: { ...store.instanceLogs, ...restoredLogs },
+            instanceLogs: mergedLogs,
           });
-          log.info('已恢复运行日志:', Object.keys(restoredLogs).length, '个实例');
+          if (store.retainTodayLogsAfterRestart) {
+            persistRuntimeLogs(mergedLogs, store.maxLogsPerInstance);
+          }
+          log.info('Restored runtime logs', Object.keys(mergedLogs).length, 'instances');
         }
       } catch (err) {
         log.warn('恢复运行日志失败:', err);

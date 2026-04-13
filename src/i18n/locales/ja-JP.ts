@@ -290,7 +290,7 @@ export default {
   },
 
   action: {
-    preAction: '前処理プログラム',
+    preAction: '▶️ 前処理プログラム',
     program: 'プログラムパス',
     programPlaceholder: 'プログラムパスを入力または参照...',
     args: '追加引数',
@@ -319,10 +319,18 @@ export default {
     deviceWaitTimeout: 'デバイス待機タイムアウト',
     windowWaitTimeout: 'ウィンドウ待機タイムアウト',
     preActionStarting: '前処理プログラムを実行中...',
+    preActionStartingNamed: '前処理プログラムを実行中: {{name}}...',
     preActionCompleted: '前処理プログラム完了',
+    preActionCompletedNamed: '前処理プログラム {{name}} 完了',
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
     preActionConnectDelay: '{{seconds}} 秒後に接続します...',
+    autoPreActionName: '▶️ {{name}} を起動',
+    autoPreActionAdded: '前処理プログラムを自動追加しました: {{name}}（デフォルトでは無効）',
+    autoKillTaskName: '⛔ {{name}} を終了',
+    autoKillTaskAdded: 'プロセス終了タスクを自動追加しました: {{name}}（デフォルトでは無効）',
+    removeConfirmTitle: '前処理プログラムを削除',
+    removeConfirmMessage: 'この前処理プログラムを削除してもよろしいですか？',
   },
 
   // オプションエディタ
@@ -749,6 +757,15 @@ export default {
     closeOtherTabs: '他のタブを閉じる',
     closeAllTabs: 'すべてのタブを閉じる',
     closeTabsToRight: '右側のタブを閉じる',
+
+    // 前処理プログラムのコンテキストメニュー
+    duplicateAction: '複製',
+    deleteAction: '削除',
+    renameAction: '名前を変更',
+    enableAction: '有効にする',
+    disableAction: '無効にする',
+    expandAction: '設定を展開',
+    collapseAction: '設定を折りたたむ',
 
     // タスクのコンテキストメニュー
     addTask: 'タスクを追加',

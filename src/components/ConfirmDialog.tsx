@@ -32,14 +32,11 @@ export function ConfirmDialog({
   onSecondaryConfirm?: () => void;
   onCancel: () => void;
 }) {
-  if (!open) return null;
-
   const panelRef = useRef<HTMLDivElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    // initial focus
     cancelBtnRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -48,9 +45,6 @@ export function ConfirmDialog({
         onCancel();
         return;
       }
-      // Enter: trigger primary confirm when enabled.
-      // - If primary confirm is disabled, fall back to secondary confirm (if present and enabled).
-      // - Do NOT hijack Enter while focusing form controls (input/select/textarea), to avoid surprising submits.
       if (e.key === 'Enter') {
         const active = document.activeElement as HTMLElement | null;
         const tag = active?.tagName;
@@ -103,6 +97,8 @@ export function ConfirmDialog({
     onSecondaryConfirm,
     secondaryConfirmDisabled,
   ]);
+
+  if (!open) return null;
 
   return (
     <div

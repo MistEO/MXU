@@ -332,6 +332,18 @@ export function OptionEditor({
   // 通过 optionKey 从所有注册的特殊任务中反查选项定义
   const mxuOptionDef = isMxuOption ? findMxuOptionByKey(optionKey) : null;
   const optionDef = isMxuOption ? mxuOptionDef : projectInterface?.option?.[optionKey];
+
+  // 获取当前任务的所有选项值（用于嵌套选项）
+  const allOptionValues = useMemo(() => {
+    const instance = instances.find((i) => i.id === instanceId);
+    const task = instance?.selectedTasks.find((t) => t.id === taskId);
+    return task?.optionValues || {};
+  }, [instances, instanceId, taskId]);
+  const instance = useMemo(
+    () => instances.find((item) => item.id === instanceId),
+    [instances, instanceId],
+  );
+
   if (!optionDef) return null;
 
   const langKey = getInterfaceLangKey(language);
@@ -345,17 +357,6 @@ export function OptionEditor({
       : undefined
     : resolveI18nText(optionDef.description, langKey);
   const translations = interfaceTranslations[langKey];
-
-  // 获取当前任务的所有选项值（用于嵌套选项）
-  const allOptionValues = useMemo(() => {
-    const instance = instances.find((i) => i.id === instanceId);
-    const task = instance?.selectedTasks.find((t) => t.id === taskId);
-    return task?.optionValues || {};
-  }, [instances, instanceId, taskId]);
-  const instance = useMemo(
-    () => instances.find((item) => item.id === instanceId),
-    [instances, instanceId],
-  );
   const currentControllerName = instance?.controllerName || projectInterface?.controller[0]?.name;
   const currentResourceName = instance?.resourceName || projectInterface?.resource[0]?.name;
   const selfControllerIncompatible = isOptionControllerIncompatible(

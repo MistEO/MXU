@@ -486,10 +486,10 @@ export const maaService = {
    */
   async postClick(instanceId: string, x: number, y: number): Promise<number> {
     if (!isTauri()) {
-      const result = await apiPost<{ clickId: number }>(
-        `/maa/instances/${instanceId}/click`,
-        { x, y },
-      );
+      const result = await apiPost<{ clickId: number }>(`/maa/instances/${instanceId}/click`, {
+        x,
+        y,
+      });
       return result.clickId;
     }
     return await invoke<number>('maa_post_click', { instanceId, x, y });
@@ -1016,6 +1016,21 @@ export const maaService = {
     } catch (err) {
       log.error('进程检查失败:', err);
       return false;
+    }
+  },
+
+  /**
+   * 根据窗口句柄获取对应进程的可执行文件路径（仅 Windows）
+   */
+  async getProcessPathFromHwnd(hwnd: number): Promise<string> {
+    if (!isTauri()) {
+      return '';
+    }
+    try {
+      return await invoke<string>('get_process_path_from_hwnd', { hwnd });
+    } catch (err) {
+      log.warn('获取窗口进程路径失败:', err);
+      return '';
     }
   },
 };

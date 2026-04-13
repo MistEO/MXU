@@ -1,18 +1,26 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, X, Play, GripVertical } from 'lucide-react';
+import { ChevronRight, X, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/stores/appStore';
+import { ContextMenu, useContextMenu } from './ContextMenu';
+import { ConfirmDialog } from './ConfirmDialog';
+import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
 import type { ActionConfig } from '@/types/interface';
 import clsx from 'clsx';
 import { FileField, TextField, SwitchField } from './FormControls';
 
 interface ActionItemProps {
   instanceId: string;
-  action: ActionConfig | undefined;
+  action: ActionConfig;
   disabled?: boolean;
+  canReorder?: boolean;
+  index: number;
+  total: number;
 }
 
-const defaultAction: ActionConfig = {
+const defaultValues: Omit<ActionConfig, 'id'> = {
   enabled: false,
   program: '',
   args: '',
@@ -21,64 +29,186 @@ const defaultAction: ActionConfig = {
   useCmd: false,
 };
 
-export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
+/** 参数预览标签 */
+function ActionPreviewTag({ label, on }: { label: string; on: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded text-text-tertiary max-w-[140px]"
+      title={`${label}: ${on ? 'ON' : 'OFF'}`}
+    >
+      <span className="truncate">{label}</span>
+      <span
+        className={clsx(
+          'w-1.5 h-1.5 rounded-full flex-shrink-0',
+          on ? 'bg-success/70' : 'bg-text-muted/50',
+        )}
+      />
+    </span>
+  );
+}
+
+export function ActionItem({
+  instanceId,
+  action,
+  disabled,
+  canReorder,
+  index,
+  total,
+}: ActionItemProps) {
   const { t } = useTranslation();
-  const { setInstancePreAction } = useAppStore();
+  const {
+    updatePreAction,
+    removePreAction,
+    renamePreAction,
+    duplicatePreAction,
+    reorderPreActions,
+    confirmBeforeDelete,
+  } = useAppStore();
+
   const [expanded, setExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: action.id,
+    disabled: !canReorder,
+  });
+
+  const constrainedTransform = transform
+    ? { ...transform, x: 0, scaleX: 1, scaleY: 1 }
+    : null;
+
+  const style = {
+    transform: CSS.Transform.toString(constrainedTransform),
+    transition,
+  };
 
   const currentAction = useMemo<ActionConfig>(
-    () => ({
-      ...defaultAction,
-      ...action,
-    }),
+    () => ({ ...defaultValues, ...action }),
     [action],
   );
 
-  const setAction = setInstancePreAction;
+  const defaultTitle = t('action.preAction');
+  const displayName = currentAction.customName || defaultTitle;
+  const hasConfig = currentAction.program.trim().length > 0;
 
-  const title = t('action.preAction');
-  const Icon = Play;
-  const iconColor = 'text-success';
-
-  // 删除动作
-  const handleRemove = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleRemove = () => {
     if (disabled) return;
-    setAction(instanceId, undefined);
+    if (confirmBeforeDelete) {
+      setShowDeleteConfirm(true);
+    } else {
+      removePreAction(instanceId, action.id);
+    }
   };
 
-  // 更新动作配置
   const updateAction = (updates: Partial<ActionConfig>) => {
-    setAction(instanceId, {
-      ...currentAction,
-      ...updates,
-    });
+    updatePreAction(instanceId, action.id, updates);
   };
 
-  // 切换启用状态
   const handleToggleEnabled = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (disabled) return;
     updateAction({ enabled: !currentAction.enabled });
   };
 
-  // 判断是否有有效配置（有程序路径）
-  const hasConfig = currentAction.program.trim().length > 0;
+  const handleSaveEdit = () => {
+    renamePreAction(instanceId, action.id, editName.trim());
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditName('');
+  };
+
+  // 右键菜单
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const menuItems = buildListItemMenuItems({
+        labels: {
+          duplicate: t('contextMenu.duplicateAction'),
+          rename: t('contextMenu.renameAction'),
+          enable: t('contextMenu.enableAction'),
+          disable: t('contextMenu.disableAction'),
+          expand: t('contextMenu.expandAction'),
+          collapse: t('contextMenu.collapseAction'),
+          moveUp: t('contextMenu.moveUp'),
+          moveDown: t('contextMenu.moveDown'),
+          moveToTop: t('contextMenu.moveToTop'),
+          moveToBottom: t('contextMenu.moveToBottom'),
+          delete: t('contextMenu.deleteAction'),
+        },
+        isEnabled: currentAction.enabled,
+        isExpanded: expanded,
+        isFirst: index === 0,
+        isLast: index === total - 1,
+        isLocked: !!disabled,
+        onDuplicate: () => duplicatePreAction(instanceId, action.id),
+        onRename: () => {
+          setEditName(currentAction.customName || '');
+          setIsEditing(true);
+        },
+        onToggle: () => updateAction({ enabled: !currentAction.enabled }),
+        onExpand: () => setExpanded(!expanded),
+        onMoveUp: () => reorderPreActions(instanceId, index, index - 1),
+        onMoveDown: () => reorderPreActions(instanceId, index, index + 1),
+        onMoveToTop: () => reorderPreActions(instanceId, index, 0),
+        onMoveToBottom: () => reorderPreActions(instanceId, index, total - 1),
+        onDelete: handleRemove,
+      });
+
+      showMenu(e, menuItems);
+    },
+    [
+      t,
+      action.id,
+      instanceId,
+      index,
+      total,
+      disabled,
+      expanded,
+      currentAction.enabled,
+      currentAction.customName,
+      duplicatePreAction,
+      reorderPreActions,
+      updateAction,
+      showMenu,
+      handleRemove,
+    ],
+  );
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
+      onContextMenu={handleContextMenu}
       className={clsx(
         'group rounded-lg border overflow-hidden transition-shadow flex-shrink-0',
         currentAction.enabled
           ? 'bg-bg-secondary border-border'
           : 'bg-bg-secondary/50 border-border/50',
         disabled && 'opacity-50',
+        isDragging && 'opacity-50 shadow-lg z-10',
       )}
     >
       {/* 头部 */}
       <div className="flex items-center gap-2 p-3">
-        {/* 拖拽手柄占位（不可拖拽，仅用于对齐） */}
-        <div className="p-1 rounded opacity-30 cursor-not-allowed">
+        {/* 拖拽手柄 */}
+        <div
+          {...attributes}
+          {...listeners}
+          className={clsx(
+            'p-1 rounded',
+            canReorder
+              ? 'cursor-grab active:cursor-grabbing hover:bg-bg-hover'
+              : 'opacity-30 cursor-not-allowed',
+          )}
+        >
           <GripVertical className="w-4 h-4 text-text-muted" />
         </div>
 
@@ -99,45 +229,85 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
           />
         </label>
 
-        {/* 动作名称 + 展开区域 */}
-        <div
-          className="flex-1 flex items-center min-w-0 cursor-pointer"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {/* 图标 */}
-          <Icon className={clsx('w-4 h-4 mr-1.5 flex-shrink-0', iconColor)} />
-
-          <span
-            className={clsx(
-              'text-sm font-medium truncate',
-              currentAction.enabled ? 'text-text-primary' : 'text-text-muted',
-            )}
-          >
-            {title}
-          </span>
-
-          {/* 预览：未展开时显示程序名称 */}
-          {!expanded && hasConfig && (
-            <span className="ml-2 text-xs text-text-tertiary truncate max-w-[200px]">
-              {currentAction.program.split(/[/\\]/).pop()}
-            </span>
-          )}
-
-          {/* 展开/折叠箭头 */}
-          <div className="flex items-center justify-end pl-2 ml-auto">
-            <ChevronRight
-              className={clsx(
-                'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',
-                expanded && 'rotate-90',
-              )}
+        {/* 名称 + 展开区域 */}
+        <div className="flex-1 flex items-center min-w-0">
+          {isEditing ? (
+            <InlineNameEditor
+              value={editName}
+              onChange={setEditName}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
+              placeholder={defaultTitle}
             />
-          </div>
+          ) : (
+            <>
+              {/* 名称：点击切换启用 */}
+              <div
+                className={clsx(
+                  'flex items-center gap-1 min-w-0 overflow-hidden',
+                  disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+                )}
+                onClick={handleToggleEnabled}
+              >
+                <span
+                  className={clsx(
+                    'min-w-0 text-sm font-medium truncate',
+                    currentAction.enabled ? 'text-text-primary' : 'text-text-muted',
+                  )}
+                >
+                  {displayName}
+                </span>
+                {currentAction.customName && (
+                  <span className="min-w-0 truncate text-xs text-text-muted">
+                    ({defaultTitle})
+                  </span>
+                )}
+              </div>
+
+              {/* 展开/折叠点击区域（含参数预览） */}
+              <div
+                onClick={() => setExpanded(!expanded)}
+                className="flex-1 min-w-0 flex items-center self-stretch min-h-[28px] cursor-pointer"
+              >
+                {!expanded && (
+                  <div className="flex-1 flex items-center gap-1.5 mx-2 overflow-hidden">
+                    {hasConfig ? (
+                      <>
+                        <span className="inline-flex items-center px-1.5 py-0.5 text-xs rounded text-text-tertiary max-w-[180px] truncate">
+                          {currentAction.program.split(/[/\\]/).pop()}
+                        </span>
+                        <ActionPreviewTag
+                          label={t('action.waitForExit')}
+                          on={currentAction.waitForExit}
+                        />
+                        <ActionPreviewTag
+                          label={t('action.skipIfRunning')}
+                          on={currentAction.skipIfRunning}
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                )}
+                <div className="flex shrink-0 items-center justify-end pl-2 ml-auto">
+                  <ChevronRight
+                    className={clsx(
+                      'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',
+                      expanded && 'rotate-90',
+                    )}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 删除按钮 */}
-        {!disabled && (
+        {!disabled && !isEditing && (
           <button
-            onClick={handleRemove}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemove();
+            }}
             className={clsx(
               'p-1 rounded opacity-0 group-hover:opacity-100 transition-all',
               'text-text-muted hover:bg-error/10 hover:text-error',
@@ -154,9 +324,8 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
         className="grid transition-[grid-template-rows] duration-150 ease-out"
         style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
       >
-        <div className="overflow-hidden min-h-0">
+        <div className={clsx('min-h-0', expanded ? 'overflow-visible' : 'overflow-hidden')}>
           <div className="border-t border-border bg-bg-tertiary p-3 space-y-3">
-            {/* 程序路径 */}
             <FileField
               label={t('action.program')}
               value={currentAction.program}
@@ -164,8 +333,6 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               placeholder={t('action.programPlaceholder')}
               disabled={disabled}
             />
-
-            {/* 附加参数 */}
             <TextField
               label={t('action.args')}
               value={currentAction.args}
@@ -173,8 +340,6 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               placeholder={t('action.argsPlaceholder')}
               disabled={disabled}
             />
-
-            {/* 等待进程退出开关 */}
             <SwitchField
               label={t('action.waitForExit')}
               hint={t('action.waitForExitHintPre')}
@@ -182,8 +347,6 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               onChange={(v) => updateAction({ waitForExit: v })}
               disabled={disabled}
             />
-
-            {/* 已运行时跳过执行开关 */}
             <SwitchField
               label={t('action.skipIfRunning')}
               hint={t('action.skipIfRunningHint')}
@@ -191,8 +354,6 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
               onChange={(v) => updateAction({ skipIfRunning: v })}
               disabled={disabled}
             />
-
-            {/* 通过 cmd /c 启动开关（仅 Windows） */}
             {navigator.userAgent.toLowerCase().includes('win') && (
               <SwitchField
                 label={t('action.useCmd')}
@@ -205,6 +366,26 @@ export function ActionItem({ instanceId, action, disabled }: ActionItemProps) {
           </div>
         </div>
       </div>
+
+      {/* 右键菜单 */}
+      {menuState.isOpen && (
+        <ContextMenu items={menuState.items} position={menuState.position} onClose={hideMenu} />
+      )}
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={t('action.removeConfirmTitle')}
+        message={t('action.removeConfirmMessage')}
+        cancelText={t('common.cancel')}
+        confirmText={t('common.delete')}
+        destructive
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          removePreAction(instanceId, action.id);
+        }}
+      />
     </div>
   );
 }

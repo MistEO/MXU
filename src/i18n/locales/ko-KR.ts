@@ -289,7 +289,7 @@ export default {
   },
 
   action: {
-    preAction: '전처리 프로그램',
+    preAction: '▶️ 전처리 프로그램',
     program: '프로그램 경로',
     programPlaceholder: '프로그램 경로를 입력하거나 찾아보기...',
     args: '추가 인수',
@@ -318,10 +318,18 @@ export default {
     deviceWaitTimeout: '장치 대기 시간 초과',
     windowWaitTimeout: '윈도우 대기 시간 초과',
     preActionStarting: '전처리 프로그램 실행 중...',
+    preActionStartingNamed: '전처리 프로그램 실행 중: {{name}}...',
     preActionCompleted: '전처리 프로그램 완료',
+    preActionCompletedNamed: '전처리 프로그램 {{name}} 완료',
     preActionFailed: '전처리 프로그램 실패: {{error}}',
     preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
     preActionConnectDelay: '{{seconds}}초 후 연결합니다...',
+    autoPreActionName: '▶️ {{name}} 실행',
+    autoPreActionAdded: '전처리 프로그램 자동 추가: {{name}} (기본적으로 비활성화)',
+    autoKillTaskName: '⛔ {{name}} 종료',
+    autoKillTaskAdded: '프로세스 종료 작업 자동 추가: {{name}} (기본적으로 비활성화)',
+    removeConfirmTitle: '전처리 프로그램 삭제',
+    removeConfirmMessage: '이 전처리 프로그램을 삭제하시겠습니까?',
   },
 
   // 옵션 에디터
@@ -744,6 +752,15 @@ export default {
     closeOtherTabs: '다른 탭 닫기',
     closeAllTabs: '모든 탭 닫기',
     closeTabsToRight: '오른쪽 탭 닫기',
+
+    // 전처리 프로그램 컨텍스트 메뉴
+    duplicateAction: '복제',
+    deleteAction: '삭제',
+    renameAction: '이름 변경',
+    enableAction: '활성화',
+    disableAction: '비활성화',
+    expandAction: '설정 펼치기',
+    collapseAction: '설정 접기',
 
     // 작업 컨텍스트 메뉴
     addTask: '작업 추가',

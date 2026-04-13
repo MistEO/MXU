@@ -239,6 +239,8 @@ export interface SavedDeviceInfo {
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
+  /** Win32 连接窗口对应的进程可执行文件路径 */
+  connectedProgramPath?: string;
 }
 
 // 定时执行策略
@@ -252,6 +254,8 @@ export interface SchedulePolicy {
 
 // pre-action config
 export interface ActionConfig {
+  id: string; // 唯一标识（用于排序和识别）
+  customName?: string; // 用户自定义名称
   enabled: boolean; // 是否启用
   program: string; // 程序路径
   args: string; // 附加参数
@@ -275,7 +279,7 @@ export interface Instance {
   isRunning: boolean;
   // 定时执行策略列表
   schedulePolicies?: SchedulePolicy[];
-  preAction?: ActionConfig;
+  preActions?: ActionConfig[];
 }
 
 /** v2.3.0: 预设中的任务配置 */

@@ -345,6 +345,46 @@ pub fn is_process_running(program: String) -> bool {
     check_process_running(&program)
 }
 
+/// 根据窗口句柄获取对应进程的可执行文件路径
+#[tauri::command]
+pub fn get_process_path_from_hwnd(hwnd: u64) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        use winsafe::co::{PROCESS, PROCESS_NAME};
+        use winsafe::{HPROCESS, HWND};
+
+        if hwnd == 0 {
+            return Err("Invalid window handle (null)".to_string());
+        }
+
+        let hwnd = unsafe { HWND::from_ptr(hwnd as *mut _) };
+        let (_, pid) = hwnd.GetWindowThreadProcessId();
+
+        if pid == 0 {
+            return Err("PID is 0".to_string());
+        }
+
+        let process = HPROCESS::OpenProcess(PROCESS::QUERY_LIMITED_INFORMATION, false, pid)
+            .map_err(|e| format!("OpenProcess failed: {}", e))?;
+
+        let path = process
+            .QueryFullProcessImageName(PROCESS_NAME::WIN32)
+            .map_err(|e| format!("QueryFullProcessImageName failed: {}", e))?;
+
+        info!(
+            "get_process_path_from_hwnd: hwnd={} pid={} path={}",
+            hwnd, pid, path
+        );
+        Ok(path)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = hwnd;
+        Err("This command is only available on Windows".to_string())
+    }
+}
+
 /// Run pre-action (launch program and optionally wait for exit)
 /// program: 程序路径
 /// args: 附加参数（空格分隔）

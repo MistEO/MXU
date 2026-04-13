@@ -287,7 +287,7 @@ export default {
   },
 
   action: {
-    preAction: '前置程序',
+    preAction: '▶️ 前置程序',
     program: '程序路径',
     programPlaceholder: '输入程序路径或点击右侧浏览...',
     args: '附加参数',
@@ -315,10 +315,18 @@ export default {
     deviceWaitTimeout: '等待设备超时',
     windowWaitTimeout: '等待窗口超时',
     preActionStarting: '正在执行前置程序...',
+    preActionStartingNamed: '正在执行前置程序: {{name}}...',
     preActionCompleted: '前置程序执行完成',
+    preActionCompletedNamed: '前置程序 {{name}} 执行完成',
     preActionFailed: '前置程序执行失败: {{error}}',
     preActionExitCode: '前置程序退出码: {{code}}',
     preActionConnectDelay: '等待 {{seconds}} 秒后连接...',
+    autoPreActionName: '▶️ 启动 {{name}}',
+    autoPreActionAdded: '已自动添加前置程序: {{name}}（默认未启用）',
+    autoKillTaskName: '⛔ 结束 {{name}}',
+    autoKillTaskAdded: '已自动添加结束进程任务: {{name}}（默认未启用）',
+    removeConfirmTitle: '删除前置程序',
+    removeConfirmMessage: '确定要删除这个前置程序吗？',
   },
 
   // 选项编辑器
@@ -745,6 +753,15 @@ export default {
     closeOtherTabs: '关闭其他标签页',
     closeAllTabs: '关闭所有标签页',
     closeTabsToRight: '关闭右侧标签页',
+
+    // 前置程序右键菜单
+    duplicateAction: '复制',
+    deleteAction: '删除',
+    renameAction: '重命名',
+    enableAction: '启用',
+    disableAction: '禁用',
+    expandAction: '展开设置',
+    collapseAction: '折叠设置',
 
     // 任务右键菜单
     addTask: '添加任务',

@@ -166,6 +166,13 @@ export interface AppState {
     instanceId: string,
     taskName: string,
     initialValues?: Record<string, string>,
+    taskOptions?: {
+      enabled?: boolean;
+      expanded?: boolean;
+      customName?: string;
+      /** 覆盖 switch 选项的初始值（key 为选项 key，value 为 boolean） */
+      switchOverrides?: Record<string, boolean>;
+    },
   ) => string;
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
@@ -246,7 +253,12 @@ export interface AppState {
   // 设备信息保存
   setInstanceSavedDevice: (instanceId: string, savedDevice: SavedDeviceInfo) => void;
 
-  setInstancePreAction: (instanceId: string, action: ActionConfig | undefined) => void;
+  addPreAction: (instanceId: string, action: ActionConfig) => void;
+  updatePreAction: (instanceId: string, actionId: string, updates: Partial<ActionConfig>) => void;
+  removePreAction: (instanceId: string, actionId: string) => void;
+  reorderPreActions: (instanceId: string, oldIndex: number, newIndex: number) => void;
+  renamePreAction: (instanceId: string, actionId: string, name: string) => void;
+  duplicatePreAction: (instanceId: string, actionId: string) => void;
 
   // 设备列表缓存
   cachedAdbDevices: AdbDevice[];

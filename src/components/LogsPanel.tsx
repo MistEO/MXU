@@ -206,21 +206,6 @@ export function LogsPanel() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setAutoClearLogsOnLaunch(!autoClearLogsOnLaunch);
-            }}
-            className={clsx(
-              'p-1 rounded-md transition-colors',
-              autoClearLogsOnLaunch
-                ? 'text-accent bg-accent-light'
-                : 'text-text-muted hover:bg-bg-tertiary hover:text-text-secondary',
-            )}
-            title={t('logs.autoClearOnLaunch')}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
               handleExportLogs();
             }}
             disabled={!isTauri() || (exportModal.show && exportModal.status === 'exporting')}
@@ -249,6 +234,21 @@ export function LogsPanel() {
             title={t('logs.clear')}
           >
             <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAutoClearLogsOnLaunch(!autoClearLogsOnLaunch);
+            }}
+            className={clsx(
+              'p-1 rounded-md transition-colors',
+              autoClearLogsOnLaunch
+                ? 'text-accent bg-accent-light'
+                : 'text-text-muted hover:bg-bg-tertiary hover:text-text-secondary',
+            )}
+            title={t('logs.autoClearOnLaunch')}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
           {!isMobile && (
             <span

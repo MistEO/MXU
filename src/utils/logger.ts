@@ -112,17 +112,18 @@ if (checkTauri()) {
 /**
  * 格式化本地日期时间
  * @param date 日期对象
- * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss，'file' 适用于文件名
+ * @param format 'date' 返回 YYYY-MM-DD，'time' 返回 HH:mm:ss，'datetime' 返回 YYYY-MM-DD HH:mm:ss，'file' 适用于文件名
  */
 function formatLocalDateTime(
   date: Date,
-  format: 'date' | 'datetime' | 'file' = 'datetime',
+  format: 'date' | 'time' | 'datetime' | 'file' = 'datetime',
 ): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const padMs = (n: number) => String(n).padStart(3, '0');
   const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   if (format === 'date') return datePart;
   const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  if (format === 'time') return timePart;
   if (format === 'file') {
     return `${datePart}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(
       date.getSeconds(),
@@ -159,12 +160,7 @@ log.methodFactory = function (methodName, logLevel, loggerName) {
 
   return function (...args: unknown[]) {
     const now = new Date();
-    const timestamp = now.toLocaleTimeString('zh-CN', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const timestamp = formatLocalDateTime(now, 'time');
     const prefix = loggerName ? `[${timestamp}][${String(loggerName)}]` : `[${timestamp}]`;
     rawMethod(prefix, ...args);
 
@@ -198,12 +194,7 @@ export function createLogger(moduleName: string, level?: LogLevel) {
 
     return function (...args: unknown[]) {
       const now = new Date();
-      const timestamp = now.toLocaleTimeString('zh-CN', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+      const timestamp = formatLocalDateTime(now, 'time');
       const prefix = `[${timestamp}][${String(loggerName)}]`;
       rawMethod(prefix, ...args);
 

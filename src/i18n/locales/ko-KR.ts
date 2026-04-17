@@ -432,7 +432,6 @@ export default {
     title: '실행 로그',
     clear: '지우기',
     autoClearOnLaunch: '시작 시 자동 지우기',
-    logDirSize: '로그: {{size}}',
     autoscroll: '자동 스크롤',
     noLogs: '로그가 없습니다',
     copyAll: '모두 복사',

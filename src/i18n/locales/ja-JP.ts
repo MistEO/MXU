@@ -434,7 +434,6 @@ export default {
     title: '実行ログ',
     clear: 'クリア',
     autoClearOnLaunch: '起動時に自動クリア',
-    logDirSize: 'ログ：{{size}}',
     autoscroll: '自動スクロール',
     noLogs: 'ログがありません',
     copyAll: 'すべてコピー',

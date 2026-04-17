@@ -1,40 +1,31 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
-import { getDebugDir, isTauri } from '@/utils/paths';
+import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { SwitchButton } from '@/components/FormControls';
 import { getCurrentLogFileName, LOG_RESET_KEY } from '@/utils/logger';
+import { clearPersistedRuntimeLogs } from '@/utils/runtimeLogPersistence';
+
+function formatLogTime(date: Date, locale?: string) {
+  return date.toLocaleTimeString(locale || undefined, {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
 
 export function LogsPanel() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
-  function formatBytes(bytes: number) {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const value = bytes / Math.pow(1024, idx);
-    return `${value.toFixed(value >= 100 || idx === 0 ? 0 : value >= 10 ? 1 : 2)} ${units[idx]}`;
-  }
-
-  function formatLogTime(date: Date, locale?: string) {
-    return date.toLocaleTimeString(locale || undefined, {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  }
-
-  const [logDirSize, setLogDirSize] = useState<string>('0 B');
   const {
     sidePanelExpanded,
     toggleSidePanelExpanded,
@@ -57,25 +48,6 @@ export function LogsPanel() {
     }
   }, [logs]);
 
-  const refreshLogDirSize = useCallback(async () => {
-    if (!isTauri()) return;
-    try {
-      const logDir = await getDebugDir();
-      const { exists } = await import('@tauri-apps/plugin-fs');
-      const present = await exists(logDir);
-      if (!present) {
-        setLogDirSize('0 B');
-        return;
-      }
-      const size = await invoke<number>('get_log_dir_size', {
-        excludeFileName: getCurrentLogFileName(),
-      });
-      setLogDirSize(formatBytes(size));
-    } catch {
-      setLogDirSize('0 B');
-    }
-  }, []);
-
   const clearLogFiles = useCallback(async () => {
     if (!isTauri()) return;
     try {
@@ -97,16 +69,16 @@ export function LogsPanel() {
           // ignore localStorage failures
         }
       }
-    } finally {
-      setLogDirSize('0 B');
-      refreshLogDirSize();
+    } catch {
+      // ignore cleanup errors
     }
-  }, [refreshLogDirSize]);
+  }, []);
 
   const handleClear = useCallback(() => {
     if (activeInstanceId) {
       clearLogs(activeInstanceId);
     }
+    clearPersistedRuntimeLogs();
     clearLogFiles();
   }, [activeInstanceId, clearLogFiles, clearLogs]);
 
@@ -199,15 +171,6 @@ export function LogsPanel() {
     }
   };
 
-  useEffect(() => {
-    if (!isTauri()) return;
-    refreshLogDirSize();
-    const timer = window.setInterval(refreshLogDirSize, 15000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [refreshLogDirSize]);
-
   return (
     <div
       id="logs-panel"
@@ -239,8 +202,22 @@ export function LogsPanel() {
         )}
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
-        <div className="flex items-center gap-2">
-          {/* 导出日志 */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAutoClearLogsOnLaunch(!autoClearLogsOnLaunch);
+            }}
+            className={clsx(
+              'p-1 rounded-md transition-colors',
+              autoClearLogsOnLaunch
+                ? 'text-accent bg-accent-light'
+                : 'text-text-muted hover:bg-bg-tertiary hover:text-text-secondary',
+            )}
+            title={t('logs.autoClearOnLaunch')}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -257,16 +234,15 @@ export function LogsPanel() {
           >
             <Archive className="w-3.5 h-3.5" />
           </button>
-          {/* 清空 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               handleClear();
             }}
-            disabled={!isTauri()}
+            disabled={!isTauri() && logs.length === 0}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              !isTauri()
+              !isTauri() && logs.length === 0
                 ? 'text-text-muted cursor-not-allowed'
                 : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}
@@ -274,24 +250,6 @@ export function LogsPanel() {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 text-[10px] text-text-muted select-none"
-            title={t('logs.autoClearOnLaunch')}
-          >
-            <span>{t('logs.autoClearOnLaunch')}</span>
-            <SwitchButton
-              value={autoClearLogsOnLaunch}
-              onChange={(value) => setAutoClearLogsOnLaunch(value)}
-            />
-          </div>
-          <span
-            className="text-[10px] text-text-muted select-none"
-            title={t('logs.logDirSize', { size: logDirSize })}
-          >
-            {t('logs.logDirSize', { size: logDirSize })}
-          </span>
-          {/* 展开/折叠上方面板（仅桌面端） */}
           {!isMobile && (
             <span
               className={clsx(

@@ -437,7 +437,6 @@ export default {
     title: 'Logs',
     clear: 'Clear',
     autoClearOnLaunch: 'Auto-clear on launch',
-    logDirSize: 'Logs: {{size}}',
     autoscroll: 'Auto Scroll',
     noLogs: 'No logs',
     copyAll: 'Copy All',

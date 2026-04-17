@@ -428,7 +428,6 @@ export default {
     title: '运行日志',
     clear: '清空',
     autoClearOnLaunch: '启动时自动清理',
-    logDirSize: '日志：{{size}}',
     autoscroll: '自动滚动',
     noLogs: '暂无日志',
     copyAll: '复制全部',

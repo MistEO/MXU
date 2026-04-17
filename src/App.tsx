@@ -59,7 +59,8 @@ import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackL
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
-import { loadPersistedRuntimeLogs, mergeRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import { clearPersistedRuntimeLogs, loadPersistedRuntimeLogs, mergeRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import { getCurrentLogFileName } from '@/utils/logger';
 import {
   isTauri,
   isValidWindowSize,
@@ -656,15 +657,6 @@ function App() {
       try {
         const backendLogs = await getAllLogsFromBackend();
         const store = useAppStore.getState();
-        const clearLogFilesOnLaunch = async () => {
-          if (!isTauri()) return;
-          try {
-            const deleted = await invoke<number>('clear_log_files', {});
-            log.info('Auto-cleared log files on launch:', deleted);
-          } catch {
-            // ignore cleanup errors
-          }
-        };
         const restoredBackendLogs: Record<string, import('@/stores/types').LogEntry[]> = {};
         for (const [instanceId, entries] of Object.entries(backendLogs || {})) {
           restoredBackendLogs[instanceId] = entries.map((e) => ({
@@ -675,23 +667,35 @@ function App() {
             html: e.html,
           }));
         }
-        if (store.autoClearLogsOnLaunch) {
-          await clearLogFilesOnLaunch();
-        }
 
-        const restoredPersistentLogs = loadPersistedRuntimeLogs(store.maxLogsPerInstance);
-        const mergedLogs = mergeRuntimeLogs(
-          store.maxLogsPerInstance,
-          store.instanceLogs,
-          restoredBackendLogs,
-          restoredPersistentLogs,
-        );
-        if (Object.keys(mergedLogs).length > 0) {
-          useAppStore.setState({
-            instanceLogs: mergedLogs,
-          });
-          persistRuntimeLogs(mergedLogs, store.maxLogsPerInstance);
-          log.info('Restored runtime logs', Object.keys(mergedLogs).length, 'instances');
+        if (store.autoClearLogsOnLaunch) {
+          if (isTauri()) {
+            try {
+              const deleted = await invoke<number>('clear_log_files', {
+                excludeFileName: getCurrentLogFileName(),
+              });
+              log.info('Auto-cleared log files on launch:', deleted);
+            } catch {
+              // ignore cleanup errors
+            }
+          }
+          clearPersistedRuntimeLogs();
+          log.info('Restored runtime logs: skipped (auto-clear on launch enabled)');
+        } else {
+          const restoredPersistentLogs = loadPersistedRuntimeLogs(store.maxLogsPerInstance);
+          const mergedLogs = mergeRuntimeLogs(
+            store.maxLogsPerInstance,
+            store.instanceLogs,
+            restoredBackendLogs,
+            restoredPersistentLogs,
+          );
+          if (Object.keys(mergedLogs).length > 0) {
+            useAppStore.setState({
+              instanceLogs: mergedLogs,
+            });
+            persistRuntimeLogs(mergedLogs, store.maxLogsPerInstance);
+            log.info('Restored runtime logs', Object.keys(mergedLogs).length, 'instances');
+          }
         }
       } catch (err) {
         log.warn('恢复运行日志失败:', err);

@@ -9,7 +9,7 @@ import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { getCurrentLogFileName, LOG_RESET_KEY } from '@/utils/logger';
+import { getCurrentLogFileName } from '@/utils/logger';
 import { clearPersistedRuntimeLogs } from '@/utils/runtimeLogPersistence';
 
 function formatLogTime(date: Date, locale?: string) {
@@ -51,24 +51,9 @@ export function LogsPanel() {
   const clearLogFiles = useCallback(async () => {
     if (!isTauri()) return;
     try {
-      const currentLogName = getCurrentLogFileName();
-      const deleted = await invoke<number>('clear_log_files', {
-        excludeFileName: currentLogName,
+      await invoke<number>('clear_log_files', {
+        excludeFileName: getCurrentLogFileName(),
       });
-      if (deleted > 0) {
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            const today = new Date();
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const resetDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(
-              today.getDate(),
-            )}`;
-            window.localStorage.setItem(LOG_RESET_KEY, resetDate);
-          }
-        } catch {
-          // ignore localStorage failures
-        }
-      }
     } catch {
       // ignore cleanup errors
     }
@@ -158,18 +143,6 @@ export function LogsPanel() {
       showMenu,
     ],
   );
-
-  // 根据日志类型获取前缀标签
-  const getLogPrefix = (type: LogType) => {
-    switch (type) {
-      case 'agent':
-        return '';
-      case 'focus':
-        return '';
-      default:
-        return '';
-    }
-  };
 
   return (
     <div
@@ -312,7 +285,6 @@ export function LogsPanel() {
                     {formatLogTime(log.timestamp, i18n.language)}
                   </span>
                   <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
-                    {getLogPrefix(log.type)}
                     {log.message}
                   </span>
                 </div>

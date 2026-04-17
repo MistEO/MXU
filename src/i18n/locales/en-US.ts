@@ -428,6 +428,7 @@ export default {
   logs: {
     title: 'Logs',
     clear: 'Clear',
+    autoClearOnLaunch: 'Auto-clear on launch',
     autoscroll: 'Auto Scroll',
     noLogs: 'No logs',
     copyAll: 'Copy All',

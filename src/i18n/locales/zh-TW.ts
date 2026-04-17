@@ -415,6 +415,7 @@ export default {
   logs: {
     title: '執行日誌',
     clear: '清空',
+    autoClearOnLaunch: '啟動時自動清理',
     autoscroll: '自動捲動',
     noLogs: '暫無日誌',
     copyAll: '複製全部',

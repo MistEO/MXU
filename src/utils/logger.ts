@@ -15,9 +15,12 @@ const defaultLevel: LogLevel = isDev ? 'trace' : 'debug';
 
 // 文件日志配置
 let logsDir: string | null = null;
+let logFileName: string | null = null;
 
 /**
- * 初始化文件日志（自动获取数据目录）
+ * 初始化文件日志（自动获取数据目录，确定当次启动的日志文件名）
+ * 文件名格式：YYYY-MM-DD-<n>.log，同一天内每次启动递增 n
+ * 日志文件的清理由 Rust 后端 clear_log_files 命令统一负责
  */
 async function initFileLogger(): Promise<void> {
   if (!checkTauri() || logsDir) return;
@@ -25,10 +28,30 @@ async function initFileLogger(): Promise<void> {
   try {
     logsDir = await getDebugDir();
 
-    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
+    const { mkdir, exists, readDir } = await import('@tauri-apps/plugin-fs');
     if (!(await exists(logsDir))) {
       await mkdir(logsDir, { recursive: true });
     }
+
+    const today = formatLocalDateTime(new Date(), 'date');
+    let maxIndex = 0;
+    try {
+      const entries = await readDir(logsDir);
+      const prefix = `${today}-`;
+      for (const entry of entries) {
+        if (!entry.isFile) continue;
+        const name = entry.name ?? '';
+        if (!name.startsWith(prefix) || !name.endsWith('.log')) continue;
+        const idx = Number.parseInt(name.slice(prefix.length, -'.log'.length), 10);
+        if (Number.isFinite(idx) && idx > maxIndex) {
+          maxIndex = idx;
+        }
+      }
+    } catch {
+      // ignore scan failures
+    }
+
+    logFileName = `${today}-${maxIndex + 1}.log`;
     console.log('[Logger] File logger initialized, logs dir:', logsDir);
   } catch (err) {
     console.warn('[Logger] Failed to initialize file logger:', err);
@@ -43,24 +66,28 @@ if (checkTauri()) {
 
 /**
  * 格式化本地日期时间
- * @param date 日期对象
- * @param format 'date' 返回 YYYY-MM-DD，'datetime' 返回 YYYY-MM-DD HH:mm:ss
+ * @param format 'date' → YYYY-MM-DD, 'time' → HH:mm:ss, 'datetime' → YYYY-MM-DD HH:mm:ss
  */
-function formatLocalDateTime(date: Date, format: 'date' | 'datetime' = 'datetime'): string {
+function formatLocalDateTime(
+  date: Date,
+  format: 'date' | 'time' | 'datetime' = 'datetime',
+): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   if (format === 'date') return datePart;
-  return `${datePart} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  if (format === 'time') return timePart;
+  return `${datePart} ${timePart}`;
 }
 
 /**
  * 直接写入日志到文件
  */
 async function writeLogToFile(line: string): Promise<void> {
-  if (!logsDir) return;
+  if (!logsDir || !logFileName) return;
 
-  // 日志文件名：mxu-web-YYYY-MM-DD.log（使用本地日期）
-  const logFile = `${logsDir}/mxu-web-${formatLocalDateTime(new Date(), 'date')}.log`;
+  // 日志文件名：YYYY-MM-DD-<n>.log（按当日启动次数递增）
+  const logFile = `${logsDir}/${logFileName}`;
 
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
@@ -81,12 +108,7 @@ log.methodFactory = function (methodName, logLevel, loggerName) {
 
   return function (...args: unknown[]) {
     const now = new Date();
-    const timestamp = now.toLocaleTimeString('zh-CN', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const timestamp = formatLocalDateTime(now, 'time');
     const prefix = loggerName ? `[${timestamp}][${String(loggerName)}]` : `[${timestamp}]`;
     rawMethod(prefix, ...args);
 
@@ -120,12 +142,7 @@ export function createLogger(moduleName: string, level?: LogLevel) {
 
     return function (...args: unknown[]) {
       const now = new Date();
-      const timestamp = now.toLocaleTimeString('zh-CN', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+      const timestamp = formatLocalDateTime(now, 'time');
       const prefix = `[${timestamp}][${String(loggerName)}]`;
       rawMethod(prefix, ...args);
 
@@ -166,6 +183,10 @@ export function getLogLevel(): LogLevel {
     5: 'silent',
   };
   return levels[log.getLevel()] || 'warn';
+}
+
+export function getCurrentLogFileName(): string | null {
+  return logFileName;
 }
 
 // 预创建常用模块的日志器

@@ -12,6 +12,7 @@ import {
 } from '@/themes';
 import type { MxuConfig, RecentlyClosedInstance, LegacyActionConfig } from '@/types/config';
 import {
+  DEFAULT_MAX_LOGS_PER_INSTANCE,
   clampAddTaskPanelHeight,
   defaultAddTaskPanelHeight,
   defaultMirrorChyanSettings,
@@ -54,6 +55,7 @@ import {
   getCurrentControllerAndResource,
   isTaskCompatible,
 } from './helpers';
+import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -134,7 +136,8 @@ export const useAppStore = create<AppState>()(
     backgroundImage: undefined,
     backgroundOpacity: 50,
     confirmBeforeDelete: false,
-    maxLogsPerInstance: 2000,
+    maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
+    autoClearLogsOnLaunch: true,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -164,10 +167,16 @@ export const useAppStore = create<AppState>()(
       if (!isTauri()) patchWebUIAppearance({ backgroundOpacity: clamped });
     },
     setConfirmBeforeDelete: (enabled) => set({ confirmBeforeDelete: enabled }),
-    setMaxLogsPerInstance: (value) =>
+    setMaxLogsPerInstance: (value) => {
       set({
         maxLogsPerInstance: Math.max(100, Math.min(10000, Math.floor(value))),
-      }),
+      });
+      const state = get();
+      persistRuntimeLogs(state.instanceLogs, state.maxLogsPerInstance);
+    },
+    setAutoClearLogsOnLaunch: (enabled) => {
+      set({ autoClearLogsOnLaunch: enabled });
+    },
     addCustomAccent: (accent) => {
       set((state) => ({
         customAccents: [...state.customAccents, accent],
@@ -1168,7 +1177,8 @@ export const useAppStore = create<AppState>()(
         backgroundImage: effectiveBgImage,
         backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
-        maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
+        maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
+        autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? true,
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -1901,28 +1911,33 @@ export const useAppStore = create<AppState>()(
           html: newLog.html,
         });
 
-        const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
         const rawLimit = Number.isFinite(state.maxLogsPerInstance)
           ? state.maxLogsPerInstance
           : DEFAULT_MAX_LOGS_PER_INSTANCE;
         const limit = Math.min(10000, Math.max(100, Math.floor(rawLimit)));
         const updatedLogs = [...logs, newLog].slice(-limit);
+        const nextLogs = {
+          ...state.instanceLogs,
+          [instanceId]: updatedLogs,
+        };
+        persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
         return {
-          instanceLogs: {
-            ...state.instanceLogs,
-            [instanceId]: updatedLogs,
-          },
+          instanceLogs: nextLogs,
         };
       }),
 
     clearLogs: (instanceId) => {
       clearLogsOnBackend(instanceId);
-      set((state) => ({
-        instanceLogs: {
+      set((state) => {
+        const nextLogs = {
           ...state.instanceLogs,
           [instanceId]: [],
-        },
-      }));
+        };
+        persistRuntimeLogs(nextLogs, state.maxLogsPerInstance);
+        return {
+          instanceLogs: nextLogs,
+        };
+      });
     },
 
     // 回调 ID 与名称的映射
@@ -2013,6 +2028,7 @@ function generateConfig(): MxuConfig {
           backgroundOpacity: ba?.backgroundOpacity ?? state.backgroundOpacity,
           confirmBeforeDelete: state.confirmBeforeDelete,
           maxLogsPerInstance: state.maxLogsPerInstance,
+          autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -2098,6 +2114,7 @@ useAppStore.subscribe(
     }),
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
+    autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

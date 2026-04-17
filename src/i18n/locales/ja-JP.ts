@@ -424,6 +424,7 @@ export default {
   logs: {
     title: '実行ログ',
     clear: 'クリア',
+    autoClearOnLaunch: '起動時に自動クリア',
     autoscroll: '自動スクロール',
     noLogs: 'ログがありません',
     copyAll: 'すべてコピー',

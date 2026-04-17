@@ -3,6 +3,8 @@
 import type { OptionValue, ActionConfig } from './interface';
 import type { AccentColor, CustomAccent } from '@/themes/types';
 
+export const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
+
 // 定时执行策略
 export interface SchedulePolicy {
   id: string;
@@ -133,6 +135,7 @@ export interface AppSettings {
   confirmBeforeDelete?: boolean;
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
   maxLogsPerInstance?: number;
+  autoClearLogsOnLaunch?: boolean;
   windowSize?: WindowSize;
   windowPosition?: WindowPosition; // 窗口位置
   mirrorChyan?: MirrorChyanSettings;
@@ -226,7 +229,8 @@ export const defaultConfig: MxuConfig = {
     accentColor: defaultAccentColor,
     language: 'system',
     confirmBeforeDelete: false,
-    maxLogsPerInstance: 2000,
+    maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
+    autoClearLogsOnLaunch: true,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
   },

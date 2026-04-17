@@ -1,20 +1,40 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
+import { Trash2, Copy, ChevronUp, ChevronDown, Archive, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { getCurrentLogFileName } from '@/utils/logger';
+import { clearPersistedRuntimeLogs } from '@/utils/runtimeLogPersistence';
+
+function formatLogTime(date: Date, locale?: string) {
+  return date.toLocaleTimeString(locale || undefined, {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
 
 export function LogsPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
-  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
-    useAppStore();
+
+  const {
+    sidePanelExpanded,
+    toggleSidePanelExpanded,
+    activeInstanceId,
+    instanceLogs,
+    autoClearLogsOnLaunch,
+    clearLogs,
+    setAutoClearLogsOnLaunch,
+  } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
@@ -28,11 +48,24 @@ export function LogsPanel() {
     }
   }, [logs]);
 
+  const clearLogFiles = useCallback(async () => {
+    if (!isTauri()) return;
+    try {
+      await invoke<number>('clear_log_files', {
+        excludeFileName: getCurrentLogFileName(),
+      });
+    } catch {
+      // ignore cleanup errors
+    }
+  }, []);
+
   const handleClear = useCallback(() => {
     if (activeInstanceId) {
       clearLogs(activeInstanceId);
     }
-  }, [activeInstanceId, clearLogs]);
+    clearPersistedRuntimeLogs();
+    clearLogFiles();
+  }, [activeInstanceId, clearLogFiles, clearLogs]);
 
   const handleCopyAll = useCallback(() => {
     const text = logs
@@ -111,18 +144,6 @@ export function LogsPanel() {
     ],
   );
 
-  // 根据日志类型获取前缀标签
-  const getLogPrefix = (type: LogType) => {
-    switch (type) {
-      case 'agent':
-        return '';
-      case 'focus':
-        return '';
-      default:
-        return '';
-    }
-  };
-
   return (
     <div
       id="logs-panel"
@@ -154,8 +175,7 @@ export function LogsPanel() {
         )}
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
-        <div className="flex items-center gap-2">
-          {/* 导出日志 */}
+        <div className="flex items-center gap-1">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -172,16 +192,15 @@ export function LogsPanel() {
           >
             <Archive className="w-3.5 h-3.5" />
           </button>
-          {/* 清空 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               handleClear();
             }}
-            disabled={logs.length === 0}
+            disabled={!isTauri() && logs.length === 0}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              logs.length === 0
+              !isTauri() && logs.length === 0
                 ? 'text-text-muted cursor-not-allowed'
                 : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}
@@ -189,7 +208,21 @@ export function LogsPanel() {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          {/* 展开/折叠上方面板（仅桌面端） */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setAutoClearLogsOnLaunch(!autoClearLogsOnLaunch);
+            }}
+            className={clsx(
+              'p-1 rounded-md transition-colors',
+              autoClearLogsOnLaunch
+                ? 'text-accent bg-accent-light'
+                : 'text-text-muted hover:bg-bg-tertiary hover:text-text-secondary',
+            )}
+            title={t('logs.autoClearOnLaunch')}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
           {!isMobile && (
             <span
               className={clsx(
@@ -211,7 +244,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2 font-mono text-xs bg-bg-tertiary"
+        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-5 bg-bg-tertiary"
         onContextMenu={handleContextMenu}
       >
         {logs.length === 0 ? (
@@ -223,22 +256,35 @@ export function LogsPanel() {
             {logs.map((log) =>
               log.html ? (
                 // 富文本内容（focus 消息支持 Markdown/HTML）
-                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
-                  <span className="text-text-muted flex-shrink-0">
-                    [{log.timestamp.toLocaleTimeString()}]
+                <div
+                  key={log.id}
+                  className={clsx(
+                    'py-1.5 px-2 rounded-md flex items-start gap-3',
+                    'odd:bg-black/0 even:bg-black/5',
+                    getLogColor(log.type),
+                  )}
+                >
+                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    {formatLogTime(log.timestamp, i18n.language)}
                   </span>
                   <span
-                    className="break-all focus-content"
+                    className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5 focus-content"
                     dangerouslySetInnerHTML={{ __html: log.html }}
                   />
                 </div>
               ) : (
-                <div key={log.id} className={clsx('py-0.5 flex gap-2', getLogColor(log.type))}>
-                  <span className="text-text-muted flex-shrink-0">
-                    [{log.timestamp.toLocaleTimeString()}]
+                <div
+                  key={log.id}
+                  className={clsx(
+                    'py-1.5 px-2 rounded-md flex items-start gap-3',
+                    'odd:bg-black/0 even:bg-black/5',
+                    getLogColor(log.type),
+                  )}
+                >
+                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    {formatLogTime(log.timestamp, i18n.language)}
                   </span>
-                  <span className="break-all whitespace-pre-wrap">
-                    {getLogPrefix(log.type)}
+                  <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
                     {log.message}
                   </span>
                 </div>

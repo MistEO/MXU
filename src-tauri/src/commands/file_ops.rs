@@ -305,8 +305,8 @@ pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String>
     }
 
     let mut deleted = 0_u64;
-    let entries =
-        std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
+    let entries = std::fs::read_dir(&debug_dir)
+        .map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
 
     for entry in entries {
         let entry = match entry {

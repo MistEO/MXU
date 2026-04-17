@@ -60,7 +60,12 @@ import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
 import { Toaster } from 'sonner';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
-import { clearPersistedRuntimeLogs, loadPersistedRuntimeLogs, mergeRuntimeLogs, persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import {
+  clearPersistedRuntimeLogs,
+  loadPersistedRuntimeLogs,
+  mergeRuntimeLogs,
+  persistRuntimeLogs,
+} from '@/utils/runtimeLogPersistence';
 import { getCurrentLogFileName } from '@/utils/logger';
 import {
   isTauri,

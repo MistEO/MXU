@@ -15,7 +15,7 @@ import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
-import { getMxuSpecialTask, isMxuKillProcSelfMode } from '@/types/specialTasks';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
@@ -244,14 +244,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return false;
       }
 
-      const firstSelfManagedTaskIndex = enabledTasks.findIndex((task) => isMxuKillProcSelfMode(task));
-      const tasksBeforeSelfManaged =
-        firstSelfManagedTaskIndex >= 0
-          ? enabledTasks.slice(0, firstSelfManagedTaskIndex)
-          : enabledTasks;
-      const shouldExitAfterQueue = firstSelfManagedTaskIndex >= 0;
+      const { tasksToRun, shouldExitAfterQueue } = splitSelfClosingTasks(enabledTasks);
 
-      if (shouldExitAfterQueue && tasksBeforeSelfManaged.length === 0) {
+      if (shouldExitAfterQueue && tasksToRun.length === 0) {
         log.info(`实例 ${targetInstance.name}: 执行前端关闭自身任务`);
         return await exitAppDirectly();
       }
@@ -267,14 +262,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const resourceName = selectedResource[targetId] || projectInterface?.resource[0]?.name;
 
       // 过滤掉不兼容当前控制器/资源的任务
-      const compatibleTasks = tasksBeforeSelfManaged.filter((t) => {
+      const compatibleTasks = tasksToRun.filter((t) => {
         const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
         return isTaskCompatible(taskDef, controllerName, resourceName);
       });
 
       // 如果有任务因不兼容被跳过，记录警告
       const compatibleTaskIds = new Set(compatibleTasks.map((t) => t.id));
-      const skippedTasks = tasksBeforeSelfManaged.filter((t) => !compatibleTaskIds.has(t.id));
+      const skippedTasks = tasksToRun.filter((t) => !compatibleTaskIds.has(t.id));
       if (skippedTasks.length > 0) {
         log.warn(
           `实例 ${targetInstance.name}: ${t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,

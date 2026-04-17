@@ -32,13 +32,14 @@ import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
-import { getMxuSpecialTask, isMxuKillProcSelfMode } from '@/types/specialTasks';
+import { getMxuSpecialTask } from '@/types/specialTasks';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import {
   clearExitAfterTaskQueueSettled,
   exitAppDirectly,
   scheduleExitAfterTaskQueueSettled,
+  splitSelfClosingTasks,
 } from '@/services/uiTaskService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
@@ -112,9 +113,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
   const tasks = instance?.selectedTasks || [];
   const enabledTasks = tasks.filter((t) => t.enabled);
   const canRun = isConnected && isResourceLoaded && enabledTasks.length > 0;
-  const firstSelfManagedTaskIndex = enabledTasks.findIndex((task) => isMxuKillProcSelfMode(task));
+  const { tasksToRun, shouldExitAfterQueue } = splitSelfClosingTasks(enabledTasks);
   const canRunWithoutConnection =
-    enabledTasks.length > 0 && firstSelfManagedTaskIndex === 0;
+    enabledTasks.length > 0 && tasksToRun.length === 0 && shouldExitAfterQueue;
 
   // 获取当前控制器和资源名（用于 pipeline override 生成）
   const currentControllerName =
@@ -199,7 +200,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     async (e: React.MouseEvent) => {
       e.stopPropagation();
 
-      if (!instance || ((!canRun && !canRunWithoutConnection) && !isRunning)) return;
+      if (!instance || (!canRun && !canRunWithoutConnection && !isRunning)) return;
 
       if (isRunning) {
         // 停止任务
@@ -224,13 +225,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         try {
           log.info(`[${instanceName}] 开始执行任务, 数量:`, enabledTasks.length);
 
-          const tasksBeforeSelfManaged =
-            firstSelfManagedTaskIndex >= 0
-              ? enabledTasks.slice(0, firstSelfManagedTaskIndex)
-              : enabledTasks;
-          const shouldExitAfterQueue = firstSelfManagedTaskIndex >= 0;
-
-          if (shouldExitAfterQueue && tasksBeforeSelfManaged.length === 0) {
+          if (shouldExitAfterQueue && tasksToRun.length === 0) {
             log.info(`[${instanceName}] 执行前端关闭自身任务`);
             await exitAppDirectly();
             setIsStarting(false);
@@ -239,7 +234,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
           // 构建任务配置列表
           const taskConfigs: TaskConfig[] = [];
-          for (const selectedTask of tasksBeforeSelfManaged) {
+          for (const selectedTask of tasksToRun) {
             // 先检查是否是 MXU 特殊任务
             const specialTask = getMxuSpecialTask(selectedTask.taskName);
             const taskDef =
@@ -270,7 +265,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
           if (taskConfigs.length === 0) {
             if (shouldExitAfterQueue) {
-              log.info(`[${instanceName}] 没有需要连接执行的任务，直接关闭自身`);
+              log.info(`[${instanceName}] 前置任务为空，直接关闭自身`);
               await exitAppDirectly();
               setIsStarting(false);
               return;

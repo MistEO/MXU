@@ -40,6 +40,7 @@ export interface Win32ControllerConfig {
 export interface WlRootsControllerConfig {
   type: 'WlRoots';
   wlr_socket_path: string;
+  use_win32_vk_code?: boolean;
 }
 
 /** PlayCover 控制器配置 (macOS) */

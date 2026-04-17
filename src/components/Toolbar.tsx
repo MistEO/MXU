@@ -648,6 +648,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               config = {
                 type: 'WlRoots',
                 wlr_socket_path: savedDevice.wlrSocketPath,
+                use_win32_vk_code: controller.wlroots?.use_win32_vk_code ?? false,
               };
               deviceName = savedDevice.wlrSocketPath;
               targetType = 'device';
@@ -752,6 +753,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               config = {
                 type: 'WlRoots',
                 wlr_socket_path: firstSocket,
+                use_win32_vk_code: controller.wlroots?.use_win32_vk_code ?? false,
               };
               deviceName = firstSocket;
               targetType = 'device';

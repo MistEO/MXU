@@ -376,8 +376,7 @@ export default {
     loadResource: '載入資源',
     switchFailed: '切換資源失敗',
     cannotSwitchWhileRunning: '任務執行中無法切換資源',
-    hashMismatch:
-      '資源完整性校驗失敗（預期: {{expected}}，實際: {{actual}}），建議重新下載資源包',
+    hashMismatch: '資源完整性校驗失敗（預期: {{expected}}，實際: {{actual}}），建議重新下載資源包',
     incompatibleController: '不支援目前控制器',
   },
 

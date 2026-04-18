@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
+import { isDebugVersion } from '@/services/updateService';
 import type { ResourceItem, ControllerItem } from '@/types/interface';
 import { startGlobalCallbackListener, waitForResResult } from './callbackCache';
-import { computeResourcePaths } from '@/utils/resourcePath';
+import { computeBaseResourcePaths, computeAttachResourcePaths } from '@/utils/resourcePath';
 
 interface UseResourceLoadingProps {
   instanceId: string;
@@ -21,7 +22,7 @@ export function useResourceLoading({
   currentController,
 }: UseResourceLoadingProps) {
   const { t } = useTranslation();
-  const { setInstanceResourceLoaded, registerResIdName, registerResBatch } = useAppStore();
+  const { setInstanceResourceLoaded, registerResIdName, registerResBatch, addLog } = useAppStore();
 
   const [isLoadingResource, setIsLoadingResource] = useState(false);
   const [isResourceLoaded, setIsResourceLoaded] = useState(false);
@@ -32,7 +33,6 @@ export function useResourceLoading({
   const resourceDropdownRef = useRef<HTMLButtonElement>(null);
   const resourceMenuRef = useRef<HTMLDivElement>(null);
 
-  // 加载资源内部实现
   const loadResourceInternal = useCallback(
     async (resource: ResourceItem) => {
       setIsLoadingResource(true);
@@ -42,42 +42,84 @@ export function useResourceLoading({
         await maaService.createInstance(instanceId).catch(() => {});
         await startGlobalCallbackListener();
 
-        // 计算完整的资源路径（包括 controller.attach_resource_path）
-        const resourcePaths = computeResourcePaths(resource, currentController, basePath);
-
-        const resIds = await maaService.loadResource(instanceId, resourcePaths);
-
         const resourceDisplayName = resolveI18nText(resource.label, translations) || resource.name;
-        registerResBatch(resIds);
-        resIds.forEach((resId) => {
+
+        // Phase 1: load resource.path
+        const basePaths = computeBaseResourcePaths(resource, basePath);
+        const baseResIds = await maaService.loadResource(instanceId, basePaths);
+
+        registerResBatch(baseResIds);
+        baseResIds.forEach((resId) => {
           registerResIdName(resId, resourceDisplayName);
         });
 
-        if (resIds.length === 0) {
+        if (baseResIds.length === 0) {
           setResourceError(t('resource.loadFailed'));
           setIsLoadingResource(false);
           return false;
         }
 
-        lastLoadedResourceRef.current = resource.name;
-
-        const results = await Promise.all(resIds.map((resId) => waitForResResult(resId)));
-
-        const hasFailed = results.some((r) => r === 'failed');
-
-        if (hasFailed) {
+        const baseResults = await Promise.all(baseResIds.map((resId) => waitForResResult(resId)));
+        if (baseResults.some((r) => r === 'failed')) {
           setResourceError(t('resource.loadFailed'));
           setIsResourceLoaded(false);
           setInstanceResourceLoaded(instanceId, false);
           setIsLoadingResource(false);
           lastLoadedResourceRef.current = null;
           return false;
-        } else {
-          setIsResourceLoaded(true);
-          setInstanceResourceLoaded(instanceId, true);
-          setIsLoadingResource(false);
-          return true;
         }
+
+        // Hash check: after base resource loaded, before attach
+        if (resource.hash) {
+          const piVersion = useAppStore.getState().projectInterface?.version;
+          const skipCheck = import.meta.env.DEV || isDebugVersion(piVersion);
+          if (!skipCheck) {
+            try {
+              const actualHash = await maaService.getResourceHash(instanceId);
+              if (actualHash && actualHash !== resource.hash) {
+                addLog(instanceId, {
+                  type: 'warning',
+                  message: t('resource.hashMismatch', {
+                    expected: resource.hash,
+                    actual: actualHash,
+                  }),
+                });
+              }
+            } catch {
+              // hash check is best-effort
+            }
+          }
+        }
+
+        // Phase 2: load controller.attach_resource_path
+        const attachPaths = computeAttachResourcePaths(currentController, basePath);
+        if (attachPaths.length > 0) {
+          const attachResIds = await maaService.loadResource(instanceId, attachPaths);
+          registerResBatch(attachResIds);
+          attachResIds.forEach((resId) => {
+            registerResIdName(resId, resourceDisplayName);
+          });
+
+          if (attachResIds.length > 0) {
+            const attachResults = await Promise.all(
+              attachResIds.map((resId) => waitForResResult(resId)),
+            );
+            if (attachResults.some((r) => r === 'failed')) {
+              setResourceError(t('resource.loadFailed'));
+              setIsResourceLoaded(false);
+              setInstanceResourceLoaded(instanceId, false);
+              setIsLoadingResource(false);
+              lastLoadedResourceRef.current = null;
+              return false;
+            }
+          }
+        }
+
+        lastLoadedResourceRef.current = resource.name;
+        setIsResourceLoaded(true);
+        setInstanceResourceLoaded(instanceId, true);
+        setIsLoadingResource(false);
+        return true;
       } catch (err) {
         setResourceError(err instanceof Error ? err.message : t('resource.loadFailed'));
         setIsResourceLoaded(false);
@@ -95,11 +137,11 @@ export function useResourceLoading({
       setInstanceResourceLoaded,
       registerResIdName,
       registerResBatch,
+      addLog,
       t,
     ],
   );
 
-  // 切换资源：销毁旧资源后加载新资源
   const switchResource = useCallback(
     async (newResource: ResourceItem) => {
       setIsLoadingResource(true);
@@ -120,7 +162,6 @@ export function useResourceLoading({
     [instanceId, loadResourceInternal, setInstanceResourceLoaded, t],
   );
 
-  // 处理资源选择
   const handleResourceSelect = useCallback(
     async (resource: ResourceItem, isRunning: boolean) => {
       setShowResourceDropdown(false);
@@ -143,7 +184,6 @@ export function useResourceLoading({
     [isResourceLoaded, loadResourceInternal, switchResource, t],
   );
 
-  // 获取资源显示名称
   const getResourceDisplayName = useCallback(
     (resource: ResourceItem) => {
       return resolveI18nText(resource.label, translations) || resource.name;

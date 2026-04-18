@@ -8,7 +8,25 @@ function cleanRelativePath(path: string): string {
 }
 
 /**
- * 计算完整的资源路径列表
+ * 计算 resource.path 的绝对路径列表（不包含 attach_resource_path）
+ */
+export function computeBaseResourcePaths(resource: ResourceItem, basePath: string): string[] {
+  return resource.path.map((p) => `${basePath}/${cleanRelativePath(p)}`);
+}
+
+/**
+ * 计算 controller.attach_resource_path 的绝对路径列表
+ */
+export function computeAttachResourcePaths(
+  controller: ControllerItem | undefined,
+  basePath: string,
+): string[] {
+  if (!controller?.attach_resource_path) return [];
+  return controller.attach_resource_path.map((p) => `${basePath}/${cleanRelativePath(p)}`);
+}
+
+/**
+ * 计算完整的资源路径列表（base + attach）
  *
  * 根据 PI V2.2.0 协议，资源路径应该包括：
  * 1. resource.path - 资源的基础路径
@@ -24,21 +42,8 @@ export function computeResourcePaths(
   controller: ControllerItem | undefined,
   basePath: string,
 ): string[] {
-  const paths: string[] = [];
-
-  // 1. 添加 resource.path
-  for (const p of resource.path) {
-    const cleanPath = cleanRelativePath(p);
-    paths.push(`${basePath}/${cleanPath}`);
-  }
-
-  // 2. 添加 controller.attach_resource_path（如果存在）
-  if (controller?.attach_resource_path) {
-    for (const p of controller.attach_resource_path) {
-      const cleanPath = cleanRelativePath(p);
-      paths.push(`${basePath}/${cleanPath}`);
-    }
-  }
-
-  return paths;
+  return [
+    ...computeBaseResourcePaths(resource, basePath),
+    ...computeAttachResourcePaths(controller, basePath),
+  ];
 }

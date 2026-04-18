@@ -764,6 +764,27 @@ pub fn maa_is_resource_loaded(
     Ok(instance.resource.as_ref().is_some_and(|r| r.loaded()))
 }
 
+/// 获取已加载资源的 hash 值（用于完整性校验）
+#[tauri::command]
+pub fn maa_get_resource_hash(
+    state: State<Arc<MaaState>>,
+    instance_id: String,
+) -> Result<Option<String>, String> {
+    let instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get(&instance_id).ok_or("Instance not found")?;
+
+    match instance.resource.as_ref() {
+        Some(r) => match r.hash() {
+            Ok(h) => Ok(Some(h)),
+            Err(e) => {
+                warn!("Failed to get resource hash for {}: {}", instance_id, e);
+                Ok(None)
+            }
+        },
+        None => Ok(None),
+    }
+}
+
 /// 销毁资源（用于切换资源时重新创建）
 #[tauri::command]
 pub fn maa_destroy_resource(

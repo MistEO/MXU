@@ -112,6 +112,8 @@ export interface ResourceItem {
   path: string[];
   controller?: string[];
   option?: string[];
+  /** v2.6.0: resource integrity hash from MaaResourceGetHash */
+  hash?: string;
 }
 
 export interface TaskItem {

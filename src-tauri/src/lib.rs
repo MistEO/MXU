@@ -218,6 +218,7 @@ pub fn run() {
             commands::maa_core::maa_get_connection_status,
             commands::maa_core::maa_load_resource,
             commands::maa_core::maa_is_resource_loaded,
+            commands::maa_core::maa_get_resource_hash,
             commands::maa_core::maa_destroy_resource,
             commands::maa_core::maa_run_task,
             commands::maa_core::maa_get_task_status,

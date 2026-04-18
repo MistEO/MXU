@@ -389,6 +389,8 @@ export default {
     loadResource: 'Load Resource',
     switchFailed: 'Failed to switch resource',
     cannotSwitchWhileRunning: 'Cannot switch resource while tasks are running',
+    hashMismatch:
+      'Resource integrity check failed (expected: {{expected}}, actual: {{actual}}). Consider re-downloading the resource package.',
     incompatibleController: 'Not supported by current controller',
   },
 

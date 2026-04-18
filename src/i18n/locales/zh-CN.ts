@@ -380,6 +380,8 @@ export default {
     loadResource: '加载资源',
     switchFailed: '切换资源失败',
     cannotSwitchWhileRunning: '任务运行中无法切换资源',
+    hashMismatch:
+      '资源完整性校验失败（期望: {{expected}}，实际: {{actual}}），建议重新下载资源包',
     incompatibleController: '不支持当前控制器',
   },
 

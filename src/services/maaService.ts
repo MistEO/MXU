@@ -347,6 +347,19 @@ export const maaService = {
   },
 
   /**
+   * 获取已加载资源的 hash（用于完整性校验）
+   * @param instanceId 实例 ID
+   * @returns hash 字符串；资源未加载或后端获取失败时返回 null
+   */
+  async getResourceHash(instanceId: string): Promise<string | null> {
+    if (!isTauri()) return null;
+    log.debug('获取资源 hash, 实例:', instanceId);
+    const hash = await invoke<string | null>('maa_get_resource_hash', { instanceId });
+    log.debug('资源 hash:', instanceId, '->', hash);
+    return hash;
+  },
+
+  /**
    * 销毁资源（用于切换资源时重新创建）
    * @param instanceId 实例 ID
    */

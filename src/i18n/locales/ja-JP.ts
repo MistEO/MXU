@@ -385,6 +385,8 @@ export default {
     loadResource: 'リソースを読み込む',
     switchFailed: 'リソースの切り替えに失敗しました',
     cannotSwitchWhileRunning: 'タスク実行中はリソースを切り替えられません',
+    hashMismatch:
+      'リソースの整合性チェックに失敗しました（期待値: {{expected}}、実際値: {{actual}}）。リソースパックの再ダウンロードをお勧めします。',
     incompatibleController: '現在のコントローラーに対応していません',
   },
 

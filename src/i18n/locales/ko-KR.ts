@@ -382,6 +382,8 @@ export default {
     loadResource: '리소스 로드',
     switchFailed: '리소스 전환에 실패했습니다',
     cannotSwitchWhileRunning: '작업 실행 중에는 리소스를 전환할 수 없습니다',
+    hashMismatch:
+      '리소스 무결성 검증 실패 (예상: {{expected}}, 실제: {{actual}}). 리소스 팩을 다시 다운로드하는 것을 권장합니다.',
     incompatibleController: '현재 컨트롤러에서 지원되지 않음',
   },
 

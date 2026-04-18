@@ -48,7 +48,10 @@ os_info = "3"
 urlencoding = "2.1"
 notify-rust = "4"
 shell-words = "1.1.1"
-maa-framework = { version = "1", features = ["dynamic"] }
+# 暂用 GitHub：crates.io 同步后可改回 `maa-framework = { version = "…", features = ["dynamic"] }` 并 `cargo update -p maa-framework`
+maa-framework = { git = "https://github.com/MaaXYZ/maa-framework-rs.git", branch = "main", features = [
+    "dynamic",
+] }
 rust-embed = "8"
 
 [profile.release]

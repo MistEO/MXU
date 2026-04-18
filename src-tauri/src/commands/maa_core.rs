@@ -562,14 +562,8 @@ pub async fn connect_controller_impl(
             ControllerConfig::WlRoots {
                 wlr_socket_path,
                 use_win32_vk_code,
-            } => {
-                if *use_win32_vk_code {
-                    warn!(
-                        "use_win32_vk_code is set, but current maa-framework crate does not expose this parameter yet; falling back to default wlroots keycode behavior"
-                    );
-                }
-                Controller::new_wlroots(wlr_socket_path).map_err(|e| e.to_string())?
-            }
+            } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
+                .map_err(|e| e.to_string())?,
             ControllerConfig::PlayCover { address, uuid } => {
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?

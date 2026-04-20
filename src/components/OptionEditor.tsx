@@ -527,7 +527,7 @@ export function OptionEditor({
                 }}
                 disabled={effectiveDisabled}
                 className={clsx(
-                  'px-2 py-1.5 text-xs rounded border transition-colors truncate',
+                  'px-2 py-1.5 text-xs rounded border transition-colors min-w-0',
                   isChecked
                     ? 'bg-accent text-white border-accent'
                     : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
@@ -535,7 +535,16 @@ export function OptionEditor({
                 )}
                 title={caseLabel}
               >
-                {caseLabel}
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {caseItem.icon && (
+                    <AsyncIcon
+                      icon={caseItem.icon}
+                      basePath={basePath}
+                      className="w-4 h-4 object-contain flex-shrink-0"
+                    />
+                  )}
+                  <span className="truncate">{caseLabel}</span>
+                </span>
               </button>
             );
           })}

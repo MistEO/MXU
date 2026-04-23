@@ -579,7 +579,7 @@ export function ConnectionPanel() {
         config = {
           type: 'WlRoots',
           wlr_socket_path: selectedWlrootsSocket,
-          use_win32_vk_code: currentController.wlroots?.use_win32_vk_code ?? false,
+          use_win32_vk_code: currentController?.wlroots?.use_win32_vk_code ?? false,
         };
         deviceName = selectedWlrootsSocket;
         targetType = 'device';

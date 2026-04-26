@@ -559,9 +559,11 @@ pub async fn connect_controller_impl(
                 )
                 .map_err(|e| e.to_string())?
             }
-            ControllerConfig::WlRoots { wlr_socket_path } => {
-                Controller::new_wlroots(wlr_socket_path).map_err(|e| e.to_string())?
-            }
+            ControllerConfig::WlRoots {
+                wlr_socket_path,
+                use_win32_vk_code,
+            } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
+                .map_err(|e| e.to_string())?,
             ControllerConfig::PlayCover { address, uuid } => {
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?

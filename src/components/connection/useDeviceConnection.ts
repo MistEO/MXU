@@ -322,6 +322,7 @@ export function useDeviceConnection({
         const config: ControllerConfig = {
           type: 'WlRoots',
           wlr_socket_path: socketPath,
+          use_win32_vk_code: currentController?.wlroots?.use_win32_vk_code ?? false,
         };
 
         await connectControllerInternal(config, socketPath, 'device');

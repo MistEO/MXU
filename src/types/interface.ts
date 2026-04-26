@@ -91,6 +91,7 @@ export interface Win32Config {
 
 export interface WlRootsConfig {
   wlr_socket_path?: string;
+  use_win32_vk_code?: boolean;
 }
 
 export interface PlayCoverConfig {

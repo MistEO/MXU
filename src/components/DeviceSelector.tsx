@@ -248,6 +248,7 @@ export function DeviceSelector({
         config = {
           type: 'WlRoots',
           wlr_socket_path: selectedWlrootsSocket,
+          use_win32_vk_code: controllerDef.wlroots?.use_win32_vk_code ?? false,
         };
       } else if (controllerType === 'PlayCover') {
         config = {
@@ -432,6 +433,7 @@ export function DeviceSelector({
       const config: ControllerConfig = {
         type: 'WlRoots',
         wlr_socket_path: socketPath,
+        use_win32_vk_code: controllerDef.wlroots?.use_win32_vk_code ?? false,
       };
 
       const ctrlId = await maaService.connectController(instanceId, config);

@@ -579,6 +579,7 @@ export function ConnectionPanel() {
         config = {
           type: 'WlRoots',
           wlr_socket_path: selectedWlrootsSocket,
+          use_win32_vk_code: currentController?.wlroots?.use_win32_vk_code ?? false,
         };
         deviceName = selectedWlrootsSocket;
         targetType = 'device';
@@ -946,6 +947,7 @@ export function ConnectionPanel() {
       const config: ControllerConfig = {
         type: 'WlRoots',
         wlr_socket_path: socketPath,
+        use_win32_vk_code: currentController?.wlroots?.use_win32_vk_code ?? false,
       };
 
       await connectControllerInternal(config, socketPath, 'device');

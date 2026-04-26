@@ -79,6 +79,8 @@ pub enum ControllerConfig {
     },
     WlRoots {
         wlr_socket_path: String,
+        #[serde(default)]
+        use_win32_vk_code: bool,
     },
     Gamepad {
         handle: u64,

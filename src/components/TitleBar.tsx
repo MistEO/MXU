@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Minus, Square, X, Copy, Box } from 'lucide-react';
+import { Minus, Square, X, Copy, Box, Pin } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { getInterfaceLangKey } from '@/i18n';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
@@ -10,13 +10,18 @@ import { isTauri } from '@/utils/paths';
 // 平台类型
 type Platform = 'windows' | 'macos' | 'linux' | 'unknown';
 
+// Win32 前台截图方法（需要禁用置顶）
+const FOREGROUND_SCREENCAP_METHODS = new Set(['GDI', '1', 'DXGI_DesktopDup', '4', 'DXGI_DesktopDup_Window', '8', 'ScreenDC', '32']);
+
 export function TitleBar() {
   const { t } = useTranslation();
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [platform, setPlatform] = useState<Platform>('unknown');
   const [iconUrl, setIconUrl] = useState<string | undefined>(undefined);
+  const windowRef = useRef<Awaited<ReturnType<typeof import('@tauri-apps/api/window').getCurrentWindow>> | null>(null);
 
-  const { projectInterface, language, resolveI18nText, basePath, interfaceTranslations } =
+  const { projectInterface, language, resolveI18nText, basePath, interfaceTranslations, instances, activeInstanceId } =
     useAppStore();
 
   const langKey = getInterfaceLangKey(language);
@@ -39,9 +44,39 @@ export function TitleBar() {
     loadIconAsDataUrl(projectInterface.icon, basePath, translations).then(setIconUrl);
   }, [projectInterface?.icon, basePath, translations]);
 
-  // 监听窗口最大化状态变化（仅 Windows，用于切换最大化/还原按钮图标）
+  // 检测是否使用前台截图（前台截图时禁用置顶）
+  const isPinDisabled = useMemo(() => {
+    if (!projectInterface || !activeInstanceId) return false;
+
+    const activeInstance = instances.find((i) => i.id === activeInstanceId);
+    if (!activeInstance?.controllerName) return false;
+
+    const controller = projectInterface.controller.find((c) => c.name === activeInstance.controllerName);
+    if (!controller) return false;
+
+    // 仅 Win32 的特定前台截图方法需要禁用置顶
+    if (controller.type === 'Win32' && controller.win32?.screencap) {
+      const screencap = controller.win32.screencap;
+      return FOREGROUND_SCREENCAP_METHODS.has(screencap);
+    }
+
+    // 其他情况（ADB、PlayCover、Gamepad 或 Win32 后台截图）均支持置顶
+    return false;
+  }, [projectInterface, instances, activeInstanceId]);
+
+  // 当置顶被禁用时，自动取消置顶
   useEffect(() => {
-    if (!isTauri() || platform !== 'windows') return;
+    if (isPinDisabled && isAlwaysOnTop && windowRef.current) {
+      setIsAlwaysOnTop(false);
+      windowRef.current.setAlwaysOnTop(false).catch((err: unknown) => {
+        loggers.ui.warn('Failed to disable always on top:', err);
+      });
+    }
+  }, [isPinDisabled, isAlwaysOnTop]);
+
+  // 初始化 Tauri 窗口引用，并在 Windows 上监听最大化状态变化
+  useEffect(() => {
+    if (!isTauri()) return;
 
     let unlisten: (() => void) | null = null;
 
@@ -49,14 +84,19 @@ export function TitleBar() {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const appWindow = getCurrentWindow();
+        windowRef.current = appWindow;
 
         // 获取初始状态
-        setIsMaximized(await appWindow.isMaximized());
+        setIsAlwaysOnTop(await appWindow.isAlwaysOnTop());
 
-        // 监听窗口状态变化
-        unlisten = await appWindow.onResized(async () => {
+        // 仅 Windows 需要追踪最大化状态（macOS/Linux 使用原生标题栏）
+        if (platform === 'windows') {
           setIsMaximized(await appWindow.isMaximized());
-        });
+
+          unlisten = await appWindow.onResized(async () => {
+            setIsMaximized(await appWindow.isMaximized());
+          });
+        }
       } catch (err) {
         loggers.ui.warn('Failed to setup window state listener:', err);
       }
@@ -66,34 +106,44 @@ export function TitleBar() {
 
     return () => {
       if (unlisten) unlisten();
+      windowRef.current = null;
     };
   }, [platform]);
 
   const handleMinimize = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().minimize();
+      await windowRef.current.minimize();
     } catch (err) {
       loggers.ui.warn('Failed to minimize window:', err);
     }
   };
 
-  const handleToggleMaximize = async () => {
-    if (!isTauri()) return;
+  const handleToggleAlwaysOnTop = async () => {
+    if (!windowRef.current) return;
+    const newState = !isAlwaysOnTop;
+    setIsAlwaysOnTop(newState); // Optimistic update
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().toggleMaximize();
+      await windowRef.current.setAlwaysOnTop(newState);
+    } catch (err) {
+      setIsAlwaysOnTop(!newState); // Revert on error
+      loggers.ui.warn('Failed to toggle always on top:', err);
+    }
+  };
+
+  const handleToggleMaximize = async () => {
+    if (!windowRef.current) return;
+    try {
+      await windowRef.current.toggleMaximize();
     } catch (err) {
       loggers.ui.warn('Failed to toggle maximize:', err);
     }
   };
 
   const handleClose = async () => {
-    if (!isTauri()) return;
+    if (!windowRef.current) return;
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().close();
+      await windowRef.current.close();
     } catch (err) {
       loggers.ui.warn('Failed to close window:', err);
     }
@@ -142,6 +192,26 @@ export function TitleBar() {
       {/* 右侧：窗口控制按钮（仅 Windows/Linux 显示） */}
       {isTauri() && (
         <div className="flex h-full">
+          <button
+            onClick={handleToggleAlwaysOnTop}
+            disabled={isPinDisabled}
+            className={`w-12 h-full flex items-center justify-center transition-colors ${
+              isPinDisabled
+                ? 'text-text-tertiary cursor-not-allowed'
+                : isAlwaysOnTop
+                  ? 'text-accent bg-accent/10 hover:bg-accent/20'
+                  : 'text-text-secondary hover:bg-bg-hover'
+            }`}
+            title={
+              isPinDisabled
+                ? t('windowControls.pinDisabled')
+                : isAlwaysOnTop
+                  ? t('windowControls.unpin')
+                  : t('windowControls.pin')
+            }
+          >
+            <Pin className={`w-4 h-4 transition-transform ${isAlwaysOnTop ? '' : 'rotate-45'}`} />
+          </button>
           <button
             onClick={handleMinimize}
             className="w-12 h-full flex items-center justify-center text-text-secondary hover:bg-bg-hover transition-colors"

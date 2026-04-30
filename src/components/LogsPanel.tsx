@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Copy, ChevronUp, ChevronDown, Archive, RotateCcw } from 'lucide-react';
+import { Eraser, Copy, ChevronUp, ChevronDown, Archive, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore, type LogType } from '@/stores/appStore';
@@ -116,7 +116,7 @@ export function LogsPanel() {
         {
           id: 'clear',
           label: t('logs.clear'),
-          icon: Trash2,
+          icon: Eraser,
           disabled: logs.length === 0,
           danger: true,
           onClick: handleClear,
@@ -206,7 +206,7 @@ export function LogsPanel() {
             )}
             title={t('logs.clear')}
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Eraser className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => {

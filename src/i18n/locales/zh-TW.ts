@@ -109,8 +109,8 @@ export default {
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',
-    resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
-  },
+    resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',    autoClearLogsOnLaunch: '自動清理運行日誌',
+    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌並刪除舊的日誌檔案',  },
 
   // 特殊任務
   specialTask: {

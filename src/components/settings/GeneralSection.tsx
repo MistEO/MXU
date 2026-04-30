@@ -11,6 +11,7 @@ import {
   Rocket,
   ChevronDown,
   Check,
+  BrushCleaning,
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
@@ -38,6 +39,8 @@ export function GeneralSection() {
     autoRunOnLaunch,
     setAutoRunOnLaunch,
     autoStartRemovedInstanceName,
+    autoClearLogsOnLaunch,
+    setAutoClearLogsOnLaunch,
   } = useAppStore();
 
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
@@ -306,6 +309,24 @@ export function GeneralSection() {
 
       {/* ⑥ 帧率选择器 */}
       <FrameRateSelector />
+
+      {/* 自动清理运行日志 */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BrushCleaning className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.autoClearLogsOnLaunch')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('settings.autoClearLogsOnLaunchHint')}
+              </p>
+            </div>
+          </div>
+          <SwitchButton value={autoClearLogsOnLaunch} onChange={(v) => setAutoClearLogsOnLaunch(v)} />
+        </div>
+      </div>
 
       {/* ⑦ 删除确认 */}
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">

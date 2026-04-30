@@ -111,8 +111,8 @@ export default {
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
     maxLogsPerInstanceHint: '上限を超えると古いログから自動的に破棄します（推奨 500～2000）',
     resetWindowLayout: 'ウィンドウレイアウトをリセット',
-    resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
-  },
+    resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',    autoClearLogsOnLaunch: '実行ログの自動クリア',
+    autoClearLogsOnLaunchHint: 'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルを削除します',  },
 
   // 特殊タスク
   specialTask: {

@@ -6,7 +6,7 @@ import { GripVertical, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { generateTaskPipelineOverride } from '@/utils';
-import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { ContextMenu, useContextMenu } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
@@ -93,7 +93,6 @@ export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: Tas
     instanceTaskRunStatus,
     instances,
     findMaaTaskIdBySelectedTaskId,
-    basePath,
     interfaceTranslations,
     animatingTaskIds,
     removeAnimatingTaskId,
@@ -167,10 +166,6 @@ export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: Tas
   // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
   const isCompact = isInstanceRunning && !task.enabled;
 
-  // 判断是否可以编辑选项：实例未运行时始终可以编辑，运行中只有 pending 或 idle 状态的任务可以编辑
-  const canEditOptions =
-    !isInstanceRunning || taskRunStatus === 'idle' || taskRunStatus === 'pending';
-
   // 判断是否可以调整顺序/删除（实例运行时禁用）
   const canReorder = !isInstanceRunning;
   const canDelete = !isInstanceRunning;
@@ -233,9 +228,6 @@ export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: Tas
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
-  // 获取翻译表
-  const translations = interfaceTranslations[langKey];
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !canReorder,
@@ -286,7 +278,7 @@ export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: Tas
       : resolveI18nText(taskDef.label, langKey) || taskDef.name
     : '';
   const displayName = task.customName || originalLabel;
-  const hasOptions = taskDef.option && taskDef.option.length > 0;
+  const hasOptions = (taskDef?.option?.length ?? 0) > 0;
   // 只有有选项时才显示“展开”入口；描述与选项一起放到右侧面板展示
   const canExpand = hasOptions;
 
@@ -303,7 +295,7 @@ export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: Tas
     }[] = [];
     const maxPreviews = 3;
 
-    for (const optionKey of taskDef.option || []) {
+    for (const optionKey of taskDef?.option || []) {
       if (previews.length >= maxPreviews) break;
 
       // 优先从 projectInterface 查找，MXU 特殊任务从注册表查找

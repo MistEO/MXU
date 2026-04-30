@@ -268,7 +268,7 @@ export function LogsPanel() {
                     {formatLogTime(log.timestamp, i18n.language)}
                   </span>
                   <span
-                    className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5 focus-content"
+                    className="min-w-0 flex-1 break-words leading-5 focus-content"
                     dangerouslySetInnerHTML={{ __html: log.html }}
                   />
                 </div>

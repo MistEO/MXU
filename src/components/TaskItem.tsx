@@ -2,13 +2,11 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle } from 'lucide-react';
+import { GripVertical, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
-import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
-import { OptionEditor, SwitchGrid, switchHasNestedOptions } from './OptionEditor';
-import { ContextMenu, useContextMenu } from './ContextMenu';
+import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
@@ -67,235 +65,11 @@ function OptionPreviewTag({
 interface TaskItemProps {
   instanceId: string;
   task: SelectedTask;
+  optionsOpen: boolean;
+  onToggleOptions: () => void;
 }
 
-/** 描述内容组件：显示从文件/URL/直接文本解析的内容 */
-function DescriptionContent({
-  html,
-  loading,
-  type,
-  loaded,
-  error,
-}: {
-  html: string;
-  loading: boolean;
-  type: 'url' | 'file' | 'text';
-  loaded: boolean;
-  error?: string;
-}) {
-  const { t } = useTranslation();
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs text-text-muted">
-        <Loader2 className="w-3 h-3 animate-spin" />
-        <span>{t('taskItem.loadingDescription')}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-1">
-      {/* 来源提示 */}
-      {loaded && type !== 'text' && (
-        <div className="flex items-center gap-1 text-[10px] text-text-muted">
-          {type === 'file' ? <FileText className="w-3 h-3" /> : <Link className="w-3 h-3" />}
-          <span>{t(type === 'file' ? 'taskItem.loadedFromFile' : 'taskItem.loadedFromUrl')}</span>
-        </div>
-      )}
-      {/* 加载错误提示 */}
-      {error && type !== 'text' && (
-        <div className="flex items-center gap-1 text-[10px] text-warning">
-          <AlertCircle className="w-3 h-3" />
-          <span>
-            {t('taskItem.loadDescriptionFailed')}: {error}
-          </span>
-        </div>
-      )}
-      {/* 内容 */}
-      {html && (
-        <div
-          className="text-xs text-text-secondary [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** 选项分组项类型 */
-type OptionGroup =
-  | { type: 'single'; optionKey: string }
-  | { type: 'switchGrid'; optionKeys: string[] };
-
-/** 检查选项是否与当前控制器不兼容 */
-function isOptionControllerIncompatible(
-  optionDef: import('@/types/interface').OptionDefinition | null | undefined,
-  currentControllerName: string | undefined,
-): boolean {
-  if (!optionDef?.controller || optionDef.controller.length === 0) return false;
-  if (!currentControllerName) return false;
-  return !optionDef.controller.includes(currentControllerName);
-}
-
-/** v2.3.0: 检查选项是否与当前资源不兼容 */
-function isOptionResourceIncompatible(
-  optionDef: import('@/types/interface').OptionDefinition | null | undefined,
-  currentResourceName: string | undefined,
-): boolean {
-  if (!optionDef?.resource || optionDef.resource.length === 0) return false;
-  if (!currentResourceName) return false;
-  return !optionDef.resource.includes(currentResourceName);
-}
-
-/** 选项列表渲染器：自动将连续的无子选项 switch 分组为网格 */
-function OptionListRenderer({
-  instanceId,
-  taskId,
-  optionKeys,
-  optionValues,
-  disabled,
-  currentControllerName,
-  currentResourceName,
-}: {
-  instanceId: string;
-  taskId: string;
-  optionKeys: string[];
-  optionValues: Record<string, import('@/types/interface').OptionValue>;
-  disabled: boolean;
-  currentControllerName: string | undefined;
-  currentResourceName: string | undefined;
-}) {
-  const { projectInterface, resolveI18nText, language } = useAppStore();
-  const { t } = useTranslation();
-  const langKey = getInterfaceLangKey(language);
-
-  // 获取选项定义（支持 MXU 特殊任务）
-  const getOptionDef = (optionKey: string) => {
-    const isMxuOption = optionKey.startsWith('__MXU_');
-    return isMxuOption ? findMxuOptionByKey(optionKey) : projectInterface?.option?.[optionKey];
-  };
-
-  // 将选项分组：连续 5 个以上无子选项的 switch 合并为网格
-  const groups = useMemo(() => {
-    const result: OptionGroup[] = [];
-    let currentSwitchGroup: string[] = [];
-
-    const flushSwitchGroup = () => {
-      if (currentSwitchGroup.length > 4) {
-        // 超过 4 个，使用网格
-        result.push({ type: 'switchGrid', optionKeys: [...currentSwitchGroup] });
-      } else {
-        // 4 个及以下，单独渲染
-        for (const key of currentSwitchGroup) {
-          result.push({ type: 'single', optionKey: key });
-        }
-      }
-      currentSwitchGroup = [];
-    };
-
-    for (const optionKey of optionKeys) {
-      const optionDef = getOptionDef(optionKey);
-
-      // 判断是否为无子选项的 switch
-      const isSimpleSwitch = optionDef?.type === 'switch' && !switchHasNestedOptions(optionDef);
-
-      if (isSimpleSwitch) {
-        currentSwitchGroup.push(optionKey);
-      } else {
-        // 非 switch 或有子选项，先刷新当前 switch 组
-        flushSwitchGroup();
-        result.push({ type: 'single', optionKey });
-      }
-    }
-
-    // 处理末尾的 switch 组
-    flushSwitchGroup();
-
-    return result;
-  }, [optionKeys, projectInterface?.option]);
-
-  // 构建 SwitchGrid 的数据
-  const buildSwitchGridItems = (keys: string[]) => {
-    return keys.map((optionKey) => {
-      const optionDef = getOptionDef(optionKey);
-      const value = optionValues[optionKey];
-      const isChecked = value?.type === 'switch' ? value.value : false;
-      const isMxuOption = optionKey.startsWith('__MXU_');
-
-      // 对于 MXU 内置选项，使用 t() 翻译；否则使用 resolveI18nText
-      const label = isMxuOption
-        ? t(optionDef?.label || optionKey)
-        : resolveI18nText(optionDef?.label, langKey) || optionKey;
-      const description = isMxuOption
-        ? optionDef?.description
-          ? t(optionDef.description)
-          : undefined
-        : resolveI18nText(optionDef?.description, langKey);
-
-      const controllerIncompatible = isOptionControllerIncompatible(
-        optionDef,
-        currentControllerName,
-      );
-      const resourceIncompatible = isOptionResourceIncompatible(optionDef, currentResourceName);
-
-      return {
-        optionKey,
-        label,
-        description,
-        isChecked,
-        controllerIncompatible: controllerIncompatible || resourceIncompatible,
-      };
-    });
-  };
-
-  return (
-    <div className="space-y-4">
-      {groups.map((group, index) => {
-        if (group.type === 'switchGrid') {
-          return (
-            <SwitchGrid
-              key={`grid-${index}`}
-              instanceId={instanceId}
-              taskId={taskId}
-              items={buildSwitchGridItems(group.optionKeys)}
-              disabled={disabled}
-            />
-          );
-        }
-        const optionDef = getOptionDef(group.optionKey);
-        const optionControllerIncompatible = isOptionControllerIncompatible(
-          optionDef,
-          currentControllerName,
-        );
-        const optionResourceIncompatible = isOptionResourceIncompatible(
-          optionDef,
-          currentResourceName,
-        );
-        const optionIncompatible = optionControllerIncompatible || optionResourceIncompatible;
-        const parentIncompatibilityReason = optionControllerIncompatible
-          ? 'controller'
-          : optionResourceIncompatible
-            ? 'resource'
-            : undefined;
-        return (
-          <OptionEditor
-            key={group.optionKey}
-            instanceId={instanceId}
-            taskId={taskId}
-            optionKey={group.optionKey}
-            value={optionValues[group.optionKey]}
-            disabled={disabled || optionIncompatible}
-            controllerIncompatible={optionIncompatible}
-            parentIncompatibilityReason={parentIncompatibilityReason}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-export function TaskItem({ instanceId, task }: TaskItemProps) {
+export function TaskItem({ instanceId, task, optionsOpen, onToggleOptions }: TaskItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -304,7 +78,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const {
     projectInterface,
     toggleTaskEnabled,
-    toggleTaskExpanded,
     removeTaskFromInstance,
     confirmBeforeDelete,
     renameTask,
@@ -463,13 +236,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   // 获取翻译表
   const translations = interfaceTranslations[langKey];
 
-  // 使用新的 Hook 解析任务描述（支持文件/URL/直接文本）
-  const resolvedDescription = useResolvedContent(
-    taskDef?.description ? resolveI18nText(taskDef.description, langKey) : undefined,
-    basePath,
-    translations,
-  );
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !canReorder,
@@ -520,11 +286,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       : resolveI18nText(taskDef.label, langKey) || taskDef.name
     : '';
   const displayName = task.customName || originalLabel;
-  const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
-  // 判断是否有描述内容（包括正在加载的情况）
-  const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
-  // 有选项或有描述时都可以展开
-  const canExpand = hasOptions || hasDescription;
+  const hasOptions = taskDef.option && taskDef.option.length > 0;
+  // 只有有选项时才显示“展开”入口；描述与选项一起放到右侧面板展示
+  const canExpand = hasOptions;
 
   // 生成选项预览信息（最多显示3个）
   const optionPreviews = useMemo(() => {
@@ -664,7 +428,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           delete: t('contextMenu.deleteTask'),
         },
         isEnabled: task.enabled,
-        isExpanded: !!task.expanded,
+        isExpanded: optionsOpen,
         canExpand,
         isFirst: taskIndex === 0,
         isLast: taskIndex === tasks.length - 1,
@@ -675,7 +439,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           setIsEditing(true);
         },
         onToggle: () => toggleTaskEnabled(instanceId, task.id),
-        onExpand: () => toggleTaskExpanded(instanceId, task.id),
+        onExpand: () => onToggleOptions(),
         onMoveUp: () => moveTaskUp(instanceId, task.id),
         onMoveDown: () => moveTaskDown(instanceId, task.id),
         onMoveToTop: () => moveTaskToTop(instanceId, task.id),
@@ -699,7 +463,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       getActiveInstance,
       duplicateTask,
       toggleTaskEnabled,
-      toggleTaskExpanded,
       moveTaskUp,
       moveTaskDown,
       moveTaskToTop,
@@ -708,6 +471,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       confirmBeforeDelete,
       showMenu,
       isInstanceRunning,
+      canExpand,
+      optionsOpen,
+      onToggleOptions,
     ],
   );
 
@@ -879,12 +645,12 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               {/* 展开/折叠点击区域（包含选项预览） */}
               {canExpand && (
                 <div
-                  onClick={() => toggleTaskExpanded(instanceId, task.id)}
+                  onClick={() => onToggleOptions()}
                   className="flex-1 min-w-0 flex items-center self-stretch min-h-[28px] cursor-pointer"
-                  title={task.expanded ? t('taskItem.collapse') : t('taskItem.expand')}
+                  title={optionsOpen ? t('taskItem.collapse') : t('taskItem.expand')}
                 >
                   {/* 选项预览标签 - 未展开时显示：不兼容时显示警告，否则显示选项预览 */}
-                  {!task.expanded && (
+                  {!optionsOpen && (
                     <div className="flex-1 flex items-center gap-1.5 mx-2 overflow-hidden">
                       {isIncompatible ? (
                         <Tooltip content={supportedControllerHint || undefined}>
@@ -912,7 +678,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                     <ChevronRight
                       className={clsx(
                         'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',
-                        task.expanded && 'rotate-90',
+                        optionsOpen && 'rotate-90',
                       )}
                     />
                   </div>
@@ -942,57 +708,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           </button>
         )}
       </div>
-
-      {/* 展开面板（描述和/或选项）- 使用 grid 动画实现平滑展开/折叠 */}
-      {canExpand && (
-        <div
-          className="grid transition-[grid-template-rows] duration-150 ease-out"
-          style={{ gridTemplateRows: task.expanded ? '1fr' : '0fr' }}
-        >
-          <div className={clsx('min-h-0', task.expanded ? 'overflow-visible' : 'overflow-hidden')}>
-            <div className="border-t border-border bg-bg-tertiary p-3 rounded-b-lg">
-              {/* 任务描述 */}
-              {hasDescription && (
-                <div className={hasOptions || isIncompatible ? 'mb-5' : ''}>
-                  <DescriptionContent
-                    html={resolvedDescription.html}
-                    loading={resolvedDescription.loading}
-                    type={resolvedDescription.type}
-                    loaded={resolvedDescription.loaded}
-                    error={resolvedDescription.error}
-                  />
-                </div>
-              )}
-              {/* 不兼容提示 - 独立于选项列表显示 */}
-              {isIncompatible && (
-                <Tooltip content={supportedControllerHint || undefined}>
-                  <div
-                    className={clsx(
-                      'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning text-xs',
-                      hasOptions && 'mb-3',
-                    )}
-                  >
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{incompatibleReason}</span>
-                  </div>
-                </Tooltip>
-              )}
-              {/* 选项列表 - 仅在有选项时显示 */}
-              {hasOptions && (
-                <OptionListRenderer
-                  instanceId={instanceId}
-                  taskId={task.id}
-                  optionKeys={taskDef.option || []}
-                  optionValues={task.optionValues}
-                  disabled={!canEditOptions || isIncompatible}
-                  currentControllerName={currentControllerName}
-                  currentResourceName={currentResourceName}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 右键菜单 */}
       {menuState.isOpen && (

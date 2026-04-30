@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -42,6 +42,7 @@ import {
 import { generateId } from '@/stores/helpers';
 import { toast } from 'sonner';
 import clsx from 'clsx';
+import { TaskOptionsPanel } from './TaskOptionsPanel';
 
 /** 单个预设卡片 */
 function PresetCard({ preset, onApply }: { preset: PresetItem; onApply: () => void }) {
@@ -205,7 +206,6 @@ export function TaskList() {
     reorderTasks,
     reorderPreActions,
     selectAllTasks,
-    collapseAllTasks,
     setShowAddTaskPanel,
     showAddTaskPanel,
     lastAddedTaskId,
@@ -217,6 +217,8 @@ export function TaskList() {
   const instance = getActiveInstance();
   const isInstanceRunning = instance?.isRunning || false;
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   // 滚动容器引用
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -284,7 +286,7 @@ export function TaskList() {
 
       const tasks = instance.selectedTasks;
       const hasEnabledTasks = tasks.some((t) => t.enabled);
-      const hasExpandedTasks = tasks.some((t) => t.expanded);
+      const hasExpandedTasks = optionsOpen;
       const hasTasks = tasks.length > 0;
 
       const menuItems: MenuItem[] = [
@@ -309,7 +311,17 @@ export function TaskList() {
                   ? t('contextMenu.collapseAllTasks')
                   : t('contextMenu.expandAllTasks'),
                 icon: hasExpandedTasks ? ChevronUp : ChevronDown,
-                onClick: () => collapseAllTasks(instance.id, !hasExpandedTasks),
+                onClick: () => {
+                  if (hasExpandedTasks) {
+                    setOptionsOpen(false);
+                    return;
+                  }
+                  const fallback = instance.selectedTasks[0]?.id;
+                  if (fallback) {
+                    setActiveTaskId(fallback);
+                    setOptionsOpen(true);
+                  }
+                },
               },
             ]
           : []),
@@ -342,9 +354,9 @@ export function TaskList() {
       showAddTaskPanel,
       setShowAddTaskPanel,
       selectAllTasks,
-      collapseAllTasks,
       showMenu,
       projectInterface,
+      optionsOpen,
     ],
   );
 
@@ -357,12 +369,37 @@ export function TaskList() {
   }
 
   const tasks = instance.selectedTasks;
+  const activeTask = activeTaskId ? tasks.find((x) => x.id === activeTaskId) : undefined;
 
   const preActions = instance.preActions ?? [];
   const showPreActions = preActions.length > 0;
   const canReorderPreActions = !isInstanceRunning && preActions.length > 1;
   const hasPresets =
     (projectInterface?.preset?.length ?? 0) > 0 && !skippedPresetInstanceIds.has(instance.id);
+
+  // 当任务列表变化/切换实例时，确保右侧面板不指向已不存在的任务
+  useEffect(() => {
+    if (!optionsOpen) return;
+    if (!activeTaskId) {
+      setOptionsOpen(false);
+      return;
+    }
+    if (!tasks.some((t) => t.id === activeTaskId)) {
+      setOptionsOpen(false);
+      setActiveTaskId(null);
+    }
+  }, [optionsOpen, activeTaskId, tasks]);
+
+  const handleToggleTaskOptions = useCallback(
+    (taskId: string) => {
+      setActiveTaskId((prev) => (prev === taskId ? prev : taskId));
+      setOptionsOpen((prevOpen) => {
+        const isSame = activeTaskId === taskId;
+        return isSame ? !prevOpen : true;
+      });
+    },
+    [activeTaskId],
+  );
 
   if (tasks.length === 0 && !showPreActions) {
     return (
@@ -441,55 +478,91 @@ export function TaskList() {
 
   return (
     <>
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden p-3"
-        onClick={() => showAddTaskPanel && setShowAddTaskPanel(false)}
-        onContextMenu={handleListContextMenu}
-      >
-        <div className="space-y-2">
-          {/* 前置动作列表（支持拖拽排序） */}
-          {showPreActions && (
+      <div className="flex-1 flex overflow-hidden">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3"
+          onClick={() => showAddTaskPanel && setShowAddTaskPanel(false)}
+          onContextMenu={handleListContextMenu}
+        >
+          <div className="space-y-2">
+            {/* 前置动作列表（支持拖拽排序） */}
+            {showPreActions && (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handlePreActionDragEnd}
+                modifiers={[restrictHorizontalMovement]}
+              >
+                <SortableContext
+                  items={preActions.map((a) => a.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {preActions.map((action, idx) => (
+                      <ActionItem
+                        key={action.id}
+                        instanceId={instance.id}
+                        action={action}
+                        disabled={isInstanceRunning}
+                        canReorder={canReorderPreActions}
+                        index={idx}
+                        total={preActions.length}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {/* 任务列表 */}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
-              onDragEnd={handlePreActionDragEnd}
+              onDragEnd={handleDragEnd}
               modifiers={[restrictHorizontalMovement]}
             >
-              <SortableContext
-                items={preActions.map((a) => a.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {preActions.map((action, idx) => (
-                  <ActionItem
-                    key={action.id}
-                    instanceId={instance.id}
-                    action={action}
-                    disabled={isInstanceRunning}
-                    canReorder={canReorderPreActions}
-                    index={idx}
-                    total={preActions.length}
-                  />
-                ))}
+              <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {tasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      instanceId={instance.id}
+                      task={task}
+                      optionsOpen={optionsOpen && activeTaskId === task.id}
+                      onToggleOptions={() => handleToggleTaskOptions(task.id)}
+                    />
+                  ))}
+                </div>
               </SortableContext>
             </DndContext>
-          )}
+          </div>
+        </div>
 
-          {/* 任务列表 */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-            modifiers={[restrictHorizontalMovement]}
+        <div
+          className={clsx(
+            'flex-shrink-0 h-full border-l border-border bg-bg-primary overflow-hidden',
+            'transition-[width] duration-200 ease-out',
+            optionsOpen ? 'w-[420px]' : 'w-0',
+          )}
+        >
+          <div
+            className={clsx(
+              'h-full',
+              'transition-[opacity,transform] duration-200 ease-out',
+              optionsOpen
+                ? 'opacity-100 translate-x-0'
+                : 'opacity-0 translate-x-2 pointer-events-none',
+            )}
           >
-            <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {tasks.map((task) => (
-                  <TaskItem key={task.id} instanceId={instance.id} task={task} />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+            {activeTask && optionsOpen && (
+              <TaskOptionsPanel
+                instanceId={instance.id}
+                task={activeTask}
+                onClose={() => setOptionsOpen(false)}
+              />
+            )}
+          </div>
         </div>
       </div>
       {menuState.isOpen && (

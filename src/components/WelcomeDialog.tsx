@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
-import { resolveContent, markdownToHtmlWithLocalImages } from '@/services/contentResolver';
+import { resolveContent, markdownToHtmlWithLocalImages, markdownToHtml } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 
 /**
@@ -30,7 +30,6 @@ export function WelcomeDialog() {
   } = useAppStore();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [content, setContent] = useState('');
   const [html, setHtml] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   // 保存当前内容的 hash，关闭时写入配置
@@ -69,9 +68,12 @@ export function WelcomeDialog() {
         return;
       }
 
-      setContent(resolvedContent);
-      const renderedHtml = await markdownToHtmlWithLocalImages(resolvedContent, basePath);
-      setHtml(renderedHtml);
+      try {
+        const renderedHtml = await markdownToHtmlWithLocalImages(resolvedContent, basePath);
+        setHtml(renderedHtml);
+      } catch {
+        setHtml(markdownToHtml(resolvedContent));
+      }
       setIsLoading(false);
       setIsOpen(true);
     };

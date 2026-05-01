@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { resolveContent, markdownToHtmlWithLocalImages, markdownToHtml } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
+import { loggers } from '@/utils/logger';
 
 /**
  * 计算字符串的简单 hash，用于判断内容是否变化
@@ -71,7 +72,8 @@ export function WelcomeDialog() {
       try {
         const renderedHtml = await markdownToHtmlWithLocalImages(resolvedContent, basePath);
         setHtml(renderedHtml);
-      } catch {
+      } catch (err) {
+        loggers.ui.warn('Welcome markdown 转 HTML 失败，降级为纯 markdown 渲染:', err);
         setHtml(markdownToHtml(resolvedContent));
       }
       setIsLoading(false);

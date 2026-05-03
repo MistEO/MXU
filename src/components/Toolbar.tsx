@@ -861,6 +861,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               } else {
                 cb();
               }
+            }).catch((err) => {
+              log.error(`实例 ${targetInstance.name}: 注册 maa-callback 监听失败:`, err);
+              handleFailure();
             });
             const handleStateChanged = (instanceId: string, kind: string) => {
               if (resolved) return;

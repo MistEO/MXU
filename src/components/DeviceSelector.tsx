@@ -235,6 +235,7 @@ export function DeviceSelector({
           screencap_methods: selectedAdbDevice.screencap_methods,
           input_methods: selectedAdbDevice.input_methods,
           config: selectedAdbDevice.config,
+          display_short_side: controllerDef.display_short_side,
         };
       } else if (controllerType === 'Win32' && selectedWindow) {
         config = {
@@ -243,6 +244,7 @@ export function DeviceSelector({
           screencap_method: parseWin32ScreencapMethod(controllerDef.win32?.screencap || ''),
           mouse_method: parseWin32InputMethod(controllerDef.win32?.mouse || ''),
           keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
+          display_short_side: controllerDef.display_short_side,
         };
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
         config = {
@@ -254,11 +256,13 @@ export function DeviceSelector({
         config = {
           type: 'PlayCover',
           address: playcoverAddress,
+          display_short_side: controllerDef.display_short_side,
         };
       } else if (controllerType === 'Gamepad' && selectedWindow) {
         config = {
           type: 'Gamepad',
           handle: selectedWindow.handle,
+          display_short_side: controllerDef.display_short_side,
         };
       } else {
         throw new Error('请先选择设备');
@@ -346,6 +350,7 @@ export function DeviceSelector({
         screencap_methods: device.screencap_methods,
         input_methods: device.input_methods,
         config: device.config,
+        display_short_side: controllerDef.display_short_side,
       };
 
       const ctrlId = await maaService.connectController(instanceId, config);
@@ -389,11 +394,13 @@ export function DeviceSelector({
           screencap_method: parseWin32ScreencapMethod(controllerDef.win32?.screencap || ''),
           mouse_method: parseWin32InputMethod(controllerDef.win32?.mouse || ''),
           keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
+          display_short_side: controllerDef.display_short_side,
         };
       } else {
         config = {
           type: 'Gamepad',
           handle: win.handle,
+          display_short_side: controllerDef.display_short_side,
         };
       }
 

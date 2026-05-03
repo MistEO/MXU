@@ -605,6 +605,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 screencap_methods: matchedDevice.screencap_methods,
                 input_methods: matchedDevice.input_methods,
                 config: matchedDevice.config,
+                display_short_side: controller.display_short_side,
               };
               deviceName = matchedDevice.name || matchedDevice.address;
               targetType = 'device';
@@ -628,11 +629,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   screencap_method: parseWin32ScreencapMethod(controller.win32?.screencap || ''),
                   mouse_method: parseWin32InputMethod(controller.win32?.mouse || ''),
                   keyboard_method: parseWin32InputMethod(controller.win32?.keyboard || ''),
+                  display_short_side: controller.display_short_side,
                 };
               } else {
                 config = {
                   type: 'Gamepad',
                   handle: matchedWindow.handle,
+                  display_short_side: controller.display_short_side,
                 };
               }
               deviceName = matchedWindow.window_name || matchedWindow.class_name;
@@ -656,6 +659,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               config = {
                 type: 'PlayCover',
                 address: savedDevice.playcoverAddress,
+                display_short_side: controller.display_short_side,
               };
               deviceName = savedDevice.playcoverAddress;
               targetType = 'device';
@@ -691,6 +695,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 screencap_methods: firstDevice.screencap_methods,
                 input_methods: firstDevice.input_methods,
                 config: firstDevice.config,
+                display_short_side: controller.display_short_side,
               };
               deviceName = firstDevice.name || firstDevice.address;
               targetType = 'device';
@@ -723,11 +728,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   screencap_method: parseWin32ScreencapMethod(controller.win32?.screencap || ''),
                   mouse_method: parseWin32InputMethod(controller.win32?.mouse || ''),
                   keyboard_method: parseWin32InputMethod(controller.win32?.keyboard || ''),
+                  display_short_side: controller.display_short_side,
                 };
               } else {
                 config = {
                   type: 'Gamepad',
                   handle: firstWindow.handle,
+                  display_short_side: controller.display_short_side,
                 };
               }
               deviceName = firstWindow.window_name || firstWindow.class_name;

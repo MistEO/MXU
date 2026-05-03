@@ -515,6 +515,7 @@ pub async fn connect_controller_impl(
                 screencap_methods,
                 input_methods,
                 config,
+                ..
             } => {
                 let screencap = screencap_methods.parse::<u64>().map_err(|e| {
                     format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
@@ -544,6 +545,7 @@ pub async fn connect_controller_impl(
                 screencap_method,
                 mouse_method,
                 keyboard_method,
+                ..
             } => {
                 let hwnd = *handle as *mut std::ffi::c_void;
                 Controller::new_win32(
@@ -562,9 +564,14 @@ pub async fn connect_controller_impl(
             ControllerConfig::WlRoots {
                 wlr_socket_path,
                 use_win32_vk_code,
+                ..
             } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
                 .map_err(|e| e.to_string())?,
-            ControllerConfig::PlayCover { address, uuid } => {
+            ControllerConfig::PlayCover {
+                address,
+                uuid,
+                ..
+            } => {
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
             }
@@ -572,6 +579,7 @@ pub async fn connect_controller_impl(
                 handle,
                 gamepad_type,
                 screencap_method,
+                ..
             } => {
                 let hwnd = *handle as *mut std::ffi::c_void;
                 let gp_type = match gamepad_type.as_deref() {
@@ -596,9 +604,34 @@ pub async fn connect_controller_impl(
             })
             .map_err(|e| e.to_string())?;
 
-        // 设置默认参数
-        if let Err(e) = controller.set_screenshot_target_short_side(720) {
-            warn!("Failed to set screenshot target short side to 720: {}", e);
+        let display_short_side = match &config {
+            ControllerConfig::Adb {
+                display_short_side,
+                ..
+            }
+            | ControllerConfig::Win32 {
+                display_short_side,
+                ..
+            }
+            | ControllerConfig::WlRoots {
+                display_short_side,
+                ..
+            }
+            | ControllerConfig::Gamepad {
+                display_short_side,
+                ..
+            }
+            | ControllerConfig::PlayCover {
+                display_short_side,
+                ..
+            } => display_short_side.unwrap_or(720),
+        };
+
+        if let Err(e) = controller.set_screenshot_target_short_side(display_short_side) {
+            warn!(
+                "Failed to set screenshot target short side to {}: {}",
+                display_short_side, e
+            );
         }
 
         // 发起连接

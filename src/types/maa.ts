@@ -25,6 +25,7 @@ export interface AdbControllerConfig {
   screencap_methods: string; // u64 作为字符串传递
   input_methods: string; // u64 作为字符串传递
   config: string;
+  display_short_side?: number;
 }
 
 /** Win32 控制器配置 */
@@ -34,6 +35,7 @@ export interface Win32ControllerConfig {
   screencap_method: number;
   mouse_method: number;
   keyboard_method: number;
+  display_short_side?: number;
 }
 
 /** WlRoots 控制器配置 (Linux) */
@@ -48,12 +50,14 @@ export interface PlayCoverControllerConfig {
   type: 'PlayCover';
   address: string;
   uuid?: string;
+  display_short_side?: number;
 }
 
 /** Gamepad 控制器配置 */
 export interface GamepadControllerConfig {
   type: 'Gamepad';
   handle: number;
+  display_short_side?: number;
 }
 
 /** 控制器配置 */

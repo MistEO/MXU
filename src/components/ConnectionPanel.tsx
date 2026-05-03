@@ -562,6 +562,7 @@ export function ConnectionPanel() {
           screencap_methods: selectedAdbDevice.screencap_methods,
           input_methods: selectedAdbDevice.input_methods,
           config: selectedAdbDevice.config,
+          display_short_side: currentController?.display_short_side,
         };
         deviceName = selectedAdbDevice.name || selectedAdbDevice.address;
         targetType = 'device';
@@ -572,6 +573,7 @@ export function ConnectionPanel() {
           screencap_method: parseWin32ScreencapMethod(currentController.win32?.screencap || ''),
           mouse_method: parseWin32InputMethod(currentController.win32?.mouse || ''),
           keyboard_method: parseWin32InputMethod(currentController.win32?.keyboard || ''),
+          display_short_side: currentController?.display_short_side,
         };
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
@@ -590,6 +592,7 @@ export function ConnectionPanel() {
           type: 'PlayCover',
           address: playcoverAddress,
           uuid: currentController?.playcover?.uuid || 'maa.playcover',
+          display_short_side: currentController?.display_short_side,
         };
         deviceName = playcoverAddress;
         targetType = 'device';
@@ -597,6 +600,7 @@ export function ConnectionPanel() {
         config = {
           type: 'Gamepad',
           handle: selectedWindow.handle,
+          display_short_side: currentController?.display_short_side,
         };
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
@@ -811,6 +815,7 @@ export function ConnectionPanel() {
         screencap_methods: device.screencap_methods,
         input_methods: device.input_methods,
         config: device.config,
+        display_short_side: currentController?.display_short_side,
       };
 
       await connectControllerInternal(config, device.name || device.address, 'device');
@@ -897,11 +902,13 @@ export function ConnectionPanel() {
           screencap_method: parseWin32ScreencapMethod(currentController?.win32?.screencap || ''),
           mouse_method: parseWin32InputMethod(currentController?.win32?.mouse || ''),
           keyboard_method: parseWin32InputMethod(currentController?.win32?.keyboard || ''),
+          display_short_side: currentController?.display_short_side,
         };
       } else {
         config = {
           type: 'Gamepad',
           handle: win.handle,
+          display_short_side: currentController?.display_short_side,
         };
       }
 

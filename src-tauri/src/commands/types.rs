@@ -70,17 +70,23 @@ pub enum ControllerConfig {
         screencap_methods: String, // u64 作为字符串传递，避免 JS 精度丢失
         input_methods: String,     // u64 作为字符串传递
         config: String,
+        #[serde(default)]
+        display_short_side: Option<i32>,
     },
     Win32 {
         handle: u64,
         screencap_method: u64,
         mouse_method: u64,
         keyboard_method: u64,
+        #[serde(default)]
+        display_short_side: Option<i32>,
     },
     WlRoots {
         wlr_socket_path: String,
         #[serde(default)]
         use_win32_vk_code: bool,
+        #[serde(default)]
+        display_short_side: Option<i32>,
     },
     Gamepad {
         handle: u64,
@@ -88,11 +94,15 @@ pub enum ControllerConfig {
         gamepad_type: Option<String>,
         #[serde(default)]
         screencap_method: Option<u64>,
+        #[serde(default)]
+        display_short_side: Option<i32>,
     },
     PlayCover {
         address: String,
         #[serde(default)]
         uuid: Option<String>,
+        #[serde(default)]
+        display_short_side: Option<i32>,
     },
 }
 

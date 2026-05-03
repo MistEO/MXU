@@ -787,7 +787,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             }
           });
 
-          const ctrlId = await maaService.connectController(targetId, config);
+          let ctrlId: number;
+          try {
+            ctrlId = await maaService.connectController(targetId, config);
+          } catch (err) {
+            unsubscribe();
+            throw err;
+          }
 
           // 注册 ctrl_id 与设备名/类型的映射
           registerCtrlIdName(ctrlId, deviceName, targetType);
@@ -824,6 +830,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               }
             }, 30000);
 
+            // 路径 1：继续监听新的 maa-callback（Controller.Action.Succeeded/Failed）
+            let unlistenCb: (() => void) | undefined;
+            // 路径 2：监听 state-changed（兜底：后端已广播 connected 但 Action.Succeeded 可能因竞态丢失）
+            // Tauri 桌面端走 app.emit() → listen()，WebSocket 端走 wsService
+            let unlistenState: (() => void) | undefined;
+
             // 检查已收集的回调（注册监听器在 connectController 之前已完成）
             const match = collectedCallbacks.find((cb) => cb.details.ctrl_id === ctrlId);
             if (match) {
@@ -835,8 +847,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               return;
             }
 
-            // 路径 1：继续监听新的 maa-callback（Controller.Action.Succeeded/Failed）
-            let unlistenCb: (() => void) | undefined;
             maaService.onCallback((message, details) => {
               if (resolved) return;
               if (details.ctrl_id !== ctrlId) return;
@@ -846,17 +856,34 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 handleFailure();
               }
             }).then((cb) => {
-              if (!resolved) unlistenCb = cb;
+              if (!resolved) {
+                unlistenCb = cb;
+              } else {
+                cb();
+              }
             });
-
-            // 路径 2：监听 state-changed（兜底：后端已广播 connected 但 Action.Succeeded 可能因竞态丢失）
-            const unlistenState = onStateChanged((instanceId, kind) => {
+            const handleStateChanged = (instanceId: string, kind: string) => {
               if (resolved) return;
               if (instanceId === targetId && kind === 'connected') {
                 log.info(`实例 ${targetInstance.name}: 通过 state-changed 兜底判定连接成功`);
                 handleSuccess();
               }
-            });
+            };
+
+            if (isTauri()) {
+              import('@tauri-apps/api/event').then(({ listen }) =>
+                listen<{ instance_id: string; kind: string }>('state-changed', (event) =>
+                  handleStateChanged(event.payload.instance_id, event.payload.kind),
+                ),
+              ).then((dispose) => {
+                if (resolved) dispose();
+                else unlistenState = dispose;
+              }).catch((err) => {
+                log.warn('注册 state-changed 监听失败:', err);
+              });
+            } else {
+              unlistenState = onStateChanged(handleStateChanged);
+            }
           });
 
           if (!connectResult) {

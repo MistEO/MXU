@@ -32,6 +32,7 @@ import {
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { isTauri } from '@/utils/paths';
+import { onStateChanged } from '@/services/wsService';
 import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
@@ -775,9 +776,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
           onPhaseChange?.('connecting');
 
-          // 收集回调（避免快速连接时错过）
+          // 提前注册回调收集器，await 完成后再发起连接，避免竞态
           const collectedCallbacks: Array<{ message: string; details: { ctrl_id?: number } }> = [];
-          const unsubscribePromise = maaService.onCallback((message, details) => {
+          const unsubscribe = await maaService.onCallback((message, details) => {
             if (
               message === 'Controller.Action.Succeeded' ||
               message === 'Controller.Action.Failed'
@@ -791,58 +792,69 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           // 注册 ctrl_id 与设备名/类型的映射
           registerCtrlIdName(ctrlId, deviceName, targetType);
 
-          // 等待初始回调收集器设置完成
-          const unsubscribe = await unsubscribePromise;
-
-          // 等待连接完成
+          // 等待连接完成（同时监听 maa-callback 和 state-changed 两条路径）
           const connectResult = await new Promise<boolean>((resolve) => {
             let resolved = false;
 
-            const cleanup = (unlisten?: () => void) => {
+            const handleSuccess = () => {
+              if (resolved) return;
+              resolved = true;
+              clearTimeout(timeout);
               unsubscribe();
-              unlisten?.();
+              unlistenCb?.();
+              unlistenState?.();
+              setInstanceConnectionStatus(targetId, 'Connected');
+              resolve(true);
+            };
+
+            const handleFailure = () => {
+              if (resolved) return;
+              resolved = true;
+              clearTimeout(timeout);
+              unsubscribe();
+              unlistenCb?.();
+              unlistenState?.();
+              resolve(false);
             };
 
             const timeout = setTimeout(() => {
               if (!resolved) {
                 log.warn(`实例 ${targetInstance.name}: 连接超时`);
-                cleanup();
-                resolve(false);
+                handleFailure();
               }
             }, 30000);
 
-            // 检查已收集的回调
+            // 检查已收集的回调（注册监听器在 connectController 之前已完成）
             const match = collectedCallbacks.find((cb) => cb.details.ctrl_id === ctrlId);
             if (match) {
-              resolved = true;
-              clearTimeout(timeout);
-              cleanup();
               if (match.message === 'Controller.Action.Succeeded') {
-                setInstanceConnectionStatus(targetId, 'Connected');
-                resolve(true);
+                handleSuccess();
               } else {
-                resolve(false);
+                handleFailure();
               }
               return;
             }
 
-            // 继续监听新回调
+            // 路径 1：继续监听新的 maa-callback（Controller.Action.Succeeded/Failed）
+            let unlistenCb: (() => void) | undefined;
             maaService.onCallback((message, details) => {
               if (resolved) return;
               if (details.ctrl_id !== ctrlId) return;
-              if (
-                message === 'Controller.Action.Succeeded' ||
-                message === 'Controller.Action.Failed'
-              ) {
-                resolved = true;
-                clearTimeout(timeout);
-                cleanup();
-                if (message === 'Controller.Action.Succeeded') {
-                  setInstanceConnectionStatus(targetId, 'Connected');
-                  resolve(true);
-                } else {
-                  resolve(false);
-                }
+              if (message === 'Controller.Action.Succeeded') {
+                handleSuccess();
+              } else if (message === 'Controller.Action.Failed') {
+                handleFailure();
+              }
+            }).then((cb) => {
+              if (!resolved) unlistenCb = cb;
+            });
+
+            // 路径 2：监听 state-changed（兜底：后端已广播 connected 但 Action.Succeeded 可能因竞态丢失）
+            const unlistenState = onStateChanged((instanceId, kind) => {
+              if (resolved) return;
+              if (instanceId === targetId && kind === 'connected') {
+                log.info(`实例 ${targetInstance.name}: 通过 state-changed 兜底判定连接成功`);
+                handleSuccess();
               }
             });
           });

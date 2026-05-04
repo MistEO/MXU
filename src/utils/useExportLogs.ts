@@ -14,6 +14,7 @@ export interface ExportLogsState {
 
 export function useExportLogs() {
   const projectInterface = useAppStore((state) => state.projectInterface);
+  const saveDraw = useAppStore((state) => state.saveDraw);
   const [exportModal, setExportModal] = useState<ExportLogsState>({
     show: false,
     status: 'idle',
@@ -31,6 +32,7 @@ export function useExportLogs() {
       const zipPath = await invoke<string>('export_logs', {
         projectName: projectInterface?.name,
         projectVersion: projectInterface?.version,
+        saveDraw,
       });
       loggers.ui.info('日志已导出:', zipPath);
 
@@ -47,7 +49,7 @@ export function useExportLogs() {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [projectInterface?.name, projectInterface?.version]);
+  }, [projectInterface?.name, projectInterface?.version, saveDraw]);
 
   const closeExportModal = useCallback(() => {
     setExportModal({ show: false, status: 'idle' });

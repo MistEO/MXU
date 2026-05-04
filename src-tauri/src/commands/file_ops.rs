@@ -472,6 +472,7 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
 pub fn export_logs(
     project_name: Option<String>,
     project_version: Option<String>,
+    save_draw: Option<bool>,
 ) -> Result<String, String> {
     use std::fs::File;
     use zip::write::SimpleFileOptions;
@@ -596,6 +597,66 @@ pub fn export_logs(
             }
         } else {
             log::warn!("无法读取 on_error 目录");
+        }
+    }
+
+    // 处理 vision 文件夹（保存调试图像开启时），同样按最新优先并受大小上限约束
+    if save_draw.unwrap_or(false) {
+        let vision_dir = debug_dir.join("vision");
+        if vision_dir.exists() && vision_dir.is_dir() {
+            if let Ok(rd) = std::fs::read_dir(&vision_dir) {
+                let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
+
+                images.sort_by(|a, b| {
+                    let time_a = a.metadata().and_then(|m| m.modified()).ok();
+                    let time_b = b.metadata().and_then(|m| m.modified()).ok();
+                    time_b.cmp(&time_a)
+                });
+
+                for entry in images {
+                    let path = entry.path();
+                    let Some(name) = path.file_name() else {
+                        continue;
+                    };
+                    let archive_name = format!("vision/{}", name.to_string_lossy());
+
+                    if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
+                        break;
+                    }
+
+                    let image_entry = ExportEntry {
+                        source_path: path,
+                        archive_name,
+                    };
+                    let Some(estimated_delta_upper_bound) =
+                        estimate_entry_upper_bound(&image_entry)
+                    else {
+                        log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
+                        continue;
+                    };
+
+                    if estimated_archive_size + estimated_delta_upper_bound
+                        > MAX_EXPORT_ARCHIVE_BYTES
+                    {
+                        log::info!(
+                            "vision 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
+                            estimated_archive_size,
+                            estimated_archive_size + estimated_delta_upper_bound,
+                            MAX_EXPORT_ARCHIVE_BYTES
+                        );
+                        break;
+                    }
+
+                    if !archive_measurer.try_add_entry(&image_entry, options) {
+                        continue;
+                    }
+
+                    estimated_archive_size = archive_measurer.projected_size();
+                    selected_images.push(image_entry);
+                }
+            } else {
+                log::warn!("无法读取 vision 目录");
+            }
         }
     }
 

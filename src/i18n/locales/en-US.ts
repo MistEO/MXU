@@ -525,7 +525,7 @@ export default {
     openLogDir: 'Open Log Dir',
     exportLogs: 'Export Logs',
     exportLogsHint:
-      'Pack logs and config into a zip archive, keeping newest debug images until it reaches about 24.5 MB',
+      'Pack logs and config into a zip archive, keeping newest debug images until it reaches about 24.5 MB; when "Save debug images" is on, vision images are also included',
     exportingLogs: 'Exporting logs...',
     logsExported: 'Logs exported',
     exportLogsFailed: 'Failed to export logs',

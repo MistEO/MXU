@@ -517,7 +517,7 @@ export default {
     openLogDir: '로그 폴더 열기',
     exportLogs: '로그 내보내기',
     exportLogsHint:
-      '로그와 config를 zip으로 묶고, 약 24.5 MB까지 최신 디버그 이미지를 자동으로 유지',
+      '로그와 config를 zip으로 묶고, 약 24.5 MB까지 최신 디버그 이미지를 자동으로 유지；"디버그 이미지 저장" 활성화 시 vision 이미지도 포함',
     exportingLogs: '로그 내보내는 중...',
     logsExported: '로그를 내보냈습니다',
     exportLogsFailed: '로그 내보내기 실패',

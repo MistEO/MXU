@@ -519,7 +519,7 @@ export default {
     openConfigDir: '設定フォルダを開く',
     openLogDir: 'ログフォルダを開く',
     exportLogs: 'ログをエクスポート',
-    exportLogsHint: 'ログと config を zip にまとめ、約 24.5 MB まで最新のデバッグ画像を自動で保持',
+    exportLogsHint: 'ログと config を zip にまとめ、約 24.5 MB まで最新のデバッグ画像を自動で保持；「デバッグ画像を保存」有効時は vision 画像も含める',
     exportingLogs: 'ログをエクスポート中...',
     logsExported: 'ログをエクスポートしました',
     exportLogsFailed: 'ログのエクスポートに失敗しました',

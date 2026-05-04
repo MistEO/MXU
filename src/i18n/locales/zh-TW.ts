@@ -508,7 +508,7 @@ export default {
     openConfigDir: '開啟設定目錄',
     openLogDir: '開啟日誌目錄',
     exportLogs: '匯出日誌',
-    exportLogsHint: '打包日誌與 config，並依 24.5 MB 上限自動保留最近的除錯圖片',
+    exportLogsHint: '打包日誌與 config，並依 24.5 MB 上限自動保留最近的除錯圖片；開啟「儲存偵錯圖片」時同時打包 vision 圖片',
     exportingLogs: '正在匯出日誌...',
     logsExported: '日誌已匯出',
     exportLogsFailed: '匯出日誌失敗',

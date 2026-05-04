@@ -466,6 +466,74 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 从指定目录收集图片，按最新优先排序，受压缩包大小上限约束
+fn collect_debug_images(
+    dir: &Path,
+    archive_prefix: &str,
+    archive_measurer: &mut ArchiveMeasurer,
+    estimated_archive_size: &mut u64,
+    selected_images: &mut Vec<ExportEntry>,
+    options: zip::write::SimpleFileOptions,
+) {
+    if !dir.exists() || !dir.is_dir() {
+        return;
+    }
+    let rd = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(_) => {
+            log::warn!("无法读取 {} 目录", archive_prefix);
+            return;
+        }
+    };
+
+    let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
+
+    images.sort_by(|a, b| {
+        let time_a = a.metadata().and_then(|m| m.modified()).ok();
+        let time_b = b.metadata().and_then(|m| m.modified()).ok();
+        time_b.cmp(&time_a)
+    });
+
+    for entry in images {
+        let path = entry.path();
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+        let archive_name = format!("{}/{}", archive_prefix, name.to_string_lossy());
+
+        if *estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
+            break;
+        }
+
+        let image_entry = ExportEntry {
+            source_path: path,
+            archive_name,
+        };
+        let Some(estimated_delta_upper_bound) = estimate_entry_upper_bound(&image_entry) else {
+            log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
+            continue;
+        };
+
+        if *estimated_archive_size + estimated_delta_upper_bound > MAX_EXPORT_ARCHIVE_BYTES {
+            log::info!(
+                "{} 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
+                archive_prefix,
+                *estimated_archive_size,
+                *estimated_archive_size + estimated_delta_upper_bound,
+                MAX_EXPORT_ARCHIVE_BYTES
+            );
+            break;
+        }
+
+        if !archive_measurer.try_add_entry(&image_entry, options) {
+            continue;
+        }
+
+        *estimated_archive_size = archive_measurer.projected_size();
+        selected_images.push(image_entry);
+    }
+}
+
 /// 导出日志文件为 zip 压缩包
 /// 返回生成的 zip 文件路径
 #[tauri::command]
@@ -539,125 +607,32 @@ pub fn export_logs(
 
     if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
         log::warn!(
-            "日志与配置压缩后预计已有 {} bytes，已超过 {} bytes 的导出目标，on_error 图片将全部跳过",
+            "日志与配置压缩后预计已有 {} bytes，已超过 {} bytes 的导出目标，调试图片将全部跳过",
             estimated_archive_size,
             MAX_EXPORT_ARCHIVE_BYTES
         );
     }
 
-    // 处理 on_error 文件夹，按最新优先，直到压缩包接近 24.5 MB
-    let on_error_dir = debug_dir.join("on_error");
-    if on_error_dir.exists() && on_error_dir.is_dir() {
-        if let Ok(rd) = std::fs::read_dir(&on_error_dir) {
-            let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
+    // 处理 on_error 文件夹
+    collect_debug_images(
+        &debug_dir.join("on_error"),
+        "on_error",
+        &mut archive_measurer,
+        &mut estimated_archive_size,
+        &mut selected_images,
+        options,
+    );
 
-            images.sort_by(|a, b| {
-                let time_a = a.metadata().and_then(|m| m.modified()).ok();
-                let time_b = b.metadata().and_then(|m| m.modified()).ok();
-                time_b.cmp(&time_a)
-            });
-
-            for entry in images {
-                let path = entry.path();
-                let Some(name) = path.file_name() else {
-                    continue;
-                };
-                let archive_name = format!("on_error/{}", name.to_string_lossy());
-
-                if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
-                    break;
-                }
-
-                let image_entry = ExportEntry {
-                    source_path: path,
-                    archive_name,
-                };
-                let Some(estimated_delta_upper_bound) = estimate_entry_upper_bound(&image_entry)
-                else {
-                    log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
-                    continue;
-                };
-
-                if estimated_archive_size + estimated_delta_upper_bound > MAX_EXPORT_ARCHIVE_BYTES {
-                    log::info!(
-                        "on_error 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
-                        estimated_archive_size,
-                        estimated_archive_size + estimated_delta_upper_bound,
-                        MAX_EXPORT_ARCHIVE_BYTES
-                    );
-                    break;
-                }
-
-                if !archive_measurer.try_add_entry(&image_entry, options) {
-                    continue;
-                }
-
-                estimated_archive_size = archive_measurer.projected_size();
-                selected_images.push(image_entry);
-            }
-        } else {
-            log::warn!("无法读取 on_error 目录");
-        }
-    }
-
-    // 处理 vision 文件夹（保存调试图像开启时），同样按最新优先并受大小上限约束
+    // 处理 vision 文件夹（保存调试图像开启时）
     if save_draw.unwrap_or(false) {
-        let vision_dir = debug_dir.join("vision");
-        if vision_dir.exists() && vision_dir.is_dir() {
-            if let Ok(rd) = std::fs::read_dir(&vision_dir) {
-                let mut images: Vec<_> = rd.flatten().filter(|e| is_image_file(&e.path())).collect();
-
-                images.sort_by(|a, b| {
-                    let time_a = a.metadata().and_then(|m| m.modified()).ok();
-                    let time_b = b.metadata().and_then(|m| m.modified()).ok();
-                    time_b.cmp(&time_a)
-                });
-
-                for entry in images {
-                    let path = entry.path();
-                    let Some(name) = path.file_name() else {
-                        continue;
-                    };
-                    let archive_name = format!("vision/{}", name.to_string_lossy());
-
-                    if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
-                        break;
-                    }
-
-                    let image_entry = ExportEntry {
-                        source_path: path,
-                        archive_name,
-                    };
-                    let Some(estimated_delta_upper_bound) =
-                        estimate_entry_upper_bound(&image_entry)
-                    else {
-                        log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
-                        continue;
-                    };
-
-                    if estimated_archive_size + estimated_delta_upper_bound
-                        > MAX_EXPORT_ARCHIVE_BYTES
-                    {
-                        log::info!(
-                            "vision 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
-                            estimated_archive_size,
-                            estimated_archive_size + estimated_delta_upper_bound,
-                            MAX_EXPORT_ARCHIVE_BYTES
-                        );
-                        break;
-                    }
-
-                    if !archive_measurer.try_add_entry(&image_entry, options) {
-                        continue;
-                    }
-
-                    estimated_archive_size = archive_measurer.projected_size();
-                    selected_images.push(image_entry);
-                }
-            } else {
-                log::warn!("无法读取 vision 目录");
-            }
-        }
+        collect_debug_images(
+            &debug_dir.join("vision"),
+            "vision",
+            &mut archive_measurer,
+            &mut estimated_archive_size,
+            &mut selected_images,
+            options,
+        );
     }
 
     let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;

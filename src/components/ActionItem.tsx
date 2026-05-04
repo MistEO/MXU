@@ -63,12 +63,14 @@ export function ActionItem({
     duplicatePreAction,
     reorderPreActions,
     confirmBeforeDelete,
+    setConfirmBeforeDelete,
   } = useAppStore();
 
   const [expanded, setExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -373,8 +375,11 @@ export function ActionItem({
         cancelText={t('common.cancel')}
         confirmText={t('common.delete')}
         destructive
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
         onCancel={() => setShowDeleteConfirm(false)}
         onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
           setShowDeleteConfirm(false);
           removePreAction(instanceId, action.id);
         }}

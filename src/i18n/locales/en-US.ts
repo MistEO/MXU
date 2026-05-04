@@ -6,6 +6,7 @@ export default {
     undo: 'Undo',
     save: 'Save',
     delete: 'Delete',
+    dontAskAgain: "Don't ask again",
     edit: 'Edit',
     add: 'Add',
     open: 'Open',

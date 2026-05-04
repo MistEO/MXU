@@ -31,6 +31,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     updateCustomAccent,
     removeCustomAccent,
     confirmBeforeDelete,
+    setConfirmBeforeDelete,
   } = useAppStore();
 
   // 自定义强调色编辑状态
@@ -38,6 +39,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [editingAccent, setEditingAccent] = useState<CustomAccent | null>(null);
   const [pendingDeleteAccentId, setPendingDeleteAccentId] = useState<string | null>(null);
   const [undoDeletedAccent, setUndoDeletedAccent] = useState<CustomAccent | null>(null);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
   const undoTimerRef = useRef<number | null>(null);
 
   // 打开创建模态框
@@ -340,8 +342,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         cancelText={t('common.cancel')}
         confirmText={t('common.confirm')}
         destructive
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
         onCancel={() => setPendingDeleteAccentId(null)}
         onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
           if (pendingDeleteAccentId) performDeleteCustomAccent(pendingDeleteAccentId);
           setPendingDeleteAccentId(null);
         }}

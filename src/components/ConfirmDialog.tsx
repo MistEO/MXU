@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 export function ConfirmDialog({
   open,
@@ -13,6 +14,8 @@ export function ConfirmDialog({
   confirmDisabled,
   secondaryConfirmDisabled,
   secondaryDestructive,
+  dontAskAgain,
+  onToggleDontAskAgain,
   onConfirm,
   onSecondaryConfirm,
   onCancel,
@@ -28,10 +31,13 @@ export function ConfirmDialog({
   confirmDisabled?: boolean;
   secondaryConfirmDisabled?: boolean;
   secondaryDestructive?: boolean;
+  dontAskAgain?: boolean;
+  onToggleDontAskAgain?: (v: boolean) => void;
   onConfirm: () => void;
   onSecondaryConfirm?: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -122,7 +128,21 @@ export function ConfirmDialog({
 
         {children && <div className="px-5 py-4 overflow-auto flex-1 min-h-0">{children}</div>}
 
-        <div className="px-5 py-4 flex justify-end gap-2 bg-bg-tertiary/30 flex-shrink-0">
+        <div className="px-5 py-4 flex items-center justify-between bg-bg-tertiary/30 flex-shrink-0">
+          {onToggleDontAskAgain ? (
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={dontAskAgain}
+                onChange={(e) => onToggleDontAskAgain(e.target.checked)}
+                className="rounded border-border text-accent focus:ring-accent"
+              />
+              <span className="text-xs text-text-muted">{t('common.dontAskAgain')}</span>
+            </label>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
           <button
             type="button"
             onClick={onCancel}
@@ -163,6 +183,7 @@ export function ConfirmDialog({
           >
             {confirmText}
           </button>
+          </div>
         </div>
       </div>
     </div>

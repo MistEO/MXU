@@ -103,6 +103,7 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, right: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
 
   const {
     recentlyClosed,
@@ -110,6 +111,7 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
     removeFromRecentlyClosed,
     clearRecentlyClosed,
     confirmBeforeDelete,
+    setConfirmBeforeDelete,
     projectInterface,
     language,
     resolveI18nText,
@@ -343,8 +345,11 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
         cancelText={t('common.cancel')}
         confirmText={t('recentlyClosed.clearAll')}
         destructive
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
         onCancel={() => setShowClearConfirm(false)}
         onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
           clearRecentlyClosed();
           setShowClearConfirm(false);
         }}

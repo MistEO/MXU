@@ -299,6 +299,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
   const [editName, setEditName] = useState('');
 
   const {
@@ -307,6 +308,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     toggleTaskExpanded,
     removeTaskFromInstance,
     confirmBeforeDelete,
+    setConfirmBeforeDelete,
     renameTask,
     duplicateTask,
     moveTaskUp,
@@ -1007,8 +1009,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         cancelText={t('common.cancel')}
         confirmText={t('common.delete')}
         destructive
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
         onCancel={() => setShowDeleteConfirm(false)}
         onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
           setShowDeleteConfirm(false);
           removeTaskFromInstance(instanceId, task.id);
         }}

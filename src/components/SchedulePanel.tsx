@@ -41,8 +41,9 @@ function PolicyCard({
   onToggleExpand: () => void;
 }) {
   const { t } = useTranslation();
-  const { confirmBeforeDelete } = useAppStore();
+  const { confirmBeforeDelete, setConfirmBeforeDelete } = useAppStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
 
   const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
 
@@ -281,8 +282,11 @@ function PolicyCard({
         cancelText={t('common.cancel')}
         confirmText={t('common.confirm')}
         destructive
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
         onCancel={() => setShowDeleteConfirm(false)}
         onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
           setShowDeleteConfirm(false);
           onDelete();
         }}

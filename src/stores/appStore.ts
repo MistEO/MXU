@@ -135,7 +135,7 @@ export const useAppStore = create<AppState>()(
     language: 'system',
     backgroundImage: undefined,
     backgroundOpacity: 50,
-    confirmBeforeDelete: false,
+    confirmBeforeDelete: true,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     autoClearLogsOnLaunch: true,
     customAccents: [],

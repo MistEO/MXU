@@ -81,7 +81,10 @@ export function TabBar() {
     removeAnimatingTabId,
     startTabCloseAnimation,
     confirmBeforeDelete,
+    setConfirmBeforeDelete,
   } = useAppStore();
+
+  const [dontAskAgain, setDontAskAgain] = useState(false);
 
   // 使用全局状态控制更新面板显示
   const showUpdatePanel = showUpdateDialog;
@@ -599,7 +602,12 @@ export function TabBar() {
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive
-        onConfirm={handleConfirmClose}
+        dontAskAgain={dontAskAgain}
+        onToggleDontAskAgain={setDontAskAgain}
+        onConfirm={() => {
+          if (dontAskAgain) setConfirmBeforeDelete(false);
+          handleConfirmClose();
+        }}
         onCancel={handleCancelClose}
       />
     </div>

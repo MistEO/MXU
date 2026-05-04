@@ -228,7 +228,7 @@ export const defaultConfig: MxuConfig = {
     theme: 'system',
     accentColor: defaultAccentColor,
     language: 'system',
-    confirmBeforeDelete: false,
+    confirmBeforeDelete: true,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     autoClearLogsOnLaunch: true,
     windowSize: defaultWindowSize,

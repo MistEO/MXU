@@ -6,6 +6,7 @@ export default {
     undo: '撤销',
     save: '保存',
     delete: '删除',
+    dontAskAgain: '不再显示此确认对话框',
     edit: '编辑',
     add: '添加',
     open: '打开',

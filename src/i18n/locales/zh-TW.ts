@@ -6,6 +6,7 @@ export default {
     undo: '復原',
     save: '儲存',
     delete: '刪除',
+    dontAskAgain: '不再顯示此確認對話框',
     edit: '編輯',
     add: '新增',
     open: '開啟',

@@ -6,6 +6,7 @@ export default {
     undo: '元に戻す',
     save: '保存',
     delete: '削除',
+    dontAskAgain: '今後この確認を表示しない',
     edit: '編集',
     add: '追加',
     open: '開く',

@@ -6,6 +6,7 @@ export default {
     undo: '실행 취소',
     save: '저장',
     delete: '삭제',
+    dontAskAgain: '다시 묻지 않음',
     edit: '편집',
     add: '추가',
     open: '열기',

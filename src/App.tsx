@@ -895,7 +895,7 @@ function App() {
             } else {
               showUpdateCompletedUI();
               if (isAutoRunOnLaunchMode) {
-                pendingAutoTasksRef.current = true;
+                dispatchPendingAutoStartTasks();
               }
               return;
             }
@@ -911,7 +911,7 @@ function App() {
           } else {
             showUpdateCompletedUI();
             if (isAutoRunOnLaunchMode) {
-              pendingAutoTasksRef.current = true;
+              dispatchPendingAutoStartTasks();
             }
             return;
           }

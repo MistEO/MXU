@@ -6,7 +6,9 @@ import type {
   ControllerType,
   PresetItem,
   GroupItem,
+  PreTaskConfig,
 } from '@/types/interface';
+import { normalizePreTaskConfigs } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
@@ -15,7 +17,7 @@ import { setBackendPort } from '@/utils/backendApi';
 const log = loggers.app;
 
 /**
- * 可导入的 PI 文件结构（支持 task、option、preset 和 group 字段）
+ * 可导入的 PI 文件结构（支持 task、option、preset、group 和 pretask 字段）
  */
 interface ImportableInterface {
   task?: TaskItem[];
@@ -24,6 +26,8 @@ interface ImportableInterface {
   preset?: PresetItem[];
   /** v2.4.0: 支持导入 group */
   group?: GroupItem[];
+  /** v2.7.1: 支持导入 pretask */
+  pretask?: PreTaskConfig | PreTaskConfig[];
 }
 
 export interface LoadResult {
@@ -231,6 +235,14 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
   if (imported.preset && imported.preset.length > 0) {
     pi.preset = [...(pi.preset || []), ...imported.preset];
     log.info(`合并了 ${imported.preset.length} 个导入的 preset`);
+  }
+
+  // v2.7.1: 合并 pretask（主文件已在 normalizePretask 处理；此处把导入文件的条目按数组顺序追加）
+  const importedPretasks = normalizePreTaskConfigs(imported.pretask);
+  if (importedPretasks.length > 0) {
+    const existing = normalizePreTaskConfigs(pi.pretask);
+    pi.pretask = [...existing, ...importedPretasks];
+    log.info(`合并了 ${importedPretasks.length} 个导入的 pretask`);
   }
 
   // v2.4.0: 合并 group 数组（按 name 去重，保持先定义优先）

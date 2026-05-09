@@ -56,6 +56,9 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            let argv: Vec<String> = std::env::args().collect();
+            log::info!("Startup argv (argc={}): {:?}", argv.len(), argv);
+
             // 创建 MaaState 并注册为 Tauri 管理状态
             let maa_state = Arc::new(MaaState::default());
 

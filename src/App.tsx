@@ -861,8 +861,11 @@ function App() {
       };
 
       // 检查是否刚更新完成（重启后）
-      const isAutoStartModeNow = useAppStore.getState().isAutoStartMode;
       const updateCompleteInfo = consumeUpdateCompleteInfo();
+      // 跳过弹窗的判断：本次进程是自启动，或上次保存信息时所在会话是自启动
+      // 后者用于覆盖「自启动 → 自动安装 → relaunch（不带 --autostart）」的场景
+      const isAutoStartModeNow =
+        useAppStore.getState().isAutoStartMode || !!updateCompleteInfo?.fromAutoStartMode;
       if (updateCompleteInfo) {
         const currentVersionNow = result.interface.version || '';
 

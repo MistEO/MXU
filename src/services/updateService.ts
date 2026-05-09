@@ -1120,6 +1120,12 @@ export interface UpdateCompleteInfo {
    * - false/undefined: 直接显示更新完成弹窗
    */
   requireVersionCheck?: boolean;
+  /**
+   * 保存这条信息时所在会话是否处于自启动模式（is_autostart=true）。
+   * 用于让「上次自启动 + 这次因更新重启」的场景仍按无人值守对待，跳过更新完成弹窗。
+   * 因为 Tauri relaunch() 不会保留原命令行参数（如 --autostart），本字段用于跨进程传递该语义。
+   */
+  fromAutoStartMode?: boolean;
 }
 
 /**

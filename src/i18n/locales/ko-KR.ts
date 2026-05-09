@@ -669,7 +669,6 @@ export default {
     updateCompleteMessage: '최신 버전으로 성공적으로 업데이트되었습니다',
     previousVersion: '이전 버전',
     gotIt: '확인',
-    gotItCountdown: '확인 ({{sec}}초)',
     // MirrorChyan API 오류 코드
     errors: {
       1001: '매개변수가 올바르지 않습니다. 설정을 확인하세요',

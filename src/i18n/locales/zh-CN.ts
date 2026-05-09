@@ -660,7 +660,6 @@ export default {
     updateCompleteMessage: '已成功更新到最新版本',
     previousVersion: '更新前版本',
     gotIt: '知道了',
-    gotItCountdown: '知道了 ({{sec}}s)',
     // MirrorChyan API 错误码
     errors: {
       1001: '参数不正确，请检查配置',

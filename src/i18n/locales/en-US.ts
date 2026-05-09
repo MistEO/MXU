@@ -677,7 +677,6 @@ export default {
     updateCompleteMessage: 'Successfully updated to the latest version',
     previousVersion: 'Previous Version',
     gotIt: 'Got it',
-    gotItCountdown: 'Got it ({{sec}}s)',
     // MirrorChyan API error codes
     errors: {
       1001: 'Invalid parameters, please check configuration',

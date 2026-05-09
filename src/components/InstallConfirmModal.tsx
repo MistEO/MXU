@@ -21,9 +21,6 @@ import {
 import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
 import { loggers } from '@/utils/logger';
 
-// 「刚更新完成」弹窗的自动关闭秒数；鼠标悬停/聚焦时暂停，避免打断用户阅读更新日志
-const JUST_UPDATED_AUTO_CLOSE_SECONDS = 10;
-
 export function InstallConfirmModal() {
   const { t } = useTranslation();
   const [installStage, setInstallStage] = useState<string>('');
@@ -39,6 +36,7 @@ export function InstallConfirmModal() {
     downloadStatus,
     downloadProgress,
     justUpdatedInfo,
+    isAutoStartMode,
     setShowInstallConfirmModal,
     setInstallStatus,
     setInstallError,
@@ -110,13 +108,15 @@ export function InstallConfirmModal() {
           releaseNote: updateInfo.releaseNote,
           channel: updateInfo.channel,
           timestamp: Date.now(),
+          // 透传自启动语义：Tauri relaunch() 不会保留 --autostart，需通过本字段跨进程传递
+          fromAutoStartMode: isAutoStartMode,
         });
       }
       await restartApp();
     } catch (error) {
       loggers.ui.error('重启失败:', error);
     }
-  }, [updateInfo, currentVersion]);
+  }, [updateInfo, currentVersion, isAutoStartMode]);
 
   // 关闭模态框
   const handleClose = useCallback(() => {
@@ -141,11 +141,6 @@ export function InstallConfirmModal() {
   const autoInstallTriggered = useRef(false);
   // 用于追踪是否已触发自动重启，避免重复执行
   const autoRestartTriggered = useRef(false);
-
-  // 「刚更新完成」弹窗的自动关闭倒计时（仅 isJustUpdatedMode 启用）
-  const [autoCloseLeft, setAutoCloseLeft] = useState<number | null>(null);
-  // 鼠标悬停/聚焦时暂停倒计时
-  const autoClosePausedRef = useRef(false);
 
   // 当模态框打开且 installStatus 为 'installing' 时自动开始安装
   useEffect(() => {
@@ -254,6 +249,8 @@ export function InstallConfirmModal() {
           channel: updateInfo.channel,
           timestamp: Date.now(),
           requireVersionCheck: true,
+          // 透传自启动语义：用户手动重启 exe 后下次启动仍按无人值守对待
+          fromAutoStartMode: isAutoStartMode,
         });
         clearPendingUpdateInfo();
         // 不关闭弹窗、不重启
@@ -261,31 +258,15 @@ export function InstallConfirmModal() {
       }
       handleRestart();
     }
-  }, [installStatus, isJustUpdatedMode, handleRestart, isExeInstaller, updateInfo, currentVersion]);
-
-  // 「刚更新完成」弹窗：N 秒后自动关闭；用户悬停/聚焦时暂停
-  useEffect(() => {
-    if (!isJustUpdatedMode || !showInstallConfirmModal) {
-      setAutoCloseLeft(null);
-      autoClosePausedRef.current = false;
-      return;
-    }
-    setAutoCloseLeft(JUST_UPDATED_AUTO_CLOSE_SECONDS);
-    const timer = setInterval(() => {
-      if (autoClosePausedRef.current) return;
-      setAutoCloseLeft((prev: number | null) => {
-        if (prev === null) return prev;
-        if (prev <= 1) {
-          clearInterval(timer);
-          // 延迟到下一帧再关，避免在 setState 中直接触发卸载
-          queueMicrotask(() => handleClose());
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isJustUpdatedMode, showInstallConfirmModal, handleClose]);
+  }, [
+    installStatus,
+    isJustUpdatedMode,
+    handleRestart,
+    isExeInstaller,
+    updateInfo,
+    currentVersion,
+    isAutoStartMode,
+  ]);
 
   // 如果没有打开模态框，或者既没有更新信息也没有刚更新完成信息，则不渲染
   if (!showInstallConfirmModal || (!updateInfo && !justUpdatedInfo)) return null;
@@ -314,18 +295,6 @@ export function InstallConfirmModal() {
       <div
         className={`w-[50vw] min-w-[500px] bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col ${showReleaseNotes ? 'h-[80vh]' : 'max-h-[80vh]'}`}
         onClick={(e) => e.stopPropagation()}
-        onMouseEnter={() => {
-          autoClosePausedRef.current = true;
-        }}
-        onMouseLeave={() => {
-          autoClosePausedRef.current = false;
-        }}
-        onFocusCapture={() => {
-          autoClosePausedRef.current = true;
-        }}
-        onBlurCapture={() => {
-          autoClosePausedRef.current = false;
-        }}
       >
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border shrink-0">
@@ -457,9 +426,7 @@ export function InstallConfirmModal() {
               onClick={handleClose}
               className="px-4 py-2 text-sm bg-accent text-white hover:bg-accent-hover rounded-lg transition-colors"
             >
-              {autoCloseLeft !== null && autoCloseLeft > 0
-                ? t('mirrorChyan.gotItCountdown', { sec: autoCloseLeft })
-                : t('mirrorChyan.gotIt')}
+              {t('mirrorChyan.gotIt')}
             </button>
           )}
 

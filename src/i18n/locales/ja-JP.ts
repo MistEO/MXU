@@ -676,7 +676,6 @@ export default {
     updateCompleteMessage: '最新バージョンへのアップデートに成功しました',
     previousVersion: '更新前のバージョン',
     gotIt: '了解',
-    gotItCountdown: '了解 ({{sec}}秒)',
     // MirrorChyan API エラーコード
     errors: {
       1001: 'パラメータが正しくありません。設定を確認してください',

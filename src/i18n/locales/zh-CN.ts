@@ -164,6 +164,8 @@ export default {
       optionLabel: '请求设置',
       urlLabel: '请求地址',
       urlPlaceholder: '输入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      bodyLabel: '请求体',
+      bodyPlaceholder: '若为空，则 GET 。若非空，则 POST + text/plain。可以使用模板变量 {{STATUS}} 嵌入执行状态（JSON 数组）。'
     },
     killProc: {
       label: '⛔ 结束进程',

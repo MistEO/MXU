@@ -168,6 +168,8 @@ export default {
       optionLabel: 'リクエスト設定',
       urlLabel: 'リクエストURL',
       urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
+      bodyLabel: 'リクエストボディ',
+      bodyPlaceholder: '空の場合は GET です。空でない場合は POST + text/plain です。テンプレート変数 {{STATUS}} を使用して、実行ステータス（JSON 配列）を埋め込むことができます。'
     },
     killProc: {
       label: '⛔ プロセス終了',

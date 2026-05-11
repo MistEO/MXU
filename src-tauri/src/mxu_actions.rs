@@ -307,6 +307,37 @@ fn mxu_launch_action_fn(
     }
 }
 
+fn get_instance_status(
+    app_handle: Option<&AppHandle>,
+    instance_id: Option<&str>
+) -> Vec<HashMap<String, String>> {
+    let run_state = app_handle.and_then(|app| {
+        let maa_state = app.try_state::<Arc<crate::commands::MaaState>>()?;
+        let instance_id = instance_id?;
+        let instances = maa_state.instances.lock().ok()?;
+        let instance = instances.get(instance_id)?;
+        Some(instance.taskRunState?)
+    });
+    return Vec<HashMap<String, String>> = run_state.pending_task_ids
+        .iter()
+        .filter_map(|&maa_task_id| {
+            if let Some(selected_task_id) = state.mappings.get(&maa_task_id) {
+                if let Some(status) = state.statuses.get(selected_task_id) {
+                    let mut map = HashMap::new();
+                    map.insert(selected_task_id.clone(), status.clone());
+                    Some(map)
+                } else {
+                    warn!("[MXU] instance status: selected_task_id '{}' -> statuses 'None'", selected_task_id);
+                    None
+                }
+            } else {
+                warn!("[MXU] instance status: maa_task_id '{}' -> mappings 'None'", maa_task_id);
+                None
+            }
+        })
+        .collect();
+}
+
 // ============================================================================
 // MXU_WEBHOOK Custom Action
 // ============================================================================
@@ -319,7 +350,26 @@ const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 fn mxu_webhook_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
+    app_handle: Option<&AppHandle>,
+    instance_id: Option<&str>,
 ) -> bool {
+    let status = get_instance_status(app_handle, instance_id)
+    let minimized = match serde_json::to_string(&status) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("[MXU_WEBHOOK] Failed to parse param JSON: {}", e);
+            return "[]";
+        }
+    }
+    let pretty = match serde_json::to_string_pretty(&status) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("[MXU_WEBHOOK] Failed to parse param JSON: {}", e);
+            return "[]";
+        }
+    }
+    info!("[MXU_WEBHOOK] Received instance status: {}", minimized);
+
     let param_str = args.param;
     info!("[MXU_WEBHOOK] Received param: {}", param_str);
 
@@ -338,8 +388,13 @@ fn mxu_webhook_action_fn(
             return false;
         }
     };
+    let body = match json.get("body").and_then(|v| v.as_str()) {
+        Some(u) if !u.trim().is_empty() => u.to_string(),
+        _ => { return "" }
+    };
+    body = body.replace("{{STATUS}}", &pretty)
 
-    info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
+    info!("[MXU_WEBHOOK] Sending request to: {}", url);
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -352,7 +407,8 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    match client.get(&url).send() {
+    let req = if body == "" { client.get(&url) } else { client.post(&url).body(&body) };
+    match req.send() {
         Ok(resp) => {
             let status = resp.status();
             info!("[MXU_WEBHOOK] Response status: {}", status);
@@ -879,9 +935,56 @@ pub fn register_all_mxu_actions(
     reg_action!(MXU_SLEEP_ACTION, mxu_sleep_action_fn);
     reg_action!(MXU_WAITUNTIL_ACTION, mxu_waituntil_action_fn);
     reg_action!(MXU_LAUNCH_ACTION, mxu_launch_action_fn);
-    reg_action!(MXU_WEBHOOK_ACTION, mxu_webhook_action_fn);
     reg_action!(MXU_NOTIFY_ACTION, mxu_notify_action_fn);
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
+
+    // webhook
+
+    let webhook_app_handle = app_handle.clone();
+    let webhook_instance_id = instance_id.to_string();
+    let webhook_wrapper = move |ctx: &maa_framework::context::Context,
+                                args: &maa_framework::custom::ActionArgs|
+        -> bool {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mxu_webhook_action_fn(
+                ctx,
+                args,
+                Some(&webhook_app_handle),
+                Some(&webhook_instance_id),
+            )
+        }))
+        .unwrap_or_else(|e| {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic payload".to_string()
+            };
+            log::error!("[MXU] Custom action {} panicked: {}", MXU_WEBHOOK_ACTION, msg);
+            false
+        })
+    };
+
+    resource.register_custom_action(
+        MXU_WEBHOOK_ACTION,
+        Box::new(FnAction::new(webhook_wrapper)),
+    )?;
+
+    if let Err(e) = resource.register_custom_action(
+        MXU_WEBHOOK_ACTION,
+        Box::new(FnAction::new(webhook_wrapper)),
+    ) {
+        warn!("[MXU] Failed to register {}: {:?}", MXU_WEBHOOK_ACTION, e);
+        failed_count += 1;
+    } else {
+        info!(
+            "[MXU] Custom action {} registered successfully",
+            MXU_WEBHOOK_ACTION
+        );
+    }
+
+    // kill process
 
     let killproc_app_handle = app_handle.clone();
     let killproc_instance_id = instance_id.to_string();

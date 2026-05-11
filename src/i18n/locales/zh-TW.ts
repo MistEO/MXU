@@ -164,6 +164,8 @@ export default {
       optionLabel: '請求設定',
       urlLabel: '請求地址',
       urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      bodyLabel: '請求本體',
+      bodyPlaceholder: '若為空，則 GET。若非空，則 POST + text/plain。可以使用模板變數 {{STATUS}} 嵌入執行狀態（JSON 陣列）。'
     },
     killProc: {
       label: '⛔ 結束程序',

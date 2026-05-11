@@ -170,6 +170,8 @@ export default {
       optionLabel: 'Request Settings',
       urlLabel: 'Request URL',
       urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+      bodyLabel: 'Request Body',
+      bodyPlaceholder: 'If empty, use GET. If not empty, use POST + text/plain. You can use the template variable {{STATUS}} to embed the execution status (JSON array).'
     },
     killProc: {
       label: '⛔ Kill Process',

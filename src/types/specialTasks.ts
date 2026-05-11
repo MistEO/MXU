@@ -326,11 +326,19 @@ const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
       pipeline_type: 'string',
       placeholder: 'specialTask.webhook.urlPlaceholder',
     },
+    {
+      name: 'body',
+      label: 'specialTask.webhook.bodyLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.bodyPlaceholder',
+    },
   ],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       custom_action_param: {
         url: '{url}',
+        body: '{body}',
       },
     },
   },

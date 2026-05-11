@@ -167,6 +167,8 @@ export default {
       optionLabel: '요청 설정',
       urlLabel: '요청 URL',
       urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
+      bodyLabel: '요청 본문',
+      bodyPlaceholder: '비어 있으면 GET입니다. 비어 있지 않으면 POST + text/plain입니다. 템플릿 변수 {{STATUS}}를 사용하여 실행 상태(JSON 배열)를 삽입할 수 있습니다.'
     },
     killProc: {
       label: '⛔ 프로세스 종료',

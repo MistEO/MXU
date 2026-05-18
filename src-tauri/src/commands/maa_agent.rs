@@ -23,6 +23,7 @@ use super::types::{AgentConfig, MaaState, TaskConfig};
 use super::utils::{emit_callback_event, get_logs_dir, handle_task_callback, normalize_path};
 use regex::Regex;
 use std::sync::LazyLock;
+use std::time::{Duration, Instant};
 
 /// Agent 输出事件载荷
 #[derive(Clone, serde::Serialize)]
@@ -30,6 +31,135 @@ pub struct AgentOutputEvent {
     pub instance_id: String,
     pub stream: String,
     pub line: String,
+}
+
+struct AgentOutputBatchState {
+    lines: Vec<String>,
+    first_stream: Option<String>,
+    has_mixed_streams: bool,
+    flush_deadline: Option<Instant>,
+    flush_running: bool,
+}
+
+struct AgentOutputBatcher {
+    app: tauri::AppHandle,
+    instance_id: String,
+    state: Mutex<AgentOutputBatchState>,
+}
+
+impl AgentOutputBatcher {
+    fn new(app: tauri::AppHandle, instance_id: String) -> Arc<Self> {
+        Arc::new(Self {
+            app,
+            instance_id,
+            state: Mutex::new(AgentOutputBatchState {
+                lines: Vec::new(),
+                first_stream: None,
+                has_mixed_streams: false,
+                flush_deadline: None,
+                flush_running: false,
+            }),
+        })
+    }
+
+    fn enqueue(self: &Arc<Self>, stream: &str, line: &str) {
+        let should_spawn = {
+            let mut state = self.state.lock().unwrap();
+            state.lines.push(line.to_string());
+            match state.first_stream.as_ref() {
+                None => state.first_stream = Some(stream.to_string()),
+                Some(existing) if existing != stream => state.has_mixed_streams = true,
+                _ => {}
+            }
+            state.flush_deadline = Some(Instant::now() + Duration::from_millis(1));
+
+            if state.flush_running {
+                false
+            } else {
+                state.flush_running = true;
+                true
+            }
+        };
+
+        if should_spawn {
+            let batcher = Arc::clone(self);
+            thread::spawn(move || batcher.flush_loop());
+        }
+    }
+
+    fn flush_loop(self: Arc<Self>) {
+        loop {
+            let deadline = {
+                let state = self.state.lock().unwrap();
+                match state.flush_deadline {
+                    Some(deadline) => deadline,
+                    None => {
+                        drop(state);
+                        self.finish_flush_loop();
+                        return;
+                    }
+                }
+            };
+
+            let now = Instant::now();
+            if deadline > now {
+                thread::sleep(deadline.duration_since(now));
+                continue;
+            }
+
+            let payload = {
+                let mut state = self.state.lock().unwrap();
+                match state.flush_deadline {
+                    Some(current_deadline) if Instant::now() >= current_deadline => {
+                        if state.lines.is_empty() {
+                            state.flush_deadline = None;
+                            state.flush_running = false;
+                            None
+                        } else {
+                            let merged_line = state.lines.join("\n");
+                            state.lines.clear();
+                            let stream = if state.has_mixed_streams {
+                                "mixed".to_string()
+                            } else {
+                                state
+                                    .first_stream
+                                    .take()
+                                    .unwrap_or_else(|| "stdout".to_string())
+                            };
+                            state.has_mixed_streams = false;
+                            state.flush_deadline = None;
+                            Some((stream, merged_line))
+                        }
+                    }
+                    Some(_) => continue,
+                    None => {
+                        state.flush_running = false;
+                        None
+                    }
+                }
+            };
+
+            match payload {
+                Some((stream, merged_line)) => {
+                    emit_agent_output(&self.app, &self.instance_id, &stream, &merged_line);
+                }
+                None => {
+                    let should_exit = {
+                        let state = self.state.lock().unwrap();
+                        !state.flush_running
+                    };
+                    if should_exit {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    fn finish_flush_loop(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.flush_running = false;
+    }
 }
 
 /// 发送 Agent 输出事件（Tauri WebView + WebSocket 浏览器客户端）
@@ -251,13 +381,13 @@ async fn start_single_agent(
         let log_filename = format!("mxu-agent-{}-{}.log", agent_index, pid);
         let agent_log_path = Arc::new(get_logs_dir().join(&log_filename));
         let log_file: Arc<Mutex<Option<std::fs::File>>> = Arc::new(Mutex::new(None));
+        let output_batcher = AgentOutputBatcher::new(app.clone(), instance_id.clone());
 
         // 在单独线程中读取 stdout
         if let Some(stdout) = child.stdout.take() {
             let lf = log_file.clone();
             let lf_path = agent_log_path.clone();
-            let app_handle = app.clone();
-            let inst_id = instance_id.clone();
+            let batcher = output_batcher.clone();
             thread::spawn(move || {
                 let mut reader = BufReader::new(stdout);
                 let mut buffer = Vec::new();
@@ -282,7 +412,7 @@ async fn start_single_agent(
                                 }
                             }
                             info!(target: "agent", "[agent#{}][stdout] {}", agent_index, clean_line);
-                            emit_agent_output(&app_handle, &inst_id, "stdout", clean_line);
+                            batcher.enqueue("stdout", clean_line);
                         }
                         Err(_) => break,
                     }
@@ -294,8 +424,7 @@ async fn start_single_agent(
         if let Some(stderr) = child.stderr.take() {
             let lf = log_file.clone();
             let lf_path = agent_log_path.clone();
-            let app_handle = app.clone();
-            let inst_id = instance_id.clone();
+            let batcher = output_batcher.clone();
             thread::spawn(move || {
                 let mut reader = BufReader::new(stderr);
                 let mut buffer = Vec::new();
@@ -320,7 +449,7 @@ async fn start_single_agent(
                                 }
                             }
                             warn!(target: "agent", "[agent#{}][stderr] {}", agent_index, clean_line);
-                            emit_agent_output(&app_handle, &inst_id, "stderr", clean_line);
+                            batcher.enqueue("stderr", clean_line);
                         }
                         Err(_) => break,
                     }

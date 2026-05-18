@@ -24,7 +24,6 @@ const log = loggers.app;
 
 const AGENT_LOG_FLOOD_WINDOW_MS = 1000;
 const AGENT_LOG_FLOOD_THRESHOLD = 10;
-const AGENT_LOG_BATCH_WINDOW_MS = 10;
 
 // 每次会话只请求一次通知权限，避免多条 focus 消息重复弹权限弹窗
 let focusNotificationPermissionRequested = false;
@@ -555,13 +554,11 @@ export function useMaaAgentLogger() {
   const { t } = useTranslation();
   const { addLog } = useAppStore();
   const unlistenRef = useRef<(() => void) | null>(null);
-  const pendingAgentLogsRef = useRef<
+  const agentFloodStateRef = useRef<
     Map<
       string,
       {
-        lines: string[];
-        timer: ReturnType<typeof setTimeout> | null;
-        recentFlushTimestamps: number[];
+        recentTimestamps: number[];
         floodSuppressed: boolean;
         recoveryTimer: ReturnType<typeof setTimeout> | null;
         warningEmitted: boolean;
@@ -572,19 +569,17 @@ export function useMaaAgentLogger() {
   const pruneAgentFloodWindow = (timestamps: number[], now: number): number[] =>
     timestamps.filter((timestamp) => now - timestamp < AGENT_LOG_FLOOD_WINDOW_MS);
 
-  const ensureAgentBatchState = (instanceId: string) => {
-    const existing = pendingAgentLogsRef.current.get(instanceId);
+  const ensureAgentFloodState = (instanceId: string) => {
+    const existing = agentFloodStateRef.current.get(instanceId);
     if (existing) return existing;
 
     const created = {
-      lines: [] as string[],
-      timer: null as ReturnType<typeof setTimeout> | null,
-      recentFlushTimestamps: [] as number[],
+      recentTimestamps: [] as number[],
       floodSuppressed: false,
       recoveryTimer: null as ReturnType<typeof setTimeout> | null,
       warningEmitted: false,
     };
-    pendingAgentLogsRef.current.set(instanceId, created);
+    agentFloodStateRef.current.set(instanceId, created);
     return created;
   };
 
@@ -598,18 +593,18 @@ export function useMaaAgentLogger() {
   };
 
   const scheduleAgentRecoveryCheck = (instanceId: string) => {
-    const batch = pendingAgentLogsRef.current.get(instanceId);
+    const batch = agentFloodStateRef.current.get(instanceId);
     if (!batch) return;
 
     clearAgentRecoveryTimer(batch);
     batch.recoveryTimer = setTimeout(() => {
-      const currentBatch = pendingAgentLogsRef.current.get(instanceId);
+      const currentBatch = agentFloodStateRef.current.get(instanceId);
       if (!currentBatch) return;
 
       const now = Date.now();
-      currentBatch.recentFlushTimestamps = pruneAgentFloodWindow(currentBatch.recentFlushTimestamps, now);
+      currentBatch.recentTimestamps = pruneAgentFloodWindow(currentBatch.recentTimestamps, now);
 
-      if (currentBatch.recentFlushTimestamps.length < AGENT_LOG_FLOOD_THRESHOLD) {
+      if (currentBatch.recentTimestamps.length < AGENT_LOG_FLOOD_THRESHOLD) {
         if (currentBatch.floodSuppressed) {
           currentBatch.floodSuppressed = false;
           currentBatch.warningEmitted = false;
@@ -639,80 +634,45 @@ export function useMaaAgentLogger() {
       });
   };
 
-  const flushAgentLogBatch = (instanceId: string) => {
-    const batch = pendingAgentLogsRef.current.get(instanceId);
-    if (!batch) return;
-
-    if (batch.timer !== null) {
-      clearTimeout(batch.timer);
-      batch.timer = null;
-    }
-
-    const mergedLine = batch.lines.join('\n');
-    if (!mergedLine) return;
-
-    batch.lines = [];
-
-    const now = Date.now();
-    batch.recentFlushTimestamps = pruneAgentFloodWindow(batch.recentFlushTimestamps, now);
-    batch.recentFlushTimestamps.push(now);
-
-    if (batch.floodSuppressed) {
-      scheduleAgentRecoveryCheck(instanceId);
-      return;
-    }
-
-    if (batch.recentFlushTimestamps.length >= AGENT_LOG_FLOOD_THRESHOLD) {
-      batch.floodSuppressed = true;
-      if (!batch.warningEmitted) {
-        batch.warningEmitted = true;
-        addLog(instanceId, {
-          type: 'warning',
-          message: t('logs.messages.agentLogFloodWarning'),
-        });
-      }
-      scheduleAgentRecoveryCheck(instanceId);
-      return;
-    }
-
-    emitAgentLog(instanceId, mergedLine);
-
-    if (batch.recentFlushTimestamps.length > 0) {
-      scheduleAgentRecoveryCheck(instanceId);
-    }
-  };
-
-  const enqueueAgentLogLine = (instanceId: string, line: string) => {
-    const existing = ensureAgentBatchState(instanceId);
-    if (!existing) {
-      return;
-    }
-
-    existing.lines.push(line);
-    if (existing.timer !== null) {
-      clearTimeout(existing.timer);
-    }
-    existing.timer = setTimeout(() => {
-      flushAgentLogBatch(instanceId);
-    }, AGENT_LOG_BATCH_WINDOW_MS);
-
-    if (existing.floodSuppressed) {
-      scheduleAgentRecoveryCheck(instanceId);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
 
-    const handleAgentOutput = (instance_id: string, _stream: string, line: string) => {
+    const handleAgentOutput = (instanceId: string, _stream: string, line: string) => {
       if (cancelled) return;
-      enqueueAgentLogLine(instance_id, line);
+
+      const state = ensureAgentFloodState(instanceId);
+      const now = Date.now();
+      state.recentTimestamps = pruneAgentFloodWindow(state.recentTimestamps, now);
+
+      if (state.floodSuppressed) {
+        scheduleAgentRecoveryCheck(instanceId);
+        return;
+      }
+
+      state.recentTimestamps.push(now);
+      if (state.recentTimestamps.length >= AGENT_LOG_FLOOD_THRESHOLD) {
+        state.floodSuppressed = true;
+        if (!state.warningEmitted) {
+          state.warningEmitted = true;
+          addLog(instanceId, {
+            type: 'warning',
+            message: t('logs.messages.agentLogFloodWarning'),
+          });
+        }
+        scheduleAgentRecoveryCheck(instanceId);
+        return;
+      }
+
+      emitAgentLog(instanceId, line);
+
+      if (state.recentTimestamps.length > 0) {
+        scheduleAgentRecoveryCheck(instanceId);
+      }
     };
 
     const setupListener = async () => {
       try {
         if (isTauri()) {
-          // Tauri WebView：监听 Tauri 事件
           const { listen } = await import('@tauri-apps/api/event');
           const unlisten = await listen<{ instance_id: string; stream: string; line: string }>(
             'maa-agent-output',
@@ -728,7 +688,6 @@ export function useMaaAgentLogger() {
             unlistenRef.current = unlisten;
           }
         } else {
-          // 浏览器：通过 WebSocket 接收
           const unlisten = wsService.onAgentOutput(handleAgentOutput);
           if (cancelled) {
             unlisten();
@@ -750,17 +709,10 @@ export function useMaaAgentLogger() {
         unlistenRef.current = null;
       }
 
-      for (const [instanceId, batch] of pendingAgentLogsRef.current.entries()) {
-        if (batch.timer !== null) {
-          clearTimeout(batch.timer);
-          batch.timer = null;
-        }
+      for (const batch of agentFloodStateRef.current.values()) {
         clearAgentRecoveryTimer(batch);
-        if (!batch.floodSuppressed) {
-          flushAgentLogBatch(instanceId);
-        }
       }
-      pendingAgentLogsRef.current.clear();
+      agentFloodStateRef.current.clear();
     };
   }, [addLog, t]);
 }

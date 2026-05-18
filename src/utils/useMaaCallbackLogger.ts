@@ -22,6 +22,10 @@ import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
 
 const log = loggers.app;
 
+const AGENT_LOG_FLOOD_WINDOW_MS = 1000;
+const AGENT_LOG_FLOOD_THRESHOLD = 10;
+const AGENT_LOG_BATCH_WINDOW_MS = 10;
+
 // 每次会话只请求一次通知权限，避免多条 focus 消息重复弹权限弹窗
 let focusNotificationPermissionRequested = false;
 
@@ -548,6 +552,7 @@ function handleCallback(
  * 监听 Agent 输出事件
  */
 export function useMaaAgentLogger() {
+  const { t } = useTranslation();
   const { addLog } = useAppStore();
   const unlistenRef = useRef<(() => void) | null>(null);
   const pendingAgentLogsRef = useRef<
@@ -556,24 +561,70 @@ export function useMaaAgentLogger() {
       {
         lines: string[];
         timer: ReturnType<typeof setTimeout> | null;
+        recentFlushTimestamps: number[];
+        floodSuppressed: boolean;
+        recoveryTimer: ReturnType<typeof setTimeout> | null;
+        warningEmitted: boolean;
       }
     >
   >(new Map());
 
-  const flushAgentLogBatch = (instanceId: string) => {
+  const pruneAgentFloodWindow = (timestamps: number[], now: number): number[] =>
+    timestamps.filter((timestamp) => now - timestamp < AGENT_LOG_FLOOD_WINDOW_MS);
+
+  const ensureAgentBatchState = (instanceId: string) => {
+    const existing = pendingAgentLogsRef.current.get(instanceId);
+    if (existing) return existing;
+
+    const created = {
+      lines: [] as string[],
+      timer: null as ReturnType<typeof setTimeout> | null,
+      recentFlushTimestamps: [] as number[],
+      floodSuppressed: false,
+      recoveryTimer: null as ReturnType<typeof setTimeout> | null,
+      warningEmitted: false,
+    };
+    pendingAgentLogsRef.current.set(instanceId, created);
+    return created;
+  };
+
+  const clearAgentRecoveryTimer = (batch: {
+    recoveryTimer: ReturnType<typeof setTimeout> | null;
+  }) => {
+    if (batch.recoveryTimer !== null) {
+      clearTimeout(batch.recoveryTimer);
+      batch.recoveryTimer = null;
+    }
+  };
+
+  const scheduleAgentRecoveryCheck = (instanceId: string) => {
     const batch = pendingAgentLogsRef.current.get(instanceId);
     if (!batch) return;
 
-    if (batch.timer !== null) {
-      clearTimeout(batch.timer);
-      batch.timer = null;
-    }
+    clearAgentRecoveryTimer(batch);
+    batch.recoveryTimer = setTimeout(() => {
+      const currentBatch = pendingAgentLogsRef.current.get(instanceId);
+      if (!currentBatch) return;
 
-    pendingAgentLogsRef.current.delete(instanceId);
+      const now = Date.now();
+      currentBatch.recentFlushTimestamps = pruneAgentFloodWindow(currentBatch.recentFlushTimestamps, now);
 
-    const mergedLine = batch.lines.join('\n');
-    if (!mergedLine) return;
+      if (currentBatch.recentFlushTimestamps.length < AGENT_LOG_FLOOD_THRESHOLD) {
+        if (currentBatch.floodSuppressed) {
+          currentBatch.floodSuppressed = false;
+          currentBatch.warningEmitted = false;
+          addLog(instanceId, {
+            type: 'warning',
+            message: t('logs.messages.agentLogFloodRecovered'),
+          });
+        }
+      } else {
+        scheduleAgentRecoveryCheck(instanceId);
+      }
+    }, AGENT_LOG_FLOOD_WINDOW_MS);
+  };
 
+  const emitAgentLog = (instanceId: string, mergedLine: string) => {
     resolveFocusContent(mergedLine, {} as MaaCallbackDetails & Record<string, unknown>, instanceId)
       .then((resolved) => {
         addLog(instanceId, {
@@ -588,17 +639,52 @@ export function useMaaAgentLogger() {
       });
   };
 
-  const enqueueAgentLogLine = (instanceId: string, line: string) => {
-    const existing = pendingAgentLogsRef.current.get(instanceId);
-    if (!existing) {
-      const timer = setTimeout(() => {
-        flushAgentLogBatch(instanceId);
-      }, 1);
+  const flushAgentLogBatch = (instanceId: string) => {
+    const batch = pendingAgentLogsRef.current.get(instanceId);
+    if (!batch) return;
 
-      pendingAgentLogsRef.current.set(instanceId, {
-        lines: [line],
-        timer,
-      });
+    if (batch.timer !== null) {
+      clearTimeout(batch.timer);
+      batch.timer = null;
+    }
+
+    const mergedLine = batch.lines.join('\n');
+    if (!mergedLine) return;
+
+    batch.lines = [];
+
+    const now = Date.now();
+    batch.recentFlushTimestamps = pruneAgentFloodWindow(batch.recentFlushTimestamps, now);
+    batch.recentFlushTimestamps.push(now);
+
+    if (batch.floodSuppressed) {
+      scheduleAgentRecoveryCheck(instanceId);
+      return;
+    }
+
+    if (batch.recentFlushTimestamps.length >= AGENT_LOG_FLOOD_THRESHOLD) {
+      batch.floodSuppressed = true;
+      if (!batch.warningEmitted) {
+        batch.warningEmitted = true;
+        addLog(instanceId, {
+          type: 'warning',
+          message: t('logs.messages.agentLogFloodWarning'),
+        });
+      }
+      scheduleAgentRecoveryCheck(instanceId);
+      return;
+    }
+
+    emitAgentLog(instanceId, mergedLine);
+
+    if (batch.recentFlushTimestamps.length > 0) {
+      scheduleAgentRecoveryCheck(instanceId);
+    }
+  };
+
+  const enqueueAgentLogLine = (instanceId: string, line: string) => {
+    const existing = ensureAgentBatchState(instanceId);
+    if (!existing) {
       return;
     }
 
@@ -608,7 +694,11 @@ export function useMaaAgentLogger() {
     }
     existing.timer = setTimeout(() => {
       flushAgentLogBatch(instanceId);
-    }, 1);
+    }, AGENT_LOG_BATCH_WINDOW_MS);
+
+    if (existing.floodSuppressed) {
+      scheduleAgentRecoveryCheck(instanceId);
+    }
   };
 
   useEffect(() => {
@@ -660,10 +750,17 @@ export function useMaaAgentLogger() {
         unlistenRef.current = null;
       }
 
-      for (const instanceId of pendingAgentLogsRef.current.keys()) {
-        flushAgentLogBatch(instanceId);
+      for (const [instanceId, batch] of pendingAgentLogsRef.current.entries()) {
+        if (batch.timer !== null) {
+          clearTimeout(batch.timer);
+          batch.timer = null;
+        }
+        clearAgentRecoveryTimer(batch);
+        if (!batch.floodSuppressed) {
+          flushAgentLogBatch(instanceId);
+        }
       }
       pendingAgentLogsRef.current.clear();
     };
-  }, [addLog]);
+  }, [addLog, t]);
 }

@@ -459,6 +459,9 @@ export default {
       agentConnected: 'Agent가 연결되었습니다',
       agentDisconnected: 'Agent 연결이 끊어졌습니다',
       agentFailed: 'Agent 시작에 실패했습니다',
+      agentLogFloodWarning:
+        'Agent가 로그 폭주 상태입니다. 메모리 오버플로를 방지하기 위해 로그 수신을 중지했습니다. 자세한 내용은 로컬 로그 디렉터리의 mxu-agent-<index>-<pid>.log 파일 패턴을 확인하세요.',
+      agentLogFloodRecovered: 'Agent 로그 폭주가 완화되어 로그 수신을 다시 시작했습니다',
       // 단축키
       hotkeyDetected: '단축키 감지: {{combo}} ({{action}})',
       hotkeyActionStart: '작업 시작',

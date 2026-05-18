@@ -467,6 +467,9 @@ export default {
       agentConnected: 'Agent connected',
       agentDisconnected: 'Agent disconnected',
       agentFailed: 'Agent start failed',
+      agentLogFloodWarning:
+        'Agent is in a log flood state. To avoid out-of-memory, log reception has been stopped. Please check the local log directory for the mxu-agent-<index>-<pid>.log file pattern.',
+      agentLogFloodRecovered: 'Agent log flood has eased and log reception has been resumed',
       // Hotkeys
       hotkeyDetected: 'Hotkey detected: {{combo}} ({{action}})',
       hotkeyActionStart: 'Start tasks',

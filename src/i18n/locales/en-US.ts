@@ -437,6 +437,7 @@ export default {
     autoscroll: 'Auto Scroll',
     noLogs: 'No logs',
     copyAll: 'Copy All',
+    showMoreLogs: 'Show more logs',
     expand: 'Expand panels above',
     collapse: 'Collapse panels above',
     scrollToLogs: 'View logs',

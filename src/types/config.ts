@@ -3,7 +3,7 @@
 import type { OptionValue, ActionConfig } from './interface';
 import type { AccentColor, CustomAccent } from '@/themes/types';
 
-export const DEFAULT_MAX_LOGS_PER_INSTANCE = 2000;
+export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
 
 // 定时执行策略
 export interface SchedulePolicy {

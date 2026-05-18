@@ -430,6 +430,7 @@ export default {
     autoscroll: '자동 스크롤',
     noLogs: '로그가 없습니다',
     copyAll: '모두 복사',
+    showMoreLogs: '로그 더 보기',
     expand: '상단 패널 펼치기',
     collapse: '상단 패널 접기',
     scrollToLogs: '로그 보기',

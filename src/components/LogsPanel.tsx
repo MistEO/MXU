@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eraser, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
@@ -11,6 +11,15 @@ import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getCurrentLogFileName } from '@/utils/logger';
 import { clearPersistedRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import { getAllLogsFromBackend } from '@/utils/logStdout';
+import {
+  loadPersistedRuntimeLogs,
+  mergeRuntimeLogs,
+} from '@/utils/runtimeLogPersistence';
+import type { LogEntry } from '@/stores/types';
+
+const DEFAULT_VISIBLE_LOG_LIMIT = 500;
+const EXPANDED_LOG_LIMIT = 2000;
 
 function formatLogTime(date: Date, locale?: string) {
   return date.toLocaleTimeString(locale || undefined, {
@@ -25,21 +34,51 @@ export function LogsPanel() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  const isFollowingTailRef = useRef(true);
+  const [visibleLogLimit, setVisibleLogLimit] = useState(DEFAULT_VISIBLE_LOG_LIMIT);
+  const [isAtTop, setIsAtTop] = useState(false);
+  const [isExpandingLogs, setIsExpandingLogs] = useState(false);
 
-  const { sidePanelExpanded, toggleSidePanelExpanded, activeInstanceId, instanceLogs, clearLogs } =
-    useAppStore();
+  const {
+    sidePanelExpanded,
+    toggleSidePanelExpanded,
+    activeInstanceId,
+    instanceLogs,
+    clearLogs,
+    setMaxLogsPerInstance,
+  } = useAppStore();
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   // 获取当前实例的日志
   const logs = activeInstanceId ? instanceLogs[activeInstanceId] || [] : [];
+  const visibleLogs = useMemo(() => logs.slice(-visibleLogLimit), [logs, visibleLogLimit]);
+  const canShowMoreLogs =
+    visibleLogLimit === DEFAULT_VISIBLE_LOG_LIMIT && visibleLogs.length === DEFAULT_VISIBLE_LOG_LIMIT;
+
+  useEffect(() => {
+    setVisibleLogLimit(DEFAULT_VISIBLE_LOG_LIMIT);
+    setIsAtTop(false);
+    isFollowingTailRef.current = true;
+  }, [activeInstanceId]);
 
   useEffect(() => {
     const el = logsContainerRef.current;
-    if (el) {
+    if (el && isFollowingTailRef.current) {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
-  }, [logs]);
+  }, [visibleLogs]);
+
+  const handleLogsScroll = useCallback(() => {
+    const el = logsContainerRef.current;
+    if (!el) return;
+
+    const top = el.scrollTop <= 4;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
+
+    setIsAtTop(top);
+    isFollowingTailRef.current = bottom;
+  }, []);
 
   const clearLogFiles = useCallback(async () => {
     if (!isTauri()) return;
@@ -61,11 +100,51 @@ export function LogsPanel() {
   }, [activeInstanceId, clearLogFiles, clearLogs]);
 
   const handleCopyAll = useCallback(() => {
-    const text = logs
+    const text = visibleLogs
       .map((log) => `[${log.timestamp.toLocaleTimeString()}] ${log.message}`)
       .join('\n');
     navigator.clipboard.writeText(text);
-  }, [logs]);
+  }, [visibleLogs]);
+
+  const handleShowMoreLogs = useCallback(() => {
+    if (isExpandingLogs) return;
+
+    const targetLimit = EXPANDED_LOG_LIMIT;
+    setIsExpandingLogs(true);
+
+    void (async () => {
+      try {
+        const backendLogs = await getAllLogsFromBackend();
+        const restoredBackendLogs: Record<string, LogEntry[]> = {};
+        for (const [instanceId, entries] of Object.entries(backendLogs || {})) {
+          restoredBackendLogs[instanceId] = entries.map((entry) => ({
+            id: entry.id,
+            timestamp: new Date(entry.timestamp),
+            type: entry.type as LogType,
+            message: entry.message,
+            html: entry.html,
+          }));
+        }
+
+        const store = useAppStore.getState();
+        const restoredPersistentLogs = loadPersistedRuntimeLogs(targetLimit);
+        const mergedLogs = mergeRuntimeLogs(
+          targetLimit,
+          store.instanceLogs,
+          restoredBackendLogs,
+          restoredPersistentLogs,
+        );
+
+        useAppStore.setState({ instanceLogs: mergedLogs });
+        setMaxLogsPerInstance(targetLimit);
+        setVisibleLogLimit(targetLimit);
+      } catch {
+        // Rehydration failed; keep the 500-line window and allow retry.
+      } finally {
+        setIsExpandingLogs(false);
+      }
+    })();
+  }, [isExpandingLogs, setMaxLogsPerInstance]);
 
   const getLogColor = (type: LogType) => {
     switch (type) {
@@ -223,15 +302,33 @@ export function LogsPanel() {
       <div
         ref={logsContainerRef}
         className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-5 bg-bg-tertiary"
+        onScroll={handleLogsScroll}
         onContextMenu={handleContextMenu}
       >
-        {logs.length === 0 ? (
+        {visibleLogs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-text-muted">
             {t('logs.noLogs')}
           </div>
         ) : (
           <>
-            {logs.map((log) =>
+            {canShowMoreLogs && isAtTop && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={handleShowMoreLogs}
+                  disabled={isExpandingLogs}
+                  className={clsx(
+                    'px-4 py-2 rounded-full border border-border',
+                    'bg-bg-secondary text-text-primary shadow-sm',
+                    'hover:bg-bg-hover hover:border-accent/50 transition-colors',
+                    isExpandingLogs && 'opacity-60 cursor-not-allowed',
+                  )}
+                >
+                  {t('logs.showMoreLogs')}
+                </button>
+              </div>
+            )}
+            {visibleLogs.map((log) =>
               log.html ? (
                 // 富文本内容（focus 消息支持 Markdown/HTML）
                 <div

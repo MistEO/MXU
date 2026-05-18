@@ -422,6 +422,7 @@ export default {
     autoscroll: '自動捲動',
     noLogs: '暫無日誌',
     copyAll: '複製全部',
+    showMoreLogs: '顯示更多日誌',
     expand: '展開上方面板',
     collapse: '摺疊上方面板',
     scrollToLogs: '查看日誌',

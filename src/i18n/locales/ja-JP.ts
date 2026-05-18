@@ -433,6 +433,7 @@ export default {
     autoscroll: '自動スクロール',
     noLogs: 'ログがありません',
     copyAll: 'すべてコピー',
+    showMoreLogs: 'さらにログを表示',
     expand: '上部パネルを展開',
     collapse: '上部パネルを折りたたむ',
     scrollToLogs: 'ログを表示',

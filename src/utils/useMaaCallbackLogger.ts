@@ -550,27 +550,73 @@ function handleCallback(
 export function useMaaAgentLogger() {
   const { addLog } = useAppStore();
   const unlistenRef = useRef<(() => void) | null>(null);
+  const pendingAgentLogsRef = useRef<
+    Map<
+      string,
+      {
+        lines: string[];
+        timer: ReturnType<typeof setTimeout> | null;
+      }
+    >
+  >(new Map());
+
+  const flushAgentLogBatch = (instanceId: string) => {
+    const batch = pendingAgentLogsRef.current.get(instanceId);
+    if (!batch) return;
+
+    if (batch.timer !== null) {
+      clearTimeout(batch.timer);
+      batch.timer = null;
+    }
+
+    pendingAgentLogsRef.current.delete(instanceId);
+
+    const mergedLine = batch.lines.join('\n');
+    if (!mergedLine) return;
+
+    resolveFocusContent(mergedLine, {} as MaaCallbackDetails & Record<string, unknown>, instanceId)
+      .then((resolved) => {
+        addLog(instanceId, {
+          type: 'agent',
+          message: resolved.message,
+          html: resolved.html,
+        });
+      })
+      .catch((err) => {
+        log.warn('Failed to resolve agent content:', err);
+        addLog(instanceId, { type: 'agent', message: mergedLine });
+      });
+  };
+
+  const enqueueAgentLogLine = (instanceId: string, line: string) => {
+    const existing = pendingAgentLogsRef.current.get(instanceId);
+    if (!existing) {
+      const timer = setTimeout(() => {
+        flushAgentLogBatch(instanceId);
+      }, 1);
+
+      pendingAgentLogsRef.current.set(instanceId, {
+        lines: [line],
+        timer,
+      });
+      return;
+    }
+
+    existing.lines.push(line);
+    if (existing.timer !== null) {
+      clearTimeout(existing.timer);
+    }
+    existing.timer = setTimeout(() => {
+      flushAgentLogBatch(instanceId);
+    }, 1);
+  };
 
   useEffect(() => {
     let cancelled = false;
 
     const handleAgentOutput = (instance_id: string, _stream: string, line: string) => {
       if (cancelled) return;
-
-      resolveFocusContent(line, {} as MaaCallbackDetails & Record<string, unknown>, instance_id)
-        .then((resolved) => {
-          if (cancelled) return;
-          addLog(instance_id, {
-            type: 'agent',
-            message: resolved.message,
-            html: resolved.html,
-          });
-        })
-        .catch((err) => {
-          log.warn('Failed to resolve agent content:', err);
-          if (cancelled) return;
-          addLog(instance_id, { type: 'agent', message: line });
-        });
+      enqueueAgentLogLine(instance_id, line);
     };
 
     const setupListener = async () => {
@@ -613,6 +659,11 @@ export function useMaaAgentLogger() {
         unlistenRef.current();
         unlistenRef.current = null;
       }
+
+      for (const instanceId of pendingAgentLogsRef.current.keys()) {
+        flushAgentLogBatch(instanceId);
+      }
+      pendingAgentLogsRef.current.clear();
     };
   }, [addLog]);
 }

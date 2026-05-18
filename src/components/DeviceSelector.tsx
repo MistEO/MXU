@@ -286,7 +286,7 @@ export function DeviceSelector({
         deviceName = playcoverAddress;
         targetType = 'device';
       }
-      registerCtrlIdName(ctrlId, deviceName, targetType);
+      registerCtrlIdName(instanceId, ctrlId, deviceName, targetType);
 
       // 记录等待中的 ctrl_id，后续由回调处理完成状态
       setPendingCtrlId(ctrlId);
@@ -356,7 +356,7 @@ export function DeviceSelector({
       const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与设备名/类型的映射
-      registerCtrlIdName(ctrlId, device.name || device.address, 'device');
+      registerCtrlIdName(instanceId, ctrlId, device.name || device.address, 'device');
 
       // 记录等待中的 ctrl_id，后续由回调处理完成状态
       setPendingCtrlId(ctrlId);
@@ -407,7 +407,7 @@ export function DeviceSelector({
       const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与窗口名/类型的映射
-      registerCtrlIdName(ctrlId, win.window_name || win.class_name, 'window');
+      registerCtrlIdName(instanceId, ctrlId, win.window_name || win.class_name, 'window');
 
       // 记录等待中的 ctrl_id，后续由回调处理完成状态
       setPendingCtrlId(ctrlId);
@@ -446,7 +446,7 @@ export function DeviceSelector({
       const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与窗口名/类型的映射
-      registerCtrlIdName(ctrlId, socketPath, 'device');
+      registerCtrlIdName(instanceId, ctrlId, socketPath, 'device');
 
       // 记录等待中的 ctrl_id，后续由回调处理完成状态
       setPendingCtrlId(ctrlId);

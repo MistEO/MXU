@@ -440,6 +440,10 @@ pub fn destroy_instance_impl(state: &Arc<MaaState>, instance_id: &str) -> Result
         }
     }
 
+    if let Ok(mut log_buffer) = state.log_buffer.lock() {
+        log_buffer.clear_instance(instance_id);
+    }
+
     Ok(())
 }
 

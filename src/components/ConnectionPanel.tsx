@@ -508,7 +508,7 @@ export function ConnectionPanel() {
     const ctrlId = await maaService.connectController(instanceId, config);
 
     // 注册 ctrl_id 与设备/窗口名及类型的映射，用于日志显示
-    registerCtrlIdName(ctrlId, deviceName || '', targetType);
+    registerCtrlIdName(instanceId, ctrlId, deviceName || '', targetType);
 
     // 等待连接结果（先查缓存，没有则轮询等待）
     const result = await waitForCtrlResult(ctrlId);

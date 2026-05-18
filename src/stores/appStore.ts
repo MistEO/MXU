@@ -361,7 +361,9 @@ export const useAppStore = create<AppState>()(
       return id;
     },
 
-    removeInstance: (id) =>
+    removeInstance: (id) => {
+      get().clearControllerRuntimeState(id);
+
       set((state) => {
         const instanceToClose = state.instances.find((i) => i.id === id);
         const newInstances = state.instances.filter((i) => i.id !== id);
@@ -411,7 +413,8 @@ export const useAppStore = create<AppState>()(
           recentlyClosed: newRecentlyClosed,
           ...autoStartUpdate,
         };
-      }),
+      });
+    },
 
     setActiveInstance: (id) => set({ activeInstanceId: id }),
 
@@ -1273,13 +1276,19 @@ export const useAppStore = create<AppState>()(
     instanceCurrentTaskId: {},
     instanceTaskStatus: {},
 
-    setInstanceConnectionStatus: (instanceId, status) =>
+    setInstanceConnectionStatus: (instanceId, status) => {
+      const previousStatus = get().instanceConnectionStatus[instanceId];
+      if (previousStatus === 'Connected' && status === 'Disconnected') {
+        get().clearControllerRuntimeState(instanceId);
+      }
+
       set((state) => ({
         instanceConnectionStatus: {
           ...state.instanceConnectionStatus,
           [instanceId]: status,
         },
-      })),
+      }));
+    },
 
     setInstanceResourceLoaded: (instanceId, loaded) =>
       set((state) => ({
@@ -1850,23 +1859,60 @@ export const useAppStore = create<AppState>()(
 
     clearTaskRunStatus: (instanceId) => {
       set((state) => ({
-        instanceTaskRunStatus: {
-          ...state.instanceTaskRunStatus,
-          [instanceId]: {},
-        },
-        maaTaskIdMapping: {
-          ...state.maaTaskIdMapping,
-          [instanceId]: {},
-        },
-        instancePendingTaskIds: {
-          ...state.instancePendingTaskIds,
-          [instanceId]: [],
-        },
-        instanceCurrentTaskIndex: {
-          ...state.instanceCurrentTaskIndex,
-          [instanceId]: 0,
-        },
+        instanceTaskRunStatus: Object.fromEntries(
+          Object.entries(state.instanceTaskRunStatus).filter(([id]) => id !== instanceId),
+        ),
+        maaTaskIdMapping: Object.fromEntries(
+          Object.entries(state.maaTaskIdMapping).filter(([id]) => id !== instanceId),
+        ),
+        instancePendingTaskIds: Object.fromEntries(
+          Object.entries(state.instancePendingTaskIds).filter(([id]) => id !== instanceId),
+        ),
+        instanceCurrentTaskIndex: Object.fromEntries(
+          Object.entries(state.instanceCurrentTaskIndex).filter(([id]) => id !== instanceId),
+        ),
       }));
+    },
+
+    clearControllerRuntimeState: (instanceId) => {
+      get().clearLogs(instanceId);
+      get().clearTaskRunStatus(instanceId);
+
+      set((state) => {
+        const trackedCtrlIds = state.instanceCtrlIds[instanceId] ?? [];
+        const nextCtrlIdToName = { ...state.ctrlIdToName };
+        const nextCtrlIdToType = { ...state.ctrlIdToType };
+
+        for (const ctrlId of trackedCtrlIds) {
+          delete nextCtrlIdToName[ctrlId];
+          delete nextCtrlIdToType[ctrlId];
+        }
+
+        const { [instanceId]: _removedCtrlIds, ...restInstanceCtrlIds } = state.instanceCtrlIds;
+        const { [instanceId]: _removedConnectionStatus, ...restConnectionStatus } =
+          state.instanceConnectionStatus;
+        const { [instanceId]: _removedResourceLoaded, ...restResourceLoaded } =
+          state.instanceResourceLoaded;
+        const { [instanceId]: _removedCurrentTaskId, ...restCurrentTaskId } =
+          state.instanceCurrentTaskId;
+        const { [instanceId]: _removedTaskStatus, ...restTaskStatus } = state.instanceTaskStatus;
+
+        return {
+          ctrlIdToName: nextCtrlIdToName,
+          ctrlIdToType: nextCtrlIdToType,
+          instanceCtrlIds: restInstanceCtrlIds,
+          instanceConnectionStatus: restConnectionStatus,
+          instanceResourceLoaded: restResourceLoaded,
+          instanceCurrentTaskId: restCurrentTaskId,
+          instanceTaskStatus: restTaskStatus,
+          instanceScreenshotStreaming: Object.fromEntries(
+            Object.entries(state.instanceScreenshotStreaming).filter(([id]) => id !== instanceId),
+          ),
+          scheduleExecutions: Object.fromEntries(
+            Object.entries(state.scheduleExecutions).filter(([id]) => id !== instanceId),
+          ),
+        };
+      });
     },
 
     // 定时执行状态
@@ -1943,15 +1989,20 @@ export const useAppStore = create<AppState>()(
     // 回调 ID 与名称的映射
     ctrlIdToName: {},
     ctrlIdToType: {},
+    instanceCtrlIds: {},
     resIdToName: {},
     resBatchInfo: {},
     taskIdToName: {},
     entryToTaskName: {},
 
-    registerCtrlIdName: (ctrlId, name, type) =>
+    registerCtrlIdName: (instanceId, ctrlId, name, type) =>
       set((state) => ({
         ctrlIdToName: { ...state.ctrlIdToName, [ctrlId]: name },
         ctrlIdToType: { ...state.ctrlIdToType, [ctrlId]: type },
+        instanceCtrlIds: {
+          ...state.instanceCtrlIds,
+          [instanceId]: Array.from(new Set([...(state.instanceCtrlIds[instanceId] ?? []), ctrlId])),
+        },
       })),
 
     registerResIdName: (resId, name) =>

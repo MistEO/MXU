@@ -67,7 +67,7 @@ export function useDeviceConnection({
       await startGlobalCallbackListener();
       const ctrlId = await maaService.connectController(instanceId, config);
 
-      registerCtrlIdName(ctrlId, deviceName || '', targetType);
+      registerCtrlIdName(instanceId, ctrlId, deviceName || '', targetType);
 
       const result = await waitForCtrlResult(ctrlId);
 

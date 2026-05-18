@@ -462,15 +462,22 @@ export interface AppState {
   instanceLogs: Record<string, LogEntry[]>;
   addLog: (instanceId: string, log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   clearLogs: (instanceId: string) => void;
+  clearControllerRuntimeState: (instanceId: string) => void;
 
   // 回调 ID 与名称的映射
   ctrlIdToName: Record<number, string>;
   ctrlIdToType: Record<number, 'device' | 'window'>;
+  instanceCtrlIds: Record<string, number[]>;
   resIdToName: Record<number, string>;
   resBatchInfo: Record<number, { isFirst: boolean; isLast: boolean }>;
   taskIdToName: Record<number, string>;
   entryToTaskName: Record<string, string>;
-  registerCtrlIdName: (ctrlId: number, name: string, type: 'device' | 'window') => void;
+  registerCtrlIdName: (
+    instanceId: string,
+    ctrlId: number,
+    name: string,
+    type: 'device' | 'window',
+  ) => void;
   registerResIdName: (resId: number, name: string) => void;
   registerResBatch: (resIds: number[]) => void;
   registerTaskIdName: (taskId: number, name: string) => void;

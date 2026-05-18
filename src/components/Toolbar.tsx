@@ -803,7 +803,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           }
 
           // 注册 ctrl_id 与设备名/类型的映射
-          registerCtrlIdName(ctrlId, deviceName, targetType);
+          registerCtrlIdName(targetId, ctrlId, deviceName, targetType);
 
           // 等待连接完成（同时监听 maa-callback 和 state-changed 两条路径）
           const connectResult = await new Promise<boolean>((resolve) => {

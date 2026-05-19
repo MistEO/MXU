@@ -35,6 +35,7 @@ export function LogsPanel() {
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const isFollowingTailRef = useRef(true);
+  const autoScrollFrameRef = useRef<number | null>(null);
   const [visibleLogLimit, setVisibleLogLimit] = useState(DEFAULT_VISIBLE_LOG_LIMIT);
   const [isAtTop, setIsAtTop] = useState(false);
   const [isExpandingLogs, setIsExpandingLogs] = useState(false);
@@ -63,9 +64,28 @@ export function LogsPanel() {
   }, [activeInstanceId]);
 
   useEffect(() => {
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+
     const el = logsContainerRef.current;
-    if (el && isFollowingTailRef.current) {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    if (!el || !isFollowingTailRef.current) return;
+
+    autoScrollFrameRef.current = window.requestAnimationFrame(() => {
+      autoScrollFrameRef.current = null;
+      const target = logsContainerRef.current;
+      if (!target || !isFollowingTailRef.current) return;
+
+      // 只在一帧内合并为一次滚动，避免日志洪峰时反复重启动画导致抖动
+      target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' });
+    });
+
+    return () => {
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
     }
   }, [visibleLogs]);
 

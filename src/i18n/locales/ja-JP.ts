@@ -464,8 +464,8 @@ export default {
       agentDisconnected: 'Agent が切断しました',
       agentFailed: 'Agent の起動に失敗しました',
       agentLogFloodWarning:
-        'Agent がログスパム状態です。メモリ枯渇を防ぐためログ受信を停止しました。詳細はローカルのログディレクトリにある mxu-agent-<index>-<pid>.log のファイルパターンを確認してください。',
-      agentLogFloodRecovered: 'Agent のログスパムが緩和されたため、ログ受信を再開しました',
+        'Agent がログスパム状態です。性能問題を避けるためログ表示を一時停止しました。完全なログはローカルのログディレクトリにある mxu-agent ファイルで確認できます。',
+      agentLogFloodRecovered: 'Agent のログスパムが緩和されました',
       // ショートカットキー
       hotkeyDetected: 'ショートカットキーを検出: {{combo}}（{{action}}）',
       hotkeyActionStart: 'タスク開始',

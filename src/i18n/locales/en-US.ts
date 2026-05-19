@@ -468,7 +468,7 @@ export default {
       agentDisconnected: 'Agent disconnected',
       agentFailed: 'Agent start failed',
       agentLogFloodWarning:
-        'Agent is in a log flood state. To avoid performance issues, log display has been paused. The complete log is available in the local log directory in the mxu-agent file.',
+        'Agent is in a log flood state. To avoid performance issues, log display has been paused. The complete log is available in the local log file.',
       agentLogFloodRecovered: 'Agent log flood has eased',
       // Hotkeys
       hotkeyDetected: 'Hotkey detected: {{combo}} ({{action}})',

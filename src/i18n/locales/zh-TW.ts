@@ -452,7 +452,7 @@ export default {
       agentDisconnected: 'Agent 已中斷',
       agentFailed: 'Agent 啟動失敗',
       agentLogFloodWarning:
-        'Agent 處於日誌風暴狀態，為避免效能問題已暫停顯示日誌，完整日誌可在本機日誌目錄中的 mxu-agent 檔案中查看',
+        'Agent 處於日誌風暴狀態，為避免效能問題已暫停顯示日誌，完整日誌可在本機日誌檔案中查看',
       agentLogFloodRecovered: 'Agent 日誌風暴狀態已緩解',
       // 快捷鍵
       hotkeyDetected: '偵測到快捷鍵: {{combo}}（{{action}}）',

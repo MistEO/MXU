@@ -456,7 +456,7 @@ export default {
       agentDisconnected: 'Agent 已断开',
       agentFailed: 'Agent 启动失败',
       agentLogFloodWarning:
-        'Agent 处于日志风暴状态，为避免性能问题已暂停显示日志，完整日志可在本地日志目录中的 mxu-agent 文件中查看',
+        'Agent 处于日志风暴状态，为避免性能问题已暂停显示日志，完整日志可在本地日志文件中查看',
       agentLogFloodRecovered: 'Agent 日志风暴状态已缓解',
       // 快捷键
       hotkeyDetected: '检测到快捷键: {{combo}}（{{action}}）',

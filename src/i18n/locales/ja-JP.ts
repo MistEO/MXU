@@ -463,7 +463,7 @@ export default {
       agentDisconnected: 'Agent が切断しました',
       agentFailed: 'Agent の起動に失敗しました',
       agentLogFloodWarning:
-        'Agent がログスパム状態です。性能問題を避けるためログ表示を一時停止しました。完全なログはローカルのログディレクトリにある mxu-agent ファイルで確認できます。',
+        'Agent がログスパム状態です。性能問題を避けるためログ表示を一時停止しました。完全なログはローカルのログファイルで確認できます。',
       agentLogFloodRecovered: 'Agent のログスパムが緩和されました',
       // ショートカットキー
       hotkeyDetected: 'ショートカットキーを検出: {{combo}}（{{action}}）',

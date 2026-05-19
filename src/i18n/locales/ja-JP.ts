@@ -429,7 +429,6 @@ export default {
   logs: {
     title: '実行ログ',
     clear: 'クリア',
-    autoClearOnLaunch: '起動時に自動クリア',
     autoscroll: '自動スクロール',
     noLogs: 'ログがありません',
     copyAll: 'すべてコピー',
@@ -470,10 +469,10 @@ export default {
       hotkeyDetected: 'ショートカットキーを検出: {{combo}}（{{action}}）',
       hotkeyActionStart: 'タスク開始',
       hotkeyActionStop: 'タスク停止',
-      hotkeyStartSuccess: 'ショートカットキーでタスク開始：成功',
-      hotkeyStartFailed: 'ショートカットキーでタスク開始：失敗',
-      hotkeyStopSuccess: 'ショートカットキーでタスク停止：成功',
-      hotkeyStopFailed: 'ショートカットキーでタスク停止：失敗',
+      hotkeyStartSuccess: 'ショートカットキーでタスクを開始しました：',
+      hotkeyStartFailed: 'ショートカットキーでタスクを開始できませんでした',
+      hotkeyStopSuccess: 'ショートカットキーでタスクを停止しました',
+      hotkeyStopFailed: 'ショートカットキーでタスクを停止できませんでした',
     },
   },
 

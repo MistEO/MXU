@@ -426,7 +426,6 @@ export default {
   logs: {
     title: '실행 로그',
     clear: '지우기',
-    autoClearOnLaunch: '시작 시 자동 지우기',
     autoscroll: '자동 스크롤',
     noLogs: '로그가 없습니다',
     copyAll: '모두 복사',
@@ -467,10 +466,10 @@ export default {
       hotkeyDetected: '단축키 감지: {{combo}} ({{action}})',
       hotkeyActionStart: '작업 시작',
       hotkeyActionStop: '작업 중지',
-      hotkeyStartSuccess: '단축키로 작업 시작: 성공',
-      hotkeyStartFailed: '단축키로 작업 시작: 실패',
-      hotkeyStopSuccess: '단축키로 작업 중지: 성공',
-      hotkeyStopFailed: '단축키로 작업 중지: 실패',
+      hotkeyStartSuccess: '단축키로 작업을 시작했습니다:',
+      hotkeyStartFailed: '단축키로 작업을 시작하지 못했습니다',
+      hotkeyStopSuccess: '단축키로 작업을 중지했습니다',
+      hotkeyStopFailed: '단축키로 작업을 중지하지 못했습니다',
     },
   },
 

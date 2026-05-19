@@ -418,7 +418,6 @@ export default {
   logs: {
     title: '執行日誌',
     clear: '清空',
-    autoClearOnLaunch: '啟動時自動清理',
     autoscroll: '自動捲動',
     noLogs: '暫無日誌',
     copyAll: '複製全部',
@@ -429,7 +428,7 @@ export default {
     // 日誌訊息
     messages: {
       // 連接訊息
-      connecting: '正在連接{{target}} ...',
+      connecting: '正在連接{{target}}...',
       connected: '{{target}}連接成功:',
       connectFailed: '{{target}}連接失敗:',
       targetDevice: '裝置',
@@ -456,13 +455,13 @@ export default {
         'Agent 處於日誌風暴狀態，為避免效能問題已暫停顯示日誌，完整日誌可在本機日誌目錄中的 mxu-agent 檔案中查看',
       agentLogFloodRecovered: 'Agent 日誌風暴狀態已緩解',
       // 快捷鍵
-      hotkeyDetected: '偵測到快捷鍵：{{combo}}（{{action}}）',
+      hotkeyDetected: '偵測到快捷鍵: {{combo}}（{{action}}）',
       hotkeyActionStart: '開始任務',
       hotkeyActionStop: '停止任務',
-      hotkeyStartSuccess: '快捷鍵開始任務：成功',
-      hotkeyStartFailed: '快捷鍵開始任務：失敗',
-      hotkeyStopSuccess: '快捷鍵停止任務：成功',
-      hotkeyStopFailed: '快捷鍵停止任務：失敗',
+      hotkeyStartSuccess: '透過快捷鍵開始任務：',
+      hotkeyStartFailed: '無法透過快捷鍵開始任務',
+      hotkeyStopSuccess: '透過快捷鍵停止任務',
+      hotkeyStopFailed: '無法透過快捷鍵停止任務',
     },
   },
 

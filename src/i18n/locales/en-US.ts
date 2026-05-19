@@ -433,7 +433,6 @@ export default {
   logs: {
     title: 'Logs',
     clear: 'Clear',
-    autoClearOnLaunch: 'Auto-clear on launch',
     autoscroll: 'Auto Scroll',
     noLogs: 'No logs',
     copyAll: 'Copy All',
@@ -475,10 +474,10 @@ export default {
       hotkeyDetected: 'Hotkey detected: {{combo}} ({{action}})',
       hotkeyActionStart: 'Start tasks',
       hotkeyActionStop: 'Stop tasks',
-      hotkeyStartSuccess: 'Hotkey start tasks: success',
-      hotkeyStartFailed: 'Hotkey start tasks: failed',
-      hotkeyStopSuccess: 'Hotkey stop tasks: success',
-      hotkeyStopFailed: 'Hotkey stop tasks: failed',
+      hotkeyStartSuccess: 'Started tasks via hotkey:',
+      hotkeyStartFailed: 'Failed to start tasks via hotkey',
+      hotkeyStopSuccess: 'Stopped tasks via hotkey',
+      hotkeyStopFailed: 'Failed to stop tasks via hotkey',
     },
   },
 

@@ -1,4 +1,4 @@
-import { Fragment, useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { Fragment, useRef, useEffect, useCallback, useState, useMemo, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eraser, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
@@ -20,6 +20,7 @@ import type { LogEntry } from '@/stores/types';
 
 const DEFAULT_VISIBLE_LOG_LIMIT = 500;
 const EXPANDED_LOG_LIMIT = 2000;
+const BOTTOM_FOLLOW_THRESHOLD_PX = 24;
 
 function formatLogTime(date: Date, locale?: string) {
   return date.toLocaleTimeString(locale || undefined, {
@@ -35,9 +36,6 @@ export function LogsPanel() {
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const isFollowingTailRef = useRef(true);
-  const autoScrollFrameRef = useRef<number | null>(null);
-  const autoScrollLockRef = useRef(false);
-  const autoScrollUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visibleLogLimit, setVisibleLogLimit] = useState(DEFAULT_VISIBLE_LOG_LIMIT);
   const [isAtTop, setIsAtTop] = useState(false);
   const [isExpandingLogs, setIsExpandingLogs] = useState(false);
@@ -63,68 +61,24 @@ export function LogsPanel() {
     setVisibleLogLimit(DEFAULT_VISIBLE_LOG_LIMIT);
     setIsAtTop(false);
     isFollowingTailRef.current = true;
-    autoScrollLockRef.current = false;
-    if (autoScrollUnlockTimerRef.current !== null) {
-      clearTimeout(autoScrollUnlockTimerRef.current);
-      autoScrollUnlockTimerRef.current = null;
-    }
   }, [activeInstanceId]);
 
-  useEffect(() => {
-    if (autoScrollFrameRef.current !== null) {
-      cancelAnimationFrame(autoScrollFrameRef.current);
-      autoScrollFrameRef.current = null;
-    }
-
+  useLayoutEffect(() => {
     const el = logsContainerRef.current;
     if (!el || !isFollowingTailRef.current) return;
 
-    autoScrollFrameRef.current = window.requestAnimationFrame(() => {
-      autoScrollFrameRef.current = null;
-      const target = logsContainerRef.current;
-      if (!target || !isFollowingTailRef.current) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom > BOTTOM_FOLLOW_THRESHOLD_PX) return;
 
-      autoScrollLockRef.current = true;
-      if (autoScrollUnlockTimerRef.current !== null) {
-        clearTimeout(autoScrollUnlockTimerRef.current);
-      }
-      autoScrollUnlockTimerRef.current = window.setTimeout(() => {
-        autoScrollLockRef.current = false;
-        autoScrollUnlockTimerRef.current = null;
-      }, 180);
-
-      // 只在一帧内合并为一次滚动，避免日志洪峰时反复重启动画导致抖动
-      target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' });
-    });
-
-    return () => {
-      if (autoScrollFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-        autoScrollFrameRef.current = null;
-      }
-    }
-  }, [visibleLogs]);
-
-  useEffect(() => {
-    return () => {
-      if (autoScrollUnlockTimerRef.current !== null) {
-        clearTimeout(autoScrollUnlockTimerRef.current);
-        autoScrollUnlockTimerRef.current = null;
-      }
-      autoScrollLockRef.current = false;
-    };
-  }, []);
+    el.scrollTop = el.scrollHeight;
+  }, [visibleLogs, visibleLogLimit]);
 
   const handleLogsScroll = useCallback(() => {
-    if (autoScrollLockRef.current) {
-      return;
-    }
-
     const el = logsContainerRef.current;
     if (!el) return;
 
     const top = el.scrollTop <= 4;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_FOLLOW_THRESHOLD_PX;
 
     setIsAtTop(top);
     isFollowingTailRef.current = bottom;

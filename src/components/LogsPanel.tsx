@@ -36,6 +36,8 @@ export function LogsPanel() {
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const isFollowingTailRef = useRef(true);
   const autoScrollFrameRef = useRef<number | null>(null);
+  const autoScrollLockRef = useRef(false);
+  const autoScrollUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visibleLogLimit, setVisibleLogLimit] = useState(DEFAULT_VISIBLE_LOG_LIMIT);
   const [isAtTop, setIsAtTop] = useState(false);
   const [isExpandingLogs, setIsExpandingLogs] = useState(false);
@@ -61,6 +63,11 @@ export function LogsPanel() {
     setVisibleLogLimit(DEFAULT_VISIBLE_LOG_LIMIT);
     setIsAtTop(false);
     isFollowingTailRef.current = true;
+    autoScrollLockRef.current = false;
+    if (autoScrollUnlockTimerRef.current !== null) {
+      clearTimeout(autoScrollUnlockTimerRef.current);
+      autoScrollUnlockTimerRef.current = null;
+    }
   }, [activeInstanceId]);
 
   useEffect(() => {
@@ -77,6 +84,15 @@ export function LogsPanel() {
       const target = logsContainerRef.current;
       if (!target || !isFollowingTailRef.current) return;
 
+      autoScrollLockRef.current = true;
+      if (autoScrollUnlockTimerRef.current !== null) {
+        clearTimeout(autoScrollUnlockTimerRef.current);
+      }
+      autoScrollUnlockTimerRef.current = window.setTimeout(() => {
+        autoScrollLockRef.current = false;
+        autoScrollUnlockTimerRef.current = null;
+      }, 180);
+
       // 只在一帧内合并为一次滚动，避免日志洪峰时反复重启动画导致抖动
       target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' });
     });
@@ -89,7 +105,21 @@ export function LogsPanel() {
     }
   }, [visibleLogs]);
 
+  useEffect(() => {
+    return () => {
+      if (autoScrollUnlockTimerRef.current !== null) {
+        clearTimeout(autoScrollUnlockTimerRef.current);
+        autoScrollUnlockTimerRef.current = null;
+      }
+      autoScrollLockRef.current = false;
+    };
+  }, []);
+
   const handleLogsScroll = useCallback(() => {
+    if (autoScrollLockRef.current) {
+      return;
+    }
+
     const el = logsContainerRef.current;
     if (!el) return;
 
@@ -267,7 +297,7 @@ export function LogsPanel() {
         )}
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -321,7 +351,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-5 bg-bg-tertiary"
+        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-4 bg-bg-tertiary"
         onScroll={handleLogsScroll}
         onContextMenu={handleContextMenu}
       >
@@ -358,11 +388,11 @@ export function LogsPanel() {
                       getLogColor(log.type),
                     )}
                   >
-                    <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    <span className="text-text-muted/90 w-[64px] flex-shrink-0 tabular-nums text-[11px] leading-4">
                       {formatLogTime(log.timestamp, i18n.language)}
                     </span>
                     <span
-                      className="min-w-0 flex-1 break-words leading-5 focus-content"
+                      className="min-w-0 flex-1 break-words leading-4 focus-content"
                       dangerouslySetInnerHTML={{ __html: log.html }}
                     />
                   </div>
@@ -373,10 +403,10 @@ export function LogsPanel() {
                       getLogColor(log.type),
                     )}
                   >
-                    <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                    <span className="text-text-muted/90 w-[64px] flex-shrink-0 tabular-nums text-[11px] leading-4">
                       {formatLogTime(log.timestamp, i18n.language)}
                     </span>
-                    <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
+                    <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-4">
                       {log.message}
                     </span>
                   </div>

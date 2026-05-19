@@ -22,8 +22,8 @@ import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
 
 const log = loggers.app;
 
-const AGENT_LOG_FLOOD_WINDOW_MS = 1000;
-const AGENT_LOG_FLOOD_THRESHOLD = 10;
+const AGENT_LOG_FLOOD_WINDOW_MS = 2000;
+const AGENT_LOG_FLOOD_THRESHOLD = 15;
 
 // 每次会话只请求一次通知权限，避免多条 focus 消息重复弹权限弹窗
 let focusNotificationPermissionRequested = false;

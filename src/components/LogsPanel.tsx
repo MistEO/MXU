@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { Fragment, useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eraser, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
@@ -328,43 +328,44 @@ export function LogsPanel() {
                 </button>
               </div>
             )}
-            {visibleLogs.map((log) =>
-              log.html ? (
-                // 富文本内容（focus 消息支持 Markdown/HTML）
-                <div
-                  key={log.id}
-                  className={clsx(
-                    'py-1.5 px-2 rounded-md flex items-start gap-3',
-                    'odd:bg-black/0 even:bg-black/5',
-                    getLogColor(log.type),
-                  )}
-                >
-                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
-                    {formatLogTime(log.timestamp, i18n.language)}
-                  </span>
-                  <span
-                    className="min-w-0 flex-1 break-words leading-5 focus-content"
-                    dangerouslySetInnerHTML={{ __html: log.html }}
-                  />
-                </div>
-              ) : (
-                <div
-                  key={log.id}
-                  className={clsx(
-                    'py-1.5 px-2 rounded-md flex items-start gap-3',
-                    'odd:bg-black/0 even:bg-black/5',
-                    getLogColor(log.type),
-                  )}
-                >
-                  <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
-                    {formatLogTime(log.timestamp, i18n.language)}
-                  </span>
-                  <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
-                    {log.message}
-                  </span>
-                </div>
-              ),
-            )}
+            {visibleLogs.map((log, index) => (
+              <Fragment key={log.id}>
+                {log.html ? (
+                  // 富文本内容（focus 消息支持 Markdown/HTML）
+                  <div
+                    className={clsx(
+                      'py-1.5 px-2 rounded-md flex items-start gap-3',
+                      getLogColor(log.type),
+                    )}
+                  >
+                    <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                      {formatLogTime(log.timestamp, i18n.language)}
+                    </span>
+                    <span
+                      className="min-w-0 flex-1 break-words leading-5 focus-content"
+                      dangerouslySetInnerHTML={{ __html: log.html }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className={clsx(
+                      'py-1.5 px-2 rounded-md flex items-start gap-3',
+                      getLogColor(log.type),
+                    )}
+                  >
+                    <span className="text-text-muted/90 w-[72px] flex-shrink-0 tabular-nums text-[11px] leading-5">
+                      {formatLogTime(log.timestamp, i18n.language)}
+                    </span>
+                    <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-5">
+                      {log.message}
+                    </span>
+                  </div>
+                )}
+                {index < visibleLogs.length - 1 && (
+                  <div className="mx-6 my-1 h-px bg-border/40" aria-hidden="true" />
+                )}
+              </Fragment>
+            ))}
           </>
         )}
       </div>

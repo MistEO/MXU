@@ -35,6 +35,7 @@ export function LogsPanel() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
   const isFollowingTailRef = useRef(true);
   const [visibleLogLimit, setVisibleLogLimit] = useState(DEFAULT_VISIBLE_LOG_LIMIT);
   const [isAtTop, setIsAtTop] = useState(false);
@@ -64,21 +65,17 @@ export function LogsPanel() {
   }, [activeInstanceId]);
 
   useLayoutEffect(() => {
-    const el = logsContainerRef.current;
-    if (!el || !isFollowingTailRef.current) return;
+    if (!isFollowingTailRef.current) return;
 
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom > BOTTOM_FOLLOW_THRESHOLD_PX) return;
-
-    el.scrollTop = el.scrollHeight;
-  }, [visibleLogs, visibleLogLimit]);
+    logsEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [logs.length, visibleLogLimit]);
 
   const handleLogsScroll = useCallback(() => {
     const el = logsContainerRef.current;
     if (!el) return;
 
     const top = el.scrollTop <= 4;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_FOLLOW_THRESHOLD_PX;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_FOLLOW_THRESHOLD_PX * 2;
 
     setIsAtTop(top);
     isFollowingTailRef.current = bottom;
@@ -305,7 +302,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-4 bg-bg-secondary"
+        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-4 bg-bg-tertiary dark:bg-bg-secondary"
         onScroll={handleLogsScroll}
         onContextMenu={handleContextMenu}
       >
@@ -366,10 +363,11 @@ export function LogsPanel() {
                   </div>
                 )}
                 {index < visibleLogs.length - 1 && (
-                  <div className="mx-4 my-1 h-px bg-border/60" aria-hidden="true" />
+                  <div className="mx-4 my-1 h-px bg-border/50" aria-hidden="true" />
                 )}
               </Fragment>
             ))}
+            <div ref={logsEndRef} aria-hidden="true" />
           </>
         )}
       </div>

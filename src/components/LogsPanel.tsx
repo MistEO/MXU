@@ -251,7 +251,7 @@ export function LogsPanel() {
         )}
       >
         <span className="text-sm font-medium text-text-primary">{t('logs.title')}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -305,7 +305,7 @@ export function LogsPanel() {
       {/* 日志内容 */}
       <div
         ref={logsContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-4 bg-bg-tertiary"
+        className="flex-1 min-h-0 overflow-y-auto p-2.5 font-mono text-[12px] leading-4 bg-bg-secondary"
         onScroll={handleLogsScroll}
         onContextMenu={handleContextMenu}
       >
@@ -366,7 +366,7 @@ export function LogsPanel() {
                   </div>
                 )}
                 {index < visibleLogs.length - 1 && (
-                  <div className="mx-6 my-1 h-px bg-border/40" aria-hidden="true" />
+                  <div className="mx-4 my-1 h-px bg-border/60" aria-hidden="true" />
                 )}
               </Fragment>
             ))}

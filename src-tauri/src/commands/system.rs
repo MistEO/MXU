@@ -6,7 +6,9 @@ use super::types::MaaState;
 use super::types::SystemInfo;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
-use log::{info, warn};
+use log::info;
+#[cfg(windows)]
+use log::warn;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -530,6 +532,46 @@ pub fn check_vcredist_missing() -> bool {
 #[tauri::command]
 pub fn is_autostart() -> bool {
     std::env::args().any(|arg| arg == "--autostart")
+}
+
+/// 打印命令行帮助文本。
+pub fn print_cli_help_text() {
+    #[cfg(windows)]
+    let attached_console = attach_parent_console_for_cli();
+
+    print!("{}", get_cli_help_text());
+
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+
+    #[cfg(windows)]
+    if attached_console {
+        detach_parent_console_for_cli();
+    }
+}
+
+#[cfg(windows)]
+fn attach_parent_console_for_cli() -> bool {
+    extern "system" {
+        fn AttachConsole(dw_process_id: u32) -> i32;
+    }
+
+    const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
+
+    // GUI subsystem builds do not auto-attach to the invoking terminal.
+    // Ignore failure: redirected stdout or double-click launches should still fall through.
+    unsafe { AttachConsole(ATTACH_PARENT_PROCESS) != 0 }
+}
+
+#[cfg(windows)]
+fn detach_parent_console_for_cli() {
+    extern "system" {
+        fn FreeConsole() -> i32;
+    }
+
+    unsafe {
+        FreeConsole();
+    }
 }
 
 /// 检查命令行是否包含 -h/--help 参数

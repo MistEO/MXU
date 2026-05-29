@@ -54,6 +54,7 @@ import {
   convertPresetOptionValue,
   getCurrentControllerAndResource,
   isTaskCompatible,
+  sanitizeOptionValues,
 } from './helpers';
 import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
@@ -77,25 +78,8 @@ function cleanOptionValues(
   optionValues: Record<string, OptionValue>,
   pi: ProjectInterface | null,
 ): Record<string, OptionValue> {
-  const validOptionNames = new Set(pi?.option ? Object.keys(pi.option) : []);
-  const cleaned: Record<string, OptionValue> = {};
-  for (const [key, value] of Object.entries(optionValues)) {
-    if (!validOptionNames.has(key)) continue;
-
-    const optionDef = pi?.option?.[key];
-    if (optionDef) {
-      const expectedType = optionDef.type || 'select';
-      if (value.type !== expectedType) {
-        loggers.config.warn(
-          `选项 "${key}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
-        );
-        continue;
-      }
-    }
-
-    cleaned[key] = value;
-  }
-  return cleaned;
+  if (!pi?.option) return {};
+  return sanitizeOptionValues(optionValues, pi.option, (message) => loggers.config.warn(message));
 }
 
 function forwardLogToStdout(message: string) {

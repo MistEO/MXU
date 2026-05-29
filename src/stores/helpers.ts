@@ -31,6 +31,66 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
   return { type: 'select', caseName: defaultCase };
 };
 
+export type OptionValueSanitizeLogger = (message: string) => void;
+
+/**
+ * 校验保存的选项值是否仍符合当前 Project Interface 定义。
+ * 返回 null 表示应丢弃保存值并回退到当前默认值。
+ */
+export const sanitizeOptionValue = (
+  optionKey: string,
+  value: OptionValue,
+  allOptions: Record<string, OptionDefinition>,
+  warn?: OptionValueSanitizeLogger,
+): OptionValue | null => {
+  const optionDef = allOptions[optionKey];
+  if (!optionDef) return null;
+
+  const expectedType = optionDef.type || 'select';
+  if (value.type !== expectedType) {
+    warn?.(
+      `选项 "${optionKey}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+    );
+    return null;
+  }
+
+  if ((!optionDef.type || optionDef.type === 'select') && value.type === 'select') {
+    const caseExists = optionDef.cases.some((caseDef) => caseDef.name === value.caseName);
+    if (!caseExists) {
+      warn?.(`选项 "${optionKey}" 的 case "${value.caseName}" 已不存在，已重置为默认值`);
+      return null;
+    }
+    return value;
+  }
+
+  if (optionDef.type === 'checkbox' && value.type === 'checkbox') {
+    const validNames = new Set(optionDef.cases.map((caseDef) => caseDef.name));
+    const caseNames = value.caseNames.filter((caseName) => validNames.has(caseName));
+    if (caseNames.length !== value.caseNames.length) {
+      const removedNames = value.caseNames.filter((caseName) => !validNames.has(caseName));
+      warn?.(`选项 "${optionKey}" 包含已不存在的 case "${removedNames.join(', ')}"，已过滤`);
+    }
+    return { type: 'checkbox', caseNames };
+  }
+
+  return value;
+};
+
+export const sanitizeOptionValues = (
+  optionValues: Record<string, OptionValue>,
+  allOptions: Record<string, OptionDefinition>,
+  warn?: OptionValueSanitizeLogger,
+): Record<string, OptionValue> => {
+  const cleaned: Record<string, OptionValue> = {};
+  for (const [optionKey, value] of Object.entries(optionValues)) {
+    const sanitized = sanitizeOptionValue(optionKey, value, allOptions, warn);
+    if (sanitized) {
+      cleaned[optionKey] = sanitized;
+    }
+  }
+  return cleaned;
+};
+
 /**
  * 递归初始化所有选项（包括嵌套选项）的默认值
  * @param optionKeys 顶层选项键列表

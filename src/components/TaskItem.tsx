@@ -593,7 +593,10 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           optionValue?.type === 'select'
             ? optionValue.caseName
             : optionDef.default_case || optionDef.cases?.[0]?.name || '';
-        const selectedCase = optionDef.cases?.find((c) => c.name === caseName);
+        const selectedCase =
+          optionDef.cases?.find((c) => c.name === caseName) ||
+          optionDef.cases?.find((c) => c.name === optionDef.default_case) ||
+          optionDef.cases?.[0];
         // MXU 特殊任务的 case label 也需要用 t() 翻译
         const caseLabel = selectedCase
           ? isMxuOption

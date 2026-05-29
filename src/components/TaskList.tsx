@@ -39,7 +39,7 @@ import {
   importTabConfigFromClipboard,
   getImportErrorType,
 } from '@/utils/tabExportImport';
-import { generateId } from '@/stores/helpers';
+import { generateId, initializeAllOptionValues, sanitizeOptionValues } from '@/stores/helpers';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 
@@ -108,11 +108,30 @@ function ImportConfigButton({ instanceId }: { instanceId: string }) {
     try {
       const { tabName, payload } = await importTabConfigFromClipboard(projectName);
 
-      const importedTasks = payload.selectedTasks.map((task) => ({
-        ...task,
-        id: generateId(),
-        expanded: true,
-      }));
+      const importedTasks = payload.selectedTasks
+        .map((task) => {
+          const taskDef = projectInterface.task.find((t) => t.name === task.taskName);
+          if (!taskDef) return null;
+
+          const defaultValues =
+            taskDef.option && projectInterface.option
+              ? initializeAllOptionValues(taskDef.option, projectInterface.option)
+              : {};
+          const cleanedValues = projectInterface.option
+            ? sanitizeOptionValues(task.optionValues, projectInterface.option)
+            : {};
+
+          return {
+            ...task,
+            id: generateId(),
+            optionValues: {
+              ...defaultValues,
+              ...cleanedValues,
+            },
+            expanded: true,
+          };
+        })
+        .filter((task) => task !== null);
 
       // 任务写入后 PresetSelector 自动消失，无需调用 skipPreset（避免触发 showAddTaskPanel）
       updateInstance(instanceId, {

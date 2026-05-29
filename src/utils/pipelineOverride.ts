@@ -13,7 +13,7 @@ import type {
 import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/specialTasks';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
-import { createDefaultOptionValue } from '@/stores/helpers';
+import { createDefaultOptionValue, sanitizeOptionValue } from '@/stores/helpers';
 
 /**
  * 检查选项是否与当前控制器/资源不兼容
@@ -59,11 +59,12 @@ const collectOptionOverrides = (
   }
 
   const savedValue = optionValues[optionKey];
-  const expectedType = optionDef.type || 'select';
-  const optionValue =
-    savedValue && savedValue.type === expectedType
-      ? savedValue
-      : createDefaultOptionValue(optionDef);
+  const sanitizedValue = savedValue
+    ? sanitizeOptionValue(optionKey, savedValue, allOptions, (message) =>
+        loggers.task.warn(message),
+      )
+    : null;
+  const optionValue = sanitizedValue || createDefaultOptionValue(optionDef);
 
   if (optionValue.type === 'checkbox' && optionDef.type === 'checkbox') {
     // v2.3.0: checkbox 多选类型，按 cases 定义顺序合并所有选中的 case

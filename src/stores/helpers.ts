@@ -44,7 +44,10 @@ export const sanitizeOptionValue = (
   warn?: OptionValueSanitizeLogger,
 ): OptionValue | null => {
   const optionDef = allOptions[optionKey];
-  if (!optionDef) return null;
+  if (!optionDef) {
+    warn?.(`选项 "${optionKey}" 已不存在，已丢弃保存值`);
+    return null;
+  }
 
   const expectedType = optionDef.type || 'select';
   if (value.type !== expectedType) {
@@ -69,6 +72,10 @@ export const sanitizeOptionValue = (
     if (caseNames.length !== value.caseNames.length) {
       const removedNames = value.caseNames.filter((caseName) => !validNames.has(caseName));
       warn?.(`选项 "${optionKey}" 包含已不存在的 case "${removedNames.join(', ')}"，已过滤`);
+    }
+    if (value.caseNames.length > 0 && caseNames.length === 0) {
+      warn?.(`选项 "${optionKey}" 保存的 case 已全部失效，已重置为默认值`);
+      return null;
     }
     return { type: 'checkbox', caseNames };
   }

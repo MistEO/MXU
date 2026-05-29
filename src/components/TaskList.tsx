@@ -31,6 +31,7 @@ import { useAppStore } from '@/stores/appStore';
 import { TaskItem } from './TaskItem';
 import { ActionItem } from './ActionItem';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import type { SavedTask } from '@/types/config';
 import type { PresetItem } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -40,6 +41,7 @@ import {
   getImportErrorType,
 } from '@/utils/tabExportImport';
 import { generateId, initializeAllOptionValues, sanitizeOptionValues } from '@/stores/helpers';
+import { loggers } from '@/utils/logger';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 
@@ -111,7 +113,12 @@ function ImportConfigButton({ instanceId }: { instanceId: string }) {
       const importedTasks = payload.selectedTasks
         .map((task) => {
           const taskDef = projectInterface.task.find((t) => t.name === task.taskName);
-          if (!taskDef) return null;
+          if (!taskDef) {
+            loggers.config.warn(
+              `导入标签页配置时，任务 "${task.taskName}" 在当前 Project Interface 中不存在，已跳过`,
+            );
+            return null;
+          }
 
           const defaultValues =
             taskDef.option && projectInterface.option
@@ -131,7 +138,7 @@ function ImportConfigButton({ instanceId }: { instanceId: string }) {
             expanded: true,
           };
         })
-        .filter((task) => task !== null);
+        .filter((task): task is SavedTask & { expanded: boolean } => task !== null);
 
       // 任务写入后 PresetSelector 自动消失，无需调用 skipPreset（避免触发 showAddTaskPanel）
       updateInstance(instanceId, {

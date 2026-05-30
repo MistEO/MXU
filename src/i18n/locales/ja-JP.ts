@@ -411,6 +411,7 @@ export default {
     startStream: 'ライブストリームを開始',
     stopStream: 'ライブストリームを停止',
     connectFirst: '先にデバイスを接続してください',
+    startTaskFirst: '先にタスクを開始してください',
     fullscreen: '全画面表示',
     exitFullscreen: '全画面を終了',
     clickHint: '画面をクリックするとデバイスにタップを送信します',

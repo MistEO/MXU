@@ -104,6 +104,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
   // 获取当前实例
   const instance = instances.find((i) => i.id === instanceId);
   const isRunning = instance?.isRunning || false;
+  const isTaskRunning = isRunning || taskStatus === 'Running';
+  // 预览截图可能触发部分 Win32 截图后端抢前台；只在任务运行中启用实时预览。
+  const canPreview = isConnected && isTaskRunning;
   const tasks = instance?.selectedTasks || [];
   const enabledTasks = tasks.filter((t) => t.enabled);
   const canRun = isConnected && isResourceLoaded && enabledTasks.length > 0;
@@ -347,7 +350,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
   // 获取最新缓存截图（后端截图循环负责更新缓存，前端无需主动触发 postScreencap）
   const captureFrame = useCallback(async (): Promise<string | null> => {
-    if (!instanceId) return null;
+    if (!instanceId || !canPreview) return null;
 
     try {
       const imageData = await maaService.getCachedImage(instanceId);
@@ -355,7 +358,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     } catch {
       return null;
     }
-  }, [instanceId]);
+  }, [instanceId, canPreview]);
 
   const loopRunningRef = useRef(false);
 
@@ -363,10 +366,24 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     if (loopRunningRef.current) return;
     loopRunningRef.current = true;
 
+    const loopInstanceId = instanceId;
+
     try {
       let nextFrameTime = Date.now();
 
       while (streamingRef.current) {
+        const state = useAppStore.getState();
+        const connStatus = state.instanceConnectionStatus[loopInstanceId];
+        if (connStatus !== 'Connected') {
+          break;
+        }
+
+        const currentInstance = state.instances.find((instance) => instance.id === loopInstanceId);
+        const currentTaskStatus = state.instanceTaskStatus[loopInstanceId];
+        if (!currentInstance?.isRunning && currentTaskStatus !== 'Running') {
+          break;
+        }
+
         const now = Date.now();
         const sleepTime = nextFrameTime - now;
         if (sleepTime > 0) {
@@ -395,9 +412,11 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         }
       }
     } finally {
+      streamingRef.current = false;
+      setInstanceScreenshotStreaming(loopInstanceId, false);
       loopRunningRef.current = false;
     }
-  }, [instanceId, captureFrame]);
+  }, [instanceId, captureFrame, setInstanceScreenshotStreaming]);
 
   // 组件卸载时停止流
   useEffect(() => {
@@ -406,9 +425,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     };
   }, []);
 
-  // 订阅/退订后端截图循环（确保全局只有一份 post_screencap 在运行）
+  // 订阅/退订后端截图循环（仅任务运行中启用，确保全局只有一份 post_screencap 在运行）
   useEffect(() => {
-    if (!instanceId || !isStreaming) return;
+    if (!instanceId || !isStreaming || !canPreview) return;
 
     const intervalMs = getFrameInterval(screenshotFrameRate);
     maaService
@@ -418,49 +437,41 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     return () => {
       maaService.screenshotUnsubscribe(instanceId, `dashboard-${instanceId}`).catch(() => {});
     };
-  }, [instanceId, isStreaming, screenshotFrameRate]);
+  }, [instanceId, isStreaming, screenshotFrameRate, canPreview]);
 
   // 响应 store 中 isStreaming 状态变化
   useEffect(() => {
     // 同步 ref 与 store 状态
     streamingRef.current = isStreaming;
 
-    // 如果状态变为开启且已连接，启动流
-    if (isStreaming && isConnected) {
+    // 如果状态变为开启且任务正在运行，启动流
+    if (isStreaming && canPreview) {
       streamLoop();
     }
-  }, [isStreaming, isConnected, streamLoop]);
+  }, [isStreaming, canPreview, streamLoop]);
 
-  // 连接后自动开始截图流
-  const prevConnectedRef = useRef(false);
-  const hasAutoStartedRef = useRef(false);
+  // 任务开始后自动开始截图流
+  const prevCanPreviewRef = useRef(false);
 
-  // 组件挂载或状态恢复后，如果已连接，自动启动截图流
+  // 未运行任务时禁用实时预览，并确保后台截图订阅被关闭
   useEffect(() => {
-    // 避免重复启动
-    if (hasAutoStartedRef.current) return;
+    const couldPreview = prevCanPreviewRef.current;
+    prevCanPreviewRef.current = canPreview;
 
-    if (isConnected && !isStreaming) {
-      hasAutoStartedRef.current = true;
+    if (!canPreview) {
+      if (isStreaming) {
+        streamingRef.current = false;
+        setInstanceScreenshotStreaming(instanceId, false);
+      }
+      return;
+    }
+
+    // 从不可预览变为可预览时，自动启动截图流
+    if (!couldPreview && !isStreaming) {
       streamingRef.current = true;
       setInstanceScreenshotStreaming(instanceId, true);
-      streamLoop();
     }
-  }, [isConnected, isStreaming, instanceId, setInstanceScreenshotStreaming, streamLoop]);
-
-  // 连接状态变化时的处理（从未连接变为已连接时重新启动）
-  useEffect(() => {
-    const wasConnected = prevConnectedRef.current;
-    prevConnectedRef.current = isConnected;
-
-    // 从未连接变为已连接时，重置自动启动标记并启动
-    if (isConnected && !wasConnected && !isStreaming) {
-      hasAutoStartedRef.current = true;
-      streamingRef.current = true;
-      setInstanceScreenshotStreaming(instanceId, true);
-      streamLoop();
-    }
-  }, [isConnected, isStreaming, instanceId, setInstanceScreenshotStreaming, streamLoop]);
+  }, [canPreview, isStreaming, instanceId, setInstanceScreenshotStreaming]);
 
   // 全屏模式切换
   const toggleFullscreen = useCallback(
@@ -531,11 +542,13 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
 
   // 强制刷新
   const forceRefresh = useCallback(async () => {
+    if (!canPreview) return;
+
     const imageData = await captureFrame();
     if (imageData) {
       setScreenshotUrl(imageData);
     }
-  }, [captureFrame]);
+  }, [canPreview, captureFrame]);
 
   // 右键菜单（复用首页截图面板的菜单结构）
   const handleContextMenu = useCallback(
@@ -548,9 +561,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           id: 'stream',
           label: isStreaming ? t('contextMenu.stopStream') : t('contextMenu.startStream'),
           icon: isStreaming ? Pause : Play,
-          disabled: !isConnected,
+          disabled: !canPreview,
           onClick: () => {
-            if (!instanceId || !isConnected) return;
+            if (!instanceId || !canPreview) return;
             if (isStreaming) {
               streamingRef.current = false;
               setInstanceScreenshotStreaming(instanceId, false);
@@ -565,7 +578,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           id: 'refresh',
           label: t('contextMenu.forceRefresh'),
           icon: RefreshCw,
-          disabled: !isConnected,
+          disabled: !canPreview,
           onClick: forceRefresh,
         },
         { id: 'divider-1', label: '', divider: true },
@@ -608,6 +621,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       t,
       instanceId,
       isConnected,
+      canPreview,
       isStreaming,
       screenshotUrl,
       setInstanceScreenshotStreaming,
@@ -646,7 +660,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           <div className="absolute inset-0 flex flex-col items-center justify-center text-text-muted">
             <Monitor className="w-8 h-8 opacity-30 mb-1" />
             <span className="text-xs">
-              {isConnected ? t('screenshot.noScreenshot') : t('screenshot.connectFirst')}
+              {isConnected ? t('screenshot.startTaskFirst') : t('screenshot.connectFirst')}
             </span>
           </div>
         )}

@@ -400,6 +400,7 @@ export default {
     startStream: '開始即時流',
     stopStream: '停止即時流',
     connectFirst: '請先連接裝置',
+    startTaskFirst: '請先開始任務',
     fullscreen: '全螢幕顯示',
     exitFullscreen: '退出全螢幕',
     clickHint: '點擊畫面可向裝置發送點擊',

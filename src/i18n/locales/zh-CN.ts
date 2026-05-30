@@ -404,6 +404,7 @@ export default {
     startStream: '开始实时流',
     stopStream: '停止实时流',
     connectFirst: '请先连接设备',
+    startTaskFirst: '请先开始任务',
     fullscreen: '全屏显示',
     exitFullscreen: '退出全屏',
     clickHint: '点击画面可向设备发送点击',

@@ -408,6 +408,7 @@ export default {
     startStream: '라이브 스트림 시작',
     stopStream: '라이브 스트림 중지',
     connectFirst: '먼저 기기를 연결하세요',
+    startTaskFirst: '먼저 작업을 시작하세요',
     fullscreen: '전체 화면',
     exitFullscreen: '전체 화면 종료',
     clickHint: '화면을 클릭하면 기기에 탭을 전송합니다',

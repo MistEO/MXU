@@ -415,6 +415,7 @@ export default {
     startStream: 'Start Live Stream',
     stopStream: 'Stop Live Stream',
     connectFirst: 'Please connect a device first',
+    startTaskFirst: 'Please start a task first',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit Fullscreen',
     clickHint: 'Click on the image to send a tap to the device',

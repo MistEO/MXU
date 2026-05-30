@@ -39,8 +39,10 @@ export function ScreenshotPanel() {
   const isMobile = useIsMobile();
   const {
     activeInstanceId,
+    instances,
     instanceConnectionStatus,
     instanceResourceLoaded,
+    instanceTaskStatus,
     sidePanelExpanded,
     instanceScreenshotStreaming,
     setInstanceScreenshotStreaming,
@@ -70,6 +72,13 @@ export function ScreenshotPanel() {
   }, [screenshotFrameRate]);
 
   const instanceId = activeInstanceId || '';
+  const connectionStatus = instanceId ? instanceConnectionStatus[instanceId] : undefined;
+  const isResourceLoaded = instanceId ? instanceResourceLoaded[instanceId] : false;
+  const activeInstance = instances.find((instance) => instance.id === instanceId);
+  const taskStatus = instanceId ? instanceTaskStatus[instanceId] : undefined;
+  const isTaskRunning = Boolean(activeInstance?.isRunning) || taskStatus === 'Running';
+  // 预览截图可能触发部分 Win32 截图后端抢前台；只在任务运行中启用实时预览。
+  const canPreview = connectionStatus === 'Connected' && isTaskRunning;
 
   // 从 store 获取当前实例的截图流状态
   const isStreaming = instanceId ? (instanceScreenshotStreaming[instanceId] ?? false) : false;
@@ -86,7 +95,7 @@ export function ScreenshotPanel() {
 
   // 获取最新缓存截图（后端截图循环负责更新缓存，前端无需主动触发 postScreencap）
   const captureFrame = useCallback(async (): Promise<string | null> => {
-    if (!instanceId) return null;
+    if (!instanceId || !canPreview) return null;
 
     try {
       const imageData = await withTimeout(maaService.getCachedImage(instanceId), API_TIMEOUT);
@@ -95,7 +104,7 @@ export function ScreenshotPanel() {
       log.warn('获取截图失败:', err);
       throw err;
     }
-  }, [instanceId]);
+  }, [instanceId, canPreview]);
 
   // 全屏模式切换
   const toggleFullscreen = (e?: React.MouseEvent) => {
@@ -110,9 +119,9 @@ export function ScreenshotPanel() {
     };
   }, []);
 
-  // 订阅/退订后端截图循环（确保全局只有一份 post_screencap 在运行）
+  // 订阅/退订后端截图循环（仅任务运行中启用，确保全局只有一份 post_screencap 在运行）
   useEffect(() => {
-    if (!instanceId || !isStreaming) return;
+    if (!instanceId || !isStreaming || !canPreview) return;
 
     const intervalMs = getFrameInterval(screenshotFrameRate);
     maaService
@@ -122,7 +131,7 @@ export function ScreenshotPanel() {
     return () => {
       maaService.screenshotUnsubscribe(instanceId, `panel-${instanceId}`).catch(() => {});
     };
-  }, [instanceId, isStreaming, screenshotFrameRate]);
+  }, [instanceId, isStreaming, screenshotFrameRate, canPreview]);
 
   // ESC 键退出全屏
   useEffect(() => {
@@ -163,6 +172,13 @@ export function ScreenshotPanel() {
         const connStatus = useAppStore.getState().instanceConnectionStatus[loopInstanceId];
         if (connStatus !== 'Connected') {
           setError('连接已断开');
+          break;
+        }
+
+        const state = useAppStore.getState();
+        const currentInstance = state.instances.find((instance) => instance.id === loopInstanceId);
+        const currentTaskStatus = state.instanceTaskStatus[loopInstanceId];
+        if (!currentInstance?.isRunning && currentTaskStatus !== 'Running') {
           break;
         }
 
@@ -224,7 +240,7 @@ export function ScreenshotPanel() {
     (e?: React.MouseEvent) => {
       e?.stopPropagation();
 
-      if (!instanceId) return;
+      if (!instanceId || !canPreview) return;
 
       if (isStreaming) {
         // 停止流
@@ -248,6 +264,7 @@ export function ScreenshotPanel() {
       streamLoop,
       screenshotPanelExpanded,
       setScreenshotPanelExpanded,
+      canPreview,
     ],
   );
 
@@ -264,14 +281,10 @@ export function ScreenshotPanel() {
     streamingRef.current = newInstanceStreaming;
 
     // 如果新实例的截图流是开启的，启动流循环
-    if (newInstanceStreaming && instanceId) {
+    if (newInstanceStreaming && instanceId && canPreview) {
       streamLoop();
     }
-  }, [instanceId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 连接成功后自动开始实时截图（仅当面板可见且未开启时）
-  const connectionStatus = instanceId ? instanceConnectionStatus[instanceId] : undefined;
-  const isResourceLoaded = instanceId ? instanceResourceLoaded[instanceId] : false;
+  }, [instanceId, canPreview]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 当设备已连接且资源已加载时自动折叠（与连接设置面板行为一致）
   useEffect(() => {
@@ -280,45 +293,36 @@ export function ScreenshotPanel() {
     }
   }, [connectionStatus, isResourceLoaded, setScreenshotPanelExpanded]);
 
-  // 面板折叠时暂停截图，展开时自动开始（如果已连接）
+  const prevConnectionStatusRef = useRef<typeof connectionStatus>(undefined);
+  const prevCanPreviewRef = useRef(false);
+  const hasAutoStartedRef = useRef(false);
+
+  // 未运行任务时禁用实时预览，并确保后台截图订阅被关闭
+  useEffect(() => {
+    if (!canPreview) {
+      hasAutoStartedRef.current = false;
+    }
+
+    if (!canPreview && isStreaming) {
+      streamingRef.current = false;
+      setIsStreaming(false);
+    }
+  }, [canPreview, isStreaming, setIsStreaming]);
+
+  // 面板折叠时暂停截图，展开时仅在任务运行中自动开始
   useEffect(() => {
     if (!screenshotPanelExpanded || !isPanelVisible) {
       // 折叠时暂停截图流，同步更新状态和图标
       streamingRef.current = false;
       setIsStreaming(false);
-    } else if (connectionStatus === 'Connected' && instanceId) {
-      // 展开且已连接时，自动开始截图
+    } else if (canPreview && instanceId) {
+      // 展开且任务运行中，自动开始截图
       streamingRef.current = true;
       setIsStreaming(true);
       setError(null);
       streamLoop();
     }
-  }, [screenshotPanelExpanded, isPanelVisible]); // eslint-disable-line react-hooks/exhaustive-deps
-  const prevConnectionStatusRef = useRef<typeof connectionStatus>(undefined);
-  const hasAutoStartedRef = useRef(false);
-
-  // 组件挂载或状态恢复后，如果已连接且面板可见，自动启动截图流
-  useEffect(() => {
-    // 避免重复启动（仅在首次检测到已连接时启动）
-    if (hasAutoStartedRef.current) return;
-
-    const isConnected = connectionStatus === 'Connected';
-    if (isConnected && !isStreaming && screenshotPanelExpanded && isPanelVisible && instanceId) {
-      hasAutoStartedRef.current = true;
-      streamingRef.current = true;
-      setIsStreaming(true);
-      setError(null);
-      streamLoop();
-    }
-  }, [
-    connectionStatus,
-    instanceId,
-    screenshotPanelExpanded,
-    isPanelVisible,
-    isStreaming,
-    setIsStreaming,
-    streamLoop,
-  ]);
+  }, [screenshotPanelExpanded, isPanelVisible, canPreview]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 实例切换时重置自动启动标记
   useEffect(() => {
@@ -357,7 +361,7 @@ export function ScreenshotPanel() {
 
   // 强制刷新截图
   const forceRefresh = useCallback(async () => {
-    if (!instanceId) return;
+    if (!instanceId || !canPreview) return;
 
     try {
       const imageData = await captureFrame();
@@ -368,7 +372,7 @@ export function ScreenshotPanel() {
     } catch (err) {
       log.warn('强制刷新失败:', err);
     }
-  }, [instanceId, captureFrame]);
+  }, [instanceId, canPreview, captureFrame]);
 
   // 断开连接（销毁实例）
   const disconnect = useCallback(async () => {
@@ -420,21 +424,19 @@ export function ScreenshotPanel() {
       e.preventDefault();
       e.stopPropagation();
 
-      const isConnected = connectionStatus === 'Connected';
-
       const menuItems: MenuItem[] = [
         {
           id: 'stream',
           label: isStreaming ? t('contextMenu.stopStream') : t('contextMenu.startStream'),
           icon: isStreaming ? Pause : Play,
-          disabled: !instanceId || !isConnected,
+          disabled: !instanceId || !canPreview,
           onClick: () => toggleStreaming(),
         },
         {
           id: 'refresh',
           label: t('contextMenu.forceRefresh'),
           icon: RefreshCw,
-          disabled: !instanceId || !isConnected,
+          disabled: !instanceId || !canPreview,
           onClick: forceRefresh,
         },
         { id: 'divider-1', label: '', divider: true },
@@ -465,7 +467,7 @@ export function ScreenshotPanel() {
           id: 'disconnect',
           label: t('contextMenu.disconnect'),
           icon: Unplug,
-          disabled: !isConnected,
+          disabled: connectionStatus !== 'Connected',
           danger: true,
           onClick: disconnect,
         },
@@ -477,6 +479,7 @@ export function ScreenshotPanel() {
       t,
       instanceId,
       connectionStatus,
+      canPreview,
       isStreaming,
       screenshotUrl,
       toggleStreaming,
@@ -489,10 +492,12 @@ export function ScreenshotPanel() {
   );
 
   useEffect(() => {
-    // 检测连接状态从非 Connected 变为 Connected
+    // 检测连接状态变化，用于断开时清理截图状态
     const wasConnected = prevConnectionStatusRef.current === 'Connected';
     const isConnected = connectionStatus === 'Connected';
     prevConnectionStatusRef.current = connectionStatus;
+    const couldPreview = prevCanPreviewRef.current;
+    prevCanPreviewRef.current = canPreview;
 
     // 连接断开时清空截图（如切换控制器、断开连接等场景）
     if (wasConnected && !isConnected) {
@@ -502,13 +507,17 @@ export function ScreenshotPanel() {
     }
 
     if (
-      isConnected &&
-      !wasConnected &&
+      canPreview &&
+      !couldPreview &&
       !isStreaming &&
       screenshotPanelExpanded &&
       isPanelVisible &&
       instanceId
     ) {
+      if (hasAutoStartedRef.current) return;
+
+      // 从不可预览变为可预览时，自动启动截图流。
+      hasAutoStartedRef.current = true;
       streamingRef.current = true;
       setIsStreaming(true);
       setError(null);
@@ -516,6 +525,7 @@ export function ScreenshotPanel() {
     }
   }, [
     connectionStatus,
+    canPreview,
     instanceId,
     screenshotPanelExpanded,
     isPanelVisible,
@@ -556,16 +566,22 @@ export function ScreenshotPanel() {
               e.stopPropagation();
               toggleStreaming();
             }}
-            disabled={!instanceId}
+            disabled={!instanceId || !canPreview}
             className={clsx(
               'p-1 rounded-md transition-colors',
-              !instanceId
+              !instanceId || !canPreview
                 ? 'text-text-muted cursor-not-allowed'
                 : isStreaming
                   ? 'text-success hover:bg-bg-tertiary'
                   : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
             )}
-            title={isStreaming ? t('screenshot.stopStream') : t('screenshot.startStream')}
+            title={
+              !canPreview
+                ? t('screenshot.startTaskFirst')
+                : isStreaming
+                  ? t('screenshot.stopStream')
+                  : t('screenshot.startStream')
+            }
           >
             {isStreaming ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           </button>
@@ -634,7 +650,11 @@ export function ScreenshotPanel() {
                     <>
                       <span className="text-xs">{t('screenshot.noScreenshot')}</span>
                       <span className="text-xs text-text-muted">
-                        {t('screenshot.connectFirst')}
+                        {t(
+                          connectionStatus !== 'Connected'
+                            ? 'screenshot.connectFirst'
+                            : 'screenshot.startTaskFirst',
+                        )}
                       </span>
                     </>
                   )}

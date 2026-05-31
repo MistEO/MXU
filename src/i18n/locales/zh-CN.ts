@@ -241,6 +241,7 @@ export default {
     removeConfirmMessage: '确定要删除这个任务吗？',
     rename: '重命名',
     clickToToggle: '单击选中/取消',
+    runOnceHint: '单次运行：下次启动时执行一次',
     renameTask: '重命名任务',
     customName: '自定义名称',
     originalName: '原始名称',
@@ -779,6 +780,10 @@ export default {
     deselectAll: '取消全选',
     expandAllTasks: '展开全部',
     collapseAllTasks: '折叠全部',
+    runFromHere: '从此处运行',
+    runSingleTask: '单独运行',
+    runOnceTask: '单次运行',
+    clearRunOnceTask: '取消单次运行',
 
     // 截图面板右键菜单
     reconnect: '重新连接',

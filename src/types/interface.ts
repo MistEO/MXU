@@ -214,6 +214,8 @@ export interface SelectedTask {
   taskName: string;
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 单次运行：下次启动时包含该任务，运行结束后自动清除 */
+  runOnce?: boolean;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
 }

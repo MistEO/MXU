@@ -177,6 +177,8 @@ export interface AppState {
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
+  setTaskRunOnce: (instanceId: string, taskId: string, runOnce: boolean) => void;
+  clearAllTaskRunOnce: (instanceId: string) => void;
   toggleTaskExpanded: (instanceId: string, taskId: string) => void;
   setTaskOptionValue: (
     instanceId: string,

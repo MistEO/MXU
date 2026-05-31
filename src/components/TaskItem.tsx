@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle } from 'lucide-react';
+import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle, Play, CircleDot } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -12,6 +12,12 @@ import { ContextMenu, useContextMenu } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
+import {
+  TriStateCheckbox,
+  getTaskCheckboxState,
+} from './ui/TriStateCheckbox';
+import { taskStartService } from '@/services/taskStartService';
+import type { MenuItem } from './ContextMenu';
 import type { SelectedTask } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { getInterfaceLangKey } from '@/i18n';
@@ -304,6 +310,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const {
     projectInterface,
     toggleTaskEnabled,
+    setTaskRunOnce,
     toggleTaskExpanded,
     removeTaskFromInstance,
     confirmBeforeDelete,
@@ -391,8 +398,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     t,
   ]);
 
-  // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
-  const isCompact = isInstanceRunning && !task.enabled;
+  // 紧凑模式：实例运行时，未参与运行的任务显示为紧凑样式
+  const isCompact = isInstanceRunning && !task.enabled && !task.runOnce && taskRunStatus === 'idle';
 
   // 判断是否可以编辑选项：实例未运行时始终可以编辑，运行中只有 pending 或 idle 状态的任务可以编辑
   const canEditOptions =
@@ -621,6 +628,50 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     t,
   ]);
 
+  const checkboxState = getTaskCheckboxState(task.enabled, Boolean(task.runOnce));
+
+  const handleCheckboxClick = () => {
+    if (isInstanceRunning || isIncompatible) return;
+    toggleTaskEnabled(instanceId, task.id);
+  };
+
+  const handleCheckboxContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isInstanceRunning || isIncompatible) return;
+
+      const menuItems: MenuItem[] = [
+        {
+          id: 'run-once',
+          label: t('contextMenu.runOnceTask'),
+          icon: CircleDot,
+          checked: Boolean(task.runOnce),
+          onClick: () => setTaskRunOnce(instanceId, task.id, !task.runOnce),
+        },
+        {
+          id: 'clear-run-once',
+          label: t('contextMenu.clearRunOnceTask'),
+          disabled: !task.runOnce,
+          onClick: () => setTaskRunOnce(instanceId, task.id, false),
+        },
+      ];
+
+      showMenu(e, menuItems);
+    },
+    [t, task.runOnce, instanceId, task.id, isInstanceRunning, isIncompatible, setTaskRunOnce, showMenu],
+  );
+
+  const handleRunFromHere = useCallback(async () => {
+    if (!instance || isInstanceRunning || isIncompatible) return;
+    await taskStartService.start(instance, { startFromTaskId: task.id });
+  }, [instance, isInstanceRunning, isIncompatible, task.id]);
+
+  const handleRunSingle = useCallback(async () => {
+    if (!instance || isInstanceRunning || isIncompatible) return;
+    await taskStartService.start(instance, { singleTaskId: task.id });
+  }, [instance, isInstanceRunning, isIncompatible, task.id]);
+
   const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isInstanceRunning || isIncompatible) return;
@@ -649,45 +700,62 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       const tasks = instance.selectedTasks;
       const taskIndex = tasks.findIndex((t) => t.id === task.id);
 
-      const menuItems = buildListItemMenuItems({
-        labels: {
-          duplicate: t('contextMenu.duplicateTask'),
-          rename: t('contextMenu.renameTask'),
-          enable: t('contextMenu.enableTask'),
-          disable: t('contextMenu.disableTask'),
-          expand: t('contextMenu.expandOptions'),
-          collapse: t('contextMenu.collapseOptions'),
-          moveUp: t('contextMenu.moveUp'),
-          moveDown: t('contextMenu.moveDown'),
-          moveToTop: t('contextMenu.moveToTop'),
-          moveToBottom: t('contextMenu.moveToBottom'),
-          delete: t('contextMenu.deleteTask'),
+      const menuItems: MenuItem[] = [
+        {
+          id: 'run-from-here',
+          label: t('contextMenu.runFromHere'),
+          icon: Play,
+          disabled: isInstanceRunning || isIncompatible,
+          onClick: () => void handleRunFromHere(),
         },
-        isEnabled: task.enabled,
-        isExpanded: !!task.expanded,
-        canExpand,
-        isFirst: taskIndex === 0,
-        isLast: taskIndex === tasks.length - 1,
-        isLocked: isInstanceRunning,
-        onDuplicate: () => duplicateTask(instanceId, task.id),
-        onRename: () => {
-          setEditName(task.customName || '');
-          setIsEditing(true);
+        {
+          id: 'run-single',
+          label: t('contextMenu.runSingleTask'),
+          icon: Play,
+          disabled: isInstanceRunning || isIncompatible,
+          onClick: () => void handleRunSingle(),
         },
-        onToggle: () => toggleTaskEnabled(instanceId, task.id),
-        onExpand: () => toggleTaskExpanded(instanceId, task.id),
-        onMoveUp: () => moveTaskUp(instanceId, task.id),
-        onMoveDown: () => moveTaskDown(instanceId, task.id),
-        onMoveToTop: () => moveTaskToTop(instanceId, task.id),
-        onMoveToBottom: () => moveTaskToBottom(instanceId, task.id),
-        onDelete: () => {
-          if (!confirmBeforeDelete) {
-            removeTaskFromInstance(instanceId, task.id);
-            return;
-          }
-          setShowDeleteConfirm(true);
-        },
-      });
+        { id: 'divider-run', label: '', divider: true },
+        ...buildListItemMenuItems({
+          labels: {
+            duplicate: t('contextMenu.duplicateTask'),
+            rename: t('contextMenu.renameTask'),
+            enable: t('contextMenu.enableTask'),
+            disable: t('contextMenu.disableTask'),
+            expand: t('contextMenu.expandOptions'),
+            collapse: t('contextMenu.collapseOptions'),
+            moveUp: t('contextMenu.moveUp'),
+            moveDown: t('contextMenu.moveDown'),
+            moveToTop: t('contextMenu.moveToTop'),
+            moveToBottom: t('contextMenu.moveToBottom'),
+            delete: t('contextMenu.deleteTask'),
+          },
+          isEnabled: task.enabled,
+          isExpanded: !!task.expanded,
+          canExpand,
+          isFirst: taskIndex === 0,
+          isLast: taskIndex === tasks.length - 1,
+          isLocked: isInstanceRunning,
+          onDuplicate: () => duplicateTask(instanceId, task.id),
+          onRename: () => {
+            setEditName(task.customName || '');
+            setIsEditing(true);
+          },
+          onToggle: () => toggleTaskEnabled(instanceId, task.id),
+          onExpand: () => toggleTaskExpanded(instanceId, task.id),
+          onMoveUp: () => moveTaskUp(instanceId, task.id),
+          onMoveDown: () => moveTaskDown(instanceId, task.id),
+          onMoveToTop: () => moveTaskToTop(instanceId, task.id),
+          onMoveToBottom: () => moveTaskToBottom(instanceId, task.id),
+          onDelete: () => {
+            if (!confirmBeforeDelete) {
+              removeTaskFromInstance(instanceId, task.id);
+              return;
+            }
+            setShowDeleteConfirm(true);
+          },
+        }),
+      ];
 
       showMenu(e, menuItems);
     },
@@ -708,6 +776,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       confirmBeforeDelete,
       showMenu,
       isInstanceRunning,
+      isIncompatible,
+      handleRunFromHere,
+      handleRunSingle,
     ],
   );
 
@@ -806,27 +877,30 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         </div>
 
         {/* 启用复选框 - 运行时或不兼容时禁用 */}
-        <label
+        <div
           className={clsx(
             'flex items-center relative',
-            isInstanceRunning || isIncompatible
-              ? 'cursor-not-allowed opacity-50'
-              : 'cursor-pointer',
+            isInstanceRunning || isIncompatible ? 'opacity-50' : '',
           )}
-          title={isIncompatible ? incompatibleReason : undefined}
+          title={
+            isIncompatible
+              ? incompatibleReason
+              : checkboxState === 'once'
+                ? t('taskItem.runOnceHint')
+                : undefined
+          }
         >
-          <input
-            type="checkbox"
-            checked={task.enabled}
-            onChange={() => !isIncompatible && toggleTaskEnabled(instanceId, task.id)}
+          <TriStateCheckbox
+            state={checkboxState}
             disabled={isInstanceRunning || isIncompatible}
-            className="w-4 h-4 rounded border-border-strong accent-accent disabled:cursor-not-allowed"
+            onClick={handleCheckboxClick}
+            onContextMenu={handleCheckboxContextMenu}
           />
           {/* 不兼容警告图标 */}
           {isIncompatible && (
-            <AlertCircle className="w-3.5 h-3.5 text-warning absolute -top-1 -right-1" />
+            <AlertCircle className="w-3.5 h-3.5 text-warning absolute -top-1 -right-1 pointer-events-none" />
           )}
-        </label>
+        </div>
 
         {/* 任务名称 + 展开区域容器 */}
         <div className="flex-1 flex items-center min-w-0">
@@ -852,7 +926,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 <span
                   className={clsx(
                     'min-w-0 text-sm font-medium truncate',
-                    task.enabled ? 'text-text-primary' : 'text-text-muted',
+                    task.enabled
+                      ? 'text-text-primary'
+                      : task.runOnce
+                        ? 'text-accent'
+                        : 'text-text-muted',
                   )}
                 >
                   {displayName}

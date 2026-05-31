@@ -249,6 +249,7 @@ export default {
     removeConfirmMessage: 'Are you sure you want to delete this task?',
     rename: 'Rename',
     clickToToggle: 'Click to toggle',
+    runOnceHint: 'Run once: included in the next start only',
     renameTask: 'Rename Task',
     customName: 'Custom Name',
     originalName: 'Original Name',
@@ -785,6 +786,10 @@ export default {
     deselectAll: 'Deselect All',
     expandAllTasks: 'Expand All',
     collapseAllTasks: 'Collapse All',
+    runFromHere: 'Run From Here',
+    runSingleTask: 'Run This Task Only',
+    runOnceTask: 'Run Once',
+    clearRunOnceTask: 'Clear Run Once',
 
     // Screenshot panel context menu
     reconnect: 'Reconnect',

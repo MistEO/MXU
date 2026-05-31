@@ -1184,8 +1184,11 @@ function App() {
       kind === 'task-progress' ||
       kind === 'tasks-completed';
 
-    const handleStateChanged = (_instanceId: string, kind: string) => {
+    const handleStateChanged = (instanceId: string, kind: string) => {
       if (isTaskKind(kind)) pendingTaskKind = true;
+      if (kind === 'tasks-completed') {
+        useAppStore.getState().clearAllTaskRunOnce(instanceId);
+      }
       if (debounceTimer) clearTimeout(debounceTimer);
       const shouldSyncRunning = pendingTaskKind;
       debounceTimer = setTimeout(async () => {

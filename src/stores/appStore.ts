@@ -635,8 +635,44 @@ export const useAppStore = create<AppState>()(
           i.id === instanceId
             ? {
                 ...i,
+                selectedTasks: i.selectedTasks.map((t) => {
+                  if (t.id !== taskId) return t;
+                  if (t.runOnce) {
+                    return { ...t, enabled: false, runOnce: false };
+                  }
+                  return { ...t, enabled: !t.enabled, runOnce: false };
+                }),
+              }
+            : i,
+        ),
+      })),
+
+    setTaskRunOnce: (instanceId, taskId, runOnce) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
                 selectedTasks: i.selectedTasks.map((t) =>
-                  t.id === taskId ? { ...t, enabled: !t.enabled } : t,
+                  t.id === taskId
+                    ? runOnce
+                      ? { ...t, enabled: false, runOnce: true }
+                      : { ...t, runOnce: false }
+                    : t,
+                ),
+              }
+            : i,
+        ),
+      })),
+
+    clearAllTaskRunOnce: (instanceId) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
+                selectedTasks: i.selectedTasks.map((t) =>
+                  t.runOnce ? { ...t, runOnce: false } : t,
                 ),
               }
             : i,
@@ -722,13 +758,13 @@ export const useAppStore = create<AppState>()(
             return {
               ...i,
               selectedTasks: i.selectedTasks.map((t) => {
-                if (!enabled) return { ...t, enabled: false };
+                if (!enabled) return { ...t, enabled: false, runOnce: false };
                 // 全选时不兼容的任务显式禁用
                 const taskDef = state.projectInterface?.task.find((td) => td.name === t.taskName);
                 if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
-                  return { ...t, enabled: false };
+                  return { ...t, enabled: false, runOnce: false };
                 }
-                return { ...t, enabled: true };
+                return { ...t, enabled: true, runOnce: false };
               }),
             };
           }),
@@ -790,6 +826,7 @@ export const useAppStore = create<AppState>()(
         ...originalTask,
         id: generateId(),
         customName: newCustomName,
+        runOnce: false,
         optionValues: { ...originalTask.optionValues },
       };
 

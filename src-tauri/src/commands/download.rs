@@ -183,7 +183,7 @@ pub async fn download_file(
     // 构建 HTTP 客户端和请求
     let mut client_builder = reqwest::Client::builder()
         .user_agent(build_user_agent())
-        .timeout(std::time::Duration::from_secs(600)) // 10 分钟超时，足够下载大文件但防止无限挂起
+        .timeout(std::time::Duration::from_secs(6000)) // 100 分钟超时，足够下载大文件但防止无限挂起
         .connect_timeout(std::time::Duration::from_secs(10));
 
     // 配置代理（如果提供）

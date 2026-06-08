@@ -28,6 +28,7 @@ pub fn extract_zip(zip_path: String, dest_dir: String) -> Result<(), String> {
 pub fn read_update_package_interface(package_path: String) -> Result<String, String> {
     info!("read_update_package_interface called: {}", package_path);
 
+    // 本地更新包支持格式需要和前端 SUPPORTED_UPDATE_PACKAGE_EXTENSIONS 保持同步。
     let path_lower = package_path.to_lowercase();
     if path_lower.ends_with(".zip") {
         read_interface_from_zip(&package_path)

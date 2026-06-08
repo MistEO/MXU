@@ -115,6 +115,7 @@ export class LocalUpdatePackageError extends Error {
   }
 }
 
+// 本地更新包支持格式需要和 Rust 的 read_update_package_interface 保持同步。
 const SUPPORTED_UPDATE_PACKAGE_EXTENSIONS = ['.zip', '.tar.gz', '.tgz'];
 
 interface MirrorChyanApiResponse {
@@ -1286,6 +1287,22 @@ export function savePendingUpdateInfo(info: PendingUpdateInfo): void {
   } catch (error) {
     log.warn('保存待安装更新信息失败:', error);
   }
+}
+
+/**
+ * 标记更新包已准备完成，并保存待安装更新信息。
+ */
+export function saveCompletedUpdateInfo(updateInfo: UpdateInfo, downloadSavePath: string): void {
+  savePendingUpdateInfo({
+    versionName: updateInfo.versionName,
+    releaseNote: updateInfo.releaseNote,
+    channel: updateInfo.channel,
+    downloadSavePath,
+    fileSize: updateInfo.fileSize,
+    updateType: updateInfo.updateType,
+    downloadSource: updateInfo.downloadSource,
+    timestamp: Date.now(),
+  });
 }
 
 /**

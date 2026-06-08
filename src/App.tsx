@@ -35,7 +35,7 @@ import {
   downloadUpdate,
   getUpdateSavePath,
   consumeUpdateCompleteInfo,
-  savePendingUpdateInfo,
+  saveCompletedUpdateInfo,
   getPendingUpdateInfo,
   clearPendingUpdateInfo,
   isDebugVersion,
@@ -469,16 +469,7 @@ function App() {
           log.info('更新下载完成');
 
           // 保存待安装更新信息，以便下次启动时自动安装
-          savePendingUpdateInfo({
-            versionName: updateResult.versionName,
-            releaseNote: updateResult.releaseNote,
-            channel: updateResult.channel,
-            downloadSavePath: result.actualSavePath,
-            fileSize: updateResult.fileSize,
-            updateType: updateResult.updateType,
-            downloadSource: updateResult.downloadSource,
-            timestamp: Date.now(),
-          });
+          saveCompletedUpdateInfo(updateResult, result.actualSavePath);
 
           // 尝试自动安装更新
           tryAutoInstallUpdate();

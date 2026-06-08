@@ -6,7 +6,7 @@ import {
   importLocalUpdatePackage,
   LocalUpdatePackageError,
   getSupportedUpdatePackageExtensions,
-  savePendingUpdateInfo,
+  saveCompletedUpdateInfo,
   isDebugVersion,
 } from '@/services/updateService';
 import { loggers } from '@/utils/logger';
@@ -70,16 +70,7 @@ export function useLocalUpdatePackageImport() {
           progress: 100,
         });
         setDownloadStatus('completed');
-        savePendingUpdateInfo({
-          versionName: updateInfo.versionName,
-          releaseNote: updateInfo.releaseNote,
-          channel: updateInfo.channel,
-          downloadSavePath: filePath,
-          fileSize: updateInfo.fileSize,
-          updateType: updateInfo.updateType,
-          downloadSource: updateInfo.downloadSource,
-          timestamp: Date.now(),
-        });
+        saveCompletedUpdateInfo(updateInfo, filePath);
         setShowInstallConfirmModal(true);
         toast.success(t('mirrorChyan.localPackageReady', { version: updateInfo.versionName }), {
           id: toastId,

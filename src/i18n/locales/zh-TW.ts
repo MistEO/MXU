@@ -638,9 +638,6 @@ export default {
     localPackageFilter: '更新包',
     verifyingLocalPackage: '正在校驗更新包...',
     localPackageReady: '更新包已校驗，可安裝 {{version}}',
-    dropLocalPackage: '放開以校驗更新包',
-    localPackageBusy: '目前正在更新，請稍後再試',
-    localPackageHint: '支援 zip、tar.gz、tgz、exe、dmg',
     localPackageErrors: {
       unsupportedFile: '不支援的更新包格式',
       missingProjectInfo: '目前專案未設定更新資訊',
@@ -648,7 +645,7 @@ export default {
       busy: '目前正在下載或安裝更新',
       checkFailed: '檢查更新失敗，請稍後重試',
       noUpdate: '目前沒有可安裝的新版本',
-      multipleFiles: '一次只能拖入一個更新包',
+      missingPackageInterface: '更新包內未找到 interface.json',
     },
     // 更新安裝
     installing: '正在安裝更新...',

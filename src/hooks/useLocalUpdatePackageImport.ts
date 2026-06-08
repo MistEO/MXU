@@ -7,6 +7,7 @@ import {
   LocalUpdatePackageError,
   getSupportedUpdatePackageExtensions,
   savePendingUpdateInfo,
+  isDebugVersion,
 } from '@/services/updateService';
 import { loggers } from '@/utils/logger';
 
@@ -14,9 +15,9 @@ export function useLocalUpdatePackageImport() {
   const { t } = useTranslation();
   const {
     projectInterface,
-    mirrorChyanSettings,
     downloadStatus,
     installStatus,
+    updateCheckLoading,
     setUpdateInfo,
     setUpdateCheckLoading,
     setDownloadStatus,
@@ -35,8 +36,22 @@ export function useLocalUpdatePackageImport() {
     [t],
   );
 
+  const disabledReason =
+    !projectInterface?.mirrorchyan_rid || !projectInterface?.version || !projectInterface?.name
+      ? 'missingProjectInfo'
+      : import.meta.env.DEV || isDebugVersion(projectInterface.version)
+        ? 'debugMode'
+        : updateCheckLoading || downloadStatus === 'downloading' || installStatus === 'installing'
+          ? 'busy'
+          : null;
+
   const importPackage = useCallback(
     async (filePath: string) => {
+      if (disabledReason) {
+        toast.error(t(`mirrorChyan.localPackageErrors.${disabledReason}`));
+        return;
+      }
+
       const toastId = toast.loading(t('mirrorChyan.verifyingLocalPackage'));
       setUpdateCheckLoading(true);
 
@@ -44,8 +59,6 @@ export function useLocalUpdatePackageImport() {
         const updateInfo = await importLocalUpdatePackage({
           filePath,
           projectInterface,
-          cdk: mirrorChyanSettings.cdk || undefined,
-          channel: mirrorChyanSettings.channel,
         });
 
         setUpdateInfo(updateInfo);
@@ -80,8 +93,6 @@ export function useLocalUpdatePackageImport() {
     },
     [
       projectInterface,
-      mirrorChyanSettings.cdk,
-      mirrorChyanSettings.channel,
       setUpdateInfo,
       setUpdateCheckLoading,
       setDownloadStatus,
@@ -90,24 +101,14 @@ export function useLocalUpdatePackageImport() {
       setShowInstallConfirmModal,
       getErrorMessage,
       t,
+      disabledReason,
     ],
-  );
-
-  const importSinglePackage = useCallback(
-    async (filePaths: string[]) => {
-      if (filePaths.length !== 1) {
-        toast.error(t('mirrorChyan.localPackageErrors.multipleFiles'));
-        return;
-      }
-      await importPackage(filePaths[0]);
-    },
-    [importPackage, t],
   );
 
   return {
     importPackage,
-    importSinglePackage,
     supportedExtensions: getSupportedUpdatePackageExtensions(),
-    disabled: downloadStatus === 'downloading' || installStatus === 'installing',
+    disabled: disabledReason !== null,
+    disabledReason,
   };
 }

@@ -651,9 +651,6 @@ export default {
     localPackageFilter: '업데이트 패키지',
     verifyingLocalPackage: '업데이트 패키지 확인 중...',
     localPackageReady: '업데이트 패키지가 확인되었습니다. {{version}} 설치 가능',
-    dropLocalPackage: '놓아서 업데이트 패키지 확인',
-    localPackageBusy: '업데이트 처리 중입니다. 나중에 다시 시도하세요',
-    localPackageHint: 'zip, tar.gz, tgz, exe, dmg 지원',
     localPackageErrors: {
       unsupportedFile: '지원하지 않는 업데이트 패키지 형식입니다',
       missingProjectInfo: '현재 프로젝트에 업데이트 정보가 설정되어 있지 않습니다',
@@ -661,7 +658,7 @@ export default {
       busy: '업데이트를 다운로드하거나 설치하는 중입니다',
       checkFailed: '업데이트 확인에 실패했습니다. 나중에 다시 시도하세요',
       noUpdate: '설치할 새 버전이 없습니다',
-      multipleFiles: '업데이트 패키지는 한 번에 하나만 놓으세요',
+      missingPackageInterface: '업데이트 패키지에 interface.json이 없습니다',
     },
     // 업데이트 설치
     installing: '업데이트 설치 중...',

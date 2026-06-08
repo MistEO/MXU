@@ -642,9 +642,6 @@ export default {
     localPackageFilter: '更新包',
     verifyingLocalPackage: '正在校验更新包...',
     localPackageReady: '更新包已校验，可安装 {{version}}',
-    dropLocalPackage: '释放以校验更新包',
-    localPackageBusy: '当前正在更新，请稍后再试',
-    localPackageHint: '支持 zip、tar.gz、tgz、exe、dmg',
     localPackageErrors: {
       unsupportedFile: '不支持的更新包格式',
       missingProjectInfo: '当前项目未配置更新信息',
@@ -652,7 +649,7 @@ export default {
       busy: '当前正在下载或安装更新',
       checkFailed: '检查更新失败，请稍后重试',
       noUpdate: '当前没有可安装的新版本',
-      multipleFiles: '一次只能拖入一个更新包',
+      missingPackageInterface: '更新包内未找到 interface.json',
     },
     // 更新安装
     installing: '正在安装更新...',

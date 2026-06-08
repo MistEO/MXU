@@ -256,6 +256,7 @@ pub fn run() {
             commands::state::clear_instance_logs,
             // 更新安装命令
             commands::update::extract_zip,
+            commands::update::read_update_package_interface,
             commands::update::check_changes_json,
             commands::update::apply_incremental_update,
             commands::update::apply_full_update,

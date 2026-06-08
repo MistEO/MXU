@@ -5,6 +5,7 @@ import type { DownloadProgress, UpdateInfo } from '@/stores/appStore';
 import type { ProxySettings, UpdateChannel } from '@/types/config';
 import type { ProjectInterface } from '@/types/interface';
 import { loggers } from '@/utils/logger';
+import { parseJsonc } from '@/utils/jsonc';
 import { getCacheDir, joinPath } from '@/utils/paths';
 import { invoke } from '@tauri-apps/api/core';
 import { dirname } from '@tauri-apps/api/path';
@@ -100,7 +101,8 @@ export type LocalUpdatePackageErrorCode =
   | 'debugMode'
   | 'busy'
   | 'checkFailed'
-  | 'noUpdate';
+  | 'noUpdate'
+  | 'missingPackageInterface';
 
 export class LocalUpdatePackageError extends Error {
   public readonly code: LocalUpdatePackageErrorCode;
@@ -112,7 +114,7 @@ export class LocalUpdatePackageError extends Error {
   }
 }
 
-const SUPPORTED_UPDATE_PACKAGE_EXTENSIONS = ['.zip', '.tar.gz', '.tgz', '.exe', '.dmg'];
+const SUPPORTED_UPDATE_PACKAGE_EXTENSIONS = ['.zip', '.tar.gz', '.tgz'];
 
 interface MirrorChyanApiResponse {
   code: number;
@@ -940,25 +942,31 @@ export async function getUpdateSavePath(filename?: string): Promise<string> {
 export interface ImportLocalUpdatePackageOptions {
   filePath: string;
   projectInterface: ProjectInterface | null;
-  cdk?: string;
-  channel?: UpdateChannel;
+}
+
+async function readLocalPackageInterface(filePath: string): Promise<ProjectInterface> {
+  try {
+    const content = await invoke<string>('read_update_package_interface', { packagePath: filePath });
+    const pi = parseJsonc<ProjectInterface>(content, 'interface.json');
+    if (pi.interface_version !== 2 || !pi.version) {
+      throw new Error('invalid interface.json');
+    }
+    return pi;
+  } catch (error) {
+    log.warn('读取本地更新包 interface.json 失败:', error);
+    throw new LocalUpdatePackageError('missingPackageInterface');
+  }
 }
 
 export async function importLocalUpdatePackage({
   filePath,
   projectInterface,
-  cdk,
-  channel = 'stable',
 }: ImportLocalUpdatePackageOptions): Promise<UpdateInfo> {
   if (!isSupportedUpdatePackage(filePath)) {
     throw new LocalUpdatePackageError('unsupportedFile');
   }
 
-  if (
-    !projectInterface?.mirrorchyan_rid ||
-    !projectInterface.version ||
-    !projectInterface.name
-  ) {
+  if (!projectInterface?.mirrorchyan_rid || !projectInterface.version || !projectInterface.name) {
     throw new LocalUpdatePackageError('missingProjectInfo');
   }
 
@@ -970,24 +978,12 @@ export async function importLocalUpdatePackage({
     throw new LocalUpdatePackageError('busy');
   }
 
-  const updateInfo = await checkUpdate({
-    resourceId: projectInterface.mirrorchyan_rid,
-    currentVersion: projectInterface.version,
-    cdk: cdk || undefined,
-    channel,
-    userAgent: 'MXU',
-  });
-
-  if (!updateInfo) {
-    throw new LocalUpdatePackageError('checkFailed');
-  }
-
-  if (!updateInfo.hasUpdate) {
-    throw new LocalUpdatePackageError('noUpdate');
-  }
+  const packageInterface = await readLocalPackageInterface(filePath);
 
   return {
-    ...updateInfo,
+    hasUpdate: true,
+    versionName: packageInterface.version!,
+    releaseNote: '',
     downloadUrl: undefined,
     filename: getFilenameFromPath(filePath),
     downloadSource: undefined,

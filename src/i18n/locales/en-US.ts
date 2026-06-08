@@ -659,9 +659,6 @@ export default {
     localPackageFilter: 'Update Package',
     verifyingLocalPackage: 'Verifying update package...',
     localPackageReady: 'Update package verified. Ready to install {{version}}',
-    dropLocalPackage: 'Release to verify update package',
-    localPackageBusy: 'Update is busy. Please try again later',
-    localPackageHint: 'Supports zip, tar.gz, tgz, exe, dmg',
     localPackageErrors: {
       unsupportedFile: 'Unsupported update package format',
       missingProjectInfo: 'This project has no update metadata',
@@ -669,7 +666,7 @@ export default {
       busy: 'An update is currently downloading or installing',
       checkFailed: 'Failed to check for updates. Please try again later',
       noUpdate: 'There is no new version to install',
-      multipleFiles: 'Drop one update package at a time',
+      missingPackageInterface: 'The update package does not contain interface.json',
     },
     // Update installation
     installing: 'Installing update...',

@@ -70,7 +70,7 @@ export function UpdateSection() {
   const [checkFailed, setCheckFailed] = useState(false);
   const [, setDebugLog] = useState<string[]>([]);
   const {
-    importSinglePackage,
+    importPackage,
     supportedExtensions,
     disabled: localPackageImportDisabled,
   } = useLocalUpdatePackageImport();
@@ -389,8 +389,8 @@ export function UpdateSection() {
     });
 
     if (!selected || Array.isArray(selected)) return;
-    await importSinglePackage([selected]);
-  }, [importSinglePackage, supportedExtensions, t]);
+    await importPackage(selected);
+  }, [importPackage, supportedExtensions, t]);
 
   if (!projectInterface?.mirrorchyan_rid) {
     return null;
@@ -560,7 +560,6 @@ export function UpdateSection() {
                 </button>
               )}
 
-              {/* 更新状态显示 */}
               {isTauri() && downloadStatus !== 'downloading' && installStatus !== 'installing' && (
                 <button
                   onClick={handleSelectLocalPackage}

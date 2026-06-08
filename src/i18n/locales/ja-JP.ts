@@ -657,9 +657,6 @@ export default {
     localPackageFilter: '更新パッケージ',
     verifyingLocalPackage: '更新パッケージを検証中...',
     localPackageReady: '更新パッケージを検証しました。{{version}} をインストールできます',
-    dropLocalPackage: 'ドロップして更新パッケージを検証',
-    localPackageBusy: '更新処理中です。後でもう一度お試しください',
-    localPackageHint: 'zip、tar.gz、tgz、exe、dmg に対応',
     localPackageErrors: {
       unsupportedFile: 'サポートされていない更新パッケージ形式です',
       missingProjectInfo: 'このプロジェクトには更新情報が設定されていません',
@@ -667,7 +664,7 @@ export default {
       busy: '更新をダウンロードまたはインストール中です',
       checkFailed: '更新の確認に失敗しました。後でもう一度お試しください',
       noUpdate: 'インストール可能な新しいバージョンはありません',
-      multipleFiles: '更新パッケージは 1 つずつドロップしてください',
+      missingPackageInterface: '更新パッケージに interface.json がありません',
     },
     // アップデートインストール
     installing: 'アップデートをインストール中...',

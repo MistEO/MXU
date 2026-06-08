@@ -2640,7 +2640,6 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "sha2",
  "shell-words",
  "tar",
  "tauri",

@@ -3,6 +3,7 @@
 //! 提供解压、增量/全量更新、文件移动等功能
 
 use log::{info, warn};
+use std::io::Read;
 
 use super::file_ops::get_exe_dir;
 use super::types::ChangesJson;
@@ -20,6 +21,82 @@ pub fn extract_zip(zip_path: String, dest_dir: String) -> Result<(), String> {
     } else {
         extract_zip_file(&zip_path, &dest_dir)
     }
+}
+
+/// 读取更新包中的 interface.json
+#[tauri::command]
+pub fn read_update_package_interface(package_path: String) -> Result<String, String> {
+    info!("read_update_package_interface called: {}", package_path);
+
+    let path_lower = package_path.to_lowercase();
+    if path_lower.ends_with(".zip") {
+        read_interface_from_zip(&package_path)
+    } else if path_lower.ends_with(".tar.gz") || path_lower.ends_with(".tgz") {
+        read_interface_from_tar_gz(&package_path)
+    } else {
+        Err("不支持的更新包格式".to_string())
+    }
+}
+
+fn is_interface_json_path(path: &str) -> bool {
+    path.replace('\\', "/")
+        .rsplit('/')
+        .next()
+        .is_some_and(|name| name.eq_ignore_ascii_case("interface.json"))
+}
+
+fn read_interface_from_zip(zip_path: &str) -> Result<String, String> {
+    let file = std::fs::File::open(zip_path)
+        .map_err(|e| format!("无法打开 ZIP 文件 [{}]: {}", zip_path, e))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("无法解析 ZIP 文件: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("无法读取 ZIP 条目 {}: {}", i, e))?;
+        if file.is_dir() || !is_interface_json_path(file.name()) {
+            continue;
+        }
+
+        let mut content = String::new();
+        file.read_to_string(&mut content)
+            .map_err(|e| format!("无法读取 interface.json: {}", e))?;
+        return Ok(content);
+    }
+
+    Err("更新包内未找到 interface.json".to_string())
+}
+
+fn read_interface_from_tar_gz(tar_path: &str) -> Result<String, String> {
+    use flate2::read::GzDecoder;
+    use tar::Archive;
+
+    let file = std::fs::File::open(tar_path)
+        .map_err(|e| format!("无法打开 tar.gz 文件 [{}]: {}", tar_path, e))?;
+    let gz = GzDecoder::new(file);
+    let mut archive = Archive::new(gz);
+    let entries = archive
+        .entries()
+        .map_err(|e| format!("无法读取 tar.gz 条目: {}", e))?;
+
+    for entry in entries {
+        let mut entry = entry.map_err(|e| format!("无法读取 tar.gz 条目: {}", e))?;
+        let path = entry
+            .path()
+            .map_err(|e| format!("无法读取 tar.gz 条目路径: {}", e))?;
+        if !is_interface_json_path(&path.to_string_lossy()) {
+            continue;
+        }
+
+        let mut content = String::new();
+        entry
+            .read_to_string(&mut content)
+            .map_err(|e| format!("无法读取 interface.json: {}", e))?;
+        return Ok(content);
+    }
+
+    Err("更新包内未找到 interface.json".to_string())
 }
 
 /// 解压 ZIP 文件

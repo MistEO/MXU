@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Bug,
   Network,
+  FileUp,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -25,12 +26,15 @@ import {
   cancelDownload,
   MIRRORCHYAN_ERROR_CODES,
   isDebugVersion,
+  savePendingUpdateInfo,
 } from '@/services/updateService';
 import { createProxySettings, proxySettingsForUpdateDownload } from '@/services/proxyService';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { loggers } from '@/utils/logger';
 import { ReleaseNotes, DownloadProgressBar } from '../UpdateInfoCard';
+import { useLocalUpdatePackageImport } from '@/hooks/useLocalUpdatePackageImport';
+import { isTauri } from '@/utils/windowUtils';
 
 export function UpdateSection() {
   const { t } = useTranslation();
@@ -65,6 +69,11 @@ export function UpdateSection() {
   const [proxyError, setProxyError] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
   const [, setDebugLog] = useState<string[]>([]);
+  const {
+    importSinglePackage,
+    supportedExtensions,
+    disabled: localPackageImportDisabled,
+  } = useLocalUpdatePackageImport();
 
   const addDebugLog = useCallback((msg: string) => {
     setDebugLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -152,6 +161,16 @@ export function UpdateSection() {
           // 使用实际保存路径（可能与请求路径不同，如果从 302 重定向检测到正确文件名）
           setDownloadSavePath(result.actualSavePath);
           setDownloadStatus('completed');
+          savePendingUpdateInfo({
+            versionName: info.versionName,
+            releaseNote: info.releaseNote,
+            channel: info.channel,
+            downloadSavePath: result.actualSavePath,
+            fileSize: info.fileSize,
+            updateType: info.updateType,
+            downloadSource: info.downloadSource,
+            timestamp: Date.now(),
+          });
         } else {
           setDownloadStatus('failed');
         }
@@ -357,6 +376,22 @@ export function UpdateSection() {
     }
   };
 
+  const handleSelectLocalPackage = useCallback(async () => {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: false,
+      filters: [
+        {
+          name: t('mirrorChyan.localPackageFilter'),
+          extensions: supportedExtensions.map((ext) => ext.replace(/^\./, '')),
+        },
+      ],
+    });
+
+    if (!selected || Array.isArray(selected)) return;
+    await importSinglePackage([selected]);
+  }, [importSinglePackage, supportedExtensions, t]);
+
   if (!projectInterface?.mirrorchyan_rid) {
     return null;
   }
@@ -526,6 +561,22 @@ export function UpdateSection() {
               )}
 
               {/* 更新状态显示 */}
+              {isTauri() && downloadStatus !== 'downloading' && installStatus !== 'installing' && (
+                <button
+                  onClick={handleSelectLocalPackage}
+                  disabled={updateCheckLoading || localPackageImportDisabled}
+                  className={clsx(
+                    'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border border-border',
+                    updateCheckLoading || localPackageImportDisabled
+                      ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
+                      : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover',
+                  )}
+                >
+                  <FileUp className="w-4 h-4" />
+                  {t('mirrorChyan.selectLocalPackage')}
+                </button>
+              )}
+
               {updateInfo && !updateInfo.hasUpdate && !updateInfo.errorCode && (
                 <p className="text-xs text-center text-text-muted">
                   {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}

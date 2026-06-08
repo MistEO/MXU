@@ -3,6 +3,7 @@
 
 import type { DownloadProgress, UpdateInfo } from '@/stores/appStore';
 import type { ProxySettings, UpdateChannel } from '@/types/config';
+import type { ProjectInterface } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { getCacheDir, joinPath } from '@/utils/paths';
 import { invoke } from '@tauri-apps/api/core';
@@ -93,6 +94,26 @@ export const MIRRORCHYAN_ERROR_CODES = {
 } as const;
 
 // MirrorChyan API 响应类型
+export type LocalUpdatePackageErrorCode =
+  | 'unsupportedFile'
+  | 'missingProjectInfo'
+  | 'debugMode'
+  | 'busy'
+  | 'checkFailed'
+  | 'noUpdate';
+
+export class LocalUpdatePackageError extends Error {
+  public readonly code: LocalUpdatePackageErrorCode;
+
+  constructor(code: LocalUpdatePackageErrorCode, message?: string) {
+    super(message || code);
+    this.name = 'LocalUpdatePackageError';
+    this.code = code;
+  }
+}
+
+const SUPPORTED_UPDATE_PACKAGE_EXTENSIONS = ['.zip', '.tar.gz', '.tgz', '.exe', '.dmg'];
+
 interface MirrorChyanApiResponse {
   code: number;
   msg: string;
@@ -100,7 +121,6 @@ interface MirrorChyanApiResponse {
     version_name: string;
     version_number?: number;
     url?: string;
-    sha256?: string;
     release_note?: string;
     custom_data?: string;
     update_type?: 'incremental' | 'full';
@@ -161,6 +181,19 @@ function extractFilenameFromUrl(url: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function getFilenameFromPath(path: string): string {
+  return path.split(/[/\\]/).pop() || path;
+}
+
+export function isSupportedUpdatePackage(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return SUPPORTED_UPDATE_PACKAGE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+export function getSupportedUpdatePackageExtensions(): string[] {
+  return [...SUPPORTED_UPDATE_PACKAGE_EXTENSIONS];
 }
 
 // 获取 OS 的常见别名（用于匹配文件名）
@@ -902,6 +935,63 @@ export async function getUpdateSavePath(filename?: string): Promise<string> {
   const name = filename || 'update_package';
   const cacheDir = await getCacheDir();
   return joinPath(cacheDir, name);
+}
+
+export interface ImportLocalUpdatePackageOptions {
+  filePath: string;
+  projectInterface: ProjectInterface | null;
+  cdk?: string;
+  channel?: UpdateChannel;
+}
+
+export async function importLocalUpdatePackage({
+  filePath,
+  projectInterface,
+  cdk,
+  channel = 'stable',
+}: ImportLocalUpdatePackageOptions): Promise<UpdateInfo> {
+  if (!isSupportedUpdatePackage(filePath)) {
+    throw new LocalUpdatePackageError('unsupportedFile');
+  }
+
+  if (
+    !projectInterface?.mirrorchyan_rid ||
+    !projectInterface.version ||
+    !projectInterface.name
+  ) {
+    throw new LocalUpdatePackageError('missingProjectInfo');
+  }
+
+  if (import.meta.env.DEV || isDebugVersion(projectInterface.version)) {
+    throw new LocalUpdatePackageError('debugMode');
+  }
+
+  if (isDownloading || isInstalling) {
+    throw new LocalUpdatePackageError('busy');
+  }
+
+  const updateInfo = await checkUpdate({
+    resourceId: projectInterface.mirrorchyan_rid,
+    currentVersion: projectInterface.version,
+    cdk: cdk || undefined,
+    channel,
+    userAgent: 'MXU',
+  });
+
+  if (!updateInfo) {
+    throw new LocalUpdatePackageError('checkFailed');
+  }
+
+  if (!updateInfo.hasUpdate) {
+    throw new LocalUpdatePackageError('noUpdate');
+  }
+
+  return {
+    ...updateInfo,
+    downloadUrl: undefined,
+    filename: getFilenameFromPath(filePath),
+    downloadSource: undefined,
+  };
 }
 
 // ============================================================================

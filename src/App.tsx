@@ -82,6 +82,7 @@ import {
 import { LoadingScreen } from './components/app';
 import { ConnectionLostOverlay } from './components/app/ConnectionLostOverlay';
 import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
+import { GlobalUpdateDropOverlay } from './components/GlobalUpdateDropOverlay';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ScrollText } from 'lucide-react';
@@ -1677,6 +1678,7 @@ function App() {
         className={`h-full flex flex-col bg-bg-primary relative ${backgroundImageDataUrl ? 'has-background-image' : ''}`}
       >
         <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
+        <GlobalUpdateDropOverlay />
         <div className="relative z-10 h-full flex flex-col">
           <ConnectionLostOverlay />
           <TitleBar />
@@ -1760,6 +1762,7 @@ function App() {
       className={`h-full flex flex-col bg-bg-primary relative ${backgroundImageDataUrl ? 'has-background-image' : ''}`}
     >
       <BackgroundOverlay imageDataUrl={backgroundImageDataUrl} opacity={backgroundOpacity} />
+      <GlobalUpdateDropOverlay />
       <div className="relative z-10 h-full flex flex-col">
         {/* WebUI 模式下的连接断开覆盖层 */}
         <ConnectionLostOverlay />

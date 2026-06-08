@@ -650,6 +650,7 @@ export default {
       checkFailed: '检查更新失败，请稍后重试',
       noUpdate: '当前没有可安装的新版本',
       missingPackageInterface: '更新包内未找到 interface.json',
+      projectMismatch: '更新包不属于当前项目',
     },
     // 更新安装
     installing: '正在安装更新...',

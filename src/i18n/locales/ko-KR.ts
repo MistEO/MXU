@@ -659,6 +659,7 @@ export default {
       checkFailed: '업데이트 확인에 실패했습니다. 나중에 다시 시도하세요',
       noUpdate: '설치할 새 버전이 없습니다',
       missingPackageInterface: '업데이트 패키지에 interface.json이 없습니다',
+      projectMismatch: '업데이트 패키지가 현재 프로젝트에 속하지 않습니다',
     },
     // 업데이트 설치
     installing: '업데이트 설치 중...',

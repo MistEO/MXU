@@ -667,6 +667,7 @@ export default {
       checkFailed: 'Failed to check for updates. Please try again later',
       noUpdate: 'There is no new version to install',
       missingPackageInterface: 'The update package does not contain interface.json',
+      projectMismatch: 'The update package does not belong to this project',
     },
     // Update installation
     installing: 'Installing update...',

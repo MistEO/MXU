@@ -102,7 +102,8 @@ export type LocalUpdatePackageErrorCode =
   | 'busy'
   | 'checkFailed'
   | 'noUpdate'
-  | 'missingPackageInterface';
+  | 'missingPackageInterface'
+  | 'projectMismatch';
 
 export class LocalUpdatePackageError extends Error {
   public readonly code: LocalUpdatePackageErrorCode;
@@ -948,7 +949,7 @@ async function readLocalPackageInterface(filePath: string): Promise<ProjectInter
   try {
     const content = await invoke<string>('read_update_package_interface', { packagePath: filePath });
     const pi = parseJsonc<ProjectInterface>(content, 'interface.json');
-    if (pi.interface_version !== 2 || !pi.version) {
+    if (pi.interface_version !== 2 || !pi.version || !pi.name || !pi.mirrorchyan_rid) {
       throw new Error('invalid interface.json');
     }
     return pi;
@@ -979,6 +980,12 @@ export async function importLocalUpdatePackage({
   }
 
   const packageInterface = await readLocalPackageInterface(filePath);
+  if (
+    packageInterface.name !== projectInterface.name ||
+    packageInterface.mirrorchyan_rid !== projectInterface.mirrorchyan_rid
+  ) {
+    throw new LocalUpdatePackageError('projectMismatch');
+  }
 
   return {
     hasUpdate: true,

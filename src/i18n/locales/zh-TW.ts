@@ -646,6 +646,7 @@ export default {
       checkFailed: '檢查更新失敗，請稍後重試',
       noUpdate: '目前沒有可安裝的新版本',
       missingPackageInterface: '更新包內未找到 interface.json',
+      projectMismatch: '更新包不屬於目前專案',
     },
     // 更新安裝
     installing: '正在安裝更新...',

@@ -665,6 +665,7 @@ export default {
       checkFailed: '更新の確認に失敗しました。後でもう一度お試しください',
       noUpdate: 'インストール可能な新しいバージョンはありません',
       missingPackageInterface: '更新パッケージに interface.json がありません',
+      projectMismatch: '更新パッケージは現在のプロジェクトのものではありません',
     },
     // アップデートインストール
     installing: 'アップデートをインストール中...',

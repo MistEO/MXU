@@ -312,13 +312,13 @@ export function FileInput({
   };
 
   return (
-    <div className={clsx('flex gap-2', className)}>
+    <div className={clsx('flex min-w-0 gap-2', className)}>
       <TextInput
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
-        className="flex-1"
+        className="min-w-0 flex-1"
       />
       {isTauri() && (
         <button

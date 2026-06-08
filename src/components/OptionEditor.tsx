@@ -250,8 +250,8 @@ function InputField({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 basis-[14rem]">
           {input.icon && (
             <AsyncIcon
               icon={input.icon}
@@ -272,14 +272,14 @@ function InputField({
             onChange={onChange}
             placeholder={inputPlaceholder}
             disabled={disabled}
-            className="w-[30%] flex-shrink-0"
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : input.input_type === 'time' ? (
           <TimeInput
             value={value}
             onChange={onChange}
             disabled={disabled}
-            className="w-[30%] flex-shrink-0"
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : (
           <TextInput
@@ -288,7 +288,7 @@ function InputField({
             placeholder={inputPlaceholder}
             disabled={disabled}
             hasError={!!validationError}
-            className="w-[30%] flex-shrink-0"
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
             type={input.pipeline_type === 'int' ? 'number' : 'text'}
             inputMode={input.pipeline_type === 'int' ? 'numeric' : undefined}
             step={input.pipeline_type === 'int' ? 1 : undefined}

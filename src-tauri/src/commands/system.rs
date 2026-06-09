@@ -792,10 +792,10 @@ fn has_legacy_registry_autostart() -> bool {
 
 /// 通过 Windows 任务计划程序启用开机自启动（以最高权限运行，避免 UAC 弹窗）
 #[tauri::command]
-pub fn autostart_enable(suffix: String) -> Result<(), String> {
+pub fn autostart_enable(suffix: Option<String>) -> Result<(), String> {
     #[cfg(windows)]
     {
-        create_schtask_autostart(Some(suffix))?;
+        create_schtask_autostart(suffix)?;
         remove_legacy_registry_autostart();
         Ok(())
     }

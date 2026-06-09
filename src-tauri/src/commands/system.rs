@@ -184,7 +184,7 @@ pub fn check_process_running(program: &str) -> bool {
     let file_name = match resolved_path.file_name() {
         Some(name) => name.to_string_lossy().to_string(),
         None => {
-            log::warn!(
+            warn!(
                 "check_process_running: cannot extract filename from '{}'",
                 program
             );
@@ -664,29 +664,31 @@ pub fn has_quit_after_run_flag() -> bool {
 /// 自动迁移旧版注册表自启动到任务计划程序
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {
-    if has_legacy_registry_autostart() {
-        if create_schtask_autostart().is_ok() {
-            remove_legacy_registry_autostart();
-        }
+    if has_legacy_registry_autostart() && create_schtask_autostart(None).is_ok() {
+        remove_legacy_registry_autostart();
     }
     // 兼容迁移：老版本已创建的计划任务可能缺少交互式运行或启动延迟，自动重建为新配置
     if schtask_autostart_needs_refresh() {
-        if let Err(err) = create_schtask_autostart() {
+        if let Err(err) = create_schtask_autostart(None) {
             warn!("重建自启动计划任务失败: {}", err);
         }
     }
 }
 
 #[cfg(windows)]
-fn create_schtask_autostart() -> Result<(), String> {
+fn create_schtask_autostart(suffix: Option<String>) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
     let exe = exe_path.to_string_lossy();
+    let task_name = match suffix {
+        Some(name) => &format!("MXU-{}", name),
+        None => "MXU",
+    };
     let output = std::process::Command::new("schtasks")
         .args([
             "/create",
             "/tn",
-            "MXU",
+            task_name,
             "/tr",
             &format!("\"{}\" --autostart", exe),
             "/sc",
@@ -790,10 +792,10 @@ fn has_legacy_registry_autostart() -> bool {
 
 /// 通过 Windows 任务计划程序启用开机自启动（以最高权限运行，避免 UAC 弹窗）
 #[tauri::command]
-pub fn autostart_enable() -> Result<(), String> {
+pub fn autostart_enable(suffix: String) -> Result<(), String> {
     #[cfg(windows)]
     {
-        create_schtask_autostart()?;
+        create_schtask_autostart(Some(suffix))?;
         remove_legacy_registry_autostart();
         Ok(())
     }
@@ -805,14 +807,19 @@ pub fn autostart_enable() -> Result<(), String> {
 
 /// 通过 Windows 任务计划程序禁用开机自启动
 #[tauri::command]
-pub fn autostart_disable() -> Result<(), String> {
+pub fn autostart_disable(suffix: Option<String>) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        let task_name = match suffix {
+            Some(suffix) => &format!("MXU-{}", suffix),
+            None => "MXU",
+        };
         let _ = std::process::Command::new("schtasks")
-            .args(["/delete", "/tn", "MXU", "/f"])
+            .args(["/delete", "/tn", task_name, "/f"])
             .creation_flags(CREATE_NO_WINDOW)
-            .output();
+            .output()
+            .map_err(|e| format!("执行 schtasks 失败: {}", e))?;
         // 清理旧版注册表条目
         remove_legacy_registry_autostart();
         Ok(())
@@ -825,12 +832,16 @@ pub fn autostart_disable() -> Result<(), String> {
 
 /// 查询是否存在自启动（任务计划程序或旧版注册表）
 #[tauri::command]
-pub fn autostart_is_enabled() -> bool {
+pub fn autostart_is_enabled(suffix: Option<String>) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        let task_name = match suffix {
+            Some(suffix) => &format!("MXU-{}", suffix),
+            None => "MXU",
+        };
         let schtask = std::process::Command::new("schtasks")
-            .args(["/query", "/tn", "MXU"])
+            .args(["/query", "/tn", task_name])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map(|o| o.status.success())
@@ -889,7 +900,7 @@ pub async fn get_web_server_port() -> u16 {
         return port;
     }
     for _ in 0..50 {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
         let port = crate::web_server::get_actual_port();
         if port != 0 {
             return port;

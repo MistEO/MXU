@@ -342,6 +342,7 @@ export default {
     taskCount: 'tasks',
     skipToManual: 'Skip, add tasks manually',
     importConfig: 'Import config from clipboard',
+    importConfigFromFile: 'Import config from file',
     importSuccess: 'Config imported successfully',
     importFailed: 'Import failed: invalid format',
     importProjectMismatch: 'Import failed: project mismatch',
@@ -349,6 +350,8 @@ export default {
       'Import failed: this config was exported by a newer version of {{projectName}}, please update {{projectName}} and try again',
     exportSuccess: 'Config copied to clipboard',
     exportFailed: 'Export failed: unable to write to clipboard',
+    exportFileSuccess: 'Config exported as txt file',
+    exportFileFailed: 'Export failed: unable to write file',
     exportShareHint: 'Sharing my {{projectName}} config "{{tabName}}" with you~',
     exportShareFooter:
       '👆 Copy this message, open {{projectName}}, create a new tab, and tap "Import Config" to use it instantly',
@@ -758,6 +761,11 @@ export default {
     closeAllTabs: 'Close All Tabs',
     closeTabsToRight: 'Close Tabs to the Right',
     exportConfig: 'Export Config',
+    exportToClipboard: 'Export to Clipboard',
+    exportToTxt: 'Export as txt File',
+    importConfig: 'Import Config',
+    importFromClipboard: 'Import from Clipboard',
+    importFromTxt: 'Import from txt File',
 
     // Pre-action context menu
     duplicateAction: 'Duplicate',

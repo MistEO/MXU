@@ -21,12 +21,13 @@ import {
   Bell,
   History,
   Share2,
+  FileText,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import { getInterfaceLangKey } from '@/i18n';
-import { exportWithToast } from '@/utils/tabExportImport';
+import { exportFileWithToast, exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
 const LazyUpdatePanel = lazy(async () => {
@@ -58,7 +59,6 @@ export function TabBar() {
     instances,
     activeInstanceId,
     createInstance,
-    removeInstance,
     setActiveInstance,
     renameInstance,
     reorderInstances,
@@ -87,7 +87,7 @@ export function TabBar() {
   const showUpdatePanel = showUpdateDialog;
   const setShowUpdatePanel = setShowUpdateDialog;
 
-  const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  const { state: menuState, showAt: showMenuAt, hide: hideMenu } = useContextMenu();
 
   // 当最近关闭列表为空时，自动关闭面板
   useEffect(() => {
@@ -161,10 +161,18 @@ export function TabBar() {
 
   // 右键菜单处理
   const handleTabContextMenu = useCallback(
-    (e: React.MouseEvent, instanceId: string, instanceName: string) => {
+    async (e: React.MouseEvent, instanceId: string, instanceName: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const position = { x: e.clientX, y: e.clientY };
       const instanceIndex = instances.findIndex((i) => i.id === instanceId);
       const isFirst = instanceIndex === 0;
       const isLast = instanceIndex === instances.length - 1;
+      const inst = instances.find((i) => i.id === instanceId);
+      const projectName = projectInterface?.name;
+      const exportHint =
+        inst && projectName ? t('preset.exportShareHint', { projectName, tabName: inst.name }) : '';
+      const exportFooter = projectName ? t('preset.exportShareFooter', { projectName }) : '';
 
       const menuItems: MenuItem[] = [
         {
@@ -183,19 +191,35 @@ export function TabBar() {
           id: 'export',
           label: t('contextMenu.exportConfig'),
           icon: Share2,
-          onClick: () => {
-            const inst = instances.find((i) => i.id === instanceId);
-            const projectName = projectInterface?.name;
-            if (inst && projectName) {
-              exportWithToast(
-                inst,
-                projectName,
-                t('preset.exportShareHint', { projectName, tabName: inst.name }),
-                t('preset.exportShareFooter', { projectName }),
-                { success: t('preset.exportSuccess'), failed: t('preset.exportFailed') },
-              );
-            }
-          },
+          disabled: !inst || !projectName,
+          children: [
+            {
+              id: 'export-clipboard',
+              label: t('contextMenu.exportToClipboard'),
+              icon: Copy,
+              onClick: () => {
+                if (inst && projectName) {
+                  exportWithToast(inst, projectName, exportHint, exportFooter, {
+                    success: t('preset.exportSuccess'),
+                    failed: t('preset.exportFailed'),
+                  });
+                }
+              },
+            },
+            {
+              id: 'export-file',
+              label: t('contextMenu.exportToTxt'),
+              icon: FileText,
+              onClick: () => {
+                if (inst && projectName) {
+                  exportFileWithToast(inst, projectName, exportHint, exportFooter, {
+                    success: t('preset.exportFileSuccess'),
+                    failed: t('preset.exportFileFailed'),
+                  });
+                }
+              },
+            },
+          ],
         },
         {
           id: 'rename',
@@ -276,16 +300,15 @@ export function TabBar() {
         },
       ];
 
-      showMenu(e, menuItems);
+      showMenuAt(position, menuItems);
     },
     [
       instances,
       t,
       createInstance,
       duplicateInstance,
-      removeInstance,
       reorderInstances,
-      showMenu,
+      showMenuAt,
       projectInterface,
       confirmBeforeDelete,
       startTabCloseAnimation,

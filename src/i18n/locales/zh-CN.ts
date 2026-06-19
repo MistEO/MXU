@@ -333,6 +333,7 @@ export default {
     taskCount: '个任务',
     skipToManual: '跳过，手动添加任务',
     importConfig: '从剪贴板导入配置',
+    importConfigFromFile: '从文件导入配置',
     importSuccess: '配置导入成功',
     importFailed: '导入失败：格式无效',
     importProjectMismatch: '导入失败：项目不匹配',
@@ -340,6 +341,8 @@ export default {
       '导入失败：该配置由更高版本的 {{projectName}} 导出，请更新 {{projectName}} 后重试',
     exportSuccess: '配置已复制到剪贴板',
     exportFailed: '导出失败：无法写入剪贴板',
+    exportFileSuccess: '配置已导出为 txt 文件',
+    exportFileFailed: '导出失败：无法写入文件',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 配置，发给你啦~',
     exportShareFooter: '👆 复制这段文字，在 {{projectName}} 里新建标签页，点「导入配置」就能直接用',
   },
@@ -752,6 +755,11 @@ export default {
     closeAllTabs: '关闭所有标签页',
     closeTabsToRight: '关闭右侧标签页',
     exportConfig: '导出配置',
+    exportToClipboard: '导出到剪贴板',
+    exportToTxt: '导出为 txt 文件',
+    importConfig: '导入配置',
+    importFromClipboard: '从剪贴板导入',
+    importFromTxt: '从 txt 文件导入',
 
     // 前置程序右键菜单
     duplicateAction: '复制',

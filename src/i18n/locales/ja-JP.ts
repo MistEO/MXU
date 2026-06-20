@@ -568,6 +568,7 @@ export default {
     next: '次へ',
     prev: '前へ',
     gotIt: '了解しました',
+    skipDev: 'スキップ (DEV)',
   },
 
   // インスタンス

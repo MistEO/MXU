@@ -490,6 +490,11 @@ body {
   border-bottom-color: var(--color-accent);
 }
 
+/* className 不能包含 "driver-popover"，否则会被 driver.js 的事件嗅探吞掉点击 */
+.mxu-onboarding-popover .mxu-onboarding-skip {
+  margin-right: auto;
+}
+
 /* 背景图片模式下让UI元素背景半透明 */
 .has-background-image .bg-bg-secondary {
   background-color: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent) !important;

@@ -563,6 +563,7 @@ export default {
     next: '다음',
     prev: '이전',
     gotIt: '알겠습니다',
+    skipDev: '건너뛰기 (DEV)',
   },
 
   // 인스턴스

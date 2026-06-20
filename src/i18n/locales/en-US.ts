@@ -571,6 +571,7 @@ export default {
     next: 'Next',
     prev: 'Previous',
     gotIt: 'Got it',
+    skipDev: 'Skip (DEV)',
   },
 
   // Instance

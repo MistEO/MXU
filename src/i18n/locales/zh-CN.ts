@@ -554,6 +554,7 @@ export default {
     next: '下一步',
     prev: '上一步',
     gotIt: '知道了',
+    skipDev: '跳过（DEV）',
   },
 
   // 实例

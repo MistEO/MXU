@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
+import { isDebugVersion } from '@/services/updateService';
 import type {
   Driver as DriverInstance,
   DriverConfig as DriverFactoryOptions,
@@ -52,15 +53,18 @@ export function OnboardingOverlay() {
     onboardingCompleted,
     setOnboardingCompleted,
     setShowAddTaskPanel,
-    instanceConnectionStatus,
-    instanceResourceLoaded,
-    activeInstanceId,
+    projectInterface,
   } = useAppStore();
+
+  const isDevMode = useMemo(
+    () => import.meta.env.DEV || isDebugVersion(projectInterface?.version),
+    [projectInterface?.version],
+  );
 
   const driverRef = useRef<DriverInstance | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
-  // 只有用户点击最后一步的"知道了"才视为完成；中途关闭下次启动仍提示
+  // 仅合法完成路径置 true；组件卸载触发的 destroy 走 false 分支，下次重新弹出
   const tourFinishedRef = useRef(false);
 
   // 启动 driver.js 引导
@@ -80,7 +84,7 @@ export function OnboardingOverlay() {
           description: t('onboarding.message'),
           side: 'left',
           align: 'start',
-          showButtons: ['next', 'close'],
+          showButtons: ['next'],
           nextBtnText: t('onboarding.next'),
         },
       },
@@ -91,7 +95,7 @@ export function OnboardingOverlay() {
           description: t('onboarding.tabBarMessage'),
           side: 'bottom',
           align: 'start',
-          showButtons: ['next', 'close'],
+          showButtons: ['next'],
           nextBtnText: t('onboarding.next'),
           // 进入"添加任务"步骤前，先打开面板再推进
           onNextClick: (_el, _step, { driver: d }) => {
@@ -107,9 +111,8 @@ export function OnboardingOverlay() {
           description: t('onboarding.addTaskMessage'),
           side: 'top',
           align: 'center',
-          showButtons: ['next', 'close'],
+          showButtons: ['next'],
           doneBtnText: t('onboarding.gotIt'),
-          // 点击"知道了"才标记完成，中途关闭不算
           onNextClick: (_el, _step, { driver: d }) => {
             tourFinishedRef.current = true;
             d.moveNext();
@@ -127,13 +130,28 @@ export function OnboardingOverlay() {
         overlayOpacity: 0.4,
         stagePadding: 6,
         stageRadius: 8,
-        allowClose: true,
+        allowClose: false,
         popoverClass: 'mxu-onboarding-popover',
+        onPopoverRender: (popover) => {
+          if (!isDevMode) return;
+          const footer = popover.footerButtons;
+          if (!footer || footer.querySelector('.mxu-onboarding-skip')) return;
+          const btn = document.createElement('button');
+          // className 不能包含 "driver-popover"，否则会被 driver.js 的事件嗅探吞掉点击
+          btn.className = 'mxu-onboarding-skip';
+          btn.type = 'button';
+          btn.textContent = t('onboarding.skipDev');
+          btn.addEventListener('click', () => {
+            tourFinishedRef.current = true;
+            driverRef.current?.destroy();
+          });
+          footer.insertBefore(btn, footer.firstChild);
+        },
         onDestroyed: () => {
+          // 唯一的 completed 写入口；中途关闭（含关软件）走 false 分支，下次重新弹
           if (tourFinishedRef.current) {
             setOnboardingCompleted(true);
           } else {
-            // 用户中途关闭，重置 startedRef 以便下次启动重新触发
             startedRef.current = false;
           }
         },
@@ -145,29 +163,7 @@ export function OnboardingOverlay() {
       startedRef.current = false;
       log.warn('Failed to load onboarding driver:', err);
     }
-  }, [onboardingCompleted, t, setOnboardingCompleted, setShowAddTaskPanel]);
-
-  // 监听连接状态，一旦用户成功连接设备并加载资源，自动关闭引导
-  useEffect(() => {
-    if (onboardingCompleted || !driverRef.current?.isActive()) return;
-
-    const currentInstanceId = activeInstanceId;
-    if (!currentInstanceId) return;
-
-    const isConnected = instanceConnectionStatus[currentInstanceId] === 'Connected';
-    const isResourceLoaded = instanceResourceLoaded[currentInstanceId];
-
-    if (isConnected && isResourceLoaded) {
-      driverRef.current?.destroy();
-      setOnboardingCompleted(true);
-    }
-  }, [
-    onboardingCompleted,
-    activeInstanceId,
-    instanceConnectionStatus,
-    instanceResourceLoaded,
-    setOnboardingCompleted,
-  ]);
+  }, [onboardingCompleted, t, setOnboardingCompleted, setShowAddTaskPanel, isDevMode]);
 
   // 等待所有模态弹窗关闭后再启动引导
   useEffect(() => {

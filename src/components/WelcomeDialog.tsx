@@ -46,6 +46,7 @@ export function WelcomeDialog() {
   useEffect(() => {
     if (!projectInterface?.welcome) {
       setIsOpen(false);
+      setIsLoading(false);
       return;
     }
 
@@ -60,6 +61,7 @@ export function WelcomeDialog() {
 
       if (!resolvedContent) {
         setIsOpen(false);
+        setIsLoading(false);
         return;
       }
 
@@ -70,6 +72,7 @@ export function WelcomeDialog() {
       // 如果内容已经显示过（hash 相同），不再显示
       if (welcomeShownHash === contentHash) {
         setIsOpen(false);
+        setIsLoading(false);
         return;
       }
 
@@ -95,7 +98,13 @@ export function WelcomeDialog() {
     setIsOpen(false);
   };
 
-  if (!isOpen || isLoading) return null;
+  if (!isOpen || isLoading) {
+    // 加载中渲染不可见的 z-50 占位，让 OnboardingOverlay 感知 welcome 决策未完成，避免教程抢先弹出
+    if (projectInterface?.welcome && isLoading) {
+      return <div className="fixed inset-0 z-50 pointer-events-none" aria-hidden />;
+    }
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

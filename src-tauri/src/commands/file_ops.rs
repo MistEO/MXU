@@ -3,15 +3,23 @@
 //! 提供本地文件读取和路径检查功能
 
 use log::debug;
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{self, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
 
-const MAX_EXPORT_ARCHIVE_BYTES: u64 = 24_500_000;
-const ZIP_ENTRY_OVERHEAD_BYTES: u64 = 128;
-const ZIP_END_OF_CENTRAL_DIRECTORY_BYTES: u64 = 22;
+/// 单个分卷 zip 的大小上限（字节）。
+const MAX_VOLUME_BYTES: u64 = 24_500_000;
+/// 单个 entry 的 local header + 中央目录条目大小上界（不含文件名）。
+const ZIP_PER_ENTRY_HEADER_UPPER_BOUND: u64 = 128;
+/// EOCD 记录（zip 末尾）固定大小。
+const ZIP_EOCD_BYTES: u64 = 22;
+/// 中央目录每条记录的固定字段大小（不含文件名）。
+const ZIP_CENTRAL_DIR_FIXED_BYTES: u64 = 46;
+/// 保留最近 N 次导出（含本次），多余的会在每次导出完成后清理。
+const MAX_EXPORTS_TO_KEEP: usize = 10;
 
 #[derive(Clone)]
 struct ExportEntry {
@@ -19,109 +27,43 @@ struct ExportEntry {
     archive_name: String,
 }
 
-#[derive(Default)]
-struct CountingWriterState {
-    position: u64,
-    len: u64,
+/// 包装真实 writer，统计已写字节数，用于在写入分卷过程中实时查询当前卷大小。
+struct CountingWriter<W: Write + Seek> {
+    inner: W,
+    counter: Arc<AtomicU64>,
 }
 
-#[derive(Clone)]
-struct CountingWriter {
-    state: Arc<Mutex<CountingWriterState>>,
-}
-
-impl CountingWriter {
-    fn new(state: Arc<Mutex<CountingWriterState>>) -> Self {
-        Self { state }
-    }
-
-    fn len(&self) -> u64 {
-        self.state.lock().map(|state| state.len).unwrap_or(0)
+impl<W: Write + Seek> CountingWriter<W> {
+    fn new(inner: W) -> (Self, Arc<AtomicU64>) {
+        let counter = Arc::new(AtomicU64::new(0));
+        (
+            Self {
+                inner,
+                counter: counter.clone(),
+            },
+            counter,
+        )
     }
 }
 
-impl Write for CountingWriter {
+impl<W: Write + Seek> Write for CountingWriter<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| io::Error::other("counting writer lock poisoned"))?;
-        let written = buf.len() as u64;
-        state.position = state.position.saturating_add(written);
-        state.len = state.len.max(state.position);
-        Ok(buf.len())
+        let n = self.inner.write(buf)?;
+        self.counter.fetch_add(n as u64, Ordering::Relaxed);
+        Ok(n)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        self.inner.flush()
     }
 }
 
-impl Seek for CountingWriter {
+impl<W: Write + Seek> Seek for CountingWriter<W> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| io::Error::other("counting writer lock poisoned"))?;
-        let next = match pos {
-            SeekFrom::Start(offset) => offset as i128,
-            SeekFrom::Current(offset) => state.position as i128 + offset as i128,
-            SeekFrom::End(offset) => state.len as i128 + offset as i128,
-        };
-
-        if next < 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "invalid seek to a negative position",
-            ));
-        }
-
-        state.position = next as u64;
-        state.len = state.len.max(state.position);
-        Ok(state.position)
-    }
-}
-
-struct ArchiveMeasurer {
-    zip: zip::ZipWriter<CountingWriter>,
-    writer: CountingWriter,
-    central_directory_bytes: u64,
-}
-
-impl ArchiveMeasurer {
-    fn new() -> Self {
-        let state = Arc::new(Mutex::new(CountingWriterState::default()));
-        let writer = CountingWriter::new(state);
-        Self {
-            zip: zip::ZipWriter::new(writer.clone()),
-            writer,
-            central_directory_bytes: 0,
-        }
-    }
-
-    fn try_add_entry(
-        &mut self,
-        entry: &ExportEntry,
-        options: zip::write::SimpleFileOptions,
-    ) -> bool {
-        if !add_file_to_zip(
-            &mut self.zip,
-            &entry.source_path,
-            &entry.archive_name,
-            options,
-        ) {
-            return false;
-        }
-
-        let filename_bytes = entry.archive_name.as_bytes().len() as u64;
-        self.central_directory_bytes = self
-            .central_directory_bytes
-            .saturating_add(46 + filename_bytes);
-        true
-    }
-
-    fn projected_size(&self) -> u64 {
-        self.writer.len() + self.central_directory_bytes + ZIP_END_OF_CENTRAL_DIRECTORY_BYTES
+        // counter 是已写字节的**上界**：zip crate 会 seek 回去重写 local header（CRC、
+        // 压缩前后大小），重写的字节被 write() 重复计入；写入失败留下的占位 header
+        // 也已经进了 counter。上界对分卷预算判断是安全的（只会更早切卷）。
+        self.inner.seek(pos)
     }
 }
 
@@ -157,22 +99,11 @@ where
     true
 }
 
-fn add_entries_to_zip<W>(
-    zip: &mut zip::ZipWriter<W>,
-    entries: &[ExportEntry],
-    options: zip::write::SimpleFileOptions,
-) where
-    W: Write + Seek,
-{
-    for entry in entries {
-        add_file_to_zip(zip, &entry.source_path, &entry.archive_name, options);
-    }
-}
-
 fn estimate_entry_upper_bound(entry: &ExportEntry) -> Option<u64> {
     let file_size = entry.source_path.metadata().ok()?.len();
-    let name_len = entry.archive_name.as_bytes().len() as u64;
-    Some(file_size + ZIP_ENTRY_OVERHEAD_BYTES + name_len.saturating_mul(2))
+    let name_len = entry.archive_name.len() as u64;
+    // 文件名在 local header 和中央目录条目里都出现一次，所以 ×2。
+    Some(file_size + ZIP_PER_ENTRY_HEADER_UPPER_BOUND + name_len.saturating_mul(2))
 }
 
 fn normalize_archive_path(path: &Path) -> String {
@@ -505,23 +436,17 @@ pub fn set_executable(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 从指定目录收集图片，按最新优先排序，受压缩包大小上限约束
-fn collect_debug_images(
-    dir: &Path,
-    archive_prefix: &str,
-    archive_measurer: &mut ArchiveMeasurer,
-    estimated_archive_size: &mut u64,
-    selected_images: &mut Vec<ExportEntry>,
-    options: zip::write::SimpleFileOptions,
-) {
+/// 从指定目录收集图片，按 mtime 从新到旧排序。不做任何大小截断。
+fn collect_debug_images(dir: &Path, archive_prefix: &str) -> Vec<ExportEntry> {
     if !dir.exists() || !dir.is_dir() {
-        return;
+        return Vec::new();
     }
     let rd = match std::fs::read_dir(dir) {
         Ok(rd) => rd,
-        Err(_) => {
-            log::warn!("无法读取 {} 目录", archive_prefix);
-            return;
+        Err(e) => {
+            // 目录不存在的情况上面已经 return 了，所以走到这里通常是权限或 IO 问题。
+            log::warn!("读取 {} 目录失败 [{}]: {}", archive_prefix, dir.display(), e);
+            return Vec::new();
         }
     };
 
@@ -533,53 +458,39 @@ fn collect_debug_images(
         time_b.cmp(&time_a)
     });
 
+    let mut entries = Vec::with_capacity(images.len());
     for entry in images {
         let path = entry.path();
         let Some(name) = path.file_name() else {
             continue;
         };
         let archive_name = format!("{}/{}", archive_prefix, name.to_string_lossy());
-
-        if *estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
-            break;
-        }
-
-        let image_entry = ExportEntry {
+        entries.push(ExportEntry {
             source_path: path,
             archive_name,
-        };
-        let Some(estimated_delta_upper_bound) = estimate_entry_upper_bound(&image_entry) else {
-            log::warn!("无法获取图片大小，跳过 {:?}", image_entry.source_path);
-            continue;
-        };
-
-        if *estimated_archive_size + estimated_delta_upper_bound > MAX_EXPORT_ARCHIVE_BYTES {
-            log::info!(
-                "{} 图片已截断：当前预计 {} bytes，再加入 {} 后会超过 {} bytes",
-                archive_prefix,
-                *estimated_archive_size,
-                *estimated_archive_size + estimated_delta_upper_bound,
-                MAX_EXPORT_ARCHIVE_BYTES
-            );
-            break;
-        }
-
-        if !archive_measurer.try_add_entry(&image_entry, options) {
-            continue;
-        }
-
-        *estimated_archive_size = archive_measurer.projected_size();
-        selected_images.push(image_entry);
+        });
     }
+    entries
 }
 
-/// 导出日志文件为 zip 压缩包
-/// 返回生成的 zip 文件路径
+/// 导出日志文件为分卷 zip 压缩包目录
+/// 返回 part01.zip 路径（其同级目录下还有后续分卷）
+///
+/// 注：`vision/` 是否有内容由 `maa_set_save_draw` 控制；导出时只要 `vision/`
+/// 下有文件就一并打包，因此本命令不接收 save_draw 参数。
 #[tauri::command]
-pub fn export_logs(
+pub async fn export_logs(
     project_name: Option<String>,
     project_version: Option<String>,
-    save_draw: Option<bool>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || export_logs_blocking(project_name, project_version))
+        .await
+        .map_err(|e| format!("导出任务执行失败: {}", e))?
+}
+
+fn export_logs_blocking(
+    project_name: Option<String>,
+    project_version: Option<String>,
 ) -> Result<String, String> {
     use std::fs::File;
     use zip::write::SimpleFileOptions;
@@ -593,104 +504,206 @@ pub fn export_logs(
         return Err("日志目录不存在".to_string());
     }
 
-    // 生成带时间戳的文件名：项目名-版本号-日期.zip
     let now = chrono::Local::now();
     let date_str = now.format("%Y%m%d-%H%M%S");
     let name = project_name.unwrap_or_else(|| "mxu".to_string());
     let version = project_version.unwrap_or_default();
-    let filename = if version.is_empty() {
-        format!("{}-logs-{}.zip", name, date_str)
+    let dir_name = if version.is_empty() {
+        format!("{}-logs-{}", name, date_str)
     } else {
-        format!("{}-logs-{}-{}.zip", name, version, date_str)
+        format!("{}-logs-{}-{}", name, version, date_str)
     };
-    let zip_path = debug_dir.join(&filename);
+    // 产物放在 debug_exports/ 下而不是 debug/，避免下次导出把上次的产物扫进去。
+    let exports_root = data_dir.join("debug_exports");
+    let out_dir = exports_root.join(&dir_name);
+    std::fs::create_dir_all(&out_dir)
+        .map_err(|e| format!("创建导出目录失败 [{}]: {}", out_dir.display(), e))?;
 
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    let mut regular_entries = Vec::new();
 
-    // 遍历 debug 目录下的所有 .log 文件
+    // ─── 1. 收集常规文件（log / config / 子目录下的 log/json） ───
+    let mut regular_entries: Vec<ExportEntry> = Vec::new();
+
     let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
-
     for entry in entries.flatten() {
         let path = entry.path();
-
-        // 使用 early-continue 简化逻辑
         if !path.is_file() {
             continue;
         }
         if path.extension().map(|e| e != "log").unwrap_or(true) {
             continue;
         }
-        let Some(name) = path.file_name() else {
+        let Some(archive_name) = path.file_name().map(|n| n.to_string_lossy().to_string()) else {
             continue;
         };
-        let archive_name = name.to_string_lossy().to_string();
-
         regular_entries.push(ExportEntry {
             source_path: path,
             archive_name,
         });
     }
-
     regular_entries.sort_by(|a, b| a.archive_name.cmp(&b.archive_name));
 
     let config_dir = data_dir.join("config");
     regular_entries.extend(collect_files_recursively(&config_dir, "config")?);
-
-    // debug 各子文件夹下以 .log / .json 结尾的文件（如 on_error/vision 等产生的文本记录）
     regular_entries.extend(collect_debug_subdir_files(&debug_dir, &["log", "json"])?);
 
-    let mut selected_images = Vec::new();
-    let mut archive_measurer = ArchiveMeasurer::new();
-    for entry in &regular_entries {
-        archive_measurer.try_add_entry(entry, options);
-    }
-    let mut estimated_archive_size = archive_measurer.projected_size();
+    // ─── 2. 收集图片（on_error + vision，按 mtime 新→旧） ───
+    let on_error_images = collect_debug_images(&debug_dir.join("on_error"), "on_error");
+    let vision_images = collect_debug_images(&debug_dir.join("vision"), "vision");
 
-    if estimated_archive_size > MAX_EXPORT_ARCHIVE_BYTES {
-        log::warn!(
-            "日志与配置压缩后预计已有 {} bytes，已超过 {} bytes 的导出目标，调试图片将全部跳过",
-            estimated_archive_size,
-            MAX_EXPORT_ARCHIVE_BYTES
-        );
+    // ─── 3. 合并入卷条目：先 regular，再 on_error，再 vision ───
+    // 图片按 mtime 新→旧排在尾部，保证最近的崩溃图一定落在 part01.zip。
+    let mut all_entries: Vec<ExportEntry> = Vec::new();
+    all_entries.extend(regular_entries);
+    all_entries.extend(on_error_images);
+    all_entries.extend(vision_images);
+
+    let total_entries = all_entries.len();
+    if total_entries == 0 {
+        return Err("没有可导出的日志文件".to_string());
     }
 
-    // 处理 on_error 文件夹
-    collect_debug_images(
-        &debug_dir.join("on_error"),
-        "on_error",
-        &mut archive_measurer,
-        &mut estimated_archive_size,
-        &mut selected_images,
-        options,
+    // ─── 4. 分卷打包 ───
+    // 卷数硬上界 = 总条目数（每文件独占一卷的退化情形）；据此选零填充宽度。
+    let width = if total_entries >= 100 { 3 } else { 2 };
+
+    let mut volume_idx: usize = 1;
+    let mut iter = all_entries.into_iter().peekable();
+    let mut total_files_written: usize = 0;
+    let mut first_volume_path: Option<PathBuf> = None;
+
+    while iter.peek().is_some() {
+        let volume_path = out_dir.join(format!(
+            "{}-part{:0width$}.zip",
+            dir_name,
+            volume_idx,
+            width = width
+        ));
+        let file = File::create(&volume_path)
+            .map_err(|e| format!("创建分卷文件失败 [{}]: {}", volume_path.display(), e))?;
+        // 64 KB 缓冲：deflate 输出的 chunk 经常几十到几百 KB，默认 8 KB 太小。
+        let (counting, counter) = CountingWriter::new(BufWriter::with_capacity(64 * 1024, file));
+        let mut zip = ZipWriter::new(counting);
+        let mut wrote_any = false;
+        let mut volume_file_count: usize = 0;
+        // 预留 finish() 时要写入的 EOCD + 累计的中央目录字节，避免卷写超。
+        let mut central_dir_reserve: u64 = ZIP_EOCD_BYTES;
+
+        while let Some(entry) = iter.peek() {
+            let est_delta = estimate_entry_upper_bound(entry).unwrap_or(u64::MAX);
+            let current_bytes = counter.load(Ordering::Relaxed);
+            let entry_cd_bytes = ZIP_CENTRAL_DIR_FIXED_BYTES + entry.archive_name.len() as u64;
+            let projected = current_bytes
+                .saturating_add(est_delta)
+                .saturating_add(central_dir_reserve)
+                .saturating_add(entry_cd_bytes);
+            // 单文件超过卷上限时，当前卷为空就让它独占一卷，保证不丢文件。
+            if wrote_any && projected > MAX_VOLUME_BYTES {
+                break;
+            }
+            let entry = iter.next().expect("peek 已确认存在");
+            if add_file_to_zip(&mut zip, &entry.source_path, &entry.archive_name, options) {
+                central_dir_reserve = central_dir_reserve.saturating_add(entry_cd_bytes);
+                wrote_any = true;
+                volume_file_count += 1;
+                total_files_written += 1;
+            }
+        }
+
+        zip.finish()
+            .map_err(|e| format!("完成分卷压缩失败 [{}]: {}", volume_path.display(), e))?;
+
+        if let Ok(metadata) = std::fs::metadata(&volume_path) {
+            log::info!(
+                "分卷 {} 完成：{} 个文件，{} bytes",
+                volume_path.display(),
+                volume_file_count,
+                metadata.len()
+            );
+        }
+
+        if first_volume_path.is_none() {
+            first_volume_path = Some(volume_path);
+        }
+        volume_idx += 1;
+    }
+
+    log::info!(
+        "日志导出完成：{} 个文件分为 {} 个分卷，输出目录 {}",
+        total_files_written,
+        volume_idx - 1,
+        out_dir.display()
     );
 
-    // 处理 vision 文件夹（保存调试图像开启时）
-    if save_draw.unwrap_or(false) {
-        collect_debug_images(
-            &debug_dir.join("vision"),
-            "vision",
-            &mut archive_measurer,
-            &mut estimated_archive_size,
-            &mut selected_images,
-            options,
-        );
+    // 只保留最近 MAX_EXPORTS_TO_KEEP 次导出。清理失败仅 warn，不影响本次结果。
+    prune_old_exports(&exports_root, &out_dir);
+
+    // 返回 part01.zip 路径，让前端 revealItemInDir 选中第一个分卷.
+    // total_entries == 0 已早返，所以循环至少跑过一次。
+    let reveal_target = first_volume_path.expect("至少应有一个分卷写入成功");
+    Ok(reveal_target.to_string_lossy().to_string())
+}
+
+/// 扫描 `exports_root` 下子目录，按目录名里的时间戳新→旧排序，
+/// 删除超出 `MAX_EXPORTS_TO_KEEP` 的旧目录。`current_export` 始终保留。
+///
+/// 用目录名解时间戳而不是 mtime：Windows 上目录 mtime 不稳定，
+/// 且备份/同步工具可能改写。
+fn prune_old_exports(exports_root: &Path, current_export: &Path) {
+    let rd = match std::fs::read_dir(exports_root) {
+        Ok(rd) => rd,
+        Err(e) => {
+            log::warn!(
+                "枚举导出目录失败 [{}]: {}，跳过旧导出清理",
+                exports_root.display(),
+                e
+            );
+            return;
+        }
+    };
+
+    // 解不出时间戳的子目录直接跳过（既不删也不算名额）。
+    let mut dirs: Vec<(PathBuf, String)> = rd
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter(|e| e.path() != current_export)
+        .filter_map(|e| {
+            let path = e.path();
+            let name = path.file_name()?.to_string_lossy().into_owned();
+            let ts = parse_export_timestamp(&name)?;
+            Some((path, ts))
+        })
+        .collect();
+
+    // 本次产物始终保留，所以历史最多留 MAX_EXPORTS_TO_KEEP - 1 个
+    let keep_others = MAX_EXPORTS_TO_KEEP - 1;
+    if dirs.len() <= keep_others {
+        return;
     }
 
-    let file = File::create(&zip_path).map_err(|e| format!("创建压缩文件失败: {}", e))?;
-    let mut zip = ZipWriter::new(file);
-    add_entries_to_zip(&mut zip, &regular_entries, options);
-    add_entries_to_zip(&mut zip, &selected_images, options);
-    zip.finish().map_err(|e| format!("完成压缩失败: {}", e))?;
-
-    if let Ok(metadata) = std::fs::metadata(&zip_path) {
-        log::info!(
-            "日志导出完成：{} 个常规文件，{} 张调试图片，压缩包大小 {} bytes",
-            regular_entries.len(),
-            selected_images.len(),
-            metadata.len()
-        );
+    // 时间戳字符串的字典序就是时间序
+    dirs.sort_by(|a, b| b.1.cmp(&a.1));
+    for (path, _) in dirs.into_iter().skip(keep_others) {
+        match std::fs::remove_dir_all(&path) {
+            Ok(()) => log::info!("已清理旧导出: {}", path.display()),
+            Err(e) => log::warn!("清理旧导出失败 [{}]: {}", path.display(), e),
+        }
     }
+}
 
-    Ok(zip_path.to_string_lossy().to_string())
+/// 从导出目录名末尾解出 `YYYYMMDD-HHMMSS` 时间戳作为排序键。
+fn parse_export_timestamp(dir_name: &str) -> Option<String> {
+    const TS_LEN: usize = 15;
+    if dir_name.len() < TS_LEN {
+        return None;
+    }
+    let tail = &dir_name[dir_name.len() - TS_LEN..];
+    let bytes = tail.as_bytes();
+    let shape_ok = bytes[..8].iter().all(|b| b.is_ascii_digit())
+        && bytes[8] == b'-'
+        && bytes[9..].iter().all(|b| b.is_ascii_digit());
+    if !shape_ok {
+        return None;
+    }
+    Some(tail.to_string())
 }

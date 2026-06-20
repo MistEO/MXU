@@ -694,16 +694,18 @@ fn prune_old_exports(exports_root: &Path, current_export: &Path) {
 /// 从导出目录名末尾解出 `YYYYMMDD-HHMMSS` 时间戳作为排序键。
 fn parse_export_timestamp(dir_name: &str) -> Option<String> {
     const TS_LEN: usize = 15;
-    if dir_name.len() < TS_LEN {
+    // 在字节层面取末尾，避免 dir_name 含非 ASCII 时被切到 UTF-8 码点中间 panic
+    let bytes = dir_name.as_bytes();
+    if bytes.len() < TS_LEN {
         return None;
     }
-    let tail = &dir_name[dir_name.len() - TS_LEN..];
-    let bytes = tail.as_bytes();
-    let shape_ok = bytes[..8].iter().all(|b| b.is_ascii_digit())
-        && bytes[8] == b'-'
-        && bytes[9..].iter().all(|b| b.is_ascii_digit());
+    let tail = &bytes[bytes.len() - TS_LEN..];
+    let shape_ok = tail[..8].iter().all(|b| b.is_ascii_digit())
+        && tail[8] == b'-'
+        && tail[9..].iter().all(|b| b.is_ascii_digit());
     if !shape_ok {
         return None;
     }
-    Some(tail.to_string())
+    // 形状校验通过 ⇒ 全是 ASCII，from_utf8 必然成功
+    Some(std::str::from_utf8(tail).ok()?.to_string())
 }

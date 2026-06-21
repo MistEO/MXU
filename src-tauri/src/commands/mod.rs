@@ -19,6 +19,7 @@ pub mod utils;
 
 pub mod app_config;
 pub mod download;
+mod download_core;
 pub mod file_ops;
 pub mod maa_agent;
 pub mod maa_core;

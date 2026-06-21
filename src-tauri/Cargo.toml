@@ -42,6 +42,7 @@ axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 futures-util = "0.3"
 bytes = "1"
+sha2 = "0.10"
 libc = "0.2.180"
 semver = "1.0"
 os_info = "3"
@@ -50,6 +51,9 @@ notify-rust = "4"
 shell-words = "1.1.1"
 maa-framework = { version = "1", features = ["dynamic"] }
 rust-embed = "8"
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析

@@ -456,6 +456,8 @@ function App() {
           url: updateResult.downloadUrl,
           savePath,
           totalSize: updateResult.fileSize,
+          resumeKey: updateResult.resumeKey,
+          sha256: updateResult.sha256,
           proxySettings: proxyForDownload,
           onProgress: (progress: DownloadProgress) => {
             setDownloadProgress(progress);

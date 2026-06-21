@@ -13,7 +13,7 @@ import { openPath, openUrl } from '@tauri-apps/plugin-opener';
 import * as semver from 'semver';
 
 import { backupConfigBeforeUpdate } from './configService';
-import { downloadWithProxy } from './proxyService';
+import { downloadWithProxy, type DownloadResult } from './proxyService';
 
 const log = loggers.app;
 
@@ -21,6 +21,8 @@ const log = loggers.app;
 let isDownloading = false;
 // 下载是否被用户主动取消
 let downloadCancelled = false;
+// 当前 Rust 下载 Promise；主动取消必须等待它结束，才能安全开始下一次下载。
+let currentDownloadPromise: Promise<DownloadResult> | null = null;
 // 安装互斥锁，防止并发 installUpdate 导致目录竞争
 let isInstalling = false;
 
@@ -57,6 +59,7 @@ export async function cancelDownload(): Promise<boolean> {
   // 标记为用户主动取消，让 downloadUpdate 知道不需要再重置状态
   downloadCancelled = true;
 
+  const downloadPromise = currentDownloadPromise;
   try {
     // 调用 Rust 后端设置取消标志
     await invoke('cancel_download', { savePath: currentDownloadPath });
@@ -64,9 +67,10 @@ export async function cancelDownload(): Promise<boolean> {
     log.warn('取消下载失败:', error);
   }
 
-  // 立即重置状态，允许新的下载开始
-  isDownloading = false;
-  currentDownloadPath = null;
+  // 等待下载流和磁盘写入线程结束；downloadUpdate 的 finally 负责重置状态。
+  if (downloadPromise) {
+    await downloadPromise.catch(() => undefined);
+  }
   return true;
 }
 
@@ -205,6 +209,26 @@ function getArch(): string {
   // 浏览器环境难以准确获取架构，默认使用 x64
   // Tauri 环境可以通过 os 插件获取更准确的信息
   return 'amd64';
+}
+
+function withResumeKey(updateInfo: UpdateInfo, resourceId: string): UpdateInfo {
+  if (!updateInfo.downloadUrl || !updateInfo.downloadSource) {
+    return updateInfo;
+  }
+  return {
+    ...updateInfo,
+    resumeKey: JSON.stringify([
+      resourceId,
+      updateInfo.downloadSource,
+      updateInfo.versionName,
+      updateInfo.channel || 'stable',
+      updateInfo.updateType || 'full',
+      getOS(),
+      getArch(),
+      updateInfo.filename || '',
+      updateInfo.fileSize || 0,
+    ]),
+  };
 }
 
 export interface CheckUpdateOptions {
@@ -358,6 +382,7 @@ export async function checkUpdate(options: CheckUpdateOptions): Promise<UpdateIn
     fileSize: filesize,
     filename,
     downloadSource: downloadUrl ? 'mirrorchyan' : undefined,
+    sha256: data.data.sha256,
   };
 }
 
@@ -694,6 +719,8 @@ interface DownloadUpdateOptions {
   totalSize?: number;
   onProgress?: (progress: DownloadProgress) => void;
   proxySettings?: ProxySettings; // 代理设置
+  resumeKey?: string;
+  sha256?: string;
 }
 
 // 当前下载的保存路径，用于取消时清理临时文件
@@ -739,7 +766,7 @@ export async function downloadUpdate(
     return { success: false };
   }
 
-  const { url, savePath, totalSize, onProgress, proxySettings } = options;
+  const { url, savePath, totalSize, onProgress, proxySettings, resumeKey, sha256 } = options;
 
   log.info(`开始下载更新: ${url}`);
   log.info(`保存路径: ${savePath}`);
@@ -750,15 +777,19 @@ export async function downloadUpdate(
 
   // 设置进度监听器
   let unlisten: (() => void) | null = null;
+  let downloadPromise: Promise<DownloadResult> | null = null;
   // 当前下载的 session ID，用于过滤旧下载的进度事件
   let currentSessionId: number | null = null;
 
   try {
     // 使用统一的代理下载接口（内部已包含日志记录）
-    const downloadPromise = downloadWithProxy(url, savePath, {
+    downloadPromise = downloadWithProxy(url, savePath, {
       totalSize,
       proxyUrl: proxySettings?.url,
+      resumeKey,
+      sha256,
     });
+    currentDownloadPromise = downloadPromise;
 
     // 监听 Rust 后端发送的下载进度事件
     if (onProgress) {
@@ -811,10 +842,11 @@ export async function downloadUpdate(
     if (unlisten) {
       unlisten();
     }
-    // 只有在未被取消时才重置状态（取消时 cancelDownload 已经重置了）
-    if (!downloadCancelled) {
+    if (downloadPromise && currentDownloadPromise === downloadPromise) {
+      currentDownloadPromise = null;
       isDownloading = false;
       currentDownloadPath = null;
+      downloadCancelled = false;
     }
   }
 }
@@ -839,10 +871,11 @@ export async function checkAndPrepareDownload(
     return null;
   }
 
-  const { githubUrl, cdk, channel, githubPat, projectName, proxyUrl, ...checkOptions } = options;
+  const { resourceId, githubUrl, cdk, channel, githubPat, projectName, proxyUrl, ...checkOptions } =
+    options;
 
   // 始终使用 Mirror酱 检查更新
-  const updateInfo = await checkUpdate({ ...checkOptions, cdk, channel });
+  const updateInfo = await checkUpdate({ ...checkOptions, resourceId, cdk, channel });
 
   if (!updateInfo || !updateInfo.hasUpdate) {
     return updateInfo;
@@ -851,7 +884,7 @@ export async function checkAndPrepareDownload(
   // 如果有 CDK 且返回了下载链接，直接使用
   if (cdk && updateInfo.downloadUrl) {
     log.info('使用 Mirror酱 下载链接');
-    return updateInfo;
+    return withResumeKey(updateInfo, resourceId);
   }
 
   // 如果有错误码（如 CDK 问题），不尝试 GitHub，直接返回更新信息（包含错误）
@@ -872,13 +905,17 @@ export async function checkAndPrepareDownload(
     });
 
     if (githubDownload) {
-      return {
-        ...updateInfo,
-        downloadUrl: githubDownload.url,
-        fileSize: githubDownload.size,
-        filename: githubDownload.filename,
-        downloadSource: 'github',
-      };
+      return withResumeKey(
+        {
+          ...updateInfo,
+          downloadUrl: githubDownload.url,
+          fileSize: githubDownload.size,
+          filename: githubDownload.filename,
+          downloadSource: 'github',
+          sha256: undefined,
+        },
+        resourceId,
+      );
     }
 
     log.warn('GitHub 下载链接获取失败');

@@ -56,6 +56,10 @@ export interface UpdateInfo {
   fileSize?: number;
   filename?: string;
   downloadSource?: 'mirrorchyan' | 'github';
+  /** 服务端提供的更新包 SHA-256，仅 MirrorChyan 下载可用。 */
+  sha256?: string;
+  /** 标识可安全复用的同一更新包，用于断点续传。 */
+  resumeKey?: string;
   // MirrorChyan API 错误信息
   errorCode?: number;
   errorMessage?: string;

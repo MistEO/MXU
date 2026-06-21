@@ -126,7 +126,8 @@ where
                 detected_filename,
                 resume_offset,
                 normalized_sha256.as_deref(),
-            );
+            )
+            .await;
         }
 
         remove_download_artifacts(&part_path, &metadata_path);
@@ -323,6 +324,7 @@ where
         actual_size,
         normalized_sha256.as_deref(),
     )
+    .await
 }
 
 async fn send_request(
@@ -341,7 +343,7 @@ async fn send_request(
     request.send().await.map_err(|e| format!("请求失败: {}", e))
 }
 
-fn finalize_download(
+async fn finalize_download(
     request: &DownloadRequest,
     part_path: &Path,
     metadata_path: &Path,
@@ -350,7 +352,7 @@ fn finalize_download(
     expected_sha256: Option<&str>,
 ) -> Result<CoreDownloadResult, String> {
     if let Some(expected) = expected_sha256 {
-        if let Err(error) = verify_sha256(part_path, expected) {
+        if let Err(error) = verify_sha256(part_path, expected).await {
             remove_download_artifacts(part_path, metadata_path);
             return Err(error);
         }
@@ -503,7 +505,15 @@ fn normalize_sha256(value: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn verify_sha256(path: &Path, expected: &str) -> Result<(), String> {
+async fn verify_sha256(path: &Path, expected: &str) -> Result<(), String> {
+    let path = path.to_path_buf();
+    let expected = expected.to_string();
+    tokio::task::spawn_blocking(move || verify_sha256_sync(&path, &expected))
+        .await
+        .map_err(|e| format!("SHA-256 校验任务失败: {}", e))?
+}
+
+fn verify_sha256_sync(path: &Path, expected: &str) -> Result<(), String> {
     if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err("更新包 SHA-256 格式无效".to_string());
     }
@@ -986,6 +996,31 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|request| request.0.is_none()));
+            server.abort();
+        });
+    }
+
+    #[test]
+    fn accepts_matching_sha256() {
+        runtime().block_on(async {
+            let data = b"verified update package".to_vec();
+            let expected_sha256 = format!("{:x}", Sha256::digest(&data));
+            let (url, _state, server) = start_server(data.clone(), ServerMode::HonorRange).await;
+            let temp = TempDir::new().unwrap();
+            let save_path = temp.path().join("update.zip");
+            let mut download_request = request(
+                url,
+                save_path.clone(),
+                Some(data.len() as u64),
+                "matching-checksum",
+            );
+            download_request.sha256 = Some(expected_sha256);
+
+            run_download(download_request, Arc::new(AtomicBool::new(false)))
+                .await
+                .unwrap();
+
+            assert_eq!(std::fs::read(save_path).unwrap(), data);
             server.abort();
         });
     }

@@ -12,8 +12,6 @@ export interface SchedulePolicy {
   enabled: boolean; // 是否启用
   weekdays: number[]; // 重复日期 (0-6, 0=周日)
   times: string[]; // 开始时间点 ("HH:mm"，已排序去重)
-  /** @deprecated 旧版整点小时字段 (0-23)，仅用于读取旧配置迁移为 times */
-  hours?: number[];
 }
 
 // 保存的任务配置

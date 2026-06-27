@@ -369,9 +369,9 @@ export interface AppState {
   tcpCompatMode: boolean;
   setTcpCompatMode: (enabled: boolean) => void;
 
-    /** Web 服务器是否启用（默认 true，重启生效） */
-    webServerEnabled: boolean;
-    setWebServerEnabled: (enabled: boolean) => void;
+  /** Web 服务器是否启用（默认 true，重启生效） */
+  webServerEnabled: boolean;
+  setWebServerEnabled: (enabled: boolean) => void;
 
   /** Web UI 允许局域网访问（绑定 0.0.0.0，重启生效） */
   allowLanAccess: boolean;

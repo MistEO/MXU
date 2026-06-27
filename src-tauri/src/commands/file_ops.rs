@@ -12,8 +12,6 @@ use super::utils::{get_app_data_dir, get_exe_directory, normalize_path};
 
 /// 单个分卷 zip 的大小上限（字节）。
 const MAX_VOLUME_BYTES: u64 = 24_500_000;
-/// 单个 entry 的 local header + 中央目录条目大小上界（不含文件名）。
-const ZIP_PER_ENTRY_HEADER_UPPER_BOUND: u64 = 128;
 /// EOCD 记录（zip 末尾）固定大小。
 const ZIP_EOCD_BYTES: u64 = 22;
 /// 中央目录每条记录的固定字段大小（不含文件名）。
@@ -99,11 +97,36 @@ where
     true
 }
 
-fn estimate_entry_upper_bound(entry: &ExportEntry) -> Option<u64> {
-    let file_size = entry.source_path.metadata().ok()?.len();
-    let name_len = entry.archive_name.len() as u64;
-    // 文件名在 local header 和中央目录条目里都出现一次，所以 ×2。
-    Some(file_size + ZIP_PER_ENTRY_HEADER_UPPER_BOUND + name_len.saturating_mul(2))
+/// 按文件类型估算压缩后的保守上界。图片不压缩，文本除以 4（实测 8-25x）。
+fn estimate_compressed_upper_bound(path: &Path, file_size: u64) -> u64 {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        // 已压缩图片：DEFLATE 无法进一步压缩
+        "png" | "jpg" | "jpeg" => file_size,
+        // 文本文件：保守假设 4x 压缩（实测 log 10-25x，json 5-15x）
+        "log" | "json" | "txt" | "toml" | "yaml" | "yml" | "xml" | "csv" => {
+            file_size.saturating_div(4)
+        }
+        // 未知类型保守假设 2x
+        _ => file_size.saturating_div(2),
+    }
+}
+
+/// 预压缩文件到内存，返回压缩后的字节数（含 deflate 开销）。
+/// 仅边界文件调用，用于精确判断是否会超出卷上限。
+fn pre_compress_measure(path: &Path) -> io::Result<u64> {
+    use flate2::write::DeflateEncoder;
+    use flate2::Compression;
+
+    let mut src = std::fs::File::open(path)?;
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+    std::io::copy(&mut src, &mut encoder)?;
+    let compressed = encoder.finish()?;
+    Ok(compressed.len() as u64)
 }
 
 fn normalize_archive_path(path: &Path) -> String {
@@ -595,20 +618,54 @@ fn export_logs_blocking(
         let mut central_dir_reserve: u64 = ZIP_EOCD_BYTES;
 
         while let Some(entry) = iter.peek() {
-            let est_delta = estimate_entry_upper_bound(entry).unwrap_or(u64::MAX);
-            let current_bytes = counter.load(Ordering::Relaxed);
-            let entry_cd_bytes = ZIP_CENTRAL_DIR_FIXED_BYTES + entry.archive_name.len() as u64;
-            let projected = current_bytes
-                .saturating_add(est_delta)
-                .saturating_add(central_dir_reserve)
-                .saturating_add(entry_cd_bytes);
-            // 单文件超过卷上限时，当前卷为空就让它独占一卷，保证不丢文件。
-            if wrote_any && projected > MAX_VOLUME_BYTES {
-                break;
+            let entry_cd_bytes =
+                ZIP_CENTRAL_DIR_FIXED_BYTES + entry.archive_name.len() as u64;
+            let file_size = entry
+                .source_path
+                .metadata()
+                .ok()
+                .map(|m| m.len())
+                .unwrap_or(0);
+
+            // 用保守上界估算：如果这都放得下，直接写。
+            let est_delta = estimate_compressed_upper_bound(&entry.source_path, file_size);
+            let current_total = counter
+                .load(Ordering::Relaxed)
+                .saturating_add(central_dir_reserve);
+            if wrote_any
+                && current_total
+                    .saturating_add(est_delta)
+                    .saturating_add(entry_cd_bytes)
+                    > MAX_VOLUME_BYTES
+            {
+                // 保守估算认为放不下，用 flate2 预压缩到内存精确测量。
+                match pre_compress_measure(&entry.source_path) {
+                    Ok(exact_delta) => {
+                        if current_total
+                            .saturating_add(exact_delta)
+                            .saturating_add(entry_cd_bytes)
+                            > MAX_VOLUME_BYTES
+                        {
+                            break; // 精确测量也放不下，切卷。
+                        }
+                        // 精确测量放得下，继续写入。
+                    }
+                    Err(_) => {
+                        // 预压缩失败（IO 错误），保守起见切卷。
+                        break;
+                    }
+                }
             }
+
             let entry = iter.next().expect("peek 已确认存在");
-            if add_file_to_zip(&mut zip, &entry.source_path, &entry.archive_name, options) {
-                central_dir_reserve = central_dir_reserve.saturating_add(entry_cd_bytes);
+            if add_file_to_zip(
+                &mut zip,
+                &entry.source_path,
+                &entry.archive_name,
+                options,
+            ) {
+                central_dir_reserve =
+                    central_dir_reserve.saturating_add(entry_cd_bytes);
                 wrote_any = true;
                 volume_file_count += 1;
                 total_files_written += 1;

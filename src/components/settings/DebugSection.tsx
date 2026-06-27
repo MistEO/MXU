@@ -10,6 +10,7 @@ import {
   Globe,
   ExternalLink,
   Server,
+  EthernetPort,
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
@@ -33,6 +34,8 @@ export function DebugSection() {
     setTcpCompatMode,
     allowLanAccess,
     setAllowLanAccess,
+    webServerEnabled,
+    setWebServerEnabled,
     webServerPort: configuredPort,
     setWebServerPort: setConfiguredPort,
   } = useAppStore();
@@ -166,6 +169,16 @@ export function DebugSection() {
       }
     },
     [setAllowLanAccess],
+  );
+
+  const handleWebServerToggle = useCallback(
+      (v: boolean) => {
+        setWebServerEnabled(v);
+        if (isTauri()) {
+          setShowRestartPrompt(true);
+        }
+      },
+      [setWebServerEnabled],
   );
 
   const handlePortBlur = useCallback(() => {
@@ -366,10 +379,22 @@ export function DebugSection() {
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
         </div>
 
+        {/* 启用 Web 服务器 */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div className="flex items-center gap-3">
+            <Server className="w-5 h-5 text-accent"/>
+            <div>
+              <span className="font-medium text-text-primary">{t('debug.webServerEnabled')}</span>
+              <p className="text-xs text-text-muted mt-0.5">{t('debug.webServerEnabledHint')}</p>
+            </div>
+          </div>
+          <SwitchButton value={webServerEnabled} onChange={handleWebServerToggle}/>
+        </div>
+
         {/* Web 服务器端口 */}
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <div className="flex items-center gap-3">
-            <Server className="w-5 h-5 text-accent" />
+            <EthernetPort className="w-5 h-5 text-accent"/>
             <div>
               <span className="font-medium text-text-primary">{t('debug.webServerPort')}</span>
               <p className="text-xs text-text-muted mt-0.5">{t('debug.webServerPortHint')}</p>

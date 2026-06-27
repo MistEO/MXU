@@ -1,6 +1,6 @@
-import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
-import { saveConfig } from '@/services/configService';
-import { maaService } from '@/services/maaService';
+import i18n, {getInterfaceLangKey, setLanguage as setI18nLanguage} from '@/i18n';
+import {saveConfig} from '@/services/configService';
+import {maaService} from '@/services/maaService';
 import {
   type AccentColor,
   applyTheme,
@@ -10,15 +10,15 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type { MxuConfig, RecentlyClosedInstance, LegacyActionConfig } from '@/types/config';
+import type {LegacyActionConfig, MxuConfig, RecentlyClosedInstance} from '@/types/config';
 import {
-  DEFAULT_MAX_LOGS_PER_INSTANCE,
   clampAddTaskPanelHeight,
+  DEFAULT_MAX_LOGS_PER_INSTANCE,
   defaultAddTaskPanelHeight,
   defaultMirrorChyanSettings,
-  normalizeAddTaskPanelHeight,
   defaultScreenshotFrameRate,
   defaultWindowSize,
+  normalizeAddTaskPanelHeight,
 } from '@/types/config';
 import type {
   ActionConfig,
@@ -28,37 +28,37 @@ import type {
   ProjectInterface,
   SelectedTask,
 } from '@/types/interface';
-import type { ConnectionStatus, TaskStatus } from '@/types/maa';
-import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
-import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
-import { loggers } from '@/utils/logger';
-import { findSwitchCase } from '@/utils/optionHelpers';
-import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
+import type {ConnectionStatus, TaskStatus} from '@/types/maa';
+import {getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS} from '@/types/specialTasks';
+import {decryptCdk, encryptCdk} from '@/utils/cdkCrypto';
+import {loggers} from '@/utils/logger';
+import {findSwitchCase} from '@/utils/optionHelpers';
+import {create} from 'zustand';
+import {subscribeWithSelector} from 'zustand/middleware';
 
-import { logToStdout, pushLogToBackend, clearLogsOnBackend } from '@/utils/logStdout';
+import {clearLogsOnBackend, logToStdout, pushLogToBackend} from '@/utils/logStdout';
 import {
-  loadWebUIAppearance,
-  patchWebUIAppearance,
   cacheBackendAppearance,
-  getBackendAppearance,
-  loadWebUILayout,
-  patchWebUILayout,
   cacheBackendLayout,
+  getBackendAppearance,
   getBackendLayout,
+  loadWebUIAppearance,
+  loadWebUILayout,
+  patchWebUIAppearance,
+  patchWebUILayout,
 } from '@/services/appearanceStorage';
-import { isTauri } from '@/utils/paths';
+import {isTauri} from '@/utils/paths';
 import {
-  generateId,
-  initializeAllOptionValues,
   convertPresetOptionValue,
+  generateId,
   getCurrentControllerAndResource,
+  initializeAllOptionValues,
   isTaskCompatible,
   sanitizeOptionValues,
 } from './helpers';
-import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import {persistRuntimeLogs} from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
-import type { AppState, LogEntry, TaskRunStatus } from './types';
+import type {AppState, LogEntry, TaskRunStatus} from './types';
 
 /** 向后兼容：将旧版单个 preAction 迁移为 preActions 数组 */
 function migratePreActions(inst: {
@@ -1206,6 +1206,7 @@ export const useAppStore = create<AppState>()(
         devMode: config.settings.devMode ?? false,
         tcpCompatMode: config.settings.tcpCompatMode ?? false,
         allowLanAccess: config.settings.allowLanAccess ?? false,
+        webServerEnabled: config.settings.webServerEnabled ?? true,
         webServerPort: config.settings.webServerPort ?? 12701,
         autoStartInstanceId: config.settings.autoStartInstanceId,
         autoRunOnLaunch: config.settings.autoRunOnLaunch ?? false,
@@ -1668,6 +1669,10 @@ export const useAppStore = create<AppState>()(
     allowLanAccess: false,
     setAllowLanAccess: (enabled) => set({ allowLanAccess: enabled }),
 
+    // Web 服务器启用开关（默认 true，需重启生效）
+    webServerEnabled: true,
+    setWebServerEnabled: (enabled) => set({webServerEnabled: enabled}),
+
     // Web 服务器端口（默认 12701，需重启生效）
     webServerPort: 12701,
     setWebServerPort: (port) => set({ webServerPort: port }),
@@ -2084,6 +2089,7 @@ function generateConfig(): MxuConfig {
           devMode: state.devMode,
           tcpCompatMode: state.tcpCompatMode,
           allowLanAccess: state.allowLanAccess,
+          webServerEnabled: state.webServerEnabled,
           webServerPort: state.webServerPort,
           autoStartInstanceId: state.autoStartInstanceId,
           autoRunOnLaunch: state.autoRunOnLaunch,
@@ -2156,6 +2162,7 @@ useAppStore.subscribe(
     devMode: state.devMode,
     tcpCompatMode: state.tcpCompatMode,
     allowLanAccess: state.allowLanAccess,
+    webServerEnabled: state.webServerEnabled,
     webServerPort: state.webServerPort,
     autoStartInstanceId: state.autoStartInstanceId,
     autoRunOnLaunch: state.autoRunOnLaunch,

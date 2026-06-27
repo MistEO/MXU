@@ -541,6 +541,9 @@ export default {
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+      webServerEnabled: 'Enable Web Server',
+      webServerEnabledHint:
+          'When disabled, the built-in web server will not start (restart required)',
     webServerPort: 'Web Server Port',
     webServerPortHint: 'Custom Web server listening port (default 12701, restart required)',
     allowLanAccess: 'Allow LAN Access',

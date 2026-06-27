@@ -523,6 +523,8 @@ export default {
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
     tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+      webServerEnabled: '啟用 Web 服務',
+      webServerEnabledHint: '關閉後內建 Web 伺服器將不會啟動（重啟生效）',
     webServerPort: 'Web 服務連接埠',
     webServerPortHint: '自訂 Web 伺服器監聽連接埠（預設 12701，重啟生效）',
     allowLanAccess: '允許區域網路存取',

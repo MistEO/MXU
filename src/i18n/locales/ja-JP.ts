@@ -536,6 +536,9 @@ export default {
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
+      webServerEnabled: 'Web サーバーを有効化',
+      webServerEnabledHint:
+          '無効にすると内蔵 Web サーバーは起動しません（再起動後に反映）',
     webServerPort: 'Web サーバーポート',
     webServerPortHint:
       'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',

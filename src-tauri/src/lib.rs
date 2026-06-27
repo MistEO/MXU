@@ -102,6 +102,11 @@ pub fn run() {
                     .unwrap();
                 let settings_obj = settings.get("settings");
 
+                let web_server_enabled = settings_obj
+                    .and_then(|s| s.get("webServerEnabled"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+
                 let allow_lan_access = settings_obj
                     .and_then(|s| s.get("allowLanAccess"))
                     .and_then(|v| v.as_bool())
@@ -114,19 +119,23 @@ pub fn run() {
                     .filter(|&p| p > 0)
                     .unwrap_or(web_server::DEFAULT_PORT);
 
+                web_server::set_web_server_enabled(web_server_enabled);
+
                 drop(settings);
 
-                tauri::async_runtime::spawn(async move {
-                    web_server::start_web_server(
-                        cfg_clone,
-                        maa_clone,
-                        app_handle,
-                        ws_clone,
-                        web_port,
-                        allow_lan_access,
-                    )
-                    .await;
-                });
+                if web_server_enabled {
+                    tauri::async_runtime::spawn(async move {
+                        web_server::start_web_server(
+                            cfg_clone,
+                            maa_clone,
+                            app_handle,
+                            ws_clone,
+                            web_port,
+                            allow_lan_access,
+                        )
+                            .await;
+                    });
+                }
             }
 
             // Windows 下移除系统标题栏（使用自定义标题栏）

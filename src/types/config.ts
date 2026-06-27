@@ -1,7 +1,7 @@
 // MXU 配置文件结构 (mxu.json)
 
-import type { OptionValue, ActionConfig } from './interface';
-import type { AccentColor, CustomAccent } from '@/themes/types';
+import type {ActionConfig, OptionValue} from './interface';
+import type {AccentColor, CustomAccent} from '@/themes/types';
 
 export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
 
@@ -153,6 +153,7 @@ export interface AppSettings {
   onboardingCompleted?: boolean; // 新用户引导是否已完成
   hotkeys?: HotkeySettings; // 快捷键设置
   tcpCompatMode?: boolean; // 通信兼容模式，强制使用 TCP 而非 IPC
+    webServerEnabled?: boolean; // Web 服务器是否启用（默认 true，重启生效）
   allowLanAccess?: boolean; // Web UI 允许局域网访问（绑定 0.0.0.0，重启生效）
   webServerPort?: number; // Web 服务器监听端口（默认 12701，重启生效）
   minimizeToTray?: boolean; // 关闭时最小化到托盘（默认 false）

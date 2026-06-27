@@ -533,6 +533,9 @@ export default {
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+      webServerEnabled: 'Web 서버 활성화',
+      webServerEnabledHint:
+          '비활성화하면 내장 Web 서버가 시작되지 않습니다 (재시작 필요)',
     webServerPort: 'Web 서버 포트',
     webServerPortHint: 'Web 서버 수신 포트를 사용자 지정합니다 (기본값 12701, 재시작 필요)',
     allowLanAccess: 'LAN 접근 허용',

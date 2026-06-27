@@ -527,6 +527,8 @@ export default {
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
     tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+      webServerEnabled: '启用 Web 服务',
+      webServerEnabledHint: '关闭后内置 Web 服务器将不会启动（重启生效）',
     webServerPort: 'Web 服务端口',
     webServerPortHint: '自定义 Web 服务器监听端口（默认 12701，重启生效）',
     allowLanAccess: '允许局域网访问',

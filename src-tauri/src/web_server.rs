@@ -3,7 +3,7 @@
 //! 基于 axum 提供 HTTP API，供浏览器客户端（本机/局域网/公网）访问。
 //! 与 Tauri invoke IPC 并列，实现同一套后端状态的双通道访问。
 
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use axum::{
@@ -41,8 +41,21 @@ pub const DEFAULT_PORT: u16 = 12701;
 /// 端口搜索范围上限
 const MAX_PORT_ATTEMPTS: u16 = 10;
 
+/// 全局存储 Web 服务器是否已启用（由配置控制）
+static WEB_SERVER_ENABLED: AtomicBool = AtomicBool::new(true);
+
 /// 全局存储 Web 服务器实际监听端口（供前端查询）
 static ACTUAL_PORT: AtomicU16 = AtomicU16::new(0);
+
+/// 获取 Web 服务器是否已启用
+pub fn is_web_server_enabled() -> bool {
+    WEB_SERVER_ENABLED.load(Ordering::Relaxed)
+}
+
+/// 设置 Web 服务器启用状态
+pub fn set_web_server_enabled(value: bool) {
+    WEB_SERVER_ENABLED.store(value, Ordering::Relaxed);
+}
 
 /// 获取 Web 服务器实际监听端口（0 表示尚未启动或启动失败）
 pub fn get_actual_port() -> u16 {

@@ -881,9 +881,12 @@ pub fn get_system_info() -> SystemInfo {
 
 /// 获取 Web 服务器实际监听端口
 ///
-/// 若服务器尚未完成绑定，最多等待 5 秒后返回（0 表示超时未启动）。
+/// 若服务器尚未完成绑定，最多等待 5 秒后返回（0 表示超时未启动或用户手动禁用）。
 #[tauri::command]
 pub async fn get_web_server_port() -> u16 {
+    if !crate::web_server::is_web_server_enabled() {
+        return 0;
+    }
     let port = crate::web_server::get_actual_port();
     if port != 0 {
         return port;

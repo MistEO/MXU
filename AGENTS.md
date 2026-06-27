@@ -9,7 +9,7 @@
 - **核心目标**：实现对 MaaFramework 生态项目的零配置/低配置自动化支持。
 - **技术选型**：
   - **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS
-  - **Backend**: Tauri 2 (Rust)
+  - **Backend**: Tauri 2 (Rust) + Axum (Web 服务)
   - **State Management**: Zustand
   - **Internationalization**: Custom i18n implementation
 
@@ -44,6 +44,7 @@
 
 - **更新系统 (Update Service)**：涉及 `updateService.ts` 及 Rust 端下载指令的修改需极度审慎。更新逻辑的失效会导致用户无法通过常规手段修复软件。
 - **权限管理**：涉及系统资源访问（如文件系统、网络）时，需检查 `src-tauri/capabilities/default.json` 是否配置了相应权限。
+- **Win32 API**：涉及 Win32 API 的调用时，请尽量使用 WinSafe Nightly 中封装好的安全 API。
 
 ### 3.4 状态管理
 
@@ -63,3 +64,4 @@
 - [ProjectInterface V2 协议文档](https://github.com/MaaXYZ/MaaFramework/blob/main/docs/zh_cn/3.3-ProjectInterfaceV2协议.md)
 - [Tauri V2 Documentation](https://tauri.app/v2/)
 - [Zustand Guide](https://zustand-demo.pmnd.rs/)
+- [WinSafe Nightly Documentation](https://rodrigocfd.github.io/winsafe/winsafe/)

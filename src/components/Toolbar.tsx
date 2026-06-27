@@ -797,6 +797,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             log.info(`实例 ${targetInstance.name}: 使用 Dummy Controller 执行非视觉任务`);
           }
 
+          if (!config) {
+            log.warn(`实例 ${targetInstance.name}: 无法构建控制器配置`);
+            return false;
+          }
+
           onPhaseChange?.('connecting');
 
           const maxRetries = 3;

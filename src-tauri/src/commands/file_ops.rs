@@ -97,7 +97,15 @@ where
     true
 }
 
-/// 按文件类型估算压缩后的保守上界。图片不压缩，文本除以 4（实测 8-25x）。
+/// zip 每条目的 local header 固定开销（30）+ DEFLATE 帧头 + 余量。
+/// 文件名部分在 local header 和中央目录各出现一次：
+/// - local header 侧：包含在此常量余量内（本应用文件名短，够用）
+/// - 中央目录侧：由 `entry_cd_bytes`（ZIP_CENTRAL_DIR_FIXED_BYTES + 文件名长度）计入
+const ZIP_LOCAL_HEADER_OVERHEAD: u64 = 64;
+
+/// 按扩展名估算压缩后**数据**大小的保守上界。
+///
+/// 注意：仅估计压缩数据，不含 zip local header / 中央目录等开销，调用侧自行加。
 fn estimate_compressed_upper_bound(path: &Path, file_size: u64) -> u64 {
     let ext = path
         .extension()
@@ -105,19 +113,17 @@ fn estimate_compressed_upper_bound(path: &Path, file_size: u64) -> u64 {
         .unwrap_or("")
         .to_lowercase();
     match ext.as_str() {
-        // 已压缩图片：DEFLATE 无法进一步压缩
-        "png" | "jpg" | "jpeg" => file_size,
-        // 文本文件：保守假设 4x 压缩（实测 log 10-25x，json 5-15x）
+        "png" | "jpg" | "jpeg" => file_size, // 已压缩，DEFLATE 无效
         "log" | "json" | "txt" | "toml" | "yaml" | "yml" | "xml" | "csv" => {
-            file_size.saturating_div(4)
+            file_size.saturating_div(4) // 实测 10-25x，4x 留有足够余量
         }
-        // 未知类型保守假设 2x
-        _ => file_size.saturating_div(2),
+        _ => file_size, // 未知类型，不假设压缩
     }
 }
 
-/// 预压缩文件到内存，返回压缩后的字节数（含 deflate 开销）。
-/// 仅边界文件调用，用于精确判断是否会超出卷上限。
+/// 用 flate2 预压缩文件到内存，返回 deflate 后字节数——与 zip crate 内部压缩同算法。
+///
+/// 只在保守估算触线时才调用（每卷最多一次），避免每个文件都压两遍。
 fn pre_compress_measure(path: &Path) -> io::Result<u64> {
     use flate2::write::DeflateEncoder;
     use flate2::Compression;
@@ -625,10 +631,12 @@ fn export_logs_blocking(
                 .metadata()
                 .ok()
                 .map(|m| m.len())
-                .unwrap_or(0);
+                .unwrap_or(u64::MAX); // metadata 失败用极大值，保守触发预压缩
 
-            // 用保守上界估算：如果这都放得下，直接写。
-            let est_delta = estimate_compressed_upper_bound(&entry.source_path, file_size);
+            // 两阶段容量检查：先用保守估算快速通过大多数文件，
+            // 估算触线时才实际预压缩一次拿精确值，避免每个文件都压两遍。
+            let est_delta = estimate_compressed_upper_bound(&entry.source_path, file_size)
+                .saturating_add(ZIP_LOCAL_HEADER_OVERHEAD);
             let current_total = counter
                 .load(Ordering::Relaxed)
                 .saturating_add(central_dir_reserve);
@@ -638,20 +646,20 @@ fn export_logs_blocking(
                     .saturating_add(entry_cd_bytes)
                     > MAX_VOLUME_BYTES
             {
-                // 保守估算认为放不下，用 flate2 预压缩到内存精确测量。
                 match pre_compress_measure(&entry.source_path) {
                     Ok(exact_delta) => {
+                        let exact_delta =
+                            exact_delta.saturating_add(ZIP_LOCAL_HEADER_OVERHEAD);
                         if current_total
                             .saturating_add(exact_delta)
                             .saturating_add(entry_cd_bytes)
                             > MAX_VOLUME_BYTES
                         {
-                            break; // 精确测量也放不下，切卷。
+                            break;
                         }
-                        // 精确测量放得下，继续写入。
                     }
                     Err(_) => {
-                        // 预压缩失败（IO 错误），保守起见切卷。
+                        // IO 错误打不开文件，保守切卷
                         break;
                     }
                 }

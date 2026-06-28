@@ -6,11 +6,13 @@ use super::types::MaaState;
 use super::types::SystemInfo;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
+use clap::Parser;
 use log::info;
 #[cfg(windows)]
 use log::warn;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::State;
 use tokio::time::sleep;
@@ -24,6 +26,32 @@ static VCREDIST_MISSING: AtomicBool = AtomicBool::new(false);
 /// 设置 VC++ 运行库缺失标记 (供内部调用)
 pub fn set_vcredist_missing(missing: bool) {
     VCREDIST_MISSING.store(missing, Ordering::SeqCst);
+}
+
+static CLI: OnceLock<Cli> = OnceLock::new();
+
+#[derive(Parser)]
+#[command(
+    name = "mxu",
+    about = "MXU 命令行参数",
+    after_help = "示例:\n  mxu --autostart --instance \"日常任务\"\n  mxu --autostart -i \"日常任务\" --quit-after-run"
+)]
+pub struct Cli {
+    /// 以开机自启动模式运行，并触发自动执行逻辑
+    /// 通常由 MXU 创建的系统自启动任务自动传入
+    #[arg(long)]
+    pub autostart: bool,
+    /// 指定自动执行时使用的实例名
+    /// 仅在 --autostart 模式下生效
+    #[arg(short = 'i', long = "instance")]
+    pub instance: Option<String>,
+    /// 当本次启动实际触发自动执行后，在任务完成时自动退出
+    #[arg(short = 'q', long = "quit-after-run")]
+    pub quit_after_run: bool,
+}
+
+pub fn init_cli() -> &'static Cli {
+    CLI.get_or_init(Cli::parse)
 }
 
 /// 检查当前进程是否以管理员权限运行
@@ -531,134 +559,19 @@ pub fn check_vcredist_missing() -> bool {
 /// 检查本次启动是否来自开机自启动（通过 --autostart 参数判断）
 #[tauri::command]
 pub fn is_autostart() -> bool {
-    std::env::args().any(|arg| arg == "--autostart")
-}
-
-/// 打印命令行帮助文本。
-pub fn print_cli_help_text() {
-    #[cfg(windows)]
-    let attached_console = attach_parent_console_for_cli();
-
-    print!("{}", get_cli_help_text());
-
-    use std::io::Write;
-    let _ = std::io::stdout().flush();
-
-    #[cfg(windows)]
-    if attached_console {
-        detach_parent_console_for_cli();
-    }
-}
-
-#[cfg(windows)]
-fn attach_parent_console_for_cli() -> bool {
-    extern "system" {
-        fn AttachConsole(dw_process_id: u32) -> i32;
-    }
-
-    const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
-
-    // GUI subsystem builds do not auto-attach to the invoking terminal.
-    // Ignore failure: redirected stdout or double-click launches should still fall through.
-    unsafe { AttachConsole(ATTACH_PARENT_PROCESS) != 0 }
-}
-
-#[cfg(windows)]
-fn detach_parent_console_for_cli() {
-    extern "system" {
-        fn FreeConsole() -> i32;
-    }
-
-    unsafe {
-        FreeConsole();
-    }
-}
-
-/// 检查命令行是否包含 -h/--help 参数
-pub fn has_help_flag() -> bool {
-    std::env::args()
-        .skip(1)
-        .any(|arg| arg == "-h" || arg == "--help")
-}
-
-/// 生成命令行帮助文本
-pub fn get_cli_help_text() -> String {
-    let exe_name = std::env::current_exe()
-        .ok()
-        .and_then(|path| {
-            path.file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-        })
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "mxu".to_string());
-
-    format!(
-        "\
-MXU 命令行参数
-
-用法:
-  {exe_name} [参数]
-
-参数:
-  -h, --help
-      显示本帮助并退出
-
-  --autostart
-      以开机自启动模式运行，并触发自动执行逻辑
-      通常由 MXU 创建的系统自启动任务自动传入
-
-  -i, --instance <实例名>
-      指定自动执行时使用的实例名
-      仅在 --autostart 模式下生效
-      也支持 -i=<实例名> 与 --instance=<实例名> 写法
-
-  -q, --quit-after-run
-      当本次启动实际触发自动执行后，在任务完成时自动退出
-
-示例:
-  {exe_name} --autostart --instance \"日常任务\"
-  {exe_name} --autostart -i \"日常任务\" --quit-after-run
-"
-    )
-}
-
-/// 从命令行参数中获取指定选项的值
-/// 支持 `-x value`、`--name value`、`-x=value`、`--name=value` 格式
-/// 返回第一个匹配的值；若值缺失或以 `-` 开头则视为无效并跳过
-fn get_cli_arg_value(short: &str, long: &str) -> Option<String> {
-    let short_eq = format!("{}=", short);
-    let long_eq = format!("{}=", long);
-    let args: Vec<String> = std::env::args().collect();
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if arg == short || arg == long {
-            if let Some(value) = iter.next() {
-                if !value.starts_with('-') {
-                    return Some(value.clone());
-                }
-            }
-            return None;
-        }
-        if let Some(value) = arg.strip_prefix(&short_eq) {
-            return Some(value.to_string());
-        }
-        if let Some(value) = arg.strip_prefix(&long_eq) {
-            return Some(value.to_string());
-        }
-    }
-    None
+    init_cli().autostart
 }
 
 /// 获取命令行 -i/--instance 参数指定的启动实例名称
 #[tauri::command]
 pub fn get_start_instance() -> Option<String> {
-    get_cli_arg_value("-i", "--instance")
+    init_cli().instance.clone()
 }
 
 /// 检查命令行是否包含 -q/--quit-after-run 参数（任务完成后关闭自身）
 #[tauri::command]
 pub fn has_quit_after_run_flag() -> bool {
-    std::env::args().any(|arg| arg == "-q" || arg == "--quit-after-run")
+    init_cli().quit_after_run
 }
 
 /// 自动迁移旧版注册表自启动到任务计划程序

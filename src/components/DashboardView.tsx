@@ -72,6 +72,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     basePath,
     registerTaskIdName,
     registerEntryTaskName,
+    registerCtrlIdName,
     screenshotFrameRate,
     setShowAddTaskPanel,
     tcpCompatMode,

@@ -71,6 +71,8 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
         url: updateInfo.downloadUrl,
         savePath,
         totalSize: updateInfo.fileSize,
+        resumeKey: updateInfo.resumeKey,
+        sha256: updateInfo.sha256,
         proxySettings: proxyForDownload,
         onProgress: (progress: DownloadProgress) => {
           setDownloadProgress(progress);

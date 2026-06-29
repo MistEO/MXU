@@ -171,6 +171,8 @@ export async function downloadWithProxy(
   options?: {
     totalSize?: number;
     proxyUrl?: string | null;
+    resumeKey?: string;
+    sha256?: string;
   },
 ): Promise<DownloadResult> {
   const hasProxy = options?.proxyUrl && options.proxyUrl.trim() !== '';
@@ -190,5 +192,7 @@ export async function downloadWithProxy(
     savePath,
     totalSize: options?.totalSize || null,
     proxyUrl: options?.proxyUrl || null,
+    resumeKey: options?.resumeKey || null,
+    sha256: options?.sha256 || null,
   });
 }

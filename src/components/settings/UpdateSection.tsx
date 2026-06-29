@@ -142,6 +142,8 @@ export function UpdateSection() {
           url: info.downloadUrl,
           savePath,
           totalSize: info.fileSize,
+          resumeKey: info.resumeKey,
+          sha256: info.sha256,
           proxySettings: proxyForDownload,
           onProgress: (progress) => {
             setDownloadProgress(progress);

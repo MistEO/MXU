@@ -434,7 +434,7 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()
 
 /// 更新完成后清理残留产物：
 /// 1. 删除 target_dir/changes.json（增量包标识，更新后无需保留）
-/// 2. 删除 cache_dir 下所有 *.downloading 临时文件
+/// 2. 删除 cache_dir 下所有断点续传半成品及元数据
 #[tauri::command]
 pub fn cleanup_update_artifacts(target_dir: String, cache_dir: String) -> Result<(), String> {
     // 删除 target_dir/changes.json
@@ -446,7 +446,7 @@ pub fn cleanup_update_artifacts(target_dir: String, cache_dir: String) -> Result
         }
     }
 
-    // 删除 cache_dir 下所有 *.downloading 文件
+    // 删除 cache_dir 下所有下载半成品、元数据和未完成的元数据临时文件
     let cache_path = std::path::Path::new(&cache_dir);
     if cache_path.exists() {
         if let Ok(entries) = std::fs::read_dir(cache_path) {
@@ -454,7 +454,10 @@ pub fn cleanup_update_artifacts(target_dir: String, cache_dir: String) -> Result
                 let path = entry.path();
                 if path.is_file() {
                     let name = path.file_name().unwrap_or_default().to_string_lossy();
-                    if name.ends_with(".downloading") {
+                    if name.ends_with(".downloading")
+                        || name.ends_with(".downloading.json")
+                        || (name.contains(".downloading.json.") && name.ends_with(".tmp"))
+                    {
                         match std::fs::remove_file(&path) {
                             Ok(()) => info!("已删除临时下载文件: {}", path.display()),
                             Err(e) => warn!("删除临时下载文件失败（忽略）: {}", e),

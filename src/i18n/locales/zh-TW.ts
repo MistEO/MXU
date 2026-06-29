@@ -329,6 +329,7 @@ export default {
     taskCount: '個任務',
     skipToManual: '跳過，手動新增任務',
     importConfig: '從剪貼簿匯入設定',
+    importConfigFromFile: '從檔案匯入設定',
     importSuccess: '設定匯入成功',
     importFailed: '匯入失敗：格式無效',
     importProjectMismatch: '匯入失敗：專案不匹配',
@@ -336,6 +337,8 @@ export default {
       '匯入失敗：該設定由更高版本的 {{projectName}} 匯出，請更新 {{projectName}} 後重試',
     exportSuccess: '設定已複製到剪貼簿',
     exportFailed: '匯出失敗：無法寫入剪貼簿',
+    exportFileSuccess: '設定已匯出為 txt 檔案',
+    exportFileFailed: '匯出失敗：無法寫入檔案',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 設定，分享給你囉~',
     exportShareFooter: '👆 複製這段文字，在 {{projectName}} 裡新建標籤頁，點「匯入設定」就能直接用',
   },
@@ -738,6 +741,11 @@ export default {
     closeAllTabs: '關閉所有標籤頁',
     closeTabsToRight: '關閉右側標籤頁',
     exportConfig: '匯出設定',
+    exportToClipboard: '匯出到剪貼簿',
+    exportToTxt: '匯出為 txt 檔案',
+    importConfig: '匯入設定',
+    importFromClipboard: '從剪貼簿匯入',
+    importFromTxt: '從 txt 檔案匯入',
 
     // 前置程式右鍵選單
     duplicateAction: '複製',

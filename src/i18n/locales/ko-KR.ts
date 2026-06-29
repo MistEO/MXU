@@ -334,6 +334,7 @@ export default {
     taskCount: '개 작업',
     skipToManual: '건너뛰고 수동으로 작업 추가',
     importConfig: '클립보드에서 설정 가져오기',
+    importConfigFromFile: '파일에서 설정 가져오기',
     importSuccess: '설정 가져오기 성공',
     importFailed: '가져오기 실패: 잘못된 형식',
     importProjectMismatch: '가져오기 실패: 프로젝트 불일치',
@@ -341,6 +342,8 @@ export default {
       '가져오기 실패: 이 설정은 더 새로운 버전의 {{projectName}}에서 내보낸 것입니다. {{projectName}}를 업데이트한 후 다시 시도해 주세요',
     exportSuccess: '설정이 클립보드에 복사되었습니다',
     exportFailed: '내보내기 실패: 클립보드에 쓸 수 없습니다',
+    exportFileSuccess: '설정을 txt 파일로 내보냈습니다',
+    exportFileFailed: '내보내기 실패: 파일에 쓸 수 없습니다',
     exportShareHint: '{{projectName}} 의 「{{tabName}}」 설정 공유해요~',
     exportShareFooter:
       '👆 이 메시지를 복사해서 {{projectName}} 에서 새 탭을 만들고 「설정 가져오기」를 누르면 바로 사용할 수 있어요',
@@ -752,6 +755,11 @@ export default {
     closeAllTabs: '모든 탭 닫기',
     closeTabsToRight: '오른쪽 탭 닫기',
     exportConfig: '설정 내보내기',
+    exportToClipboard: '클립보드로 내보내기',
+    exportToTxt: 'txt 파일로 내보내기',
+    importConfig: '설정 가져오기',
+    importFromClipboard: '클립보드에서 가져오기',
+    importFromTxt: 'txt 파일에서 가져오기',
 
     // 전처리 프로그램 컨텍스트 메뉴
     duplicateAction: '복제',

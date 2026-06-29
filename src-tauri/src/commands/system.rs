@@ -34,7 +34,8 @@ static CLI: OnceLock<Cli> = OnceLock::new();
 #[command(
     disable_help_flag = true,
     disable_version_flag = true,
-    disable_help_subcommand = true
+    disable_help_subcommand = true,
+    ignore_errors = true
 )]
 pub struct Cli {
     #[arg(long)]
@@ -52,7 +53,7 @@ pub fn init_cli() -> &'static Cli {
         let cli = Cli::parse();
         if cli.help {
             #[cfg(windows)]
-            let _ = winsafe::AttachConsole(winsafe::PidParent::Parent);
+            let attach = winsafe::AttachConsole(winsafe::PidParent::Parent);
 
             print!("{}", get_cli_help_text());
 
@@ -60,7 +61,7 @@ pub fn init_cli() -> &'static Cli {
             let _ = std::io::stdout().flush();
 
             #[cfg(windows)]
-            let _ = winsafe::FreeConsole();
+            if attach.is_ok() { let _ = winsafe::FreeConsole(); };
 
             std::process::exit(0);
         }

@@ -95,6 +95,8 @@ export default {
     hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
     minimizeToTray: '閉じる時にトレイに最小化',
     minimizeToTrayHint: '閉じるボタンをクリックすると、終了せずにシステムトレイに隠れます',
+    hideMainWindowOnLaunch: '起動時にメインウィンドウを非表示',
+    hideMainWindowOnLaunchHint: '起動後にメインウィンドウを自動表示せず、トレイから復元できます',
     autoStart: 'スタートアップ時に起動',
     autoStartHint: 'システム起動時にこのアプリケーションを自動的に起動します',
     autoStartInstance: '起動後に自動実行',

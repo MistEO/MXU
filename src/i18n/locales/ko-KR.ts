@@ -94,6 +94,8 @@ export default {
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
+    hideMainWindowOnLaunch: '시작 시 메인 창 숨기기',
+    hideMainWindowOnLaunchHint: '시작 후 메인 창을 자동으로 표시하지 않으며, 트레이에서 복원할 수 있습니다',
     autoStart: '시작 시 자동 실행',
     autoStartHint: '시스템 부팅 시 이 애플리케이션을 자동으로 시작합니다',
     autoStartInstance: '시작 후 자동 실행',

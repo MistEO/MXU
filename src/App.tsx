@@ -169,6 +169,7 @@ function App() {
     setDataPath,
     setConfigPersistenceReady,
     basePath,
+    hideMainWindowOnLaunch,
     importConfig,
     createInstance,
     theme,
@@ -645,8 +646,19 @@ function App() {
         }
       }
 
-      // 主题已应用、窗口已定位，显示窗口
-      showWindow();
+      // 主题已应用、窗口已定位，按启动设置决定是否显示窗口
+      if (!hideMainWindowOnLaunch) {
+        showWindow();
+      } else if (isTauri()) {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const currentWindow = getCurrentWindow();
+          await currentWindow.hide();
+          log.info('已按设置在启动时隐藏主窗口');
+        } catch (err) {
+          log.warn('启动时隐藏主窗口失败:', err);
+        }
+      }
 
       // 从后端恢复 MAA 运行时状态（连接状态、资源加载状态、设备缓存等）
       try {
@@ -1057,7 +1069,7 @@ function App() {
             log.warn('检测到程序路径问题:', pathIssue);
             setBadPathType(pathIssue as BadPathType);
             setShowBadPathModal(true);
-            // 路径有问题就不继续加载了，但仍需显示窗口
+            // 路径有问题就不继续加载了，但仍需显示窗口以呈现错误界面
             showWindow();
             return;
           }

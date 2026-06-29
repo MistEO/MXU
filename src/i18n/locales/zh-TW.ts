@@ -94,6 +94,8 @@ export default {
     hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
     minimizeToTray: '關閉時最小化到托盤',
     minimizeToTrayHint: '點選關閉按鈕時隱藏到系統托盤而非退出程式',
+    hideMainWindowOnLaunch: '啟動時隱藏主視窗',
+    hideMainWindowOnLaunchHint: '程式啟動後不自動顯示主視窗，可隨時從托盤恢復',
     autoStart: '開機自啟動',
     autoStartHint: '系統啟動時自動執行本程式',
     autoStartInstance: '啟動後自動執行',

@@ -95,6 +95,8 @@ export default {
     hotkeysGlobalOnlyStart: 'only start works in global mode',
     minimizeToTray: 'Minimize to tray on close',
     minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
+    hideMainWindowOnLaunch: 'Hide main window on launch',
+    hideMainWindowOnLaunchHint: 'Do not show the main window automatically after startup; you can restore it from the tray',
     autoStart: 'Launch at startup',
     autoStartHint: 'Automatically start this application when the system boots',
     autoStartInstance: 'Auto-execute on startup',

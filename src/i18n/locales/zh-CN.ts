@@ -95,6 +95,8 @@ export default {
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
+    hideMainWindowOnLaunch: '启动时隐藏主窗口',
+    hideMainWindowOnLaunchHint: '程序启动后不自动显示主窗口，可随时从托盘恢复',
     autoStart: '开机自启动',
     autoStartHint: '系统启动时自动运行本程序',
     autoStartInstance: '启动后自动执行',

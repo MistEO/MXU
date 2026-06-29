@@ -728,13 +728,13 @@ fn execute_power_restart() -> bool {
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
+        use winsafe::msg::WmSysCommand;
         use winsafe::co::SC;
-        use winsafe::msg::wm;
         use winsafe::{HWND, POINT};
         unsafe {
             // NOTE: POINT::from(2) is equal to LPARAM(2)
 
-            HWND::BROADCAST.SendMessage(wm::SysCommand {
+            HWND::BROADCAST.SendMessage(WmSysCommand {
                 request: SC::MONITORPOWER,
                 position: POINT::from(2),
             });

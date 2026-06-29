@@ -211,6 +211,7 @@ function App() {
       setDataPath: state.setDataPath,
       setConfigPersistenceReady: state.setConfigPersistenceReady,
       basePath: state.basePath,
+      hideMainWindowOnLaunch: state.hideMainWindowOnLaunch,
       importConfig: state.importConfig,
       createInstance: state.createInstance,
       theme: state.theme,

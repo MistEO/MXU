@@ -1,18 +1,20 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use winsafe::PidParent;
+
 #[cfg(target_os = "windows")]
 mod webview2;
 
 fn main() {
     #[cfg(windows)]
-    attach_parent_console_for_cli();
+    let _ = winsafe::AttachConsole(PidParent::Parent);
 
     // Parse CLI args; clap handles --help display and exit automatically
     let _cli = mxu_lib::commands::system::init_cli();
 
     #[cfg(windows)]
-    detach_parent_console_for_cli();
+    let _ = winsafe::FreeConsole();
 
     #[cfg(target_os = "windows")]
     {
@@ -81,28 +83,3 @@ fn main() {
     mxu_lib::run()
 }
 
-#[cfg(windows)]
-fn attach_parent_console_for_cli() {
-    extern "system" {
-        fn AttachConsole(dw_process_id: u32) -> i32;
-    }
-
-    const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
-
-    // GUI subsystem builds do not auto-attach to the invoking terminal.
-    // Ignore failure: redirected stdout or double-click launches should still fall through.
-    unsafe {
-        AttachConsole(ATTACH_PARENT_PROCESS);
-    }
-}
-
-#[cfg(windows)]
-fn detach_parent_console_for_cli() {
-    extern "system" {
-        fn FreeConsole() -> i32;
-    }
-
-    unsafe {
-        FreeConsole();
-    }
-}

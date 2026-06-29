@@ -91,12 +91,16 @@ export function setServerPort(port: number): void {
 
 function getWsUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  if (serverPort) {
-    const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:${serverPort}/api/ws`;
+
+  // 正常情况：通过 Nginx 反向代理
+  if (window.location.host) {
+    return `${protocol}//${window.location.host}/api/ws`;
   }
-  const host = window.location.host;
-  return `${protocol}//${host}/api/ws`;
+
+  // Fallback：直连后端
+  const hostname = window.location.hostname || '127.0.0.1';
+  const port = serverPort || 12701;
+  return `${protocol}//${hostname}:${port}/api/ws`;
 }
 
 // ============================================================================

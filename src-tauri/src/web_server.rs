@@ -558,6 +558,8 @@ async fn handle_get_interface(State(state): State<WebState>) -> impl IntoRespons
             "basePath": base_path,
             "dataPath": data_path,
             "webServerPort": get_actual_port(),
+            "backendOS": std::env::consts::OS,
+            "backendArch": std::env::consts::ARCH,
         }))
         .into_response(),
         None => (

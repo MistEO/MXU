@@ -38,6 +38,8 @@ export function DebugSection() {
     setWebServerEnabled,
     webServerPort: configuredPort,
     setWebServerPort: setConfiguredPort,
+    backendOS,
+    backendArch,
   } = useAppStore();
 
   const [mxuVersion, setMxuVersion] = useState<string | null>(null);
@@ -117,9 +119,17 @@ export function DebugSection() {
           setSystemInfo(null);
         }
       } else {
-        // 浏览器环境：从当前 URL 推导端口
+        // 浏览器环境：从当前 URL 推导端口，并从 store 读取后端真实 OS/架构
         const port = parseInt(window.location.port, 10);
         if (port) setWebServerPort(port);
+        if (backendOS) {
+          setSystemInfo({
+            os: backendOS,
+            osVersion: '',
+            arch: backendArch || '',
+            tauriVersion: '',
+          });
+        }
       }
     };
 

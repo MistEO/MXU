@@ -1695,6 +1695,11 @@ export const useAppStore = create<AppState>()(
     webServerPort: 12701,
     setWebServerPort: (port) => set({ webServerPort: port }),
 
+    // 后端真实 OS/架构（运行时从后端获取，不持久化；用于控制器平台过滤、更新资产匹配等）
+    backendOS: '',
+    backendArch: '',
+    setBackendOS: (os, arch) => set({ backendOS: os, backendArch: arch }),
+
     // 是否为开机自启动模式
     isAutoStartMode: false,
     setIsAutoStartMode: (mode) => set({ isAutoStartMode: mode }),

@@ -63,7 +63,14 @@ export function ActionItem({
     duplicatePreAction,
     reorderPreActions,
     confirmBeforeDelete,
+    backendOS,
   } = useAppStore();
+
+  // useCmd 仅 Windows 后端支持（后端 utils.rs 按 cfg!(target_os = "windows") 消费）
+  // 后端 OS 未知（纯前端 dev 预览）时回退到浏览器判断，保持既有行为
+  const isWindowsBackend = backendOS
+    ? backendOS === 'windows'
+    : navigator.userAgent.toLowerCase().includes('win');
 
   const [expanded, setExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -347,7 +354,7 @@ export function ActionItem({
               onChange={(v) => updateAction({ skipIfRunning: v })}
               disabled={disabled}
             />
-            {navigator.userAgent.toLowerCase().includes('win') && (
+            {isWindowsBackend && (
               <SwitchField
                 label={t('action.useCmd')}
                 hint={t('action.useCmdHint')}

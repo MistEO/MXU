@@ -2,6 +2,7 @@
 // API 文档: https://github.com/MirrorChyan/docs
 
 import type { DownloadProgress, UpdateInfo } from '@/stores/appStore';
+import { useAppStore } from '@/stores/appStore';
 import type { ProxySettings, UpdateChannel } from '@/types/config';
 import { loggers } from '@/utils/logger';
 import { getCacheDir, joinPath } from '@/utils/paths';
@@ -127,8 +128,13 @@ interface GitHubAsset {
   browser_download_url: string;
 }
 
-// 获取操作系统类型
+// 获取操作系统类型（以后端真实 OS 为准；后端未知时回退到浏览器平台，仅纯前端 dev 预览）
 function getOS(): string {
+  const os = useAppStore.getState().backendOS;
+  if (os === 'windows') return 'windows';
+  if (os === 'macos') return 'darwin';
+  if (os === 'linux') return 'linux';
+  // 后端 OS 未知（纯前端 dev 预览，无后端）时回退到浏览器平台
   const platform = navigator.platform.toLowerCase();
   if (platform.includes('win')) return 'windows';
   if (platform.includes('mac')) return 'darwin';
@@ -200,10 +206,16 @@ function buildUserAgent(): string {
   return `MXU/${version} (${platformInfo}; ${arch}) Tauri/2.0`;
 }
 
-// 获取 CPU 架构
+// 获取 CPU 架构（以后端真实架构为准；后端未知时回退到 amd64）
 function getArch(): string {
-  // 浏览器环境难以准确获取架构，默认使用 x64
-  // Tauri 环境可以通过 os 插件获取更准确的信息
+  const arch = useAppStore.getState().backendArch;
+  if (arch) {
+    // 归一化到更新资产匹配常用的基线名
+    if (arch.includes('x86_64') || arch === 'x64') return 'amd64';
+    if (arch.includes('aarch64') || arch === 'arm64') return 'arm64';
+    return arch;
+  }
+  // 后端架构未知（纯前端 dev 预览）时回退
   return 'amd64';
 }
 

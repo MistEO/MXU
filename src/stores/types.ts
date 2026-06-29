@@ -381,6 +381,11 @@ export interface AppState {
   webServerPort: number;
   setWebServerPort: (port: number) => void;
 
+  /** 后端真实 OS（运行时从后端获取，'' = 未知；用于控制器平台过滤、更新资产匹配等，不持久化） */
+  backendOS: string;
+  backendArch: string;
+  setBackendOS: (os: string, arch: string) => void;
+
   // 托盘设置
   minimizeToTray: boolean;
   setMinimizeToTray: (enabled: boolean) => void;

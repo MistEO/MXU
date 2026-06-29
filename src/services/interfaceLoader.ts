@@ -32,6 +32,8 @@ export interface LoadResult {
   basePath: string;
   dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
   webServerPort?: number; // 后端 Web 服务器实际监听端口（浏览器模式下用于 WS 直连）
+  backendOS?: string; // 后端真实 OS（用于控制器过滤、更新匹配等；Tauri/HTTP 路径填充，dev 预览为空）
+  backendArch?: string; // 后端真实架构
 }
 
 /**
@@ -297,15 +299,28 @@ async function processImports(
 // 平台过滤
 // ============================================================================
 
-// 检测当前操作系统
-const isWindows = navigator.platform.toLowerCase().includes('win');
-const isMacOS = navigator.platform.toLowerCase().includes('mac');
-const isLinux = navigator.platform.toLowerCase().includes('linux');
+/**
+ * 根据 OS 字符串计算平台标志
+ * @param os 后端真实 OS（如 "windows"/"macos"/"linux"）；空串时回退到浏览器 navigator.platform（仅纯前端 dev 预览，无后端）
+ *
+ * 注意：控制器过滤必须以后端 OS 为准（WebUI 可被异构 OS 的浏览器远程访问），
+ * 不得直接使用 navigator.platform，否则会导致远程浏览器与后端 OS 不一致时过滤错误。
+ */
+function getPlatformFlags(os: string) {
+  const platform = os ? os.toLowerCase() : navigator.platform.toLowerCase();
+  return {
+    isWindows: platform.includes('win'),
+    isMacOS: platform === 'macos' || platform.includes('mac'),
+    isLinux: platform.includes('linux'),
+  };
+}
 
 /**
- * 获取当前平台不支持的控制器类型集合
+ * 获取指定平台不支持的控制器类型集合
+ * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
-function getUnsupportedControllerTypes(): Set<ControllerType> {
+function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
+  const { isWindows, isMacOS, isLinux } = getPlatformFlags(os);
   const unsupported = new Set<ControllerType>();
   // 非 Windows 系统不支持 Win32 和 Gamepad
   if (!isWindows) {
@@ -324,11 +339,12 @@ function getUnsupportedControllerTypes(): Set<ControllerType> {
 }
 
 /**
- * 过滤掉当前平台不支持的控制器
+ * 过滤掉指定平台不支持的控制器
  * 在解析阶段直接移除，使后续所有消费 controller 的地方都只看到兼容的控制器
+ * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
-function filterControllersByPlatform(pi: ProjectInterface): void {
-  const unsupported = getUnsupportedControllerTypes();
+function filterControllersByPlatform(pi: ProjectInterface, os: string): void {
+  const unsupported = getUnsupportedControllerTypes(os);
   if (unsupported.size === 0) return;
 
   const originalCount = pi.controller.length;
@@ -388,11 +404,17 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     // 处理 import 字段
     await processImports(pi, relativeBasePath, true);
 
-    // 过滤掉当前平台不支持的控制器
-    filterControllersByPlatform(pi);
+    // 获取后端真实 OS/架构（Tauri 环境），用于平台过滤与下游消费
+    const [backendOS, backendArch] = await Promise.all([
+      invoke<string>('get_os'),
+      invoke<string>('get_arch'),
+    ]);
+
+    // 过滤掉当前平台不支持的控制器（以后端 OS 为准，而非浏览器 OS）
+    filterControllersByPlatform(pi, backendOS);
 
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
-    return { interface: pi, translations, basePath, dataPath };
+    return { interface: pi, translations, basePath, dataPath, backendOS, backendArch };
   }
 
   // 浏览器环境：尝试后端 HTTP API（先走 Vite proxy，失败则探测端口直连）
@@ -403,6 +425,8 @@ export async function autoLoadInterface(): Promise<LoadResult> {
       basePath: string;
       dataPath: string;
       webServerPort?: number;
+      backendOS?: string;
+      backendArch?: string;
     };
 
     const tryFetchInterface = async (
@@ -453,13 +477,16 @@ export async function autoLoadInterface(): Promise<LoadResult> {
 
     if (apiResult) {
       log.info('从后端 HTTP API 加载 interface.json');
-      filterControllersByPlatform(apiResult.interface);
+      // 以后端返回的 OS 为准过滤（远程浏览器 OS 可能与后端不同）
+      filterControllersByPlatform(apiResult.interface, apiResult.backendOS ?? '');
       return {
         interface: apiResult.interface,
         translations: apiResult.translations ?? {},
         basePath: apiResult.basePath ?? '',
         dataPath: apiResult.dataPath ?? '',
         webServerPort: apiResult.webServerPort,
+        backendOS: apiResult.backendOS,
+        backendArch: apiResult.backendArch,
       };
     }
     log.info('后端 HTTP API 不可用，回退到静态文件加载');
@@ -474,8 +501,8 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     const httpBasePath = relativeBasePath ? `/${relativeBasePath}` : '';
     await processImports(pi, httpBasePath, false);
 
-    // 过滤掉当前平台不支持的控制器
-    filterControllersByPlatform(pi);
+    // 过滤掉当前平台不支持的控制器（纯前端 dev 预览无后端，回退到浏览器平台）
+    filterControllersByPlatform(pi, '');
 
     const translations = await loadTranslationsFromHttp(pi, httpBasePath);
     // 浏览器环境下 dataPath 与 basePath 相同

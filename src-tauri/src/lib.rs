@@ -11,6 +11,18 @@ use tauri::Manager;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use ws_broadcast::WsBroadcast;
 
+#[cfg(target_os = "windows")]
+fn clear_webview_boot_marker() {
+    let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|dir| dir.to_path_buf()))
+    else {
+        return;
+    };
+    let marker = exe_dir.join("cache").join("webview_boot_pending");
+    let _ = std::fs::remove_file(marker);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 日志目录：exe 目录/debug/logs（与前端日志同目录）
@@ -56,6 +68,9 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            clear_webview_boot_marker();
+
             // 创建 MaaState 并注册为 Tauri 管理状态
             let maa_state = Arc::new(MaaState::default());
 

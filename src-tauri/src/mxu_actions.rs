@@ -350,7 +350,8 @@ fn parse_webhook_method(method: Option<&str>, has_body: bool) -> Result<Method, 
             }
         });
 
-    Method::from_bytes(method.as_bytes()).map_err(|e| format!("invalid HTTP method '{}': {}", method, e))
+    Method::from_bytes(method.as_bytes())
+        .map_err(|e| format!("invalid HTTP method '{}': {}", method, e))
 }
 
 fn build_webhook_headers(headers: HashMap<String, String>) -> Result<HeaderMap, String> {

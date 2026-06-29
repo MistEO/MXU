@@ -30,7 +30,7 @@ import { createProxySettings, proxySettingsForUpdateDownload } from '@/services/
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { loggers } from '@/utils/logger';
-import { ReleaseNotes, DownloadProgressBar } from '../UpdateInfoCard';
+import { ReleaseNotes, DownloadProgressBar, VersionInfo } from '../UpdateInfoCard';
 
 export function UpdateSection() {
   const { t } = useTranslation();
@@ -543,24 +543,25 @@ export function UpdateSection() {
                 </div>
               )}
 
-              {/* 有更新时显示更新内容和下载进度 */}
-              {updateInfo?.hasUpdate && (
+              {/* 有更新或已有更新日志时显示内容 */}
+              {updateInfo && (updateInfo.hasUpdate || updateInfo.releaseNote) && (
                 <div className="space-y-4 p-4 bg-bg-tertiary rounded-lg border border-border">
-                  {/* 新版本标题 */}
+                  {/* 版本信息 */}
                   <div className="flex items-center gap-2">
                     <Download className="w-4 h-4 text-accent" />
                     <span className="text-sm font-medium text-text-primary">
-                      {t('mirrorChyan.newVersion')}
+                      {updateInfo.hasUpdate
+                        ? t('mirrorChyan.newVersion')
+                        : t('mirrorChyan.latestVersion')}
                     </span>
-                    <span className="font-mono text-sm text-accent font-semibold">
-                      {updateInfo.versionName}
-                    </span>
-                    {updateInfo.channel && updateInfo.channel !== 'stable' && (
-                      <span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded font-medium">
-                        {updateInfo.channel}
-                      </span>
-                    )}
                   </div>
+
+                  <VersionInfo
+                    currentVersion={projectInterface?.version || updateInfo.versionName}
+                    latestVersion={updateInfo.versionName}
+                    channel={updateInfo.channel}
+                    isUpdated={false}
+                  />
 
                   {/* 更新日志 */}
                   {updateInfo.releaseNote && (
@@ -573,21 +574,8 @@ export function UpdateSection() {
                     />
                   )}
 
-                  {/* API 错误提示 */}
-                  {updateInfo.errorCode && errorText && (
-                    <div
-                      className={clsx(
-                        'flex items-start gap-2 p-2 rounded-lg text-xs',
-                        isCdkError ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error',
-                      )}
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                      <span>{errorText}</span>
-                    </div>
-                  )}
-
                   {/* 没有下载链接的提示 */}
-                  {!updateInfo.downloadUrl && !updateInfo.errorCode && (
+                  {!updateInfo.downloadUrl && !updateInfo.errorCode && updateInfo.hasUpdate && (
                     <div className="flex items-center gap-2 text-xs text-text-muted">
                       <AlertCircle className="w-3.5 h-3.5 text-warning" />
                       <span>{t('mirrorChyan.noDownloadUrl')}</span>
@@ -595,7 +583,7 @@ export function UpdateSection() {
                   )}
 
                   {/* 下载进度 */}
-                  {updateInfo.downloadUrl && downloadStatus !== 'idle' && (
+                  {updateInfo.downloadUrl && downloadStatus !== 'idle' && updateInfo.hasUpdate && (
                     <DownloadProgressBar
                       downloadStatus={downloadStatus}
                       downloadProgress={downloadProgress}
@@ -611,7 +599,7 @@ export function UpdateSection() {
                   )}
 
                   {/* 等待下载 */}
-                  {updateInfo.downloadUrl && downloadStatus === 'idle' && (
+                  {updateInfo.downloadUrl && downloadStatus === 'idle' && updateInfo.hasUpdate && (
                     <div className="flex items-center gap-2 text-xs text-text-muted">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       <span>{t('mirrorChyan.preparingDownload')}</span>
@@ -620,8 +608,8 @@ export function UpdateSection() {
                 </div>
               )}
 
-              {/* 只有错误没有更新时显示错误 */}
-              {updateInfo && !updateInfo.hasUpdate && updateInfo.errorCode && errorText && (
+              {/* API 错误提示 */}
+              {updateInfo?.errorCode && errorText && (
                 <div
                   className={clsx(
                     'flex items-start gap-2 p-3 rounded-lg text-sm',

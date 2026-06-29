@@ -34,14 +34,17 @@ static CLI: OnceLock<Cli> = OnceLock::new();
 #[command(
     name = "mxu",
     about = "MXU 命令行参数",
-    after_help = "示例:\n  mxu --autostart --instance \"日常任务\"\n  mxu --autostart -i \"日常任务\" --quit-after-run"
+    after_help = "示例:\n  mxu --autostart --instance \"日常任务\"\n  mxu --autostart -i \"日常任务\" --quit-after-run",
+    version,
 )]
 pub struct Cli {
     /// 以开机自启动模式运行，并触发自动执行逻辑
+    ///
     /// 通常由 MXU 创建的系统自启动任务自动传入
     #[arg(long)]
     pub autostart: bool,
     /// 指定自动执行时使用的实例名
+    ///
     /// 仅在 --autostart 模式下生效
     #[arg(short = 'i', long = "instance")]
     pub instance: Option<String>,

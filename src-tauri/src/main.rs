@@ -5,9 +5,7 @@
 mod webview2;
 
 fn main() {
-    // Parse CLI args; clap handles --help display and exit automatically
     let _cli = mxu_lib::commands::system::init_cli();
-
 
     #[cfg(target_os = "windows")]
     {

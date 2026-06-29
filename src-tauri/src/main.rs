@@ -1,20 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use winsafe::PidParent;
-
 #[cfg(target_os = "windows")]
 mod webview2;
 
 fn main() {
-    #[cfg(windows)]
-    let _ = winsafe::AttachConsole(PidParent::Parent);
-
     // Parse CLI args; clap handles --help display and exit automatically
     let _cli = mxu_lib::commands::system::init_cli();
 
-    #[cfg(windows)]
-    let _ = winsafe::FreeConsole();
 
     #[cfg(target_os = "windows")]
     {

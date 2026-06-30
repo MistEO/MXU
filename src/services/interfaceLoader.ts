@@ -6,6 +6,7 @@ import type {
   ControllerType,
   PresetItem,
   GroupItem,
+  InterfaceSettingSection,
 } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
@@ -15,7 +16,7 @@ import { setBackendPort } from '@/utils/backendApi';
 const log = loggers.app;
 
 /**
- * 可导入的 PI 文件结构（支持 task、option、preset 和 group 字段）
+ * 可导入的 PI 文件结构（支持 task、option、preset、group 和 setting 字段）
  */
 interface ImportableInterface {
   task?: TaskItem[];
@@ -24,6 +25,8 @@ interface ImportableInterface {
   preset?: PresetItem[];
   /** v2.4.0: 支持导入 group */
   group?: GroupItem[];
+  /** MXU 扩展：支持导入 setting */
+  setting?: InterfaceSettingSection[];
 }
 
 export interface LoadResult {
@@ -210,7 +213,7 @@ async function loadImportFromHttp(importPath: string): Promise<ImportableInterfa
 }
 
 /**
- * 合并导入的 task 和 option 到主 interface
+ * 合并导入的 task、option 和 setting 到主 interface
  * @param pi 主 ProjectInterface
  * @param imported 导入的内容
  */
@@ -225,6 +228,12 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
   if (imported.option && Object.keys(imported.option).length > 0) {
     pi.option = { ...pi.option, ...imported.option };
     log.info(`合并了 ${Object.keys(imported.option).length} 个导入的 option`);
+  }
+
+  // MXU 扩展：合并 setting 数组（追加到末尾，保持导入顺序）
+  if (imported.setting && imported.setting.length > 0) {
+    pi.setting = [...(pi.setting || []), ...imported.setting];
+    log.info(`合并了 ${imported.setting.length} 个导入的 setting`);
   }
 
   // v2.3.0: 合并 preset 数组（追加到末尾）

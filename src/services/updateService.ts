@@ -129,10 +129,10 @@ interface GitHubAsset {
 
 // 获取操作系统类型
 function getOS(): string {
-  const platform = navigator.platform.toLowerCase();
-  if (platform.includes('win')) return 'windows';
-  if (platform.includes('mac')) return 'darwin';
-  if (platform.includes('linux')) return 'linux';
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('win')) return 'windows';
+  if (ua.includes('mac')) return 'darwin';
+  if (ua.includes('linux')) return 'linux';
   return '';
 }
 
@@ -844,7 +844,34 @@ export async function checkAndPrepareDownload(
   // 始终使用 Mirror酱 检查更新
   const updateInfo = await checkUpdate({ ...checkOptions, cdk, channel });
 
-  if (!updateInfo || !updateInfo.hasUpdate) {
+  if (!updateInfo) {
+    return null;
+  }
+
+  // 当已经是最新版本时，也尝试补充更新日志，方便设置页展示 changelog
+  if (!updateInfo.hasUpdate && githubUrl && !updateInfo.releaseNote && updateInfo.versionName) {
+    const parsedGitHubUrl = parseGitHubUrl(githubUrl);
+    if (parsedGitHubUrl) {
+      log.info(`当前已是最新版本，尝试从 GitHub 获取版本 ${updateInfo.versionName} 的更新日志`);
+      const githubRelease = await getGitHubReleaseByVersion(
+        parsedGitHubUrl.owner,
+        parsedGitHubUrl.repo,
+        updateInfo.versionName,
+        githubPat,
+        proxyUrl,
+      );
+
+      if (githubRelease?.body) {
+        log.info('已从 GitHub 补充更新日志');
+        return {
+          ...updateInfo,
+          releaseNote: githubRelease.body,
+        };
+      }
+    }
+  }
+
+  if (!updateInfo.hasUpdate) {
     return updateInfo;
   }
 

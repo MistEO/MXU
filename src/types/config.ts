@@ -169,6 +169,8 @@ export interface MxuConfig {
   version: string;
   instances: SavedInstance[];
   settings: AppSettings;
+  /** 全局任务设置值：用于 interface.global_option 对应的 option */
+  globalOptionValues?: Record<string, OptionValue>;
   recentlyClosed?: RecentlyClosedInstance[]; // 最近关闭的实例列表（最多30条）
   interfaceTaskSnapshot?: string[]; // 保存时 interface.json 中的任务名列表快照，用于检测新增任务
   newTaskNames?: string[]; // 用户尚未查看的新增任务名称列表

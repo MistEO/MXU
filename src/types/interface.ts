@@ -24,10 +24,25 @@ export interface ProjectInterface {
   option?: Record<string, OptionDefinition>;
   /** v2.3.0: 全局选项配置，参与到所有任务的 pipeline override 中 */
   global_option?: string[];
+  /**
+   * MXU 扩展：任务设置页的 UI 元数据
+   * 仅描述如何展示设置区域，不定义 option 本身；实际可编辑项仍复用 `option`
+   */
+  settings?: InterfaceSettingsSection[];
   /** v2.2.0: 导入其他 PI 文件的路径数组 */
   import?: string[];
   /** v2.3.0: 预设配置 */
   preset?: PresetItem[];
+}
+
+/** MXU 扩展：任务设置页 section 定义 */
+export interface InterfaceSettingsSection {
+  name: string;
+  label?: string;
+  description?: string;
+  icon?: string;
+  default_expand?: boolean;
+  option?: string[];
 }
 
 /** v2.4.0: 任务分组声明 */

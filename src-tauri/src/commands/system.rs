@@ -111,6 +111,38 @@ MXU 命令行参数
     )
 }
 
+/// 获取宿主机架构（macOS 上优先识别真实硬件架构，避免 Rosetta 误判）
+fn detect_host_arch() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CString;
+        use std::ptr;
+
+        unsafe {
+            let name = CString::new("hw.optional.arm64").expect("valid sysctl name");
+            let mut value: libc::c_int = 0;
+            let mut size = std::mem::size_of::<libc::c_int>() as libc::size_t;
+
+            if libc::sysctlbyname(
+                name.as_ptr(),
+                &mut value as *mut _ as *mut libc::c_void,
+                &mut size,
+                ptr::null_mut(),
+                0,
+            ) == 0
+            {
+                return if value == 1 {
+                    "arm64".to_string()
+                } else {
+                    "x86_64".to_string()
+                };
+            }
+        }
+    }
+
+    std::env::consts::ARCH.to_string()
+}
+
 /// 检查当前进程是否以管理员权限运行
 #[tauri::command]
 pub fn is_elevated() -> bool {
@@ -827,7 +859,7 @@ pub fn autostart_is_enabled(suffix: Option<String>) -> bool {
 /// 获取系统架构
 #[tauri::command]
 pub fn get_arch() -> String {
-    std::env::consts::ARCH.to_string()
+    detect_host_arch()
 }
 
 /// 获取操作系统类型
@@ -847,7 +879,7 @@ pub fn get_system_info() -> SystemInfo {
     let os_version = format!("{} {}", info.os_type(), info.version());
 
     // 获取系统架构
-    let arch = std::env::consts::ARCH.to_string();
+    let arch = detect_host_arch();
 
     // 获取 Tauri 框架版本（来自 Tauri 常量）
     let tauri_version = tauri::VERSION.to_string();

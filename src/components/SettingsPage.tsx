@@ -18,7 +18,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { useAppStore } from '@/stores/appStore';
 import type { CustomAccent } from '@/themes';
-import type { InterfaceSettingsSection, OptionDefinition, ProjectInterface } from '@/types/interface';
+import type { InterfaceSettingSection, OptionDefinition, ProjectInterface } from '@/types/interface';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
@@ -35,7 +35,7 @@ interface SettingsPageProps {
   onClose?: () => void;
 }
 
-interface RenderSettingsSection extends InterfaceSettingsSection {
+interface RenderSettingsSection extends InterfaceSettingSection {
   resolvedLabel: string;
   resolvedDescription?: string;
   resolvedIcon?: string;
@@ -265,7 +265,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
   const langKey = i18n.language;
   const settingsSections = useMemo<RenderSettingsSection[]>(() => {
-    const sections = projectInterface?.settings || [];
+    const sections = projectInterface?.setting || [];
     const langMap = interfaceTranslations[langKey] || {};
 
     return sections.map((section) => ({

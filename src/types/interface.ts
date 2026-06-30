@@ -28,7 +28,7 @@ export interface ProjectInterface {
    * MXU 扩展：任务设置页的 UI 元数据
    * 仅描述如何展示设置区域，不定义 option 本身；实际可编辑项仍复用 `option`
    */
-  settings?: InterfaceSettingsSection[];
+  setting?: InterfaceSettingSection[];
   /** v2.2.0: 导入其他 PI 文件的路径数组 */
   import?: string[];
   /** v2.3.0: 预设配置 */
@@ -36,7 +36,7 @@ export interface ProjectInterface {
 }
 
 /** MXU 扩展：任务设置页 section 定义 */
-export interface InterfaceSettingsSection {
+export interface InterfaceSettingSection {
   name: string;
   label?: string;
   description?: string;

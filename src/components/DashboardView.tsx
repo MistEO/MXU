@@ -266,6 +266,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                   projectInterface,
                   currentControllerName,
                   currentResourceName,
+                  useAppStore.getState().globalOptionValues,
                 ),
                 selected_task_id: selectedTask.id,
               };

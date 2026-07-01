@@ -43,14 +43,17 @@ function AsyncIcon({
 }
 
 interface OptionEditorProps {
-  instanceId: string;
-  taskId: string;
+  /** 全局作用域下可省略（值读写 store.globalOptionValues） */
+  instanceId?: string;
+  taskId?: string;
   optionKey: string;
   value?: OptionValue;
   /** 嵌套层级，用于缩进显示 */
   depth?: number;
   /** 是否禁用编辑（只读模式） */
   disabled?: boolean;
+  /** 全局作用域：值读写 store.globalOptionValues，用于设置页全局设置编辑 */
+  globalScope?: boolean;
   /** 是否继承父级不兼容状态 */
   controllerIncompatible?: boolean;
   /** 父级不兼容原因（用于嵌套提示文案） */
@@ -307,12 +310,13 @@ function InputField({
 }
 
 export function OptionEditor({
-  instanceId,
-  taskId,
+  instanceId = '',
+  taskId = '',
   optionKey,
   value,
   depth = 0,
   disabled = false,
+  globalScope = false,
   controllerIncompatible = false,
   parentIncompatibilityReason,
 }: OptionEditorProps) {
@@ -320,6 +324,8 @@ export function OptionEditor({
   const {
     projectInterface,
     setTaskOptionValue,
+    globalOptionValues,
+    setGlobalOptionValue,
     resolveI18nText,
     language,
     basePath,
@@ -333,18 +339,30 @@ export function OptionEditor({
   const mxuOptionDef = isMxuOption ? findMxuOptionByKey(optionKey) : null;
   const optionDef = isMxuOption ? mxuOptionDef : projectInterface?.option?.[optionKey];
 
-  // 获取当前任务的所有选项值（用于嵌套选项）
+  // 获取当前任务的所有选项值（用于嵌套选项）；全局作用域下取 globalOptionValues
   const allOptionValues = useMemo(() => {
+    if (globalScope) return globalOptionValues;
     const instance = instances.find((i) => i.id === instanceId);
     const task = instance?.selectedTasks.find((t) => t.id === taskId);
     return task?.optionValues || {};
-  }, [instances, instanceId, taskId]);
+  }, [globalScope, globalOptionValues, instances, instanceId, taskId]);
   const instance = useMemo(
     () => instances.find((item) => item.id === instanceId),
     [instances, instanceId],
   );
 
   if (!optionDef) return null;
+
+  // 全局作用域下顶层值取自 globalOptionValues；否则用传入的 value
+  const effectiveValue = globalScope ? (value ?? globalOptionValues[optionKey]) : value;
+  // 统一提交入口：全局作用域写 globalOptionValues，否则写任务实例
+  const commitOptionValue = (next: OptionValue) => {
+    if (globalScope) {
+      setGlobalOptionValue(optionKey, next);
+    } else {
+      setTaskOptionValue(instanceId, taskId, optionKey, next);
+    }
+  };
 
   const langKey = getInterfaceLangKey(language);
   // 对于 MXU 内置选项，使用 t() 翻译
@@ -384,13 +402,13 @@ export function OptionEditor({
   // 获取当前选中的 case（用于渲染嵌套选项）
   const getSelectedCase = (): CaseItem | undefined => {
     if (optionDef.type === 'switch') {
-      const isChecked = value?.type === 'switch' ? value.value : false;
+      const isChecked = effectiveValue?.type === 'switch' ? effectiveValue.value : false;
       return findSwitchCase(optionDef.cases, isChecked);
     }
     if (optionDef.type === 'select' || !optionDef.type) {
       const caseName =
-        value?.type === 'select'
-          ? value.caseName
+        effectiveValue?.type === 'select'
+          ? effectiveValue.caseName
           : optionDef.default_case || optionDef.cases?.[0]?.name;
       return optionDef.cases?.find((c) => c.name === caseName);
     }
@@ -402,10 +420,10 @@ export function OptionEditor({
 
   // Switch 类型
   if (optionDef.type === 'switch') {
-    const isChecked = value?.type === 'switch' ? value.value : false;
+    const isChecked = effectiveValue?.type === 'switch' ? effectiveValue.value : false;
     const handleToggleSwitch = () => {
       if (effectiveDisabled) return;
-      setTaskOptionValue(instanceId, taskId, optionKey, {
+      commitOptionValue({
         type: 'switch',
         value: !isChecked,
       });
@@ -471,6 +489,7 @@ export function OptionEditor({
                 value={allOptionValues[nestedKey]}
                 depth={depth + 1}
                 disabled={effectiveDisabled}
+                globalScope={globalScope}
                 controllerIncompatible={isOptionIncompatible}
                 parentIncompatibilityReason={incompatibleReasonType}
               />
@@ -484,7 +503,7 @@ export function OptionEditor({
   // Checkbox 类型 (多选)
   if (optionDef.type === 'checkbox') {
     const selectedCases =
-      value?.type === 'checkbox' ? value.caseNames : optionDef.default_case || [];
+      effectiveValue?.type === 'checkbox' ? effectiveValue.caseNames : optionDef.default_case || [];
 
     return (
       <div
@@ -520,7 +539,7 @@ export function OptionEditor({
                   const newCases = isChecked
                     ? selectedCases.filter((n) => n !== caseItem.name)
                     : [...selectedCases, caseItem.name];
-                  setTaskOptionValue(instanceId, taskId, optionKey, {
+                  commitOptionValue({
                     type: 'checkbox',
                     caseNames: newCases,
                   });
@@ -555,7 +574,7 @@ export function OptionEditor({
 
   // Input 类型
   if (optionDef.type === 'input') {
-    const inputValues = value?.type === 'input' ? value.values : {};
+    const inputValues = effectiveValue?.type === 'input' ? effectiveValue.values : {};
 
     return (
       <div
@@ -588,7 +607,7 @@ export function OptionEditor({
               value={inputValue}
               onChange={(newVal) => {
                 if (effectiveDisabled) return;
-                setTaskOptionValue(instanceId, taskId, optionKey, {
+                commitOptionValue({
                   type: 'input',
                   values: { ...inputValues, [input.name]: newVal },
                 });
@@ -608,7 +627,9 @@ export function OptionEditor({
 
   // Select 类型 (默认)
   const selectedCaseName =
-    value?.type === 'select' ? value.caseName : optionDef.default_case || optionDef.cases[0]?.name;
+    effectiveValue?.type === 'select'
+      ? effectiveValue.caseName
+      : optionDef.default_case || optionDef.cases[0]?.name;
 
   // 选项超过 4 个时使用 ComboBox（带搜索功能）
   const useComboBox = optionDef.cases.length > 4;
@@ -653,7 +674,7 @@ export function OptionEditor({
           })}
           onChange={(next) => {
             if (effectiveDisabled) return;
-            setTaskOptionValue(instanceId, taskId, optionKey, {
+            commitOptionValue({
               type: 'select',
               caseName: next,
             });
@@ -672,6 +693,7 @@ export function OptionEditor({
               value={allOptionValues[nestedKey]}
               depth={depth + 1}
               disabled={effectiveDisabled}
+              globalScope={globalScope}
               controllerIncompatible={isOptionIncompatible}
               parentIncompatibilityReason={incompatibleReasonType}
             />

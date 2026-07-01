@@ -48,6 +48,8 @@ export default {
     appearance: 'Appearance',
     hotkeys: 'Hotkeys',
     general: 'General',
+    taskSettings: 'Task Settings',
+    taskSettingsEmpty: 'No settings available to display',
     language: 'Language',
     backgroundImage: 'Background Image',
     backgroundOpacity: 'Background Opacity',

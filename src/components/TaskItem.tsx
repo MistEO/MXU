@@ -444,6 +444,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       projectInterface,
       currentControllerName,
       currentResourceName,
+      useAppStore.getState().globalOptionValues,
     );
     maaService.overridePipeline(instanceId, maaTaskId, pipelineOverride).catch((err) => {
       loggers.task.error('Failed to override pipeline:', err);

@@ -17,10 +17,12 @@ import clsx from 'clsx';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { useAppStore } from '@/stores/appStore';
+import { getInterfaceLangKey } from '@/i18n';
 import type { CustomAccent } from '@/themes';
-import type { InterfaceSettingSection, OptionDefinition, ProjectInterface } from '@/types/interface';
+import type { InterfaceSettingSection, ProjectInterface } from '@/types/interface';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { ConfirmDialog } from './ConfirmDialog';
+import { OptionEditor } from './OptionEditor';
 import {
   AppearanceSection,
   HotkeySection,
@@ -72,28 +74,10 @@ function useResolvedIcon(basePath: string, icon?: string): string | undefined {
   return iconUrl;
 }
 
-function OptionDefinitionPreview({
-  optionDef,
-  basePath,
-  translations,
-}: {
-  optionDef: OptionDefinition;
-  basePath: string;
-  translations: Record<string, string>;
-}) {
-  const { t } = useTranslation();
-  const iconUrl = useResolvedIcon(basePath, optionDef.icon);
-  const optionLabel = resolveSettingsText(optionDef.label, optionDef.type, translations);
-  const optionDescription = resolveSettingsText(optionDef.description, undefined, translations);
-
+function TaskOptionCard({ optionKey }: { optionKey: string }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        {iconUrl ? <img src={iconUrl} alt="" className="w-4 h-4 object-contain" /> : null}
-        <span className="text-sm font-medium text-text-primary">{optionLabel}</span>
-      </div>
-      {optionDescription && <div className="text-xs text-text-secondary">{optionDescription}</div>}
-      <div className="text-xs text-text-muted">{t('settings.taskSettingsPreview')}</div>
+    <div className="rounded-lg border border-border/60 bg-bg-primary/60 p-3">
+      <OptionEditor optionKey={optionKey} globalScope />
     </div>
   );
 }
@@ -101,19 +85,15 @@ function OptionDefinitionPreview({
 function TaskSettingsSection({
   section,
   projectInterface,
-  basePath,
-  translations,
 }: {
   section: RenderSettingsSection;
   projectInterface: ProjectInterface | null;
-  basePath: string;
-  translations: Record<string, string>;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(section.default_expand ?? true);
   const optionKeys = section.option || [];
   const availableOptionKeys = optionKeys.filter((key) => !!projectInterface?.option?.[key]);
-  const iconUrl = useResolvedIcon(basePath, section.resolvedIcon);
+  const iconUrl = useResolvedIcon('', section.resolvedIcon);
 
   return (
     <details
@@ -130,32 +110,32 @@ function TaskSettingsSection({
             <LayoutGrid className="w-5 h-5 text-accent flex-shrink-0" />
           )}
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-text-primary truncate">{section.resolvedLabel}</div>
+            <div className="text-sm font-semibold text-text-primary truncate">
+              {section.resolvedLabel}
+            </div>
             {section.resolvedDescription && (
-              <div className="text-xs text-text-secondary line-clamp-2">{section.resolvedDescription}</div>
+              <div className="text-xs text-text-secondary line-clamp-2">
+                {section.resolvedDescription}
+              </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[11px] text-text-muted">{availableOptionKeys.length}</span>
-          <span className={clsx('text-text-secondary transition-transform duration-200', expanded ? 'rotate-90' : 'rotate-0')}>
-            <ChevronRight className="w-4 h-4" />
-          </span>
-        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 text-text-secondary transition-transform duration-200',
+            expanded ? 'rotate-90' : 'rotate-0',
+          )}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </span>
       </summary>
       <div className="px-4 pb-4 pt-2 space-y-3">
         {availableOptionKeys.length === 0 ? (
           <div className="text-sm text-text-muted">{t('settings.taskSettingsEmpty')}</div>
         ) : (
-          availableOptionKeys.map((optionKey) => {
-            const optionDef = projectInterface?.option?.[optionKey];
-            if (!optionDef) return null;
-            return (
-              <div key={optionKey} className="rounded-lg border border-border/60 bg-bg-primary/60 p-3">
-                <OptionDefinitionPreview optionDef={optionDef} basePath={basePath} translations={translations} />
-              </div>
-            );
-          })
+          availableOptionKeys.map((optionKey) => (
+            <TaskOptionCard key={optionKey} optionKey={optionKey} />
+          ))
         )}
       </div>
     </details>
@@ -163,7 +143,7 @@ function TaskSettingsSection({
 }
 
 export function SettingsPage({ onClose }: SettingsPageProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const {
     setCurrentPage,
     projectInterface,
@@ -172,8 +152,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     updateCustomAccent,
     removeCustomAccent,
     confirmBeforeDelete,
-    basePath,
     interfaceTranslations,
+    language,
   } = useAppStore();
 
   // 自定义强调色编辑状态
@@ -263,7 +243,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     };
   }, []);
 
-  const langKey = i18n.language;
+  const langKey = getInterfaceLangKey(language);
   const settingsSections = useMemo<RenderSettingsSection[]>(() => {
     const sections = projectInterface?.setting || [];
     const langMap = interfaceTranslations[langKey] || {};
@@ -480,8 +460,6 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                       key={section.name}
                       section={section}
                       projectInterface={projectInterface}
-                      basePath={basePath}
-                      translations={interfaceTranslations[langKey] || {}}
                     />
                   ))}
                 </div>

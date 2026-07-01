@@ -575,6 +575,17 @@ pub async fn connect_controller_impl(
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
             }
+            ControllerConfig::MacOS {
+                handle,
+                screencap_method,
+                input_method,
+                ..
+            } => {
+                let window_id = u32::try_from(*handle)
+                    .map_err(|_| format!("Invalid macOS window handle '{}'", handle))?;
+                Controller::new_macos(window_id, *screencap_method, *input_method)
+                    .map_err(|e| e.to_string())?
+            }
             ControllerConfig::Dummy {
                 display_short_side, ..
             } => {
@@ -625,6 +636,9 @@ pub async fn connect_controller_impl(
                 display_short_side, ..
             }
             | ControllerConfig::PlayCover {
+                display_short_side, ..
+            }
+            | ControllerConfig::MacOS {
                 display_short_side, ..
             }
             | ControllerConfig::Dummy {

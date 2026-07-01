@@ -359,6 +359,7 @@ export default {
     win32: 'Windows ウィンドウ',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS ウィンドウ',
     gamepad: 'ゲームパッド',
     connecting: '接続中...',
     connected: '接続済み',

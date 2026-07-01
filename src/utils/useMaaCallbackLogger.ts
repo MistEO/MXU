@@ -161,7 +161,7 @@ function inferCtrlInfoFromInstance(instanceId: string): {
   if (!controller) return { type: undefined, name: undefined };
 
   // 根据控制器类型确定类型和名称
-  if (controller.type === 'Win32' || controller.type === 'Gamepad') {
+  if (controller.type === 'Win32' || controller.type === 'Gamepad' || controller.type === 'MacOS') {
     return { type: 'window', name: savedDevice?.windowName };
   } else if (controller.type === 'Adb') {
     return { type: 'device', name: savedDevice?.adbDeviceName };

@@ -365,6 +365,7 @@ export default {
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS Window',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',

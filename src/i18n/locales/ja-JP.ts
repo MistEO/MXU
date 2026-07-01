@@ -243,6 +243,7 @@ export default {
     removeConfirmMessage: 'このタスクを削除してもよろしいですか？',
     rename: '名前を変更',
     clickToToggle: 'クリックで切替',
+    runOnceHint: '単発実行：次回起動時に1回だけ実行',
     renameTask: 'タスク名を変更',
     customName: 'カスタム名',
     originalName: '元の名前',
@@ -793,6 +794,10 @@ export default {
     deselectAll: 'すべて解除',
     expandAllTasks: 'すべて展開',
     collapseAllTasks: 'すべて折りたたむ',
+    runFromHere: 'ここから実行',
+    runSingleTask: 'このタスクのみ実行',
+    runOnceTask: '単発実行',
+    clearRunOnceTask: '単発実行を解除',
 
     // スクリーンショットパネルのコンテキストメニュー
     reconnect: '再接続',

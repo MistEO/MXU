@@ -32,6 +32,8 @@ import {
 } from '@/components/connection/callbackCache';
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
+import { taskStartService, type TaskStartOptions } from '@/services/taskStartService';
+import { isTaskSelectedForRun, filterTasksForRun } from '@/utils/taskRunFilter';
 import { isTauri } from '@/utils/paths';
 import { onStateChanged } from '@/services/wsService';
 import { buildPiEnvVars } from '@/utils/piEnv';
@@ -141,7 +143,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   }, [tasks, projectInterface, currentControllerName, currentResourceName]);
 
   // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
-  const canRun = tasks.some((t) => t.enabled);
+  const canRun = tasks.some(isTaskSelectedForRun);
 
   const handleSelectAll = () => {
     if (!instance) return;
@@ -219,24 +221,15 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
    * @returns 是否成功启动
    */
   const startTasksForInstance = useCallback(
-    async (
-      targetInstance: Instance,
-      options?: {
-        /** 定时策略名称（定时执行时传入） */
-        schedulePolicyName?: string;
-        /** 自动连接阶段变化回调（用于 UI 状态更新） */
-        onPhaseChange?: (phase: AutoConnectPhase) => void;
-      },
-    ): Promise<boolean> => {
-      const { schedulePolicyName, onPhaseChange } = options || {};
+    async (targetInstance: Instance, options?: TaskStartOptions): Promise<boolean> => {
+      const { schedulePolicyName, onPhaseChange, startFromTaskId, singleTaskId } = options || {};
       const targetId = targetInstance.id;
       const targetTasks = targetInstance.selectedTasks || [];
       lastStartCancelledRef.current = false;
 
-      // 检查是否有启用的任务
-      const enabledTasks = targetTasks.filter((t) => t.enabled);
-      if (enabledTasks.length === 0) {
-        log.warn(`实例 ${targetInstance.name} 没有启用的任务`);
+      const tasksToRun = filterTasksForRun(targetTasks, { startFromTaskId, singleTaskId });
+      if (tasksToRun.length === 0) {
+        log.warn(`实例 ${targetInstance.name} 没有可运行的任务`);
         return false;
       }
 
@@ -251,14 +244,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const resourceName = selectedResource[targetId] || projectInterface?.resource[0]?.name;
 
       // 过滤掉不兼容当前控制器/资源的任务
-      const compatibleTasks = enabledTasks.filter((t) => {
+      const compatibleTasks = tasksToRun.filter((t) => {
         const taskDef = projectInterface?.task.find((td) => td.name === t.taskName);
         return isTaskCompatible(taskDef, controllerName, resourceName);
       });
 
       // 如果有任务因不兼容被跳过，记录警告
       const compatibleTaskIds = new Set(compatibleTasks.map((t) => t.id));
-      const skippedTasks = enabledTasks.filter((t) => !compatibleTaskIds.has(t.id));
+      const skippedTasks = tasksToRun.filter((t) => !compatibleTaskIds.has(t.id));
       if (skippedTasks.length > 0) {
         log.warn(
           `实例 ${targetInstance.name}: ${t('taskList.tasksSkippedDueToIncompatibility', { count: skippedTasks.length })}`,
@@ -1244,6 +1237,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   // 调度服务：使用 ref 保持回调始终指向最新闭包
   const scheduleTriggerRef = useRef<typeof startTasksForInstance>(startTasksForInstance);
   scheduleTriggerRef.current = startTasksForInstance;
+
+  useEffect(() => {
+    taskStartService.setHandler((instance, options) => startTasksForInstance(instance, options));
+    return () => taskStartService.setHandler(null);
+  }, [startTasksForInstance]);
 
   const addLogRef = useRef(addLog);
   addLogRef.current = addLog;

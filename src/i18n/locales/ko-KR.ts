@@ -241,6 +241,7 @@ export default {
     removeConfirmMessage: '이 작업을 삭제하시겠습니까?',
     rename: '이름 변경',
     clickToToggle: '클릭하여 전환',
+    runOnceHint: '1회 실행: 다음 시작 시 한 번만 실행',
     renameTask: '작업 이름 변경',
     customName: '사용자 지정 이름',
     originalName: '원래 이름',
@@ -786,6 +787,10 @@ export default {
     deselectAll: '모두 선택 해제',
     expandAllTasks: '모두 펼치기',
     collapseAllTasks: '모두 접기',
+    runFromHere: '여기서 실행',
+    runSingleTask: '이 작업만 실행',
+    runOnceTask: '1회 실행',
+    clearRunOnceTask: '1회 실행 취소',
 
     // 스크린샷 패널 컨텍스트 메뉴
     reconnect: '다시 연결',

@@ -237,6 +237,7 @@ export default {
     removeConfirmMessage: '確定要刪除這個任務嗎？',
     rename: '重新命名',
     clickToToggle: '單擊選中/取消',
+    runOnceHint: '單次執行：下次啟動時執行一次',
     renameTask: '重新命名任務',
     customName: '自訂名稱',
     originalName: '原始名稱',
@@ -773,6 +774,10 @@ export default {
     deselectAll: '取消全選',
     expandAllTasks: '展開全部',
     collapseAllTasks: '摺疊全部',
+    runFromHere: '從此處執行',
+    runSingleTask: '單獨執行',
+    runOnceTask: '單次執行',
+    clearRunOnceTask: '取消單次執行',
 
     // 截圖面板右鍵選單
     reconnect: '重新連接',

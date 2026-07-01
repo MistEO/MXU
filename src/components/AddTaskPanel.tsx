@@ -23,14 +23,24 @@ import {
   addTaskPanelResizeStep,
 } from '@/types/config';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
+import type {
+  TaskItem,
+  ActionConfig,
+  GroupItem,
+  PreTaskConfig,
+  OptionDefinition,
+  OptionValue,
+  CaseItem,
+} from '@/types/interface';
+import { normalizePreTaskConfigs } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import {
   getAllMxuSpecialTasks,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
 } from '@/types/specialTasks';
-import { generateId } from '@/stores/helpers';
+import { generateId, initializeAllOptionValues } from '@/stores/helpers';
+import { findSwitchCase } from '@/utils/optionHelpers';
 import { getProcessNameFromPath } from '@/utils/paths';
 import clsx from 'clsx';
 
@@ -158,6 +168,145 @@ function createDefaultAction(defaultProgram?: string): ActionConfig {
     skipIfRunning: true,
     useCmd: false,
   };
+}
+
+/**
+ * 以兼容 shell_words crate（POSIX 解析）的方式对单个参数做引号转义。
+ * 字母/数字/常用安全符号原样输出，其他字符使用单引号包裹。
+ */
+function shellQuote(arg: string): string {
+  if (arg === '') return "''";
+  if (/^[a-zA-Z0-9._/\-+=:@%]+$/.test(arg)) return arg;
+  return `'${arg.replace(/'/g, `'\\''`)}'`;
+}
+
+/** 将参数数组以 shell 安全形式 join 为字符串，便于回写 ActionConfig.args */
+function joinArgsShell(args: string[] | undefined): string {
+  if (!args || args.length === 0) return '';
+  return args.map(shellQuote).join(' ');
+}
+
+/** 将 OptionValue 转换为协议要求的「原始 JSON 取值」（select/switch -> case.name 字符串等） */
+function rawValueFromOptionValue(value: OptionValue, optionDef: OptionDefinition): unknown {
+  if (value.type === 'select') return value.caseName;
+  if (value.type === 'checkbox') return value.caseNames;
+  if (value.type === 'input') return value.values;
+  if (value.type === 'switch') {
+    const cases = (optionDef as { cases?: CaseItem[] }).cases;
+    const matched = findSwitchCase(cases, value.value);
+    return matched?.name ?? (value.value ? 'Yes' : 'No');
+  }
+  return null;
+}
+
+/**
+ * 按 PI v2.7.0 规范，构造 pretask option 的「单行紧凑 JSON」字符串。
+ * 仅快照默认值，不在此处做控制器/资源过滤（pretask 顶层即生效）。
+ * 若无 option 或 allOptions 为空，则返回 null。
+ */
+function buildPretaskOptionJson(
+  optionKeys: string[] | undefined,
+  allOptions: Record<string, OptionDefinition> | undefined,
+): string | null {
+  if (!optionKeys || optionKeys.length === 0 || !allOptions) return null;
+  const valuesMap = initializeAllOptionValues(optionKeys, allOptions);
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(valuesMap)) {
+    const def = allOptions[key];
+    if (!def) continue;
+    result[key] = rawValueFromOptionValue(value, def);
+  }
+  return JSON.stringify(result);
+}
+
+/** 以 pretask 配置生成新的 ActionConfig，args 末尾按需追加 option 取值 JSON */
+function createActionFromPretask(
+  pretask: PreTaskConfig,
+  allOptions: Record<string, OptionDefinition> | undefined,
+  resolvedLabel?: string,
+): ActionConfig {
+  const args = [...(pretask.args ?? [])];
+  const optionJson = buildPretaskOptionJson(pretask.option, allOptions);
+  if (optionJson !== null) {
+    args.push(optionJson);
+  }
+  return {
+    id: generateId(),
+    enabled: true,
+    program: pretask.exec,
+    args: joinArgsShell(args),
+    // PI 协议要求 Client 等待每个 pretask 结束并在失败时中止启动；这里以 ActionConfig 形式承载，
+    // 通过保留 waitForExit=true 来贴近协议语义（用户仍可在 UI 中调整）。
+    waitForExit: true,
+    skipIfRunning: false,
+    useCmd: false,
+    customName: resolvedLabel,
+  };
+}
+
+/** pretask 按钮：与 TaskButton 风格保持一致，但不依赖 controller/resource 兼容性 */
+function PreTaskButton({
+  pretask,
+  count,
+  label,
+  langKey,
+  basePath,
+  onClick,
+}: {
+  pretask: PreTaskConfig;
+  count: number;
+  label: string;
+  langKey: string;
+  basePath: string;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const { resolveI18nText, interfaceTranslations } = useAppStore();
+
+  const translations = interfaceTranslations[langKey];
+  const resolvedDescription = useResolvedContent(
+    pretask.description ? resolveI18nText(pretask.description, langKey) : undefined,
+    basePath,
+    translations,
+  );
+
+  const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
+
+  const tooltipContent = hasDescription ? (
+    <div className="space-y-2">
+      {resolvedDescription.loading ? (
+        <div className="flex items-center gap-1.5 text-text-muted">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>{t('taskItem.loadingDescription')}</span>
+        </div>
+      ) : resolvedDescription.html ? (
+        <div
+          className="text-text-secondary [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+          dangerouslySetInnerHTML={{ __html: resolvedDescription.html }}
+        />
+      ) : null}
+    </div>
+  ) : null;
+
+  return (
+    <Tooltip content={tooltipContent} side="top" align="center" maxWidth="max-w-xs">
+      <button
+        onClick={onClick}
+        className={clsx(
+          'relative flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors text-left',
+          'bg-bg-secondary hover:bg-bg-hover text-text-primary border border-border hover:border-accent',
+        )}
+      >
+        <Plus className="w-4 h-4 shrink-0 text-accent" />
+        <span className="flex-1 truncate">{label}</span>
+        {count > 0 && (
+          <span className="shrink-0 px-1.5 py-0.5 text-xs rounded-full font-medium bg-accent/10 text-accent">
+            {count}
+          </span>
+        )}
+      </button>
+    </Tooltip>
+  );
 }
 
 export function AddTaskPanel() {
@@ -402,6 +551,56 @@ export function AddTaskPanel() {
   });
   const [ungroupedExpanded, setUngroupedExpanded] = useState(true);
   const [specialExpanded, setSpecialExpanded] = useState(true);
+  const [pretaskExpanded, setPretaskExpanded] = useState(true);
+
+  // v2.7.0: 收集合并后的 pretask 列表（loader 已合并主文件 + import）
+  const allPretasks = useMemo(
+    () => normalizePreTaskConfigs(projectInterface?.pretask),
+    [projectInterface?.pretask],
+  );
+
+  // 按搜索关键词过滤 pretask（与 task 一致：匹配 name 或解析后的 label）
+  const filteredPretasks = useMemo(() => {
+    if (allPretasks.length === 0) return [];
+    const searchLower = searchQuery.toLowerCase();
+    return allPretasks.filter((p) => {
+      const label = resolveI18nText(p.label, langKey) || p.name || p.exec;
+      return (
+        (p.name?.toLowerCase().includes(searchLower) ?? false) ||
+        p.exec.toLowerCase().includes(searchLower) ||
+        label.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [allPretasks, searchQuery, resolveI18nText, langKey]);
+
+  // 统计每个 pretask 已被加入 preActions 的次数（按 program 路径匹配）
+  const pretaskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const preActions = instance?.preActions ?? [];
+    for (const p of allPretasks) {
+      counts[p.exec] = preActions.filter((a) => a.program === p.exec).length;
+    }
+    return counts;
+  }, [allPretasks, instance?.preActions]);
+
+  /** 点击 pretask 按钮：基于 pretask 配置生成 ActionConfig，加入 preActions */
+  const handleAddPretask = useCallback(
+    (pretask: PreTaskConfig) => {
+      if (!instance) return;
+      const resolvedLabel = resolveI18nText(pretask.label, langKey) || pretask.name || undefined;
+      const action = createActionFromPretask(pretask, projectInterface?.option, resolvedLabel);
+      addPreAction(instance.id, action);
+      setShowAddTaskPanel(false);
+    },
+    [
+      instance,
+      projectInterface?.option,
+      resolveI18nText,
+      langKey,
+      addPreAction,
+      setShowAddTaskPanel,
+    ],
+  );
 
   // 当分组定义变化时，移除已失效 key，并为新分组注入 default_expand 默认值
   useEffect(() => {
@@ -518,6 +717,45 @@ export function AddTaskPanel() {
         {count !== undefined && <span className="text-[10px] text-text-muted">({count})</span>}
         <div className="flex-1 h-px bg-border/30 ml-2" />
       </button>
+    );
+  };
+
+  /** 渲染 pretask 分组（与普通 task 分组风格一致） */
+  const renderPretaskSection = () => {
+    if (filteredPretasks.length === 0) return null;
+    const contentId = 'add-task-panel-section-pretask';
+    return (
+      <div>
+        {renderSectionHeader(
+          t('addTaskPanel.pretasks'),
+          pretaskExpanded,
+          () => setPretaskExpanded((prev) => !prev),
+          filteredPretasks.length,
+          contentId,
+        )}
+        {pretaskExpanded && (
+          <div id={contentId} className="mt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+              {filteredPretasks.map((pretask) => {
+                const label =
+                  resolveI18nText(pretask.label, langKey) || pretask.name || pretask.exec;
+                const key = pretask.name || pretask.exec;
+                return (
+                  <PreTaskButton
+                    key={key}
+                    pretask={pretask}
+                    count={pretaskCounts[pretask.exec] || 0}
+                    label={label}
+                    langKey={langKey}
+                    basePath={basePath}
+                    onClick={() => handleAddPretask(pretask)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -723,6 +961,9 @@ export function AddTaskPanel() {
               /* 无分组：保持原有平铺网格 */
               filteredTasks.length > 0 && renderTaskGrid(filteredTasks)
             )}
+
+            {/* 前置任务（pretask）：放在普通任务与特殊任务之间，仅当存在配置且有活动实例时渲染 */}
+            {instance && renderPretaskSection()}
 
             {instance && (
               <div>

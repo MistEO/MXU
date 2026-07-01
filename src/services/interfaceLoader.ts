@@ -327,9 +327,10 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
     unsupported.add('Win32');
     unsupported.add('Gamepad');
   }
-  // 非 macOS 系统不支持 PlayCover
+  // 非 macOS 系统不支持 PlayCover 和 macOS 原生窗口控制器
   if (!isMacOS) {
     unsupported.add('PlayCover');
+    unsupported.add('MacOS');
   }
   // 非 Linux 系统不支持 WlRoots
   if (!isLinux) {

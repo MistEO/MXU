@@ -355,6 +355,7 @@ export default {
     win32: 'Windows 窗口',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 窗口',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',

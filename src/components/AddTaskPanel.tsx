@@ -297,6 +297,7 @@ export function AddTaskPanel() {
           projectInterface,
           selectedControllerName,
           selectedResourceName,
+          useAppStore.getState().globalOptionValues,
         );
 
         log.info(`运行中追加特殊任务 ${specialTask.entry}, pipelineOverride:`, pipelineOverride);
@@ -360,6 +361,7 @@ export function AddTaskPanel() {
           projectInterface,
           selectedControllerName,
           selectedResourceName,
+          useAppStore.getState().globalOptionValues,
         );
 
         log.info('运行中追加任务:', task.entry, ', pipelineOverride:', pipelineOverride);

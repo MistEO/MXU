@@ -328,6 +328,15 @@ fn merge_imported(interface: &mut serde_json::Value, imported: &serde_json::Valu
         }
     }
 
+    // MXU 扩展：合并 setting 数组（追加到末尾，保持导入顺序）
+    if let Some(settings) = imported.get("setting").and_then(|v| v.as_array()) {
+        if let Some(arr) = interface.get_mut("setting").and_then(|v| v.as_array_mut()) {
+            arr.extend(settings.iter().cloned());
+        } else {
+            interface["setting"] = serde_json::Value::Array(settings.to_vec());
+        }
+    }
+
     // 合并 group 数组（按 name 去重，先定义优先）
     if let Some(groups) = imported.get("group").and_then(|v| v.as_array()) {
         let existing_names: std::collections::HashSet<String> = interface

@@ -47,6 +47,8 @@ export default {
     appearance: '外観',
     hotkeys: 'ショートカットキー',
     general: '一般',
+    taskSettings: 'タスク設定',
+    taskSettingsEmpty: '表示できる設定項目がありません',
     language: '言語',
     backgroundImage: '背景画像',
     backgroundOpacity: '背景の不透明度',

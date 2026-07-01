@@ -47,6 +47,8 @@ export default {
     appearance: '외관',
     hotkeys: '단축키',
     general: '일반',
+    taskSettings: '작업 설정',
+    taskSettingsEmpty: '표시할 수 있는 설정 항목이 없습니다',
     language: '언어',
     backgroundImage: '배경 이미지',
     backgroundOpacity: '배경 불투명도',

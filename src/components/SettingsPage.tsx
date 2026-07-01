@@ -1,12 +1,28 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Paintbrush, Key, Settings2, Download, Bug, Info, Menu, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Paintbrush,
+  Key,
+  Settings2,
+  Download,
+  Bug,
+  Info,
+  Menu,
+  X,
+  LayoutGrid,
+  ChevronRight,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 import { useAppStore } from '@/stores/appStore';
+import { getInterfaceLangKey } from '@/i18n';
 import type { CustomAccent } from '@/themes';
+import type { InterfaceSettingSection, ProjectInterface } from '@/types/interface';
+import { loadIconAsDataUrl } from '@/services/contentResolver';
 import { ConfirmDialog } from './ConfirmDialog';
+import { OptionEditor } from './OptionEditor';
 import {
   AppearanceSection,
   HotkeySection,
@@ -21,6 +37,111 @@ interface SettingsPageProps {
   onClose?: () => void;
 }
 
+interface RenderSettingsSection extends InterfaceSettingSection {
+  resolvedLabel: string;
+  resolvedDescription?: string;
+  resolvedIcon?: string;
+}
+
+function resolveSettingsText(
+  text: string | undefined,
+  fallback: string | undefined,
+  translations: Record<string, string>,
+): string {
+  if (!text) return fallback || '';
+  if (!text.startsWith('$')) return text;
+  const key = text.slice(1);
+  return translations[key] || key;
+}
+
+function useResolvedIcon(basePath: string, icon?: string): string | undefined {
+  const [iconUrl, setIconUrl] = useState<string | undefined>();
+
+  useEffect(() => {
+    let mounted = true;
+    if (!icon) {
+      setIconUrl(undefined);
+      return;
+    }
+    loadIconAsDataUrl(icon, basePath).then((url) => {
+      if (mounted) setIconUrl(url);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [icon, basePath]);
+
+  return iconUrl;
+}
+
+function TaskOptionCard({ optionKey }: { optionKey: string }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-bg-primary/60 p-3">
+      <OptionEditor optionKey={optionKey} globalScope />
+    </div>
+  );
+}
+
+function TaskSettingsSection({
+  section,
+  projectInterface,
+}: {
+  section: RenderSettingsSection;
+  projectInterface: ProjectInterface | null;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(section.default_expand ?? true);
+  const optionKeys = section.option || [];
+  const availableOptionKeys = optionKeys.filter((key) => !!projectInterface?.option?.[key]);
+  const iconUrl = useResolvedIcon('', section.resolvedIcon);
+
+  return (
+    <details
+      id={`section-${section.name}`}
+      open={expanded}
+      onToggle={(e) => setExpanded((e.currentTarget as HTMLDetailsElement).open)}
+      className="rounded-xl border border-border bg-bg-secondary overflow-hidden"
+    >
+      <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between gap-3 hover:bg-bg-hover transition-colors">
+        <div className="flex items-center gap-3 min-w-0">
+          {iconUrl ? (
+            <img src={iconUrl} alt="" className="w-5 h-5 object-contain flex-shrink-0" />
+          ) : (
+            <LayoutGrid className="w-5 h-5 text-accent flex-shrink-0" />
+          )}
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-text-primary truncate">
+              {section.resolvedLabel}
+            </div>
+            {section.resolvedDescription && (
+              <div className="text-xs text-text-secondary line-clamp-2">
+                {section.resolvedDescription}
+              </div>
+            )}
+          </div>
+        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 text-text-secondary transition-transform duration-200',
+            expanded ? 'rotate-90' : 'rotate-0',
+          )}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </span>
+      </summary>
+      <div className="px-4 pb-4 pt-2 space-y-3">
+        {availableOptionKeys.length === 0 ? (
+          <div className="text-sm text-text-muted">{t('settings.taskSettingsEmpty')}</div>
+        ) : (
+          availableOptionKeys.map((optionKey) => (
+            <TaskOptionCard key={optionKey} optionKey={optionKey} />
+          ))
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function SettingsPage({ onClose }: SettingsPageProps) {
   const { t } = useTranslation();
   const {
@@ -31,6 +152,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     updateCustomAccent,
     removeCustomAccent,
     confirmBeforeDelete,
+    interfaceTranslations,
+    language,
   } = useAppStore();
 
   // 自定义强调色编辑状态
@@ -120,9 +243,25 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     };
   }, []);
 
+  const langKey = getInterfaceLangKey(language);
+  const settingsSections = useMemo<RenderSettingsSection[]>(() => {
+    const sections = projectInterface?.setting || [];
+    const langMap = interfaceTranslations[langKey] || {};
+
+    return sections.map((section) => ({
+      ...section,
+      resolvedLabel: resolveSettingsText(section.label, section.name, langMap),
+      resolvedDescription: resolveSettingsText(section.description, undefined, langMap),
+      resolvedIcon: section.icon,
+    }));
+  }, [projectInterface?.setting, interfaceTranslations, langKey]);
+
   // 目录索引配置
   const tocItems = useMemo(() => {
     const items = [{ id: 'appearance', icon: Paintbrush, labelKey: 'settings.appearance' }];
+    if (settingsSections.length > 0) {
+      items.push({ id: 'task-settings', icon: LayoutGrid, labelKey: 'settings.taskSettings' });
+    }
     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
     items.push({ id: 'hotkeys', icon: Key, labelKey: 'settings.hotkeys' });
     if (projectInterface?.mirrorchyan_rid) {
@@ -133,7 +272,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       { id: 'about', icon: Info, labelKey: 'about.title' },
     );
     return items;
-  }, [projectInterface?.mirrorchyan_rid]);
+  }, [projectInterface?.mirrorchyan_rid, settingsSections.length]);
 
   // 当前高亮的 section
   const [activeSection, setActiveSection] = useState('appearance');
@@ -305,6 +444,27 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               onOpenEditAccentModal={openEditAccentModal}
               onDeleteAccent={handleDeleteAccent}
             />
+
+            {/* 任务设置（来自 interface.settings） */}
+            {settingsSections.length > 0 && (
+              <section id="section-task-settings" className="space-y-4 scroll-mt-6">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-accent" />
+                  <h2 className="text-lg font-semibold text-text-primary">
+                    {t('settings.taskSettings')}
+                  </h2>
+                </div>
+                <div className="space-y-4">
+                  {settingsSections.map((section) => (
+                    <TaskSettingsSection
+                      key={section.name}
+                      section={section}
+                      projectInterface={projectInterface}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* 通用设置 */}
             <GeneralSection />

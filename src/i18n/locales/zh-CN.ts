@@ -48,6 +48,8 @@ export default {
     appearance: '外观',
     hotkeys: '快捷键',
     general: '通用',
+    taskSettings: '任务设置',
+    taskSettingsEmpty: '当前没有可显示的设置项',
     language: '语言',
     backgroundImage: '背景图片',
     backgroundOpacity: '背景不透明度',

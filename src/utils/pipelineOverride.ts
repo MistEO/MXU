@@ -170,6 +170,7 @@ export const generateTaskPipelineOverride = (
   projectInterface: ProjectInterface | null,
   controllerName?: string,
   resourceName?: string,
+  globalOptionValues?: Record<string, OptionValue>,
 ): string => {
   // 处理 MXU 内置特殊任务
   if (isMxuSpecialTask(selectedTask.taskName)) {
@@ -189,12 +190,12 @@ export const generateTaskPipelineOverride = (
 
   if (projectInterface.option) {
     // v2.3.0 覆盖顺序：global_option → resource.option → controller.option → task.option
-    // 1. 全局选项（优先级最低）
+    // 1. 全局选项（优先级最低）：取值来自全局设置 globalOptionValues（设置页统一编辑）
     if (projectInterface.global_option) {
       for (const optionKey of projectInterface.global_option) {
         collectOptionOverrides(
           optionKey,
-          selectedTask.optionValues,
+          globalOptionValues ?? {},
           overrides,
           projectInterface.option,
           controllerName,

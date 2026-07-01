@@ -39,6 +39,9 @@ export default {
     maximize: '最大化',
     restore: '還原',
     close: '關閉',
+    pin: '置頂',
+    unpin: '取消置頂',
+    pinDisabled: '目前控制器使用前台截圖，無法置頂',
   },
 
   // 設定

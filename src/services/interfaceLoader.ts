@@ -16,11 +16,13 @@ import { setBackendPort } from '@/utils/backendApi';
 const log = loggers.app;
 
 /**
- * 可导入的 PI 文件结构（支持 task、option、preset、group 和 setting 字段）
+ * 可导入的 PI 文件结构（支持 task、option、global_option、preset、group 和 setting 字段）
  */
 interface ImportableInterface {
   task?: TaskItem[];
   option?: Record<string, OptionDefinition>;
+  /** v2.3.0: 支持导入 global_option */
+  global_option?: string[];
   /** v2.3.0: 支持导入 preset */
   preset?: PresetItem[];
   /** v2.4.0: 支持导入 group */
@@ -222,6 +224,22 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
   if (imported.task && imported.task.length > 0) {
     pi.task = [...pi.task, ...imported.task];
     log.info(`合并了 ${imported.task.length} 个导入的 task`);
+  }
+
+  // 合并 global_option（按导入顺序追加并去重）
+  if (imported.global_option && imported.global_option.length > 0) {
+    const existingGlobalOptions = pi.global_option || [];
+    const seen = new Set(existingGlobalOptions);
+    const dedupedImported = imported.global_option.filter((optionKey) => {
+      if (seen.has(optionKey)) return false;
+      seen.add(optionKey);
+      return true;
+    });
+
+    if (dedupedImported.length > 0) {
+      pi.global_option = [...existingGlobalOptions, ...dedupedImported];
+      log.info(`合并了 ${dedupedImported.length} 个导入的 global_option`);
+    }
   }
 
   // 合并 option 对象（后导入的覆盖先导入的）

@@ -30,6 +30,8 @@ import { getInterfaceLangKey } from '@/i18n';
 import { exportFileWithToast, exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
+type CloseConfirmData = { type: 'single'; ids: string[]; name: string } | { type: 'multi'; ids: string[] } | null;
+
 const LazyUpdatePanel = lazy(async () => {
   const module = await import('./UpdatePanel');
   return { default: module.UpdatePanel };
@@ -44,9 +46,7 @@ export function TabBar() {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [closeConfirm, setCloseConfirm] = useState<
-    { type: 'single'; ids: string[]; name: string } | { type: 'multi'; ids: string[] } | null
-  >(null);
+  const [closeConfirm, setCloseConfirm] = useState<CloseConfirmData>(null);
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
     draggedIndex: number;

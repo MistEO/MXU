@@ -32,6 +32,7 @@ export default {
     dragToReorder: '拖拽以重新排序',
     closeTabConfirmTitle: '关闭配置',
     closeTabConfirmMessage: '确定要关闭「{{name}}」吗？',
+    closeMultiTabConfirmTitle: '关闭多个配置',
     closeMultiTabConfirmMessage: '确定要关闭 {{count}} 个配置吗？'
   },
 

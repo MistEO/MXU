@@ -31,6 +31,7 @@ export default {
     dragToReorder: '드래그하여 순서 변경',
     closeTabConfirmTitle: '탭 닫기',
     closeTabConfirmMessage: '"{{name}}"을(를) 닫으시겠습니까?',
+    closeMultiTabConfirmTitle: '탭 여러 개 닫기',
     closeMultiTabConfirmMessage: '{{count}}개의 탭을 닫으시겠습니까?',
   },
 

@@ -661,7 +661,12 @@ export function TabBar() {
       {/* 关闭标签确认弹窗 */}
       <ConfirmDialog
         open={closeConfirm !== null}
-        title={t('titleBar.closeTabConfirmTitle')}
+        title={
+          ((closeConfirm?.ids.length ?? 0) > 1) ?
+          t('titleBar.closeMultiTabConfirmTitle')
+        :
+          t('titleBar.closeTabConfirmTitle')
+      }
         message={
           ((closeConfirm?.ids.length ?? 0) > 1) ?
           t('titleBar.closeMultiTabConfirmMessage', { count: closeConfirm?.ids.length ?? 0})

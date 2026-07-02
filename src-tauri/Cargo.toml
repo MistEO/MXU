@@ -57,8 +57,7 @@ clap = { version = "4", features = ["derive"] }
 debug = true
 
 [target.'cfg(windows)'.dependencies]
-# FIXME: winsafe new release
-winsafe = { git = "https://github.com/rodrigocfd/winsafe.git", rev = "9a13dd541cf2a3fdc7b03b8a13c6fc0bf0de5871", features = [
+winsafe = { version = "0.0.28", features = [
     "advapi",
     "kernel",
     "shell",

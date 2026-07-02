@@ -31,6 +31,7 @@ export default {
     dragToReorder: 'ドラッグして並べ替え',
     closeTabConfirmTitle: '設定を閉じる',
     closeTabConfirmMessage: '「{{name}}」を閉じてもよろしいですか？',
+    closeMultiTabConfirmMessage: '{{count}} 個の設定を閉じてもよろしいですか？',
   },
 
   // ウィンドウコントロール

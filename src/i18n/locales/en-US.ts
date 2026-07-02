@@ -32,6 +32,7 @@ export default {
     dragToReorder: 'Drag to reorder',
     closeTabConfirmTitle: 'Close Tab',
     closeTabConfirmMessage: 'Are you sure you want to close "{{name}}"?',
+    closeMultiTabConfirmMessage: 'Are you sure you want to close {{count}} tabs?',
   },
 
   // Window controls

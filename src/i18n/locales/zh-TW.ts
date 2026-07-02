@@ -31,6 +31,7 @@ export default {
     dragToReorder: '拖動以重新排序',
     closeTabConfirmTitle: '關閉配置',
     closeTabConfirmMessage: '確定要關閉「{{name}}」嗎？',
+    closeMultiTabConfirmMessage: '確定要關閉 {{count}} 個配置嗎？',
   },
 
   // 視窗控制按钮

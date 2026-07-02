@@ -44,7 +44,7 @@ export function TabBar() {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [closeConfirm, setCloseConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [closeConfirm, setCloseConfirm] = useState<{ ids: string[]; name?: string } | null>(null);
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
     draggedIndex: number;
@@ -106,7 +106,7 @@ export function TabBar() {
       if (confirmBeforeDelete) {
         const instance = instances.find((inst) => inst.id === id);
         if (instance) {
-          setCloseConfirm({ id, name: instance.name });
+          setCloseConfirm({ ids:[id], name: instance.name });
         }
       } else {
         startTabCloseAnimation(id);
@@ -116,7 +116,9 @@ export function TabBar() {
 
   const handleConfirmClose = () => {
     if (closeConfirm) {
-      startTabCloseAnimation(closeConfirm.id);
+      closeConfirm.ids.forEach((id) => {
+        startTabCloseAnimation(id);
+      })
       setCloseConfirm(null);
     }
   };
@@ -269,7 +271,7 @@ export function TabBar() {
           onClick: () => {
             if (confirmBeforeDelete) {
               const inst = instances.find((i) => i.id === instanceId);
-              if (inst) setCloseConfirm({ id: instanceId, name: inst.name });
+              if (inst) setCloseConfirm({ ids: [instanceId], name: inst.name });
             } else {
               startTabCloseAnimation(instanceId);
             }
@@ -281,11 +283,14 @@ export function TabBar() {
           icon: XCircle,
           disabled: instances.length <= 1,
           onClick: () => {
-            instances.forEach((inst) => {
-              if (inst.id !== instanceId) {
-                startTabCloseAnimation(inst.id);
-              }
-            });
+            let instanceIdsWithoutCurrent = instances
+                .map((inst) => inst.id)
+                .filter((id) => id !== instanceId);
+            if (confirmBeforeDelete) {
+              setCloseConfirm({ids:instanceIdsWithoutCurrent})
+            } else {
+              instanceIdsWithoutCurrent.forEach((id) => startTabCloseAnimation(id));
+            }
           },
         },
         {
@@ -294,9 +299,14 @@ export function TabBar() {
           icon: PanelRightClose,
           disabled: instanceIndex >= instances.length - 1,
           onClick: () => {
-            instances.slice(instanceIndex + 1).forEach((inst) => {
-              startTabCloseAnimation(inst.id);
-            });
+            let rightInstanceIds = instances
+                .slice(instanceIndex + 1)
+                .map((inst) => inst.id);
+            if (confirmBeforeDelete) {
+              setCloseConfirm({ids:rightInstanceIds});
+            } else {
+              rightInstanceIds.forEach((id) => startTabCloseAnimation(id));
+            }
           },
         },
       ];
@@ -652,7 +662,12 @@ export function TabBar() {
       <ConfirmDialog
         open={closeConfirm !== null}
         title={t('titleBar.closeTabConfirmTitle')}
-        message={t('titleBar.closeTabConfirmMessage', { name: closeConfirm?.name ?? '' })}
+        message={
+          ((closeConfirm?.ids.length ?? 0) > 1) ?
+          t('titleBar.closeMultiTabConfirmMessage', { count: closeConfirm?.ids.length ?? 0})
+        :
+          t('titleBar.closeTabConfirmMessage', { name: closeConfirm?.name ?? ''})
+      }
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive

@@ -19,9 +19,14 @@ import { getMxuSpecialTask, shouldSkipMxuScreenshot } from '@/types/specialTasks
 import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
-import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
+import {
+  parseWin32ScreencapMethod,
+  parseWin32InputMethod,
+  parseMacOSScreencapMethod,
+  parseMacOSInputMethod,
+} from '@/types/maa';
 import { SchedulePanel } from './SchedulePanel';
-import type { Instance, TaskItem } from '@/types/interface';
+import type { ControllerItem, Instance, TaskItem } from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
@@ -47,6 +52,53 @@ interface ToolbarProps {
 
 // 自动连接阶段
 type AutoConnectPhase = 'idle' | 'searching' | 'connecting' | 'loading_resource';
+
+const isDesktopWindowControllerType = (controllerType: string | undefined) =>
+  controllerType === 'Win32' || controllerType === 'Gamepad' || controllerType === 'MacOS';
+
+const getDesktopWindowRegex = (controller: ControllerItem) => ({
+  classRegex:
+    controller.type === 'MacOS'
+      ? controller.macos?.class_regex
+      : controller.win32?.class_regex || controller.gamepad?.class_regex,
+  windowRegex:
+    controller.type === 'MacOS'
+      ? controller.macos?.window_regex
+      : controller.win32?.window_regex || controller.gamepad?.window_regex,
+});
+
+const buildDesktopWindowControllerConfig = (
+  controller: ControllerItem,
+  handle: number,
+): ControllerConfig | null => {
+  if (controller.type === 'Win32') {
+    return {
+      type: 'Win32',
+      handle,
+      screencap_method: parseWin32ScreencapMethod(controller.win32?.screencap || ''),
+      mouse_method: parseWin32InputMethod(controller.win32?.mouse || ''),
+      keyboard_method: parseWin32InputMethod(controller.win32?.keyboard || ''),
+      display_short_side: controller.display_short_side,
+    };
+  }
+  if (controller.type === 'MacOS') {
+    return {
+      type: 'MacOS',
+      handle,
+      screencap_method: parseMacOSScreencapMethod(controller.macos?.screencap || ''),
+      input_method: parseMacOSInputMethod(controller.macos?.input || ''),
+      display_short_side: controller.display_short_side,
+    };
+  }
+  if (controller.type === 'Gamepad') {
+    return {
+      type: 'Gamepad',
+      handle,
+      display_short_side: controller.display_short_side,
+    };
+  }
+  return null;
+};
 
 export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarProps) {
   const { t } = useTranslation();
@@ -410,7 +462,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             const shouldWaitAfterPreActions = !!controller;
             if (shouldWaitAfterPreActions && controller) {
               const controllerType = controller.type;
-              const isWindowType = controllerType === 'Win32' || controllerType === 'Gamepad';
+              const isWindowType = isDesktopWindowControllerType(controllerType);
               log.info(`实例 ${targetInstance.name}: 等待${isWindowType ? '窗口' : '设备'}就绪...`);
               if (isWindowType) {
                 addLog(targetId, {
@@ -441,11 +493,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                     } else {
                       deviceFound = devices.length > 0;
                     }
-                  } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-                    const classRegex =
-                      controller.win32?.class_regex || controller.gamepad?.class_regex;
-                    const windowRegex =
-                      controller.win32?.window_regex || controller.gamepad?.window_regex;
+                  } else if (isDesktopWindowControllerType(controllerType)) {
+                    const { classRegex, windowRegex } = getDesktopWindowRegex(controller);
                     const windows = await maaService.findWin32Windows(classRegex, windowRegex);
                     if (savedDevice?.windowName) {
                       deviceFound = windows.some((w) => w.window_name === savedDevice.windowName);
@@ -498,11 +547,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                           }),
                         });
                       }
-                    } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-                      const classRegex =
-                        controller.win32?.class_regex || controller.gamepad?.class_regex;
-                      const windowRegex =
-                        controller.win32?.window_regex || controller.gamepad?.window_regex;
+                    } else if (isDesktopWindowControllerType(controllerType)) {
+                      const { classRegex, windowRegex } = getDesktopWindowRegex(controller);
                       const windows = await maaService.findWin32Windows(classRegex, windowRegex);
                       if (windows.length > 0) {
                         addLog(targetId, {
@@ -619,35 +665,15 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               };
               deviceName = matchedDevice.name || matchedDevice.address;
               targetType = 'device';
-            } else if (
-              (controllerType === 'Win32' || controllerType === 'Gamepad') &&
-              savedDevice.windowName
-            ) {
-              const classRegex = controller.win32?.class_regex || controller.gamepad?.class_regex;
-              const windowRegex =
-                controller.win32?.window_regex || controller.gamepad?.window_regex;
+            } else if (isDesktopWindowControllerType(controllerType) && savedDevice.windowName) {
+              const { classRegex, windowRegex } = getDesktopWindowRegex(controller);
               const windows = await maaService.findWin32Windows(classRegex, windowRegex);
               const matchedWindow = windows.find((w) => w.window_name === savedDevice.windowName);
               if (!matchedWindow) {
                 log.warn(`实例 ${targetInstance.name}: 未找到窗口 ${savedDevice.windowName}`);
                 return false;
               }
-              if (controllerType === 'Win32') {
-                config = {
-                  type: 'Win32',
-                  handle: matchedWindow.handle,
-                  screencap_method: parseWin32ScreencapMethod(controller.win32?.screencap || ''),
-                  mouse_method: parseWin32InputMethod(controller.win32?.mouse || ''),
-                  keyboard_method: parseWin32InputMethod(controller.win32?.keyboard || ''),
-                  display_short_side: controller.display_short_side,
-                };
-              } else {
-                config = {
-                  type: 'Gamepad',
-                  handle: matchedWindow.handle,
-                  display_short_side: controller.display_short_side,
-                };
-              }
+              config = buildDesktopWindowControllerConfig(controller, matchedWindow.handle);
               deviceName = matchedWindow.window_name || matchedWindow.class_name;
               targetType = 'window';
             } else if (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) {
@@ -709,10 +735,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               };
               deviceName = firstDevice.name || firstDevice.address;
               targetType = 'device';
-            } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-              const classRegex = controller.win32?.class_regex || controller.gamepad?.class_regex;
-              const windowRegex =
-                controller.win32?.window_regex || controller.gamepad?.window_regex;
+            } else if (isDesktopWindowControllerType(controllerType)) {
+              const { classRegex, windowRegex } = getDesktopWindowRegex(controller);
               const windows = await maaService.findWin32Windows(classRegex, windowRegex);
               if (windows.length === 0) {
                 log.warn(`实例 ${targetInstance.name}: 未搜索到任何窗口`);
@@ -731,22 +755,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   name: firstWindow.window_name || firstWindow.class_name,
                 }),
               });
-              if (controllerType === 'Win32') {
-                config = {
-                  type: 'Win32',
-                  handle: firstWindow.handle,
-                  screencap_method: parseWin32ScreencapMethod(controller.win32?.screencap || ''),
-                  mouse_method: parseWin32InputMethod(controller.win32?.mouse || ''),
-                  keyboard_method: parseWin32InputMethod(controller.win32?.keyboard || ''),
-                  display_short_side: controller.display_short_side,
-                };
-              } else {
-                config = {
-                  type: 'Gamepad',
-                  handle: firstWindow.handle,
-                  display_short_side: controller.display_short_side,
-                };
-              }
+              config = buildDesktopWindowControllerConfig(controller, firstWindow.handle);
               deviceName = firstWindow.window_name || firstWindow.class_name;
               targetType = 'window';
             } else if (controllerType === 'WlRoots') {

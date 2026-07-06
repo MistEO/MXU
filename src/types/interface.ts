@@ -58,7 +58,7 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'MacOS' | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -78,6 +78,7 @@ export interface ControllerItem {
   win32?: Win32Config;
   wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
+  macos?: MacOSConfig;
   gamepad?: GamepadConfig;
 }
 
@@ -96,6 +97,13 @@ export interface WlRootsConfig {
 
 export interface PlayCoverConfig {
   uuid?: string;
+}
+
+export interface MacOSConfig {
+  class_regex?: string;
+  window_regex?: string;
+  input?: string;
+  screencap?: string;
 }
 
 export interface GamepadConfig {

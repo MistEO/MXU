@@ -353,6 +353,7 @@ export default {
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 視窗',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',

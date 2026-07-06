@@ -19,7 +19,12 @@ import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem } from '@/types/interface';
-import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
+import {
+  parseWin32ScreencapMethod,
+  parseWin32InputMethod,
+  parseMacOSScreencapMethod,
+  parseMacOSInputMethod,
+} from '@/types/maa';
 import { loggers } from '@/utils/logger';
 
 const log = loggers.device;
@@ -101,6 +106,16 @@ export function DeviceSelector({
   }, [showDropdown]);
 
   const controllerType = controllerDef.type;
+  const isDesktopWindowController =
+    controllerType === 'Win32' || controllerType === 'Gamepad' || controllerType === 'MacOS';
+  const desktopWindowClassRegex =
+    controllerType === 'MacOS'
+      ? controllerDef.macos?.class_regex
+      : controllerDef.win32?.class_regex || controllerDef.gamepad?.class_regex;
+  const desktopWindowRegex =
+    controllerType === 'MacOS'
+      ? controllerDef.macos?.window_regex
+      : controllerDef.win32?.window_regex || controllerDef.gamepad?.window_regex;
 
   // PlayCover 地址输入
   const [playcoverAddress, setPlaycoverAddress] = useState('127.0.0.1:1717');
@@ -143,6 +158,7 @@ export function DeviceSelector({
     controllerType === 'Adb' ||
     controllerType === 'Win32' ||
     controllerType === 'WlRoots' ||
+    controllerType === 'MacOS' ||
     controllerType === 'Gamepad';
 
   // 初始化 MaaFramework（如果还没初始化）
@@ -180,11 +196,11 @@ export function DeviceSelector({
         if (devices.length > 0) {
           setShowDropdown(true);
         }
-      } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-        const classRegex = controllerDef.win32?.class_regex || controllerDef.gamepad?.class_regex;
-        const windowRegex =
-          controllerDef.win32?.window_regex || controllerDef.gamepad?.window_regex;
-        const windows = await maaService.findWin32Windows(classRegex, windowRegex);
+      } else if (isDesktopWindowController) {
+        const windows = await maaService.findWin32Windows(
+          desktopWindowClassRegex,
+          desktopWindowRegex,
+        );
         setCachedWin32Windows(windows);
         if (windows.length === 1) {
           setSelectedWindow(windows[0]);
@@ -246,6 +262,14 @@ export function DeviceSelector({
           keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
           display_short_side: controllerDef.display_short_side,
         };
+      } else if (controllerType === 'MacOS' && selectedWindow) {
+        config = {
+          type: 'MacOS',
+          handle: selectedWindow.handle,
+          screencap_method: parseMacOSScreencapMethod(controllerDef.macos?.screencap || ''),
+          input_method: parseMacOSInputMethod(controllerDef.macos?.input || ''),
+          display_short_side: controllerDef.display_short_side,
+        };
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
         config = {
           type: 'WlRoots',
@@ -276,7 +300,7 @@ export function DeviceSelector({
       if (controllerType === 'Adb' && selectedAdbDevice) {
         deviceName = selectedAdbDevice.name || selectedAdbDevice.address;
         targetType = 'device';
-      } else if ((controllerType === 'Win32' || controllerType === 'Gamepad') && selectedWindow) {
+      } else if (isDesktopWindowController && selectedWindow) {
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
@@ -317,7 +341,7 @@ export function DeviceSelector({
     if (controllerType === 'Adb' && selectedAdbDevice) {
       return `${selectedAdbDevice.name} (${selectedAdbDevice.address})`;
     }
-    if ((controllerType === 'Win32' || controllerType === 'Gamepad') && selectedWindow) {
+    if (isDesktopWindowController && selectedWindow) {
       return selectedWindow.window_name || selectedWindow.class_name;
     }
     if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
@@ -396,6 +420,14 @@ export function DeviceSelector({
           keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
           display_short_side: controllerDef.display_short_side,
         };
+      } else if (controllerType === 'MacOS') {
+        config = {
+          type: 'MacOS',
+          handle: win.handle,
+          screencap_method: parseMacOSScreencapMethod(controllerDef.macos?.screencap || ''),
+          input_method: parseMacOSInputMethod(controllerDef.macos?.input || ''),
+          display_short_side: controllerDef.display_short_side,
+        };
       } else {
         config = {
           type: 'Gamepad',
@@ -470,7 +502,7 @@ export function DeviceSelector({
         onClick: () => handleSelectAdbDevice(device),
       }));
     }
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') {
+    if (isDesktopWindowController) {
       return cachedWin32Windows.map((window) => ({
         id: String(window.handle),
         name: window.window_name || '(无标题)',
@@ -494,7 +526,7 @@ export function DeviceSelector({
   // 判断是否可以连接
   const canConnect = () => {
     if (controllerType === 'Adb') return !!selectedAdbDevice;
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') return !!selectedWindow;
+    if (isDesktopWindowController) return !!selectedWindow;
     if (controllerType === 'WlRoots') return !!selectedWlrootsSocket;
     if (controllerType === 'PlayCover') return playcoverAddress.trim().length > 0;
     return false;
@@ -510,6 +542,7 @@ export function DeviceSelector({
       case 'Win32':
       case 'WlRoots':
         return <Monitor className="w-4 h-4" />;
+      case 'MacOS':
       case 'PlayCover':
         return <Apple className="w-4 h-4" />;
       case 'Gamepad':
@@ -530,6 +563,8 @@ export function DeviceSelector({
         return t('controller.wlroots');
       case 'PlayCover':
         return t('controller.playcover');
+      case 'MacOS':
+        return t('controller.macos');
       case 'Gamepad':
         return t('controller.gamepad');
       default:
@@ -672,7 +707,7 @@ export function DeviceSelector({
                 : 'hover:bg-bg-hover hover:border-accent',
             )}
             title={
-              controllerType === 'Win32' || controllerType === 'Gamepad'
+              isDesktopWindowController
                 ? t('controller.refreshWindows')
                 : t('controller.refreshDevices')
             }

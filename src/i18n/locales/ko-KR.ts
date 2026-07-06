@@ -359,6 +359,7 @@ export default {
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 창',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',

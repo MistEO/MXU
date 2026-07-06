@@ -53,6 +53,15 @@ export interface PlayCoverControllerConfig {
   display_short_side?: number;
 }
 
+/** macOS 原生窗口控制器配置 */
+export interface MacOSControllerConfig {
+  type: 'MacOS';
+  handle: number;
+  screencap_method: number;
+  input_method: number;
+  display_short_side?: number;
+}
+
 /** Gamepad 控制器配置 */
 export interface GamepadControllerConfig {
   type: 'Gamepad';
@@ -75,6 +84,7 @@ export type ControllerConfig =
   | Win32ControllerConfig
   | WlRootsControllerConfig
   | PlayCoverControllerConfig
+  | MacOSControllerConfig
   | GamepadControllerConfig
   | DummyControllerConfig;
 
@@ -151,6 +161,30 @@ export const Win32InputMethodNames: Record<string, bigint> = {
   PostMessageWithWindowPos: Win32InputMethod.PostMessageWithWindowPos,
 };
 
+/** macOS 截图方法 */
+export const MacOSScreencapMethod = {
+  None: 0n,
+  ScreenCaptureKit: 1n,
+} as const;
+
+/** macOS 输入方法 */
+export const MacOSInputMethod = {
+  None: 0n,
+  GlobalEvent: 1n,
+  PostToPid: 1n << 1n,
+} as const;
+
+/** macOS 截图方法名称映射 */
+export const MacOSScreencapMethodNames: Record<string, bigint> = {
+  ScreenCaptureKit: MacOSScreencapMethod.ScreenCaptureKit,
+};
+
+/** macOS 输入方法名称映射 */
+export const MacOSInputMethodNames: Record<string, bigint> = {
+  GlobalEvent: MacOSInputMethod.GlobalEvent,
+  PostToPid: MacOSInputMethod.PostToPid,
+};
+
 /** 解析 Win32 截图方法名称，支持单个字符串或字符串数组（数组时按位或合并） */
 export function parseWin32ScreencapMethod(name: string | string[]): number {
   if (Array.isArray(name)) {
@@ -176,6 +210,24 @@ export function parseWin32InputMethod(name: string): number {
   }
   // 默认使用 Seize
   return Number(Win32InputMethod.Seize);
+}
+
+/** 解析 macOS 截图方法名称 */
+export function parseMacOSScreencapMethod(name: string): number {
+  const method = MacOSScreencapMethodNames[name];
+  if (method !== undefined) {
+    return Number(method);
+  }
+  return Number(MacOSScreencapMethod.ScreenCaptureKit);
+}
+
+/** 解析 macOS 输入方法名称 */
+export function parseMacOSInputMethod(name: string): number {
+  const method = MacOSInputMethodNames[name];
+  if (method !== undefined) {
+    return Number(method);
+  }
+  return Number(MacOSInputMethod.GlobalEvent);
 }
 
 /** Agent 配置（用于启动子进程） */

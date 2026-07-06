@@ -492,6 +492,7 @@ export default {
     allSpecialTasksAdded: 'すべて追加済み',
     collapse: 'パネルを閉じる',
     ungroupedTasks: 'その他',
+    pretasks: '事前タスク',
     resizeHandleAriaLabel: 'タスク追加パネルの高さを調整',
   },
 

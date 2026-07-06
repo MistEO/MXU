@@ -28,6 +28,41 @@ export interface ProjectInterface {
   import?: string[];
   /** v2.3.0: 预设配置 */
   preset?: PresetItem[];
+  /** v2.7.0: Controller 启动前执行的预任务配置，可为单对象或对象数组 */
+  pretask?: PreTaskConfig | PreTaskConfig[];
+}
+
+/** v2.7.0: 预任务配置 */
+export interface PreTaskConfig {
+  /** 必须。要执行的程序路径，可以是系统 PATH 中的可执行文件 */
+  exec: string;
+  /** 可选。固定参数数组，按顺序传递给 exec */
+  args?: string[];
+  /** v2.7.2: 可选。预任务唯一标识，用于 Client UI/日志区分；缺省时 Client 可回退到 exec */
+  name?: string;
+  /** v2.7.2: 可选。预任务显示名称，支持 i18n */
+  label?: string;
+  /** v2.7.2: 可选。预任务详细描述，支持 i18n / 文件路径 / URL，内容支持 Markdown */
+  description?: string;
+  /** v2.7.2: 可选。预任务图标路径，相对于 interface.json 所在目录，支持 i18n */
+  icon?: string;
+  /**
+   * 可选。需要让用户选择的 option 键名列表，元素应与外层 option 配置中的键名对应。
+   * 若设置，Client 应将这些 option 的当前取值序列化为单行紧凑 JSON 字符串并追加为最后一个参数。
+   * 该字段仅用于生成传给预任务进程的参数，不参与 pipeline_override 合并。
+   */
+  option?: string[];
+}
+
+/**
+ * 将 PI 协议中的 pretask 字段（单对象或数组）标准化为数组。
+ * 如果 pretask 未定义则返回空数组。
+ */
+export function normalizePreTaskConfigs(
+  pretask: PreTaskConfig | PreTaskConfig[] | undefined,
+): PreTaskConfig[] {
+  if (!pretask) return [];
+  return Array.isArray(pretask) ? pretask : [pretask];
 }
 
 /** v2.4.0: 任务分组声明 */

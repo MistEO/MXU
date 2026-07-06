@@ -342,7 +342,7 @@ export function TaskList() {
       const position = { x: e.clientX, y: e.clientY };
 
       const tasks = instance.selectedTasks;
-      const hasEnabledTasks = tasks.some((t) => t.enabled);
+      const hasEnabledTasks = tasks.some((t) => t.enabled || t.runOnce);
       const hasExpandedTasks = tasks.some((t) => t.expanded);
       const hasTasks = tasks.length > 0;
       const projectName = projectInterface?.name;

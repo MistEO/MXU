@@ -90,10 +90,11 @@ function TaskSettingsSection({
   projectInterface: ProjectInterface | null;
 }) {
   const { t } = useTranslation();
+  const { basePath } = useAppStore();
   const [expanded, setExpanded] = useState(section.default_expand ?? true);
   const optionKeys = section.option || [];
   const availableOptionKeys = optionKeys.filter((key) => !!projectInterface?.option?.[key]);
-  const iconUrl = useResolvedIcon('', section.resolvedIcon);
+  const iconUrl = useResolvedIcon(basePath, section.resolvedIcon);
 
   return (
     <details

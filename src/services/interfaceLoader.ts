@@ -84,6 +84,7 @@ async function loadInterfaceFromLocal(interfacePath: string): Promise<ProjectInt
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
   }
 
+  pi.task ??= [];
   return pi;
 }
 
@@ -145,6 +146,7 @@ async function loadInterfaceFromHttp(path: string): Promise<ProjectInterface> {
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
   }
 
+  pi.task ??= [];
   return pi;
 }
 
@@ -219,7 +221,7 @@ async function loadImportFromHttp(importPath: string): Promise<ImportableInterfa
 function mergeImported(pi: ProjectInterface, imported: ImportableInterface): void {
   // 合并 task 数组（追加到末尾）
   if (imported.task && imported.task.length > 0) {
-    pi.task = [...pi.task, ...imported.task];
+    pi.task = [...(pi.task || []), ...imported.task];
     log.info(`合并了 ${imported.task.length} 个导入的 task`);
   }
 

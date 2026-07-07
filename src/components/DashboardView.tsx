@@ -33,6 +33,7 @@ import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
+import { getExecTaskItem, buildExecTaskDef } from '@/types/execTasks';
 import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
@@ -219,8 +220,10 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           const runnableTasks = enabledTasks
             .map((selectedTask) => {
               const specialTask = getMxuSpecialTask(selectedTask.taskName);
+              const execTaskItem = getExecTaskItem(projectInterface, selectedTask.taskName);
               const taskDef =
                 specialTask?.taskDef ||
+                (execTaskItem ? buildExecTaskDef(execTaskItem) : undefined) ||
                 projectInterface?.task.find((t) => t.name === selectedTask.taskName);
               if (!taskDef) return null;
               return {
@@ -266,6 +269,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                   projectInterface,
                   currentControllerName,
                   currentResourceName,
+                  basePath,
                 ),
                 selected_task_id: selectedTask.id,
               };

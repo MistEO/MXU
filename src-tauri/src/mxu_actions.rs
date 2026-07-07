@@ -834,6 +834,91 @@ fn execute_power_sleep() -> bool {
 }
 
 // ============================================================================
+// MXU_EXEC_TASK Custom Action
+// ============================================================================
+
+/// MXU_EXEC_TASK 动作名称常量
+const MXU_EXEC_TASK_ACTION: &str = "MXU_EXEC_TASK_ACTION";
+
+/// MXU_EXEC_TASK custom action 回调函数
+/// 从 custom_action_param 中读取 exec、args、cwd，启动外部程序并等待退出
+fn mxu_exec_task_action_fn(
+    _ctx: &maa_framework::context::Context,
+    args: &maa_framework::custom::ActionArgs,
+) -> bool {
+    let param_str = args.param;
+    info!("[MXU_EXEC_TASK] Received param: {}", param_str);
+
+    let json: serde_json::Value = match serde_json::from_str(param_str) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("[MXU_EXEC_TASK] Failed to parse param JSON: {}", e);
+            return false;
+        }
+    };
+
+    let exec = match json.get("exec").and_then(|v| v.as_str()) {
+        Some(p) if !p.trim().is_empty() => p.to_string(),
+        _ => {
+            warn!("[MXU_EXEC_TASK] Missing or empty 'exec' parameter");
+            return false;
+        }
+    };
+
+    let args_vec: Vec<String> = json
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let cwd = json
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string());
+
+    info!(
+        "[MXU_EXEC_TASK] Running: exec={}, args={:?}, cwd={:?}",
+        exec, args_vec, cwd
+    );
+
+    let mut cmd = crate::commands::utils::build_launch_command(&exec, &args_vec, false);
+
+    if let Some(ref dir) = cwd {
+        if std::path::Path::new(dir).exists() {
+            cmd.current_dir(dir);
+        } else {
+            warn!("[MXU_EXEC_TASK] CWD does not exist: {}", dir);
+        }
+    } else if let Some(parent) = std::path::Path::new(&exec).parent() {
+        if parent.exists() {
+            cmd.current_dir(parent);
+        }
+    }
+
+    match cmd.status() {
+        Ok(status) => {
+            let exit_code = status.code().unwrap_or(-1);
+            if exit_code == 0 {
+                info!("[MXU_EXEC_TASK] Process exited successfully");
+                true
+            } else {
+                warn!("[MXU_EXEC_TASK] Process exited with code: {}", exit_code);
+                false
+            }
+        }
+        Err(e) => {
+            log::error!("[MXU_EXEC_TASK] Failed to run program: {}", e);
+            false
+        }
+    }
+}
+
+// ============================================================================
 // 注册入口
 // ============================================================================
 
@@ -882,6 +967,7 @@ pub fn register_all_mxu_actions(
     reg_action!(MXU_WEBHOOK_ACTION, mxu_webhook_action_fn);
     reg_action!(MXU_NOTIFY_ACTION, mxu_notify_action_fn);
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
+    reg_action!(MXU_EXEC_TASK_ACTION, mxu_exec_task_action_fn);
 
     let killproc_app_handle = app_handle.clone();
     let killproc_instance_id = instance_id.to_string();

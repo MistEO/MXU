@@ -14,6 +14,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
 import type { SelectedTask } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
+import { isExecTaskName, getExecTaskItem, buildExecTaskDef } from '@/types/execTasks';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
@@ -333,12 +334,18 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
 
-  // 获取任务定义 - 支持 MXU 内置特殊任务
+  // 获取任务定义 - 支持 MXU 内置特殊任务与 exec_task 外部程序任务
   const isMxuTask = isMxuSpecialTask(task.taskName);
+  const isExecTask = isExecTaskName(task.taskName);
   const mxuSpecialTask = isMxuTask ? getMxuSpecialTask(task.taskName) : null;
+  const execTaskItem = isExecTask ? getExecTaskItem(projectInterface, task.taskName) : undefined;
   const taskDef = isMxuTask
     ? mxuSpecialTask?.taskDef
-    : projectInterface?.task.find((t) => t.name === task.taskName);
+    : isExecTask
+      ? execTaskItem
+        ? buildExecTaskDef(execTaskItem)
+        : undefined
+      : projectInterface?.task.find((t) => t.name === task.taskName);
 
   // 检查任务是否与当前控制器/资源兼容
   // 未选择时，使用第一个控制器/资源作为默认值判断兼容性

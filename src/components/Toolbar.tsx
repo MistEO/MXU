@@ -16,6 +16,7 @@ import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask, shouldSkipMxuScreenshot } from '@/types/specialTasks';
+import { getExecTaskItem, buildExecTaskDef } from '@/types/execTasks';
 import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
@@ -1015,8 +1016,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         const runnableTasks: RunnableTask[] = [];
         for (const selectedTask of compatibleTasks) {
           const specialTask = getMxuSpecialTask(selectedTask.taskName);
+          const execTaskItem = getExecTaskItem(projectInterface, selectedTask.taskName);
           const taskDef =
             specialTask?.taskDef ||
+            (execTaskItem ? buildExecTaskDef(execTaskItem) : undefined) ||
             projectInterface?.task.find((t) => t.name === selectedTask.taskName);
           if (!taskDef) {
             log.warn(`跳过任务 ${selectedTask.taskName}: 未找到任务定义`);
@@ -1063,6 +1066,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 projectInterface,
                 currentControllerName,
                 currentResourceName,
+                basePath,
               ),
               selected_task_id: selectedTask.id,
             };

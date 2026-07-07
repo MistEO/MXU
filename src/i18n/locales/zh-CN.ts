@@ -482,6 +482,7 @@ export default {
     noResults: '没有找到匹配的任务',
     alreadyAdded: '已添加',
     specialTasks: '特殊任务',
+    execTasks: '辅助任务',
     allSpecialTasksAdded: '已全部添加',
     collapse: '收起面板',
     ungroupedTasks: '其他',

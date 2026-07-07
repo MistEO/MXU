@@ -363,6 +363,23 @@ fn merge_imported(interface: &mut serde_json::Value, imported: &serde_json::Valu
             }
         }
     }
+
+    // v2.7.0: 合并 exec_task（单对象视为一项，按导入顺序追加为有序列表）
+    let imported_exec_tasks = normalize_exec_task(imported.get("exec_task"));
+    if !imported_exec_tasks.is_empty() {
+        let mut merged = normalize_exec_task(interface.get("exec_task"));
+        merged.extend(imported_exec_tasks);
+        interface["exec_task"] = serde_json::Value::Array(merged);
+    }
+}
+
+/// 将 exec_task 字段（单对象或数组）标准化为 Vec，未定义则返回空 Vec。
+fn normalize_exec_task(value: Option<&serde_json::Value>) -> Vec<serde_json::Value> {
+    match value {
+        Some(serde_json::Value::Array(arr)) => arr.clone(),
+        Some(v) if v.is_object() => vec![v.clone()],
+        _ => Vec::new(),
+    }
 }
 
 /// 解析 JSONC（带注释的 JSON），去除 `//` 和 `/* */` 注释后用 serde_json 解析

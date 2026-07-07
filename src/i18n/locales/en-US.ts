@@ -495,6 +495,7 @@ export default {
     alreadyAdded: 'Already added',
     collapse: 'Collapse panel',
     specialTasks: 'Special Tasks',
+    execTasks: 'Auxiliary Tasks',
     allSpecialTasksAdded: 'All added',
     ungroupedTasks: 'Others',
     resizeHandleAriaLabel: 'Resize add task panel height',

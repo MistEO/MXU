@@ -23,13 +23,20 @@ import {
   addTaskPanelResizeStep,
 } from '@/types/config';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
+import type { TaskItem, ActionConfig, GroupItem, ExecTaskItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import {
   getAllMxuSpecialTasks,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
 } from '@/types/specialTasks';
+import {
+  getExecTaskItems,
+  execTaskName,
+  execTaskItemId,
+  buildExecTaskDef,
+  EXEC_TASK_ENTRY,
+} from '@/types/execTasks';
 import { generateId } from '@/stores/helpers';
 import { getProcessNameFromPath } from '@/utils/paths';
 import clsx from 'clsx';
@@ -184,6 +191,9 @@ export function AddTaskPanel() {
 
   // 获取所有注册的特殊任务
   const specialTasks = useMemo(() => getAllMxuSpecialTasks(), []);
+
+  // 获取项目声明的外部程序任务（exec_task）
+  const execTasks = useMemo(() => getExecTaskItems(projectInterface), [projectInterface]);
 
   const instance = getActiveInstance();
   const langKey = getInterfaceLangKey(language);
@@ -384,6 +394,59 @@ export function AddTaskPanel() {
     }
   };
 
+  // v2.7.0: 添加外部程序任务（exec_task）伪任务
+  const handleAddExecTask = async (item: ExecTaskItem) => {
+    if (!instance || !projectInterface) return;
+
+    setShowAddTaskPanel(false);
+
+    const taskName = execTaskName(item);
+    const displayName = resolveI18nText(item.label, langKey) || item.name || item.exec;
+
+    addTaskToInstance(instance.id, {
+      name: taskName,
+      option: item.option,
+      description: item.description,
+    });
+
+    // 若实例正在运行，立即追加到执行队列
+    if (instance.isRunning) {
+      try {
+        const latestState = useAppStore.getState();
+        const updatedInstance = latestState.instances.find((i) => i.id === instance.id);
+        const addedTask = updatedInstance?.selectedTasks
+          .filter((t) => t.taskName === taskName)
+          .pop();
+
+        if (!addedTask) {
+          log.warn(`无法找到刚添加的 exec_task: ${taskName}`);
+          return;
+        }
+
+        const pipelineOverride = generateTaskPipelineOverride(
+          addedTask,
+          projectInterface,
+          selectedControllerName,
+          selectedResourceName,
+          basePath,
+        );
+
+        log.info(`运行中追加 exec_task ${taskName}, pipelineOverride:`, pipelineOverride);
+
+        const maaTaskId = await maaService.runTask(
+          instance.id,
+          EXEC_TASK_ENTRY,
+          pipelineOverride,
+          addedTask.id,
+        );
+
+        registerTaskIdName(maaTaskId, addedTask.customName || displayName);
+      } catch (err) {
+        log.error(`追加 exec_task 失败:`, err);
+      }
+    }
+  };
+
   // v2.4.0: 按 group 分组任务
   const groups = projectInterface?.group;
   const hasGroups = (groups?.length ?? 0) > 0;
@@ -402,6 +465,7 @@ export function AddTaskPanel() {
   });
   const [ungroupedExpanded, setUngroupedExpanded] = useState(true);
   const [specialExpanded, setSpecialExpanded] = useState(true);
+  const [execExpanded, setExecExpanded] = useState(true);
 
   // 当分组定义变化时，移除已失效 key，并为新分组注入 default_expand 默认值
   useEffect(() => {
@@ -484,6 +548,34 @@ export function AddTaskPanel() {
               incompatibleReason={reason}
               supportedControllerHint={supportedControllerHint}
               onClick={() => handleAddTask(task.name)}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
+  /** 渲染 exec_task 外部程序任务网格（与普通任务同款 TaskButton） */
+  const renderExecTaskGrid = (items: ExecTaskItem[]) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+        {items.map((item) => {
+          const taskDef = buildExecTaskDef(item);
+          const taskName = execTaskName(item);
+          const count = taskCounts[taskName] || 0;
+          const label = resolveI18nText(item.label, langKey) || item.name || item.exec;
+
+          return (
+            <TaskButton
+              key={execTaskItemId(item)}
+              task={taskDef}
+              count={count}
+              isNew={false}
+              label={label}
+              langKey={langKey}
+              basePath={basePath}
+              onClick={() => handleAddExecTask(item)}
             />
           );
         })}
@@ -635,6 +727,7 @@ export function AddTaskPanel() {
 
   const ungroupedContentId = 'add-task-panel-section-ungrouped';
   const specialContentId = 'add-task-panel-section-special';
+  const execContentId = 'add-task-panel-section-exectask';
 
   if (!projectInterface) {
     return null;
@@ -722,6 +815,24 @@ export function AddTaskPanel() {
             ) : (
               /* 无分组：保持原有平铺网格 */
               filteredTasks.length > 0 && renderTaskGrid(filteredTasks)
+            )}
+
+            {/* 辅助任务（exec_task），由项目在 interface.json 中声明 */}
+            {instance && execTasks.length > 0 && (
+              <div>
+                {renderSectionHeader(
+                  t('addTaskPanel.execTasks'),
+                  execExpanded,
+                  () => setExecExpanded((prev) => !prev),
+                  execTasks.length,
+                  execContentId,
+                )}
+                {execExpanded && (
+                  <div id={execContentId} className="mt-1">
+                    {renderExecTaskGrid(execTasks)}
+                  </div>
+                )}
+              </div>
             )}
 
             {instance && (

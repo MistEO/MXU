@@ -1,5 +1,14 @@
 import { shouldSkipMxuScreenshot } from '@/types/specialTasks';
+import { isExecTaskName } from '@/types/execTasks';
 import type { SelectedTask } from '@/types/interface';
+
+/**
+ * 是否为非视觉任务（跳过截图/识别，可放到 Dummy Controller 段执行）。
+ * 包含 MXU 内置特殊任务与 exec_task 外部程序任务。
+ */
+function shouldSkipScreenshot(taskName: string): boolean {
+  return shouldSkipMxuScreenshot(taskName) || isExecTaskName(taskName);
+}
 
 /** 三段式任务切分结果：前置特殊 / 中间游戏 / 收尾特殊 */
 export interface ThreeSegmentSplit<T> {
@@ -22,12 +31,12 @@ export function splitTasksIntoThreeSegments<T extends { taskName: string }>(
   }
 
   let leadingEnd = 0;
-  while (leadingEnd < tasks.length && shouldSkipMxuScreenshot(tasks[leadingEnd].taskName)) {
+  while (leadingEnd < tasks.length && shouldSkipScreenshot(tasks[leadingEnd].taskName)) {
     leadingEnd += 1;
   }
 
   let trailingStart = tasks.length;
-  while (trailingStart > leadingEnd && shouldSkipMxuScreenshot(tasks[trailingStart - 1].taskName)) {
+  while (trailingStart > leadingEnd && shouldSkipScreenshot(tasks[trailingStart - 1].taskName)) {
     trailingStart -= 1;
   }
 

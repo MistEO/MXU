@@ -28,6 +28,40 @@ export interface ProjectInterface {
   import?: string[];
   /** v2.3.0: 预设配置 */
   preset?: PresetItem[];
+  /** v2.7.0: 可执行的外部程序任务声明 */
+  exec_task?: ExecTaskItem | ExecTaskItem[];
+}
+
+/**
+ * v2.7.0: 外部程序任务（exec_task）配置项。
+ * 由项目在 interface.json 中声明，可作为可勾选/可排序的任务项调度执行外部程序。
+ */
+export interface ExecTaskItem {
+  /** 要执行的程序路径，可以是系统 PATH 中的可执行文件 */
+  exec: string;
+  /** 可选。固定参数数组，按顺序传递给 exec */
+  args?: string[];
+  /** 可选。唯一标识符，缺省时回退到 exec */
+  name?: string;
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头） */
+  label?: string;
+  /** 可选。详细说明，支持国际化字符串/文件路径/URL，内容支持 Markdown */
+  description?: string;
+  /** 可选。图标路径，相对于 interface.json 所在目录 */
+  icon?: string;
+  /** 可选。引用的顶层 option 键名数组，其取值序列化为最后一个参数 */
+  option?: string[];
+}
+
+/**
+ * 将 PI 协议中的 exec_task 字段（单对象或数组）标准化为数组。
+ * 如果 exec_task 未定义则返回 undefined。
+ */
+export function normalizeExecTaskConfigs(
+  execTask: ExecTaskItem | ExecTaskItem[] | undefined,
+): ExecTaskItem[] | undefined {
+  if (!execTask) return undefined;
+  return Array.isArray(execTask) ? execTask : [execTask];
 }
 
 /** v2.4.0: 任务分组声明 */

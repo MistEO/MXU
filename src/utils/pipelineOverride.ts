@@ -11,6 +11,7 @@ import type {
   OptionDefinition,
 } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask } from '@/types/specialTasks';
+import { isExecTaskName, getExecTaskItem, buildExecTaskPipelineOverride } from '@/types/execTasks';
 import { loggers } from './logger';
 import { findSwitchCase } from './optionHelpers';
 import { createDefaultOptionValue, sanitizeOptionValue } from '@/stores/helpers';
@@ -170,10 +171,28 @@ export const generateTaskPipelineOverride = (
   projectInterface: ProjectInterface | null,
   controllerName?: string,
   resourceName?: string,
+  cwd?: string,
 ): string => {
   // 处理 MXU 内置特殊任务
   if (isMxuSpecialTask(selectedTask.taskName)) {
     return generateMxuSpecialTaskOverride(selectedTask);
+  }
+
+  // v2.7.0: 处理 exec_task 外部程序任务伪任务
+  if (isExecTaskName(selectedTask.taskName)) {
+    const item = getExecTaskItem(projectInterface, selectedTask.taskName);
+    if (!item) {
+      loggers.task.warn(`未找到 exec_task 定义: ${selectedTask.taskName}`);
+      return '[]';
+    }
+    return buildExecTaskPipelineOverride(
+      item,
+      selectedTask.optionValues,
+      projectInterface,
+      controllerName,
+      resourceName,
+      cwd,
+    );
   }
 
   if (!projectInterface) return '[]';

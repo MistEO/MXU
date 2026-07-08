@@ -149,6 +149,7 @@ export interface AppState {
   addTaskToInstance: (
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
+    options?: { prepend?: boolean },
   ) => void;
   /** v2.3.0: 应用预设配置到实例 */
   applyPreset: (instanceId: string, presetName: string) => void;

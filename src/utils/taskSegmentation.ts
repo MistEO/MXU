@@ -1,13 +1,14 @@
 import { shouldSkipMxuScreenshot } from '@/types/specialTasks';
 import { isExecTaskName } from '@/types/execTasks';
+import { isPretaskName } from '@/types/pretasks';
 import type { SelectedTask } from '@/types/interface';
 
 /**
  * 是否为非视觉任务（跳过截图/识别，可放到 Dummy Controller 段执行）。
- * 包含 MXU 内置特殊任务与 exec_task 外部程序任务。
+ * 包含 MXU 内置特殊任务、exec_task 外部程序任务与 pretask 前置任务。
  */
-function shouldSkipScreenshot(taskName: string): boolean {
-  return shouldSkipMxuScreenshot(taskName) || isExecTaskName(taskName);
+export function shouldSkipScreenshot(taskName: string): boolean {
+  return shouldSkipMxuScreenshot(taskName) || isExecTaskName(taskName) || isPretaskName(taskName);
 }
 
 /** 三段式任务切分结果：前置特殊 / 中间游戏 / 收尾特殊 */

@@ -7,8 +7,9 @@ import type {
   PresetItem,
   GroupItem,
   ExecTaskItem,
+  PretaskItem,
 } from '@/types/interface';
-import { normalizeExecTaskConfigs } from '@/types/interface';
+import { normalizeExecTaskConfigs, normalizePretaskConfigs } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
@@ -26,7 +27,9 @@ interface ImportableInterface {
   preset?: PresetItem[];
   /** v2.4.0: 支持导入 group */
   group?: GroupItem[];
-  /** v2.7.0: 支持导入 exec_task */
+  /** v2.7.0: 支持导入 pretask */
+  pretask?: PretaskItem | PretaskItem[];
+  /** v2.9.0: 支持导入 exec_task */
   exec_task?: ExecTaskItem | ExecTaskItem[];
 }
 
@@ -271,7 +274,15 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
     }
   }
 
-  // v2.7.0: 合并 exec_task（单对象视为一项，按导入顺序追加为有序列表）
+  // v2.7.0: 合并 pretask（单对象视为一项，按导入顺序追加为有序列表）
+  const importedPretasks = normalizePretaskConfigs(imported.pretask);
+  if (importedPretasks && importedPretasks.length > 0) {
+    const existing = normalizePretaskConfigs(pi.pretask) || [];
+    pi.pretask = [...existing, ...importedPretasks];
+    log.info(`合并了 ${importedPretasks.length} 个导入的 pretask`);
+  }
+
+  // v2.9.0: 合并 exec_task（单对象视为一项，按导入顺序追加为有序列表）
   const importedExecTasks = normalizeExecTaskConfigs(imported.exec_task);
   if (importedExecTasks && importedExecTasks.length > 0) {
     const existing = normalizeExecTaskConfigs(pi.exec_task) || [];

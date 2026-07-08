@@ -288,6 +288,7 @@ pub fn run() {
             commands::system::run_and_wait,
             commands::system::set_pre_action_stop,
             commands::system::run_action,
+            commands::system::run_pretask,
             commands::system::is_process_running,
             commands::system::get_process_path_from_hwnd,
             commands::system::retry_load_maa_library,

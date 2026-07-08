@@ -1119,6 +1119,30 @@ export const maaService = {
   },
 
   /**
+   * 执行 PI v2.7.0 pretask 外部程序（连接 Controller 前调用）。
+   * args 以数组形式直传后端，保留 option 序列化生成的 JSON 参数。
+   */
+  async runPretask(
+    instanceId: string,
+    program: string,
+    args: string[],
+    cwd?: string,
+  ): Promise<number> {
+    if (!isTauri()) {
+      throw new Error('此功能仅在 Tauri 环境中可用');
+    }
+    log.info('执行预任务:', program, args);
+    const exitCode = await invoke<number>('run_pretask', {
+      instanceId,
+      program,
+      args,
+      cwd: cwd || null,
+    });
+    log.info('预任务执行完成, 退出码:', exitCode);
+    return exitCode;
+  },
+
+  /**
    * 检查指定程序是否正在运行（通过完整路径比较）
    * @param program 程序的绝对路径
    * @returns 是否正在运行

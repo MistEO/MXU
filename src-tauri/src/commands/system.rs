@@ -609,6 +609,69 @@ pub async fn run_action(
     }
 }
 
+/// 执行 PI v2.7.0 pretask（预任务）外部程序，在连接 Controller 前调用。
+///
+/// 与 `run_action` 不同：`args` 直接以数组形式传入，不做 shell 分词，从而完整保留
+/// 由 option 序列化得到的单行紧凑 JSON 参数（含引号、花括号）。始终等待进程退出，
+/// 并复用 `pre_action_stop_requests` 支持前置阶段的取消。
+#[tauri::command]
+pub async fn run_pretask(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    program: String,
+    args: Vec<String>,
+    cwd: Option<String>,
+) -> Result<i32, String> {
+    info!(
+        "run_pretask: instance_id={}, program={}, args={:?}, cwd={:?}",
+        instance_id, program, args, cwd
+    );
+
+    let mut cmd = super::utils::build_launch_command(&program, &args, false);
+
+    // 设置工作目录
+    if let Some(ref dir) = cwd {
+        cmd.current_dir(dir);
+    } else if let Some(parent) = std::path::Path::new(&program).parent() {
+        if parent.exists() {
+            cmd.current_dir(parent);
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to run pretask: {} - {}", program, e))?;
+
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|e| format!("Failed to wait pretask: {} - {}", program, e))?
+        {
+            let exit_code = status.code().unwrap_or(-1);
+            info!("run_pretask finished with exit code: {}", exit_code);
+            return Ok(exit_code);
+        }
+
+        let stop_requested = {
+            let requests = state
+                .pre_action_stop_requests
+                .lock()
+                .map_err(|e| e.to_string())?;
+            requests.contains(&instance_id)
+        };
+
+        if stop_requested {
+            info!("run_pretask wait cancelled by stop request: {}", instance_id);
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            return Err("MXU_PRE_ACTION_CANCELLED".to_string());
+        }
+
+        sleep(Duration::from_millis(100)).await;
+    }
+}
+
 /// 重新尝试加载 MaaFramework 库
 #[tauri::command]
 pub async fn retry_load_maa_library() -> Result<String, String> {

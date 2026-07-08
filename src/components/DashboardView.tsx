@@ -31,9 +31,11 @@ import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
+import type { PretaskItem } from '@/types/interface';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { getExecTaskItem, buildExecTaskDef } from '@/types/execTasks';
+import { isPretaskName, getPretaskItem, buildPretaskArgs } from '@/types/pretasks';
 import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
@@ -217,8 +219,35 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         setIsStarting(true);
 
         try {
+          // v2.7.0: 连接 Controller 前执行 pretask（如游戏设置）
+          // pretask 以伪任务形式存在于任务列表中，此处从已启用任务中筛出。
+          const enabledPretasks = enabledTasks
+            .filter((task) => isPretaskName(task.taskName))
+            .map((task) => ({ task, item: getPretaskItem(projectInterface, task.taskName) }))
+            .filter((p): p is { task: (typeof enabledTasks)[0]; item: PretaskItem } => !!p.item);
+          for (const { task, item } of enabledPretasks) {
+            const args = buildPretaskArgs(
+              item,
+              task.optionValues ?? {},
+              projectInterface,
+              currentControllerName,
+              currentResourceName,
+            );
+            log.info(`[${instanceName}] 执行预任务:`, item.exec, args);
+            try {
+              const exitCode = await maaService.runPretask(instanceId, item.exec, args, basePath);
+              if (exitCode !== 0) {
+                log.warn(`[${instanceName}] 预任务退出码非零: ${exitCode}`);
+              }
+            } catch (err) {
+              log.error(`[${instanceName}] 预任务执行失败:`, err);
+            }
+          }
+
           const runnableTasks = enabledTasks
             .map((selectedTask) => {
+              // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
+              if (isPretaskName(selectedTask.taskName)) return null;
               const specialTask = getMxuSpecialTask(selectedTask.taskName);
               const execTaskItem = getExecTaskItem(projectInterface, selectedTask.taskName);
               const taskDef =

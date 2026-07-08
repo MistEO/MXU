@@ -31,12 +31,7 @@ import type {
 } from '@/types/interface';
 import type { ConnectionStatus, TaskStatus } from '@/types/maa';
 import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
-import {
-  getExecTaskItems,
-  execTaskName,
-  isExecTaskName,
-  getExecTaskItem,
-} from '@/types/execTasks';
+import { getExecTaskItems, execTaskName, isExecTaskName, getExecTaskItem } from '@/types/execTasks';
 import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
 import { loggers } from '@/utils/logger';
 import { findSwitchCase } from '@/utils/optionHelpers';
@@ -450,7 +445,7 @@ export const useAppStore = create<AppState>()(
     },
 
     // 任务操作
-    addTaskToInstance: (instanceId, task) => {
+    addTaskToInstance: (instanceId, task, options) => {
       const pi = get().projectInterface;
       if (!pi) return;
 
@@ -473,7 +468,15 @@ export const useAppStore = create<AppState>()(
 
       set((state) => ({
         instances: state.instances.map((i) =>
-          i.id === instanceId ? { ...i, selectedTasks: [...i.selectedTasks, newTask] } : i,
+          i.id === instanceId
+            ? {
+                ...i,
+                // prepend: pretask 等前置任务固定置于列表顶部
+                selectedTasks: options?.prepend
+                  ? [newTask, ...i.selectedTasks]
+                  : [...i.selectedTasks, newTask],
+              }
+            : i,
         ),
         lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         animatingTaskIds: [...state.animatingTaskIds, newTask.id], // 加入动画列表

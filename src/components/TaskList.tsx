@@ -45,6 +45,7 @@ import {
   getImportErrorType,
 } from '@/utils/tabExportImport';
 import { generateId, initializeAllOptionValues, sanitizeOptionValues } from '@/stores/helpers';
+import { isPretaskName } from '@/types/pretasks';
 import { loggers } from '@/utils/logger';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -459,6 +460,9 @@ export function TaskList() {
   }
 
   const tasks = instance.selectedTasks;
+  // pretask 伪任务作为卡片置于前置程序之上，其余任务保持在下方
+  const pretaskTasks = tasks.filter((t) => isPretaskName(t.taskName));
+  const normalTasks = tasks.filter((t) => !isPretaskName(t.taskName));
 
   const preActions = instance.preActions ?? [];
   const showPreActions = preActions.length > 0;
@@ -550,6 +554,27 @@ export function TaskList() {
         onContextMenu={handleListContextMenu}
       >
         <div className="space-y-2">
+          {/* 前置任务（pretask）卡片：位于前置程序之上 */}
+          {pretaskTasks.length > 0 && (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+              modifiers={[restrictHorizontalMovement]}
+            >
+              <SortableContext
+                items={pretaskTasks.map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {pretaskTasks.map((task) => (
+                    <TaskItem key={task.id} instanceId={instance.id} task={task} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+
           {/* 前置动作列表（支持拖拽排序） */}
           {showPreActions && (
             <DndContext
@@ -584,9 +609,12 @@ export function TaskList() {
             onDragEnd={handleDragEnd}
             modifiers={[restrictHorizontalMovement]}
           >
-            <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={normalTasks.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
               <div className="space-y-2">
-                {tasks.map((task) => (
+                {normalTasks.map((task) => (
                   <TaskItem key={task.id} instanceId={instance.id} task={task} />
                 ))}
               </div>

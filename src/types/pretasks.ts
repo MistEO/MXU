@@ -17,6 +17,7 @@ import type {
 import { normalizePretaskConfigs } from './interface';
 import { findSwitchCase } from '@/utils/optionHelpers';
 import { createDefaultOptionValue, sanitizeOptionValue } from '@/stores/helpers';
+import { loggers } from '@/utils/logger';
 
 /** pretask 伪任务在流程中的入口节点名（pretask 不进 Tasker，仅作占位） */
 export const PRETASK_ENTRY = 'MXU_PRETASK';
@@ -86,7 +87,12 @@ function collectPretaskOptionValues(
   resourceName?: string,
 ): void {
   const optionDef = allOptions[optionKey];
-  if (!optionDef) return;
+  if (!optionDef) {
+    loggers.task.warn(
+      `pretask 引用了未定义的 option "${optionKey}"，序列化时将跳过；请确认 pretask.option 与 pi.option 中的键名一致`,
+    );
+    return;
+  }
 
   // 过滤不满足当前 controller / resource 的 option
   if (optionDef.controller && optionDef.controller.length > 0) {

@@ -464,7 +464,7 @@ export default {
       resourceLoaded: '리소스 로드됨: {{name}}',
       resourceFailed: '리소스 로딩 실패: {{name}}',
       resourceFailedHint:
-        '계속 실패하면 해당 리소스 디렉터리를 삭제한 뒤 덮어쓰기 재설치 후 다시 시도해 보세요.',
+        '해당 리소스 디렉터리를 삭제한 뒤 덮어쓰기 재설치 후 다시 시도해 보세요.',
       // 작업 메시지
       taskStarting: '작업 시작: {{name}}',
       taskSucceeded: '작업 완료: {{name}}',

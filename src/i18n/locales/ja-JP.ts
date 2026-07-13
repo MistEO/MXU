@@ -467,7 +467,7 @@ export default {
       resourceLoaded: 'リソースを読み込みました: {{name}}',
       resourceFailed: 'リソースの読み込みに失敗しました: {{name}}',
       resourceFailedHint:
-        '読み込みに失敗し続ける場合は、該当リソースのディレクトリを削除してから上書き再インストールをお試しください。',
+        '該当リソースのディレクトリを削除してから上書き再インストールをお試しください。',
       // タスクメッセージ
       taskStarting: 'タスクを開始: {{name}}',
       taskSucceeded: 'タスクが完了しました: {{name}}',

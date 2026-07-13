@@ -471,7 +471,7 @@ export default {
       resourceLoaded: 'Resource loaded: {{name}}',
       resourceFailed: 'Resource load failed: {{name}}',
       resourceFailedHint:
-        'If the issue persists, try deleting the resource directory and reinstalling (overwrite) before retrying.',
+        'Try deleting the resource directory and reinstalling (overwrite) before retrying.',
       // Task messages
       taskStarting: 'Task started: {{name}}',
       taskSucceeded: 'Task completed: {{name}}',

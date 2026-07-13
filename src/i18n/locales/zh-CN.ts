@@ -458,7 +458,7 @@ export default {
       loadingResource: '正在加载资源: {{name}}',
       resourceLoaded: '资源加载成功: {{name}}',
       resourceFailed: '资源加载失败: {{name}}',
-      resourceFailedHint: '若仍无法加载，可删除该资源目录后重新覆盖安装再试。',
+      resourceFailedHint: '可删除该资源目录后重新覆盖安装再试。',
       // 任务消息
       taskStarting: '任务开始: {{name}}',
       taskSucceeded: '任务完成: {{name}}',

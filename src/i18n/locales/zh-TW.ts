@@ -454,7 +454,7 @@ export default {
       loadingResource: '正在載入資源: {{name}}',
       resourceLoaded: '資源載入成功: {{name}}',
       resourceFailed: '資源載入失敗: {{name}}',
-      resourceFailedHint: '若仍無法載入，可刪除該資源目錄後重新覆蓋安裝再試。',
+      resourceFailedHint: '可刪除該資源目錄後重新覆蓋安裝再試。',
       // 任務訊息
       taskStarting: '任務開始: {{name}}',
       taskSucceeded: '任務完成: {{name}}',

@@ -224,9 +224,9 @@ export default {
       resourceFailed: '資源載入失敗',
       startFailed: '任務啟動失敗',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
-      agentSpawnHintFileNotFound: '提示：請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
+      agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
       agentSpawnHintAppControl:
-        '提示：請在「Windows 安全性 → 應用程式與瀏覽器控制 → 智能應用程式控制」中關閉該功能後重試。',
+        '請在「Windows 安全性 → 應用程式與瀏覽器控制 → 智能應用程式控制」中關閉該功能後重試。',
       needConfig: '請先連接裝置並載入資源，或在連接面板儲存裝置設定',
     },
   },

@@ -236,9 +236,9 @@ export default {
       startFailed: 'Failed to start tasks',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
       agentSpawnHintFileNotFound:
-        'Hint: Check whether antivirus blocked the Agent, then reinstall by overwriting the installation.',
+        'Check whether antivirus blocked the Agent, then reinstall by overwriting the installation.',
       agentSpawnHintAppControl:
-        'Hint: Turn off Smart App Control under Windows Security → App & browser control, then retry.',
+        'Turn off Smart App Control under Windows Security → App & browser control, then retry.',
       needConfig:
         'Please connect device and load resource first, or save device config in connection panel',
     },

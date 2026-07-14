@@ -18,6 +18,7 @@ import type {
 } from '@/types/config';
 import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
 import type { AccentColor, CustomAccent } from '@/themes';
+import type { FallbackPendingInfo } from '@/services/updateService';
 
 /** 单个任务的运行状态 */
 export type TaskRunStatus = 'idle' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -447,6 +448,12 @@ export interface AppState {
   setJustUpdatedInfo: (info: JustUpdatedInfo | null) => void;
   setAutoInstallPending: (pending: boolean) => void;
   resetInstallState: () => void;
+
+  // 兜底更新恢复提示（上次自动更新失败进入兜底，未手动完成覆盖时强制提示）
+  showFallbackRecoveryModal: boolean;
+  fallbackRecoveryInfo: FallbackPendingInfo | null;
+  setShowFallbackRecoveryModal: (show: boolean) => void;
+  setFallbackRecoveryInfo: (info: FallbackPendingInfo | null) => void;
 
   // 最近关闭的实例
   recentlyClosed: RecentlyClosedInstance[];

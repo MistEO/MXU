@@ -1092,6 +1092,13 @@ export async function installUpdate(options: InstallUpdateOptions): Promise<bool
 
         log.info(`兜底更新成功，新文件已解压到: ${fallbackDir}`);
 
+        // 持久化兜底标记，供下次启动时检测未完成的更新并强制提示用户手动覆盖
+        saveFallbackPendingInfo({
+          fallbackDir,
+          newVersion,
+          timestamp: Date.now(),
+        });
+
         // 清理临时解压目录
         await invoke('cleanup_extract_dir', { extractDir }).catch(() => {});
         // 清理下载的 zip 文件
@@ -1265,6 +1272,71 @@ export function clearPendingUpdateInfo(): void {
     log.info('已清除待安装更新信息');
   } catch (error) {
     log.warn('清除待安装更新信息失败:', error);
+  }
+}
+
+// 兜底更新待处理标记存储 key
+const FALLBACK_PENDING_STORAGE_KEY = 'mxu-fallback-pending';
+
+/**
+ * 兜底更新待处理信息（自动更新失败进入兜底后保存，用于下次启动时强制提示用户手动完成覆盖）
+ */
+export interface FallbackPendingInfo {
+  /** 兜底文件夹路径（新版本整包解压到此处，如 <基目录>/v2.19.0） */
+  fallbackDir: string;
+  /** 本次尝试更新到的目标版本 */
+  newVersion: string;
+  timestamp: number;
+}
+
+/**
+ * 保存兜底更新待处理标记到本地存储
+ */
+export function saveFallbackPendingInfo(info: FallbackPendingInfo): void {
+  try {
+    localStorage.setItem(FALLBACK_PENDING_STORAGE_KEY, JSON.stringify(info));
+    log.info('已保存兜底更新待处理标记:', info.fallbackDir);
+  } catch (error) {
+    log.warn('保存兜底更新待处理标记失败:', error);
+  }
+}
+
+/**
+ * 读取兜底更新待处理标记（不自动清除，需手动调用 clearFallbackPendingInfo）
+ * 如果兜底文件夹已不存在（用户已手动处理并删除），会自动清除标记并返回 null
+ */
+export async function getFallbackPendingInfo(): Promise<FallbackPendingInfo | null> {
+  try {
+    const data = localStorage.getItem(FALLBACK_PENDING_STORAGE_KEY);
+    if (!data) return null;
+
+    const info = JSON.parse(data) as FallbackPendingInfo;
+
+    // 兜底文件夹不存在则视为用户已处理完毕，清除标记
+    if (!info.fallbackDir || !(await exists(info.fallbackDir))) {
+      log.info('兜底文件夹已不存在，清除兜底更新待处理标记:', info.fallbackDir);
+      localStorage.removeItem(FALLBACK_PENDING_STORAGE_KEY);
+      return null;
+    }
+
+    log.info('检测到未完成的兜底更新:', info.fallbackDir);
+    return info;
+  } catch (error) {
+    log.warn('读取兜底更新待处理标记失败:', error);
+    localStorage.removeItem(FALLBACK_PENDING_STORAGE_KEY);
+    return null;
+  }
+}
+
+/**
+ * 清除兜底更新待处理标记（用户确认已手动完成覆盖后调用）
+ */
+export function clearFallbackPendingInfo(): void {
+  try {
+    localStorage.removeItem(FALLBACK_PENDING_STORAGE_KEY);
+    log.info('已清除兜底更新待处理标记');
+  } catch (error) {
+    log.warn('清除兜底更新待处理标记失败:', error);
   }
 }
 

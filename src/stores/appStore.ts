@@ -1883,6 +1883,12 @@ export const useAppStore = create<AppState>()(
         autoInstallPending: false,
       }),
 
+    // 兜底更新恢复提示
+    showFallbackRecoveryModal: false,
+    fallbackRecoveryInfo: null,
+    setShowFallbackRecoveryModal: (show) => set({ showFallbackRecoveryModal: show }),
+    setFallbackRecoveryInfo: (info) => set({ fallbackRecoveryInfo: info }),
+
     // 最近关闭的实例
     recentlyClosed: [],
 

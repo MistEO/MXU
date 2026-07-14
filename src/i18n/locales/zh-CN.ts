@@ -681,6 +681,16 @@ export default {
     updateCompleteMessage: '已成功更新到最新版本',
     previousVersion: '更新前版本',
     gotIt: '知道了',
+    // 兜底更新恢复提示（上次自动更新失败进入兜底，未手动完成覆盖）
+    fallbackRecovery: {
+      title: '上次更新未完成',
+      message:
+        '上次自动更新未能正常完成，新版本文件已解压到下方文件夹，但尚未替换到程序目录，因此任务列表可能缺失或功能异常。\n请关闭本程序后，将兜底文件夹内的全部文件复制并覆盖到程序所在目录，再重新打开。',
+      pathLabel: '兜底文件夹路径：',
+      openFolder: '打开兜底文件夹',
+      done: '我已手动完成',
+      hint: '提示：覆盖时请连同 MaaEnd.exe 一起替换。完成后可删除该兜底文件夹，或点击“我已手动完成”不再提示。',
+    },
     // MirrorChyan API 错误码
     errors: {
       1001: '参数不正确，请检查配置',

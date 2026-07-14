@@ -14,6 +14,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
 import {
   ListTodo,
@@ -46,6 +47,7 @@ import {
 } from '@/utils/tabExportImport';
 import { generateId, initializeAllOptionValues, sanitizeOptionValues } from '@/stores/helpers';
 import { isPretaskName } from '@/types/pretasks';
+import { isValidTaskOrder } from '@/utils/taskSegmentation';
 import { loggers } from '@/utils/logger';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -319,6 +321,12 @@ export function TaskList() {
       const oldIndex = instance.selectedTasks.findIndex((t) => t.id === active.id);
       const newIndex = instance.selectedTasks.findIndex((t) => t.id === over.id);
       if (oldIndex < 0 || newIndex < 0) return;
+      // 预演拖放结果，若破坏三段式顺序（特殊任务夹在普通任务之间）则拒绝并回弹
+      const reordered = arrayMove(instance.selectedTasks, oldIndex, newIndex);
+      if (!isValidTaskOrder(reordered)) {
+        toast.warning(t('taskList.invalidTaskOrder'));
+        return;
+      }
       reorderTasks(instance.id, oldIndex, newIndex);
     }
   };

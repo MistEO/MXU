@@ -203,6 +203,7 @@ export default {
     stopTasks: '停止任務',
     startingTasks: '啟動中...',
     stoppingTasks: '停止中...',
+    invalidTaskOrder: '特殊任務只能放在普通任務之前或之後，不能夾在普通任務中間',
     // 自動連接相关
     autoConnect: {
       searching: '搜尋裝置...',

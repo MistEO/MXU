@@ -214,6 +214,8 @@ export default {
     taskSkippedController: 'Task "{{taskName}}" does not support current controller',
     taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
     noCompatibleTasks: 'No tasks compatible with current controller and resource',
+    invalidTaskOrder:
+      'Special tasks can only be placed before or after normal tasks, not between them',
     // Auto connect
     autoConnect: {
       searching: 'Searching devices...',

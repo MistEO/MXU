@@ -208,6 +208,8 @@ export default {
     stopTasks: '実行停止',
     startingTasks: '開始中...',
     stoppingTasks: '停止中...',
+    invalidTaskOrder:
+      '特殊タスクは通常タスクの前後にのみ配置でき、通常タスクの間に挟むことはできません',
     // 自動接続関連
     autoConnect: {
       searching: 'デバイスを検索中...',

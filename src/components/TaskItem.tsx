@@ -15,6 +15,7 @@ import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
 import type { SelectedTask, CaseItem } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks';
+import { isValidTaskOrder } from '@/utils/taskSegmentation';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
@@ -658,6 +659,19 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       const tasks = instance.selectedTasks;
       const taskIndex = tasks.findIndex((t) => t.id === task.id);
 
+      // 预演移动结果，若破坏三段式顺序（特殊任务夹在普通任务之间）则禁用对应菜单项
+      const simulateMove = (to: number): boolean => {
+        if (taskIndex < 0 || to < 0 || to >= tasks.length) return false;
+        const arr = [...tasks];
+        const [moved] = arr.splice(taskIndex, 1);
+        arr.splice(to, 0, moved);
+        return isValidTaskOrder(arr);
+      };
+      const canMoveUp = taskIndex > 0 && simulateMove(taskIndex - 1);
+      const canMoveDown = taskIndex < tasks.length - 1 && simulateMove(taskIndex + 1);
+      const canMoveToTop = taskIndex > 0 && simulateMove(0);
+      const canMoveToBottom = taskIndex < tasks.length - 1 && simulateMove(tasks.length - 1);
+
       const menuItems = buildListItemMenuItems({
         labels: {
           duplicate: t('contextMenu.duplicateTask'),
@@ -678,6 +692,10 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         isFirst: taskIndex === 0,
         isLast: taskIndex === tasks.length - 1,
         isLocked: isInstanceRunning,
+        canMoveUp,
+        canMoveDown,
+        canMoveToTop,
+        canMoveToBottom,
         onDuplicate: () => duplicateTask(instanceId, task.id),
         onRename: () => {
           setEditName(task.customName || '');

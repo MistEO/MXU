@@ -41,6 +41,7 @@ import {
 import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
 import { loggers } from '@/utils/logger';
 import { findSwitchCase } from '@/utils/optionHelpers';
+import { isValidTaskOrder } from '@/utils/taskSegmentation';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
@@ -647,6 +648,9 @@ export const useAppStore = create<AppState>()(
           const [removed] = tasks.splice(oldIndex, 1);
           tasks.splice(newIndex, 0, removed);
 
+          // 维持三段式不变式 S* N* S*：非法顺序（特殊任务夹在普通任务之间）不予应用
+          if (!isValidTaskOrder(tasks)) return i;
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
@@ -879,6 +883,8 @@ export const useAppStore = create<AppState>()(
           const tasks = [...i.selectedTasks];
           [tasks[taskIndex - 1], tasks[taskIndex]] = [tasks[taskIndex], tasks[taskIndex - 1]];
 
+          if (!isValidTaskOrder(tasks)) return i;
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
@@ -894,6 +900,8 @@ export const useAppStore = create<AppState>()(
 
           const tasks = [...i.selectedTasks];
           [tasks[taskIndex], tasks[taskIndex + 1]] = [tasks[taskIndex + 1], tasks[taskIndex]];
+
+          if (!isValidTaskOrder(tasks)) return i;
 
           return { ...i, selectedTasks: tasks };
         }),
@@ -912,6 +920,8 @@ export const useAppStore = create<AppState>()(
           const [task] = tasks.splice(taskIndex, 1);
           tasks.unshift(task);
 
+          if (!isValidTaskOrder(tasks)) return i;
+
           return { ...i, selectedTasks: tasks };
         }),
       })),
@@ -928,6 +938,8 @@ export const useAppStore = create<AppState>()(
           const tasks = [...i.selectedTasks];
           const [task] = tasks.splice(taskIndex, 1);
           tasks.push(task);
+
+          if (!isValidTaskOrder(tasks)) return i;
 
           return { ...i, selectedTasks: tasks };
         }),

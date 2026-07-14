@@ -207,6 +207,8 @@ export default {
     stopTasks: '실행 중지',
     startingTasks: '시작 중...',
     stoppingTasks: '중지 중...',
+    invalidTaskOrder:
+      '특수 작업은 일반 작업의 앞이나 뒤에만 배치할 수 있으며 일반 작업 사이에 끼울 수 없습니다',
     // 자동 연결 관련
     autoConnect: {
       searching: '기기 검색 중...',

@@ -47,6 +47,14 @@ export interface ListItemMenuConfig {
   isLast: boolean;
   /** 项目不可修改（如实例运行中） */
   isLocked: boolean;
+  /** 上移是否会破坏排序约束（默认允许） */
+  canMoveUp?: boolean;
+  /** 下移是否会破坏排序约束（默认允许） */
+  canMoveDown?: boolean;
+  /** 置顶是否会破坏排序约束（默认允许） */
+  canMoveToTop?: boolean;
+  /** 置底是否会破坏排序约束（默认允许） */
+  canMoveToBottom?: boolean;
 
   onDuplicate: () => void;
   onRename: () => void;
@@ -60,7 +68,19 @@ export interface ListItemMenuConfig {
 }
 
 export function buildListItemMenuItems(cfg: ListItemMenuConfig): MenuItem[] {
-  const { labels, isEnabled, isExpanded, canExpand = true, isFirst, isLast, isLocked } = cfg;
+  const {
+    labels,
+    isEnabled,
+    isExpanded,
+    canExpand = true,
+    isFirst,
+    isLast,
+    isLocked,
+    canMoveUp = true,
+    canMoveDown = true,
+    canMoveToTop = true,
+    canMoveToBottom = true,
+  } = cfg;
 
   return [
     {
@@ -99,28 +119,28 @@ export function buildListItemMenuItems(cfg: ListItemMenuConfig): MenuItem[] {
       id: 'move-up',
       label: labels.moveUp,
       icon: ChevronUp,
-      disabled: isFirst || isLocked,
+      disabled: isFirst || isLocked || !canMoveUp,
       onClick: cfg.onMoveUp,
     },
     {
       id: 'move-down',
       label: labels.moveDown,
       icon: ChevronDown,
-      disabled: isLast || isLocked,
+      disabled: isLast || isLocked || !canMoveDown,
       onClick: cfg.onMoveDown,
     },
     {
       id: 'move-top',
       label: labels.moveToTop,
       icon: ChevronsUp,
-      disabled: isFirst || isLocked,
+      disabled: isFirst || isLocked || !canMoveToTop,
       onClick: cfg.onMoveToTop,
     },
     {
       id: 'move-bottom',
       label: labels.moveToBottom,
       icon: ChevronsDown,
-      disabled: isLast || isLocked,
+      disabled: isLast || isLocked || !canMoveToBottom,
       onClick: cfg.onMoveToBottom,
     },
     { id: 'divider-3', label: '', divider: true },

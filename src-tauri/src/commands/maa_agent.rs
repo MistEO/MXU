@@ -58,7 +58,7 @@ impl PendingAgent {
     }
 
     fn set_child(&self, child: Child) -> Result<(), Child> {
-        if self.state.cancelled.load(Ordering::SeqCst) {
+        if self.state.cancelled.load(Ordering::Relaxed) {
             return Err(child);
         }
 
@@ -66,7 +66,7 @@ impl PendingAgent {
             Ok(child_slot) => child_slot,
             Err(poisoned) => poisoned.into_inner(),
         };
-        if self.state.cancelled.load(Ordering::SeqCst) {
+        if self.state.cancelled.load(Ordering::Relaxed) {
             return Err(child);
         }
         *child_slot = Some(child);
@@ -375,7 +375,7 @@ async fn start_single_agent(
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
-        if maa_state.agent_shutdown_requested.load(Ordering::SeqCst) {
+        if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
             return Err("Application is shutting down".to_string());
         }
 
@@ -415,8 +415,8 @@ async fn start_single_agent(
         if pending_agent
             .maa_state
             .agent_shutdown_requested
-            .load(Ordering::SeqCst)
-            || pending_agent.state.cancelled.load(Ordering::SeqCst)
+            .load(Ordering::Relaxed)
+            || pending_agent.state.cancelled.load(Ordering::Relaxed)
         {
             return Err("Agent startup was interrupted by application shutdown".to_string());
         }
@@ -655,7 +655,7 @@ pub async fn start_tasks_impl(
 ) -> Result<Vec<i64>, String> {
     info!("start_tasks_impl called");
 
-    if maa_state.agent_shutdown_requested.load(Ordering::SeqCst) {
+    if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
         return Err("Application is shutting down".to_string());
     }
 
@@ -766,7 +766,7 @@ pub async fn start_tasks_impl(
             let mut pending_agents = Vec::new();
 
             for (idx, config) in configs.iter().enumerate() {
-                if maa_state.agent_shutdown_requested.load(Ordering::SeqCst) {
+                if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
                     cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
                     return Err("Application is shutting down".to_string());
                 }
@@ -827,7 +827,7 @@ pub async fn start_tasks_impl(
                     poisoned.into_inner()
                 }
             };
-            if maa_state.agent_shutdown_requested.load(Ordering::SeqCst) {
+            if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
                 drop(instances);
                 cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
                 return Err("Application is shutting down".to_string());

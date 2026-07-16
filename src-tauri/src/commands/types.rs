@@ -339,7 +339,7 @@ impl MaaState {
     /// 句柄先从共享状态中取出，避免在可能阻塞的原生调用期间持有 instances 锁。
     /// 该操作可重复调用；首轮清理后，后续调用不会再取得任何句柄。
     pub fn cleanup_all_agents(&self) {
-        self.agent_shutdown_requested.store(true, Ordering::SeqCst);
+        self.agent_shutdown_requested.store(true, Ordering::Relaxed);
 
         let _lifecycle_guard = match self.agent_lifecycle_lock.lock() {
             Ok(guard) => guard,
@@ -452,7 +452,7 @@ impl MaaState {
         };
 
         for (identifier, pending_agent) in pending_agents {
-            pending_agent.cancelled.store(true, Ordering::SeqCst);
+            pending_agent.cancelled.store(true, Ordering::Relaxed);
             let child = match pending_agent.child.lock() {
                 Ok(mut slot) => slot.take(),
                 Err(poisoned) => {
@@ -490,20 +490,27 @@ fn remove_pending_agent_socket(identifier: &str) {
         return;
     }
 
+    let mut socket_dirs = vec![std::env::temp_dir()];
     #[cfg(windows)]
-    let socket_dir = PathBuf::from("C:/Temp");
-    #[cfg(not(windows))]
-    let socket_dir = std::env::temp_dir();
+    {
+        // MaaFramework 在 Windows 上使用该 IPC 兼容目录。
+        let legacy_dir = PathBuf::from("C:/Temp");
+        if !socket_dirs.contains(&legacy_dir) {
+            socket_dirs.push(legacy_dir);
+        }
+    }
 
-    let socket_path = socket_dir.join(format!("maafw-agent-{}.sock", identifier));
-    match std::fs::remove_file(&socket_path) {
-        Ok(()) => log::info!("Removed pending agent socket: {:?}", socket_path),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => log::warn!(
-            "Failed to remove pending agent socket {:?}: {}",
-            socket_path,
-            e
-        ),
+    for socket_dir in socket_dirs {
+        let socket_path = socket_dir.join(format!("maafw-agent-{}.sock", identifier));
+        match std::fs::remove_file(&socket_path) {
+            Ok(()) => log::info!("Removed pending agent socket: {:?}", socket_path),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => log::warn!(
+                "Failed to remove pending agent socket {:?}: {}",
+                socket_path,
+                e
+            ),
+        }
     }
 }
 

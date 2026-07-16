@@ -5,7 +5,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -169,6 +170,33 @@ pub struct AllInstanceStates {
     pub cached_wlroots_sockets: Vec<String>,
 }
 
+pub(crate) const AGENT_DISCONNECT_TIMEOUT_MS: i64 = 1_000;
+
+pub(crate) fn terminate_agent_child(mut child: Child) {
+    if matches!(child.try_wait(), Ok(Some(_))) {
+        return;
+    }
+    if child.kill().is_ok() {
+        let _ = child.wait();
+    }
+}
+
+pub(crate) struct PendingAgentState {
+    pub(crate) instance_id: String,
+    pub(crate) child: Mutex<Option<Child>>,
+    pub(crate) cancelled: AtomicBool,
+}
+
+impl PendingAgentState {
+    pub(crate) fn new(instance_id: String) -> Self {
+        Self {
+            instance_id,
+            child: Mutex::new(None),
+            cancelled: AtomicBool::new(false),
+        }
+    }
+}
+
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
 #[derive(Default)]
 pub struct InstanceRuntime {
@@ -192,15 +220,16 @@ pub struct InstanceRuntime {
 impl Drop for InstanceRuntime {
     fn drop(&mut self) {
         // 断开并销毁所有 agent
-        for client in &self.agent_clients {
-            let _ = client.disconnect();
+        for client in &mut self.agent_clients {
+            if client.set_timeout(AGENT_DISCONNECT_TIMEOUT_MS).is_ok() {
+                let _ = client.disconnect();
+            }
         }
         self.agent_clients.clear();
 
         // 终止并回收所有 agent 子进程
-        for mut child in self.agent_children.drain(..) {
-            let _ = child.kill();
-            let _ = child.wait();
+        for child in self.agent_children.drain(..) {
+            terminate_agent_child(child);
         }
 
         if let Some(tasker) = self.tasker.take() {
@@ -282,6 +311,12 @@ pub struct MaaState {
     pub lib_dir: Mutex<Option<PathBuf>>,
     pub resource_dir: Mutex<Option<PathBuf>>,
     pub instances: Mutex<HashMap<String, InstanceRuntime>>,
+    /// 串行化 Agent 句柄的转移与清理，确保退出流程能等待正在进行的 stop。
+    pub agent_lifecycle_lock: Mutex<()>,
+    /// 应用已进入退出清理阶段，不再接受新的 Agent 句柄写回。
+    pub agent_shutdown_requested: AtomicBool,
+    /// 已生成子进程、但尚未完成连接并写回 InstanceRuntime 的 Agent。
+    pub(crate) pending_agent_children: Mutex<HashMap<String, Arc<PendingAgentState>>>,
     /// 前置程序停止请求（用于中断等待退出）
     pub pre_action_stop_requests: Mutex<HashSet<String>>,
     /// Controller 连接池：相同配置的 Controller 复用同一个 MaaControllerHandle
@@ -299,24 +334,176 @@ pub struct MaaState {
 }
 
 impl MaaState {
-    /// 清理所有实例的 agent 子进程
-    pub fn cleanup_all_agent_children(&self) {
-        if let Ok(mut instances) = self.instances.lock() {
-            for (id, instance) in instances.iter_mut() {
-                for mut child in instance.agent_children.drain(..) {
-                    log::info!("Killing agent child process for instance: {}", id);
-                    if let Err(e) = child.kill() {
+    /// 销毁所有 AgentClient，然后终止对应的子进程。
+    ///
+    /// 句柄先从共享状态中取出，避免在可能阻塞的原生调用期间持有 instances 锁。
+    /// 该操作可重复调用；首轮清理后，后续调用不会再取得任何句柄。
+    pub fn cleanup_all_agents(&self) {
+        self.agent_shutdown_requested.store(true, Ordering::SeqCst);
+
+        let _lifecycle_guard = match self.agent_lifecycle_lock.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                log::warn!("Agent lifecycle lock was poisoned; continuing agent cleanup");
+                poisoned.into_inner()
+            }
+        };
+
+        let agents = {
+            let mut instances = match self.instances.lock() {
+                Ok(instances) => instances,
+                Err(poisoned) => {
+                    log::warn!("MaaState instances lock was poisoned; continuing agent cleanup");
+                    poisoned.into_inner()
+                }
+            };
+
+            instances
+                .iter_mut()
+                .filter_map(|(id, instance)| {
+                    let clients = std::mem::take(&mut instance.agent_clients);
+                    let children = std::mem::take(&mut instance.agent_children);
+
+                    if clients.is_empty() && children.is_empty() {
+                        None
+                    } else {
+                        Some((id.clone(), clients, children))
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+
+        for (id, clients, children) in agents {
+            log::info!(
+                "Cleaning up {} agent client(s) and {} child process(es) for instance: {}",
+                clients.len(),
+                children.len(),
+                id
+            );
+
+            // 退出流程不能受 Agent 配置中的无限 RPC timeout 阻塞。直接 Drop 会销毁
+            // MaaFramework Transceiver 并删除 IPC socket，随后再强制终止服务端进程。
+            drop(clients);
+
+            for mut child in children {
+                match child.try_wait() {
+                    Ok(Some(_)) => continue,
+                    Ok(None) => {}
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to query agent child process for instance {}: {:?}",
+                            id,
+                            e
+                        );
+                    }
+                }
+
+                match child.kill() {
+                    Ok(()) => {
+                        // kill 成功后回收子进程，避免 *nix 上产生僵尸进程。
+                        let _ = child.wait();
+                    }
+                    Err(e) => {
+                        // kill 失败时不再无界 wait，避免把应用退出永久卡住。
                         log::warn!(
                             "Failed to kill agent child process for instance {}: {:?}",
                             id,
                             e
                         );
                     }
-                    // 回收子进程，避免 *nix 上产生僵尸进程
-                    let _ = child.wait();
                 }
             }
         }
+
+        self.cleanup_pending_agents(None);
+    }
+
+    /// 清理全部 pending Agent，或仅清理指定实例的 pending Agent。
+    /// 调用方必须持有 agent_lifecycle_lock，防止端点创建与筛选交错。
+    pub(crate) fn cleanup_pending_agents(&self, instance_id: Option<&str>) {
+        let pending_agents = {
+            let mut pending = match self.pending_agent_children.lock() {
+                Ok(pending) => pending,
+                Err(poisoned) => {
+                    log::warn!(
+                        "Pending agent children lock was poisoned; continuing agent cleanup"
+                    );
+                    poisoned.into_inner()
+                }
+            };
+
+            if let Some(instance_id) = instance_id {
+                let identifiers = pending
+                    .iter()
+                    .filter(|(_, state)| state.instance_id == instance_id)
+                    .map(|(identifier, _)| identifier.clone())
+                    .collect::<Vec<_>>();
+                identifiers
+                    .into_iter()
+                    .filter_map(|identifier| {
+                        pending
+                            .remove(&identifier)
+                            .map(|state| (identifier, state))
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                pending.drain().collect::<Vec<_>>()
+            }
+        };
+
+        for (identifier, pending_agent) in pending_agents {
+            pending_agent.cancelled.store(true, Ordering::SeqCst);
+            let child = match pending_agent.child.lock() {
+                Ok(mut slot) => slot.take(),
+                Err(poisoned) => {
+                    log::warn!(
+                        "Pending agent child lock was poisoned for identifier: {}",
+                        identifier
+                    );
+                    poisoned.into_inner().take()
+                }
+            };
+
+            if let Some(child) = child {
+                log::info!(
+                    "Terminating pending agent child process for identifier: {}",
+                    identifier
+                );
+                terminate_agent_child(child);
+            }
+
+            remove_pending_agent_socket(&identifier);
+        }
+    }
+}
+
+fn remove_pending_agent_socket(identifier: &str) {
+    // TCP identifier 是纯数字端口，不存在 socket 文件。
+    if identifier.parse::<u16>().is_ok() {
+        return;
+    }
+    if !identifier
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+    {
+        log::warn!("Skipping invalid pending agent identifier: {}", identifier);
+        return;
+    }
+
+    #[cfg(windows)]
+    let socket_dir = PathBuf::from("C:/Temp");
+    #[cfg(not(windows))]
+    let socket_dir = std::env::temp_dir();
+
+    let socket_path = socket_dir.join(format!("maafw-agent-{}.sock", identifier));
+    match std::fs::remove_file(&socket_path) {
+        Ok(()) => log::info!("Removed pending agent socket: {:?}", socket_path),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => log::warn!(
+            "Failed to remove pending agent socket {:?}: {}",
+            socket_path,
+            e
+        ),
     }
 }
 

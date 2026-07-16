@@ -1,6 +1,7 @@
 import type { SavedTask } from '@/types/config';
 import type { ActionConfig, Instance, OptionValue } from '@/types/interface';
 import { isTauri } from '@/utils/paths';
+import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
 import { toast } from 'sonner';
 
 const PROTOCOL_SEGMENT = 'tab-sharing';
@@ -35,6 +36,7 @@ interface WireTask {
   tn: string; // taskName
   cn?: string; // customName
   e: boolean; // enabled
+  ec?: Record<string, boolean>; // enabledByController
   ov: Record<string, WireOptionValue>; // optionValues
 }
 
@@ -85,6 +87,7 @@ function encodeTask(task: SavedTask): WireTask {
     ),
   };
   if (task.customName !== undefined) wire.cn = task.customName;
+  if (task.enabledByController !== undefined) wire.ec = task.enabledByController;
   return wire;
 }
 
@@ -137,6 +140,7 @@ function decodeTask(w: WireTask): SavedTask {
     taskName: w.tn,
     customName: w.cn,
     enabled: w.e,
+    enabledByController: w.ec,
     optionValues: Object.fromEntries(
       Object.entries(w.ov).map(([k, v]) => [k, decodeOptionValue(v)]),
     ),
@@ -256,6 +260,11 @@ export async function buildTabConfigExportText(
       taskName: t.taskName,
       customName: t.customName,
       enabled: t.enabled,
+      enabledByController: cacheTaskEnabledForController(
+        t.enabledByController,
+        instance.controllerName,
+        t.enabled,
+      ),
       optionValues: t.optionValues,
     })),
     preActions: instance.preActions,

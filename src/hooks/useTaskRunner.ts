@@ -177,6 +177,7 @@ export function useTaskRunner() {
         registerTaskIdName,
         registerEntryTaskName,
         addLog,
+        clearLogs,
         collapseAllTasks,
         interfaceTranslations,
         language,
@@ -200,6 +201,9 @@ export function useTaskRunner() {
         log.warn(`实例 ${targetInstance.name} 正在运行中`);
         return false;
       }
+
+      // 本次运行开始，清空上一轮遗留日志（任务结束断开时不再清空）
+      clearLogs(targetId);
 
       // 获取控制器和资源配置
       const controllerName = selectedController[targetId] || projectInterface?.controller[0]?.name;

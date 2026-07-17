@@ -373,6 +373,7 @@ export const useAppStore = create<AppState>()(
 
     removeInstance: (id) => {
       get().clearControllerRuntimeState(id);
+      get().clearLogs(id);
 
       set((state) => {
         const instanceToClose = state.instances.find((i) => i.id === id);
@@ -1996,7 +1997,6 @@ export const useAppStore = create<AppState>()(
     },
 
     clearControllerRuntimeState: (instanceId) => {
-      get().clearLogs(instanceId);
       get().clearTaskRunStatus(instanceId);
 
       set((state) => {

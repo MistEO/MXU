@@ -30,6 +30,7 @@ export function useDeviceConnection({
     setInstanceResourceLoaded,
     setInstanceSavedDevice,
     registerCtrlIdName,
+    clearLogs,
     instances,
   } = useAppStore();
 
@@ -64,6 +65,8 @@ export function useDeviceConnection({
   // 连接控制器的内部实现
   const connectControllerInternal = useCallback(
     async (config: ControllerConfig, deviceName: string, targetType: 'device' | 'window') => {
+      // 新一轮连接开始，清空上一轮遗留日志（任务结束断开时不再清空）
+      clearLogs(instanceId);
       await startGlobalCallbackListener();
       const ctrlId = await maaService.connectController(instanceId, config);
 
@@ -84,7 +87,7 @@ export function useDeviceConnection({
         return false;
       }
     },
-    [instanceId, registerCtrlIdName, setInstanceConnectionStatus, t],
+    [instanceId, registerCtrlIdName, setInstanceConnectionStatus, clearLogs, t],
   );
 
   // 搜索设备

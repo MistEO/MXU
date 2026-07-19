@@ -171,6 +171,13 @@ export default {
       optionLabel: '요청 설정',
       urlLabel: '요청 URL',
       urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
+      methodLabel: '요청 방식',
+      methodGet: 'GET',
+      methodPost: 'POST',
+      headersLabel: '요청 헤더',
+      headersPlaceholder: 'JSON 입력 (예: {"Authorization":"Bearer xxx"})',
+      bodyLabel: '요청 본문 (POST 사용 시)',
+      bodyPlaceholder: 'JSON 요청 본문을 입력하세요 (예: {"key":"value"})',
     },
     killProc: {
       label: '⛔ 프로세스 종료',
@@ -339,6 +346,7 @@ export default {
     incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
     hotkeyPlaceholder: '클릭하여 단축키 입력',
     hotkeyCapturing: '키를 누르세요...',
+    invalidJson: 'JSON 형식이 올바르지 않습니다',
   },
 
   // 프리셋

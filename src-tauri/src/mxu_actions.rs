@@ -6,7 +6,12 @@ use chrono::TimeZone;
 use log::{info, warn};
 use maa_framework::custom::FnAction;
 use maa_framework::resource::Resource;
-use serde::Serialize;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Method, Url};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 // ============================================================================
@@ -314,16 +319,130 @@ fn mxu_launch_action_fn(
 /// MXU_WEBHOOK 动作名称常量
 const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 
+#[derive(Debug, Deserialize)]
+struct WebhookConfig {
+    url: String,
+    #[serde(default)]
+    method: Option<String>,
+    #[serde(default)]
+    headers: HashMap<String, String>,
+    #[serde(default)]
+    body: Option<Value>,
+    #[serde(default)]
+    json: Option<Value>,
+    #[serde(default)]
+    body_template: Option<Value>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    timeout_secs: Option<u64>,
+    #[serde(default)]
+    fail_on_non_success: Option<bool>,
+}
+
+struct WebhookPlaceholders {
+    title: String,
+    content: String,
+    time: String,
+}
+
+fn parse_webhook_method(method: Option<&str>, has_body: bool) -> Result<Method, String> {
+    let method = method
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_ascii_uppercase)
+        .unwrap_or_else(|| {
+            // 有 body 時預設使用 POST，避免 Discord webhook 這類服務被誤送成 GET。
+            if has_body {
+                "POST".to_string()
+            } else {
+                "GET".to_string()
+            }
+        });
+
+    Method::from_bytes(method.as_bytes())
+        .map_err(|e| format!("invalid HTTP method '{}': {}", method, e))
+}
+
+fn build_webhook_headers(headers: HashMap<String, String>) -> Result<HeaderMap, String> {
+    let mut header_map = HeaderMap::new();
+
+    for (name, value) in headers {
+        let name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|e| format!("invalid header name '{}': {}", name, e))?;
+        let value = HeaderValue::from_str(&value)
+            .map_err(|e| format!("invalid header value for '{}': {}", name, e))?;
+        header_map.insert(name, value);
+    }
+
+    Ok(header_map)
+}
+
+fn sanitize_webhook_url(url: &Url) -> String {
+    let Some(host) = url.host_str() else {
+        return "<invalid-url>".to_string();
+    };
+
+    let authority = match url.port() {
+        Some(port) => format!("{}:{}", host, port),
+        None => host.to_string(),
+    };
+
+    // Webhook token 通常藏在 path 或 query，日志只保留 scheme + host。
+    format!("{}://{}/...", url.scheme(), authority)
+}
+
+fn build_webhook_placeholders(title: Option<String>, content: Option<String>) -> WebhookPlaceholders {
+    WebhookPlaceholders {
+        // title 通常會出現在單行通知標題，移除換行可避免破壞部分服務的欄位格式。
+        title: title
+            .unwrap_or_else(|| "MXU".to_string())
+            .replace('\r', "")
+            .replace('\n', ""),
+        // content 保留換行，交由 JSON serializer 正確轉義。
+        content: content.unwrap_or_default().replace('\r', ""),
+        time: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+    }
+}
+
+fn replace_webhook_placeholders(input: &str, placeholders: &WebhookPlaceholders) -> String {
+    input
+        .replace("{title}", &placeholders.title)
+        .replace("{content}", &placeholders.content)
+        .replace("{time}", &placeholders.time)
+}
+
+fn render_webhook_template(value: Value, placeholders: &WebhookPlaceholders) -> Value {
+    match value {
+        Value::String(value) => Value::String(replace_webhook_placeholders(&value, placeholders)),
+        Value::Array(values) => Value::Array(
+            values
+                .into_iter()
+                .map(|value| render_webhook_template(value, placeholders))
+                .collect(),
+        ),
+        Value::Object(values) => Value::Object(
+            values
+                .into_iter()
+                .map(|(key, value)| (key, render_webhook_template(value, placeholders)))
+                .collect(),
+        ),
+        value => value,
+    }
+}
+
 /// MXU_WEBHOOK custom action 回调函数
-/// 从 custom_action_param 中读取 url，执行 HTTP GET 请求
+/// 从 custom_action_param 中读取 url/method/headers/body_template，执行 HTTP 请求
 fn mxu_webhook_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
 ) -> bool {
     let param_str = args.param;
-    info!("[MXU_WEBHOOK] Received param: {}", param_str);
+    info!("[MXU_WEBHOOK] Received webhook param");
 
-    let json: serde_json::Value = match serde_json::from_str(param_str) {
+    let config: WebhookConfig = match serde_json::from_str(param_str) {
         Ok(v) => v,
         Err(e) => {
             warn!("[MXU_WEBHOOK] Failed to parse param JSON: {}", e);
@@ -331,18 +450,62 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    let url = match json.get("url").and_then(|v| v.as_str()) {
-        Some(u) if !u.trim().is_empty() => u.to_string(),
-        _ => {
-            warn!("[MXU_WEBHOOK] Missing or empty 'url' parameter");
+    let WebhookConfig {
+        url,
+        method,
+        headers,
+        body,
+        json,
+        body_template,
+        title,
+        content,
+        timeout_secs,
+        fail_on_non_success,
+    } = config;
+
+    let url = match Url::parse(url.trim()) {
+        Ok(value) => value,
+        Err(e) => {
+            warn!("[MXU_WEBHOOK] Invalid url: {}", e);
             return false;
         }
     };
 
-    info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
+    let body = match body_template {
+        Some(template) => {
+            let placeholders = build_webhook_placeholders(title, content);
+            Some(render_webhook_template(template, &placeholders))
+        }
+        None => body.or(json),
+    };
+
+    let method = match parse_webhook_method(method.as_deref(), body.is_some()) {
+        Ok(value) => value,
+        Err(e) => {
+            warn!("[MXU_WEBHOOK] {}", e);
+            return false;
+        }
+    };
+
+    let headers = match build_webhook_headers(headers) {
+        Ok(value) => value,
+        Err(e) => {
+            warn!("[MXU_WEBHOOK] {}", e);
+            return false;
+        }
+    };
+
+    let timeout_secs = timeout_secs.unwrap_or(10).clamp(1, 300);
+    let fail_on_non_success = fail_on_non_success.unwrap_or(true);
+    let safe_url = sanitize_webhook_url(&url);
+
+    info!(
+        "[MXU_WEBHOOK] Sending {} request to {} with timeout={}s",
+        method, safe_url, timeout_secs
+    );
 
     let client = match reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(Duration::from_secs(timeout_secs))
         .build()
     {
         Ok(c) => c,
@@ -352,15 +515,26 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    match client.get(&url).send() {
+    let request = client.request(method, url).headers(headers);
+    let request = match body {
+        Some(Value::Null) | None => request,
+        Some(Value::String(value)) => request.body(value),
+        Some(value) => request.json(&value),
+    };
+
+    match request.send() {
         Ok(resp) => {
             let status = resp.status();
             info!("[MXU_WEBHOOK] Response status: {}", status);
+
             if status.is_success() {
                 true
-            } else {
+            } else if fail_on_non_success {
                 warn!("[MXU_WEBHOOK] Non-success status code: {}", status);
-                true // 仍然返回成功，只要请求发出去了
+                false
+            } else {
+                warn!("[MXU_WEBHOOK] Non-success status code ignored: {}", status);
+                true
             }
         }
         Err(e) => {
@@ -729,12 +903,11 @@ fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
         use winsafe::co::SC;
-        use winsafe::msg::WmSysCommand;
+        use winsafe::msg::wm;
         use winsafe::{HWND, POINT};
         unsafe {
             // NOTE: POINT::from(2) is equal to LPARAM(2)
-
-            HWND::BROADCAST.SendMessage(WmSysCommand {
+            HWND::BROADCAST.SendMessage(wm::SysCommand {
                 request: SC::MONITORPOWER,
                 position: POINT::from(2),
             });

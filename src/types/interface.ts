@@ -211,6 +211,12 @@ export interface InputItem {
   input_type?: 'text' | 'file' | 'time';
   /** MXU 扩展：输入框占位提示文本（i18n key） */
   placeholder?: string;
+  /** MXU 扩展：下拉选择项（渲染为 select 而非 input），label 支持 i18n key */
+  options?: { value: string; label: string }[];
+  /** MXU 扩展：条件禁用，格式 "fieldName=value"，同组字段值匹配时该输入被禁用 */
+  disabled_when?: string;
+  /** MXU 扩展：启用 JSON 格式校验，输入内容必须是合法 JSON */
+  validate_json?: boolean;
 }
 
 export interface SelectOption {

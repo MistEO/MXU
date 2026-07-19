@@ -315,7 +315,7 @@ fn mxu_launch_action_fn(
 const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 
 /// MXU_WEBHOOK custom action 回调函数
-/// 从 custom_action_param 中读取 url，执行 HTTP GET 请求
+/// 从 custom_action_param 中读取 url、method、headers 和 body，执行 HTTP 请求
 fn mxu_webhook_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -339,7 +339,34 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
+    let method = json
+        .get("method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("GET")
+        .to_uppercase();
+
+    let headers_str = json.get("headers").and_then(|v| v.as_str()).unwrap_or("");
+    let body = json.get("body").and_then(|v| v.as_str()).unwrap_or("");
+
+    // 解析 headers JSON
+    let headers_map: Option<serde_json::Map<String, serde_json::Value>> =
+        if !headers_str.trim().is_empty() {
+            match serde_json::from_str::<serde_json::Value>(headers_str) {
+                Ok(serde_json::Value::Object(m)) => Some(m),
+                Ok(_) => {
+                    warn!("[MXU_WEBHOOK] Headers is not a JSON object, ignoring");
+                    None
+                }
+                Err(e) => {
+                    warn!("[MXU_WEBHOOK] Failed to parse headers JSON: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+    info!("[MXU_WEBHOOK] Sending {} request to: {}", method, url);
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -352,7 +379,42 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    match client.get(&url).send() {
+    let send_result = match method.as_str() {
+        "POST" => {
+            let mut req = client.post(&url);
+            let mut has_content_type = false;
+            if let Some(ref map) = headers_map {
+                for (k, v) in map {
+                    if let Some(val) = v.as_str() {
+                        if k.eq_ignore_ascii_case("content-type") {
+                            has_content_type = true;
+                        }
+                        req = req.header(k.as_str(), val);
+                    }
+                }
+            }
+            if !body.is_empty() {
+                if !has_content_type {
+                    req = req.header("Content-Type", "application/json");
+                }
+                req = req.body(body.to_string());
+            }
+            req.send()
+        }
+        _ => {
+            let mut req = client.get(&url);
+            if let Some(ref map) = headers_map {
+                for (k, v) in map {
+                    if let Some(val) = v.as_str() {
+                        req = req.header(k.as_str(), val);
+                    }
+                }
+            }
+            req.send()
+        }
+    };
+
+    match send_result {
         Ok(resp) => {
             let status = resp.status();
             info!("[MXU_WEBHOOK] Response status: {}", status);

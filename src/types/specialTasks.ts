@@ -316,7 +316,7 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   },
 };
 
-// MXU_WEBHOOK 输入选项定义（URL）
+// MXU_WEBHOOK 输入选项定义（URL、Method、Headers、Body）
 const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
   type: 'input',
   label: 'specialTask.webhook.optionLabel',
@@ -328,11 +328,41 @@ const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
       pipeline_type: 'string',
       placeholder: 'specialTask.webhook.urlPlaceholder',
     },
+    {
+      name: 'method',
+      label: 'specialTask.webhook.methodLabel',
+      default: 'GET',
+      pipeline_type: 'string',
+      options: [
+        { value: 'GET', label: 'specialTask.webhook.methodGet' },
+        { value: 'POST', label: 'specialTask.webhook.methodPost' },
+      ],
+    },
+    {
+      name: 'headers',
+      label: 'specialTask.webhook.headersLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.headersPlaceholder',
+      validate_json: true,
+    },
+    {
+      name: 'body',
+      label: 'specialTask.webhook.bodyLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.bodyPlaceholder',
+      disabled_when: 'method=GET',
+      validate_json: true,
+    },
   ],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       custom_action_param: {
         url: '{url}',
+        method: '{method}',
+        headers: '{headers}',
+        body: '{body}',
       },
     },
   },

@@ -191,7 +191,20 @@ function OptionDescription({
   );
 }
 
-/** 输入字段组件，支持验证 */
+/** 解析 disabled_when 表达式（格式 "fieldName=value"），判断是否应禁用 */
+function isInputDisabledByCondition(
+  disabledWhen: string | undefined,
+  siblingValues: Record<string, string>,
+): boolean {
+  if (!disabledWhen) return false;
+  const eqIdx = disabledWhen.indexOf('=');
+  if (eqIdx < 0) return false;
+  const fieldName = disabledWhen.slice(0, eqIdx);
+  const expectedValue = disabledWhen.slice(eqIdx + 1);
+  return siblingValues[fieldName] === expectedValue;
+}
+
+/** 输入字段组件，支持验证、下拉选择和条件禁用 */
 function InputField({
   input,
   value,
@@ -200,6 +213,7 @@ function InputField({
   resolveI18nText,
   basePath,
   disabled,
+  siblingValues,
   isMxuOption = false,
   isHotkey = false,
   t,
@@ -211,6 +225,7 @@ function InputField({
   resolveI18nText: (text: string | undefined, lang: string) => string;
   basePath: string;
   disabled?: boolean;
+  siblingValues?: Record<string, string>;
   isMxuOption?: boolean;
   isHotkey?: boolean;
   t?: (key: string) => string;
@@ -239,19 +254,39 @@ function InputField({
         : input.default || undefined
       : resolveI18nText(input.placeholder, langKey) || input.default || undefined;
 
+  // 条件禁用
+  const conditionallyDisabled = isInputDisabledByCondition(
+    input.disabled_when,
+    siblingValues || {},
+  );
+  const effectiveDisabled = disabled || conditionallyDisabled;
+
   // 验证输入
   const validationError = useMemo(() => {
-    if (!input.verify || !value) return null;
-    try {
-      const regex = new RegExp(input.verify);
-      if (!regex.test(value)) {
-        return patternMsg || `输入不符合格式要求`;
+    if (!value) return null;
+
+    // JSON 格式校验
+    if (input.validate_json) {
+      try {
+        JSON.parse(value);
+      } catch {
+        return t?.('optionEditor.invalidJson') || 'Invalid JSON format';
       }
-    } catch {
-      // 正则无效，跳过验证
+    }
+
+    // 正则校验
+    if (input.verify) {
+      try {
+        const regex = new RegExp(input.verify);
+        if (!regex.test(value)) {
+          return patternMsg || `输入不符合格式要求`;
+        }
+      } catch {
+        // 正则无效，跳过验证
+      }
     }
     return null;
-  }, [input.verify, value, patternMsg]);
+  }, [input.verify, input.validate_json, value, patternMsg, t]);
 
   return (
     <div className="space-y-1">
@@ -276,22 +311,46 @@ function InputField({
             value={value}
             onChange={onChange}
             placeholder={inputPlaceholder}
-            disabled={disabled}
+            disabled={effectiveDisabled}
             className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
+        ) : input.options ? (
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={effectiveDisabled}
+            className={clsx(
+              'px-3 py-1.5 text-sm rounded-md border appearance-none',
+              'bg-bg-secondary text-text-primary',
+              'focus:outline-none focus:ring-1',
+              effectiveDisabled && 'opacity-60 cursor-not-allowed',
+              'border-border focus:border-accent focus:ring-accent/20',
+              'min-w-[min(12rem,100%)] flex-1 basis-[30%]',
+            )}
+          >
+            {input.options.map((opt) => {
+              const optLabel =
+                isMxuOption && t ? t(opt.label) : resolveI18nText(opt.label, langKey) || opt.label;
+              return (
+                <option key={opt.value} value={opt.value}>
+                  {optLabel}
+                </option>
+              );
+            })}
+          </select>
         ) : input.input_type === 'file' ? (
           <FileInput
             value={value}
             onChange={onChange}
             placeholder={inputPlaceholder}
-            disabled={disabled}
+            disabled={effectiveDisabled}
             className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : input.input_type === 'time' ? (
           <TimeInput
             value={value}
             onChange={onChange}
-            disabled={disabled}
+            disabled={effectiveDisabled}
             className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : (
@@ -299,7 +358,7 @@ function InputField({
             value={value}
             onChange={onChange}
             placeholder={inputPlaceholder}
-            disabled={disabled}
+            disabled={effectiveDisabled}
             hasError={!!validationError}
             className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
             type={input.pipeline_type === 'int' ? 'number' : 'text'}
@@ -611,32 +670,40 @@ export function OptionEditor({
             translations={translations}
           />
         </div>
-        {fields.map((input) => {
-          const inputValue = inputValues[input.name] ?? input.default ?? '';
-          const isHotkey = optionDef.type === 'hotkey';
+        {(() => {
+          // 构建包含默认值的完整兄弟字段值映射，用于 disabled_when 条件判断
+          const fullValues: Record<string, string> = {};
+          for (const f of fields) {
+            fullValues[f.name] = inputValues[f.name] ?? f.default ?? '';
+          }
+          return fields.map((input) => {
+            const inputValue = fullValues[input.name] ?? '';
+            const isHotkey = optionDef.type === 'hotkey';
 
-          return (
-            <InputField
-              key={input.name}
-              input={input}
-              value={inputValue}
-              isHotkey={isHotkey}
-              onChange={(newVal) => {
-                if (effectiveDisabled) return;
-                commitOptionValue({
-                  type: isHotkey ? 'hotkey' : 'input',
-                  values: { ...inputValues, [input.name]: newVal },
-                });
-              }}
-              langKey={langKey}
-              resolveI18nText={resolveI18nText}
-              basePath={basePath}
-              disabled={effectiveDisabled}
-              isMxuOption={isMxuOption}
-              t={t}
-            />
-          );
-        })}
+            return (
+              <InputField
+                key={input.name}
+                input={input}
+                value={inputValue}
+                isHotkey={isHotkey}
+                onChange={(newVal) => {
+                  if (effectiveDisabled) return;
+                  commitOptionValue({
+                    type: isHotkey ? 'hotkey' : 'input',
+                    values: { ...inputValues, [input.name]: newVal },
+                  });
+                }}
+                langKey={langKey}
+                resolveI18nText={resolveI18nText}
+                basePath={basePath}
+                disabled={effectiveDisabled}
+                siblingValues={fullValues}
+                isMxuOption={isMxuOption}
+                t={t}
+              />
+            );
+          });
+        })()}
       </div>
     );
   }

@@ -627,7 +627,17 @@ pub async fn run_pretask(
         instance_id, program, args, cwd
     );
 
-    let mut cmd = super::utils::build_launch_command(&program, &args, false);
+    // Windows 下相对可执行路径会相对“父进程当前目录”解析，而非下方设置的 `current_dir`，
+    // 因此必须先基于 cwd 把相对 exec（如 `agent/go-service`）拼成绝对路径，复用 Agent
+    // 启动时相同的解析逻辑，避免出现“系统找不到指定的路径 (os error 3)”。
+    let resolved_program = match cwd {
+        Some(ref dir) => super::maa_agent::resolve_child_exec_path(&program, dir)
+            .to_string_lossy()
+            .into_owned(),
+        None => program.clone(),
+    };
+
+    let mut cmd = super::utils::build_launch_command(&resolved_program, &args, false);
 
     // 设置工作目录
     if let Some(ref dir) = cwd {

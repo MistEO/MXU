@@ -228,7 +228,8 @@ export default {
         'ウィンドウが未設定のため、「{{name}}」を自動的に選択しました。変更する場合は接続設定で手動選択してください。次回以降は選択内容が保存されます。',
       resourceFailed: 'リソースの読み込みに失敗しました',
       startFailed: 'タスクの開始に失敗しました',
-      workstationLocked: 'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
+      workstationLocked:
+        'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
       agentStartParams: 'Agent #{{index}} 起動パラメータ: {{cmd}}  (作業ディレクトリ: {{cwd}})',
       agentSpawnHintFileNotFound:
         'Agent がセキュリティソフトにブロックされていないか確認し、問題なければ上書き再インストールしてください。',

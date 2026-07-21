@@ -38,6 +38,7 @@ import {
   savePendingUpdateInfo,
   getPendingUpdateInfo,
   clearPendingUpdateInfo,
+  getFallbackPendingInfo,
   isDebugVersion,
 } from '@/services/updateService';
 import { useTranslation } from 'react-i18next';
@@ -112,6 +113,11 @@ const LazyDashboardView = lazy(async () => {
 const LazyInstallConfirmModal = lazy(async () => {
   const module = await import('@/components/InstallConfirmModal');
   return { default: module.InstallConfirmModal };
+});
+
+const LazyFallbackRecoveryModal = lazy(async () => {
+  const module = await import('@/components/FallbackRecoveryModal');
+  return { default: module.FallbackRecoveryModal };
 });
 
 const LazyVCRedistModal = lazy(async () => {
@@ -192,6 +198,7 @@ function App() {
     setJustUpdatedInfo,
     setShowInstallConfirmModal,
     showInstallConfirmModal,
+    showFallbackRecoveryModal,
     updateInfo,
     downloadStatus,
     setShowUpdateDialog,
@@ -234,6 +241,7 @@ function App() {
       setJustUpdatedInfo: state.setJustUpdatedInfo,
       setShowInstallConfirmModal: state.setShowInstallConfirmModal,
       showInstallConfirmModal: state.showInstallConfirmModal,
+      showFallbackRecoveryModal: state.showFallbackRecoveryModal,
       updateInfo: state.updateInfo,
       downloadStatus: state.downloadStatus,
       setShowUpdateDialog: state.setShowUpdateDialog,
@@ -893,6 +901,17 @@ function App() {
           );
         }, 500);
       };
+
+      // 检查上次自动更新是否失败并进入兜底（兜底文件夹仍存在=未手动完成覆盖）
+      // 优先于其它更新流程处理：强制提示用户修复损坏的安装，本次跳过自动更新检查
+      const fallbackPending = await getFallbackPendingInfo();
+      if (fallbackPending) {
+        log.warn('检测到上次更新未完成（兜底文件夹仍存在），强制提示手动修复:', fallbackPending);
+        useAppStore.getState().setFallbackRecoveryInfo(fallbackPending);
+        useAppStore.getState().setShowFallbackRecoveryModal(true);
+        focusWindow();
+        return;
+      }
 
       // 检查是否刚更新完成（重启后）
       const isAutoStartModeNow = useAppStore.getState().isAutoStartMode;
@@ -1721,6 +1740,11 @@ function App() {
               <LazyInstallConfirmModal />
             </Suspense>
           )}
+          {showFallbackRecoveryModal && (
+            <Suspense fallback={null}>
+              <LazyFallbackRecoveryModal />
+            </Suspense>
+          )}
           <div
             key="settings-page"
             className={`flex-1 min-h-0 flex flex-col ${isSettingsExiting ? 'page-slide-right-exit' : 'page-slide-right-enter'}`}
@@ -1822,6 +1846,11 @@ function App() {
         {showInstallConfirmModal && (
           <Suspense fallback={null}>
             <LazyInstallConfirmModal />
+          </Suspense>
+        )}
+        {showFallbackRecoveryModal && (
+          <Suspense fallback={null}>
+            <LazyFallbackRecoveryModal />
           </Suspense>
         )}
 

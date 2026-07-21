@@ -706,6 +706,16 @@ export default {
     updateCompleteMessage: 'Successfully updated to the latest version',
     previousVersion: 'Previous Version',
     gotIt: 'Got it',
+    // Fallback update recovery prompt (last auto-update failed and fell back, not yet manually applied)
+    fallbackRecovery: {
+      title: 'Last Update Not Completed',
+      message:
+        "The last auto-update did not finish properly. The new version files were extracted to the folder below but were not applied to the program directory, so the task list may be missing or features may not work.\nPlease close this program, copy everything inside the fallback folder over the program's directory (overwriting existing files), then reopen it.",
+      pathLabel: 'Fallback folder path:',
+      openFolder: 'Open Fallback Folder',
+      done: "I've Done It Manually",
+      hint: 'Tip: make sure to also replace MaaEnd.exe when overwriting. Once done you can delete the fallback folder, or click "I\'ve Done It Manually" to stop this prompt.',
+    },
     // MirrorChyan API error codes
     errors: {
       1001: 'Invalid parameters, please check configuration',

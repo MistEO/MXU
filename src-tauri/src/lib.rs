@@ -319,15 +319,25 @@ pub fn run() {
                         api.prevent_close();
                     }
                 }
-                // 窗口销毁时清理所有 agent 子进程
+                // 窗口销毁时提前清理所有 Agent；全局 Exit 事件会再次幂等兜底。
                 tauri::WindowEvent::Destroyed => {
-                    if let Some(state) = window.try_state::<Arc<MaaState>>() {
-                        state.cleanup_all_agent_children();
+                    if window.label() == "main" {
+                        if let Some(state) = window.try_state::<Arc<MaaState>>() {
+                            state.cleanup_all_agents();
+                        }
                     }
                 }
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 覆盖托盘退出、process 插件退出、管理员重启等不一定销毁窗口的路径。
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<Arc<MaaState>>() {
+                    state.cleanup_all_agents();
+                }
+            }
+        });
 }

@@ -1007,7 +1007,7 @@ async fn handle_stop_agent(
     State(state): State<WebState>,
     axum::extract::Path(instance_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match stop_agent_impl(&state.maa_state, &instance_id) {
+    match stop_agent_impl(state.maa_state.clone(), instance_id).await {
         Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

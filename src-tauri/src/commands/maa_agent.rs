@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -19,11 +20,82 @@ use maa_framework::controller::Controller;
 use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
-use super::types::{AgentConfig, MaaState, TaskConfig};
+use super::types::{
+    terminate_agent_child, AgentConfig, MaaState, PendingAgentState, TaskConfig,
+    AGENT_DISCONNECT_TIMEOUT_MS,
+};
 use super::utils::{emit_callback_event, get_logs_dir, handle_task_callback, normalize_path};
 use regex::Regex;
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
+
+const AGENT_STOP_TIMEOUT: Duration = Duration::from_secs(5);
+
+struct PendingAgent {
+    maa_state: Arc<MaaState>,
+    identifier: String,
+    state: Arc<PendingAgentState>,
+}
+
+impl PendingAgent {
+    fn register(maa_state: Arc<MaaState>, identifier: String, instance_id: String) -> Self {
+        let state = Arc::new(PendingAgentState::new(instance_id));
+        let mut pending = match maa_state.pending_agent_children.lock() {
+            Ok(pending) => pending,
+            Err(poisoned) => {
+                warn!("Pending agent children lock was poisoned; continuing registration");
+                poisoned.into_inner()
+            }
+        };
+        pending.insert(identifier.clone(), state.clone());
+        drop(pending);
+
+        Self {
+            maa_state,
+            identifier,
+            state,
+        }
+    }
+
+    fn set_child(&self, child: Child) -> Result<(), Child> {
+        if self.state.cancelled.load(Ordering::Relaxed) {
+            return Err(child);
+        }
+
+        let mut child_slot = match self.state.child.lock() {
+            Ok(child_slot) => child_slot,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if self.state.cancelled.load(Ordering::Relaxed) {
+            return Err(child);
+        }
+        *child_slot = Some(child);
+        Ok(())
+    }
+
+    fn take_child(&self) -> Option<Child> {
+        match self.state.child.lock() {
+            Ok(mut child) => child.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        }
+    }
+
+    fn terminate_child(&self) {
+        if let Some(child) = self.take_child() {
+            terminate_agent_child(child);
+        }
+    }
+}
+
+impl Drop for PendingAgent {
+    fn drop(&mut self) {
+        let mut pending = match self.maa_state.pending_agent_children.lock() {
+            Ok(pending) => pending,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        pending.remove(&self.identifier);
+    }
+}
 
 /// Agent 输出事件载荷
 #[derive(Clone, serde::Serialize)]
@@ -289,17 +361,28 @@ async fn start_single_agent(
     agent: AgentConfig,
     agent_index: usize,
     instance_id: String,
+    maa_state: Arc<MaaState>,
     cwd: String,
     tcp_compat_mode: bool,
     resource: Resource,
     controller: Controller,
     tasker: Tasker,
     pi_envs: Arc<HashMap<String, String>>,
-) -> Result<(AgentClient, std::process::Child), String> {
+) -> Result<(AgentClient, PendingAgent), String> {
     info!("[agent#{}] Starting agent: {:?}", agent_index, agent);
 
     // 将整个启动过程移入 spawn_blocking，避免阻塞 async runtime 线程
     tauri::async_runtime::spawn_blocking(move || {
+        // 端点创建与 pending 登记必须相对退出清理原子化。退出流程会先设置
+        // agent_shutdown_requested，再等待同一把锁，因此不会漏掉半创建的客户端。
+        let lifecycle_guard = match maa_state.agent_lifecycle_lock.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
+            return Err("Application is shutting down".to_string());
+        }
+
         let mut client = if tcp_compat_mode {
             debug!("[agent#{}] Creating TCP agent client...", agent_index);
             AgentClient::create_tcp(0).or_else(|e| {
@@ -323,6 +406,24 @@ async fn start_single_agent(
             .identifier()
             .ok_or_else(|| format!("Failed to get identifier for agent #{}", agent_index))?;
         info!("[agent#{}] Agent socket_id: {}", agent_index, socket_id);
+
+        // AgentClient 创建 IPC 端点后立即登记 identifier。即使退出发生在 spawn 前，
+        // 全局清理也能精确删除这个尚未转入 InstanceRuntime 的 socket。
+        let pending_agent = PendingAgent::register(
+            Arc::clone(&maa_state),
+            socket_id.clone(),
+            instance_id.clone(),
+        );
+        drop(lifecycle_guard);
+
+        if pending_agent
+            .maa_state
+            .agent_shutdown_requested
+            .load(Ordering::Relaxed)
+            || pending_agent.state.cancelled.load(Ordering::Relaxed)
+        {
+            return Err("Agent startup was interrupted by application shutdown".to_string());
+        }
 
         // 启动子进程
         let mut args = agent.child_args.clone().unwrap_or_default();
@@ -391,7 +492,7 @@ async fn start_single_agent(
             );
         }
 
-        let mut child = cmd.spawn().map_err(|e| {
+        let child = cmd.spawn().map_err(|e| {
             let mut msg = format!(
                 "Failed to spawn agent #{}: {} (path: {:?})",
                 agent_index, e, exec_path
@@ -402,15 +503,30 @@ async fn start_single_agent(
             msg
         })?;
 
+        // 退出线程和启动线程通过同一个 Option<Child> 槽位转移所有权。
+        if let Err(child) = pending_agent.set_child(child) {
+            terminate_agent_child(child);
+            return Err("Agent startup was interrupted by application shutdown".to_string());
+        }
+        let (pid, stdout, stderr) = {
+            let mut child_slot = match pending_agent.state.child.lock() {
+                Ok(child) => child,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let child = child_slot
+                .as_mut()
+                .ok_or("Agent startup was interrupted by application shutdown")?;
+            (child.id(), child.stdout.take(), child.stderr.take())
+        };
+
         // agent 日志文件路径（延迟创建：仅在有实际输出时才打开文件）
-        let pid = child.id();
         let log_filename = format!("mxu-agent-{}-{}.log", agent_index, pid);
         let agent_log_path = Arc::new(get_logs_dir().join(&log_filename));
         let log_file: Arc<Mutex<Option<std::fs::File>>> = Arc::new(Mutex::new(None));
         let output_batcher = AgentOutputBatcher::new(app.clone(), instance_id.clone());
 
         // 在单独线程中读取 stdout
-        if let Some(stdout) = child.stdout.take() {
+        if let Some(stdout) = stdout {
             let lf = log_file.clone();
             let lf_path = agent_log_path.clone();
             let batcher = output_batcher.clone();
@@ -447,7 +563,7 @@ async fn start_single_agent(
         }
 
         // Stderr thread
-        if let Some(stderr) = child.stderr.take() {
+        if let Some(stderr) = stderr {
             let lf = log_file.clone();
             let lf_path = agent_log_path.clone();
             let batcher = output_batcher.clone();
@@ -493,8 +609,7 @@ async fn start_single_agent(
 
         if let Err(e) = client.connect() {
              error!("[agent#{}] Connection failed: {}", agent_index, e);
-             let _ = child.kill();
-             let _ = child.wait();
+             pending_agent.terminate_child();
              return Err(e.to_string());
         }
 
@@ -503,13 +618,31 @@ async fn start_single_agent(
         // 注册 Agent sink
         if let Err(e) = client.register_sinks(resource, controller, tasker) {
             error!("[agent#{}] Failed to register sinks: {}", agent_index, e);
-            let _ = child.kill();
-            let _ = child.wait();
+            pending_agent.terminate_child();
             return Err(e.to_string());
         }
 
-        Ok((client, child))
+        Ok((client, pending_agent))
     }).await.map_err(|e| e.to_string())?
+}
+
+fn cleanup_untracked_agents(
+    clients: Vec<AgentClient>,
+    pending_agents: Vec<PendingAgent>,
+    children: Vec<Child>,
+) {
+    for mut client in clients {
+        if client.set_timeout(AGENT_DISCONNECT_TIMEOUT_MS).is_ok() {
+            let _ = client.disconnect();
+        }
+    }
+
+    for pending_agent in pending_agents {
+        pending_agent.terminate_child();
+    }
+    for child in children {
+        terminate_agent_child(child);
+    }
 }
 
 /// 启动任务的核心实现（Tauri invoke 和 HTTP handler 共享）
@@ -525,6 +658,10 @@ pub async fn start_tasks_impl(
     reset_state: bool,
 ) -> Result<Vec<i64>, String> {
     info!("start_tasks_impl called");
+
+    if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
+        return Err("Application is shutting down".to_string());
+    }
 
     info!("instance_id: {}", instance_id);
     info!("tasks: {:?}", tasks);
@@ -630,14 +767,20 @@ pub async fn start_tasks_impl(
 
             // 用于收集所有成功启动的 agent，失败时需要回滚清理
             let mut new_clients = Vec::new();
-            let mut new_children = Vec::new();
+            let mut pending_agents = Vec::new();
 
             for (idx, config) in configs.iter().enumerate() {
+                if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
+                    cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
+                    return Err("Application is shutting down".to_string());
+                }
+
                 let res_clone = resource.clone();
                 let ctrl_clone = controller.clone();
                 let tasker_clone = tasker.clone();
                 let app_handle = app.clone();
                 let inst_id = instance_id.clone();
+                let maa_state_clone = Arc::clone(maa_state);
                 let cwd_clone = cwd.clone();
                 let pi_envs_clone = Arc::clone(&pi_envs);
 
@@ -646,6 +789,7 @@ pub async fn start_tasks_impl(
                     config.clone(),
                     idx,
                     inst_id,
+                    maa_state_clone,
                     cwd_clone,
                     tcp_compat_mode,
                     res_clone,
@@ -655,9 +799,9 @@ pub async fn start_tasks_impl(
                 )
                 .await
                 {
-                    Ok((client, child)) => {
+                    Ok((client, pending_agent)) => {
                         new_clients.push(client);
-                        new_children.push(child);
+                        pending_agents.push(pending_agent);
                     }
                     Err(e) => {
                         error!(
@@ -666,24 +810,68 @@ pub async fn start_tasks_impl(
                         );
 
                         // 回滚：清理已启动的 agent
-                        for client in &new_clients {
-                            let _ = client.disconnect();
-                        }
-                        for mut child in new_children {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                        }
+                        cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
                         return Err(format!("Agent start failed: {}", e));
                     }
                 }
             }
 
+            // pending -> instance 的最终转移与 stop/exit 使用同一把生命周期锁，
+            // 防止 stop 在 tracked 与 pending 两次清理之间漏掉刚完成连接的 Agent。
+            let lifecycle_guard = match maa_state.agent_lifecycle_lock.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+
             // 保存所有 agent 状态到 instance
-            let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
-            if let Some(instance) = instances.get_mut(&instance_id) {
-                instance.agent_clients.extend(new_clients);
-                instance.agent_children.extend(new_children);
+            let mut instances = match maa_state.instances.lock() {
+                Ok(instances) => instances,
+                Err(poisoned) => {
+                    warn!("MaaState instances lock was poisoned; continuing agent transfer");
+                    poisoned.into_inner()
+                }
+            };
+            if maa_state.agent_shutdown_requested.load(Ordering::Relaxed) {
+                drop(instances);
+                cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
+                return Err("Application is shutting down".to_string());
             }
+
+            if !instances.contains_key(&instance_id) {
+                drop(instances);
+                cleanup_untracked_agents(new_clients, pending_agents, Vec::new());
+                return Err(format!(
+                    "Instance '{}' was removed while starting agents",
+                    instance_id
+                ));
+            }
+
+            let mut new_children = Vec::with_capacity(pending_agents.len());
+            let mut startup_interrupted = false;
+            for pending_agent in &pending_agents {
+                match pending_agent.take_child() {
+                    Some(child) => new_children.push(child),
+                    None => {
+                        startup_interrupted = true;
+                        break;
+                    }
+                }
+            }
+            if startup_interrupted {
+                drop(instances);
+                cleanup_untracked_agents(new_clients, pending_agents, new_children);
+                return Err("Agent startup was interrupted by application shutdown".to_string());
+            }
+
+            let instance = instances
+                .get_mut(&instance_id)
+                .expect("instance existence checked while holding instances lock");
+            instance.agent_clients.extend(new_clients);
+            instance.agent_children.extend(new_children);
+            // 句柄已经在 instances 锁内完成转移，现在可以从 pending 监督表移除。
+            drop(pending_agents);
+            drop(instances);
+            drop(lifecycle_guard);
 
             info!(
                 "[start_tasks] All {} agent(s) started successfully",
@@ -802,9 +990,13 @@ pub async fn maa_start_tasks(
     .await
 }
 
-/// 停止所有 Agent 的核心实现（Tauri invoke 和 HTTP handler 共享）
-pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
+fn stop_agent_blocking(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
     info!("stop_agent_impl called for instance: {}", instance_id);
+
+    let _lifecycle_guard = maa_state
+        .agent_lifecycle_lock
+        .lock()
+        .map_err(|e| e.to_string())?;
 
     let (clients, children) = {
         let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
@@ -816,60 +1008,93 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
         )
     };
 
+    // 同一实例仍在 connect 的 Agent 也属于本次 stop；取消后它们无法再写回实例。
+    maa_state.cleanup_pending_agents(Some(instance_id));
+
     if clients.is_empty() && children.is_empty() {
         debug!("[stop_agent] No agents to stop");
         return Ok(());
     }
 
     info!(
-        "[stop_agent] Stopping {} agent client(s) and {} child process(es) in background...",
+        "[stop_agent] Disconnecting {} agent client(s) and stopping {} child process(es)...",
         clients.len(),
         children.len()
     );
 
-    thread::spawn(move || {
-        for client in clients {
-            let _ = client.disconnect();
+    // 必须在返回前销毁 AgentClient。临时收紧 timeout，避免失联 Agent 无限阻塞 stop。
+    for mut client in clients {
+        if let Err(e) = client.set_timeout(AGENT_DISCONNECT_TIMEOUT_MS) {
+            warn!("Failed to set agent disconnect timeout: {}", e);
+            continue;
         }
+        if let Err(e) = client.disconnect() {
+            warn!("Failed to disconnect agent client: {}", e);
+        }
+    }
 
-        for (i, mut child) in children.into_iter().enumerate() {
-            debug!("Waiting for agent process #{} to exit...", i);
+    // 所有子进程共享一个总 deadline，避免多个失联 Agent 产生 N * timeout 的等待。
+    let deadline = Instant::now() + AGENT_STOP_TIMEOUT;
+    for (i, mut child) in children.into_iter().enumerate() {
+        debug!("Waiting for agent process #{} to exit...", i);
+        let mut exited = false;
 
-            let start = std::time::Instant::now();
-            let timeout = std::time::Duration::from_secs(5);
-            let mut exited = false;
-
-            while start.elapsed() < timeout {
-                match child.try_wait() {
-                    Ok(Some(_)) => {
-                        exited = true;
-                        break;
-                    }
-                    Ok(None) => {
-                        thread::sleep(std::time::Duration::from_millis(100));
-                    }
-                    Err(e) => {
-                        error!("Error waiting for agent #{}: {}", i, e);
-                        break;
-                    }
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => {
+                    exited = true;
+                    break;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    error!("Error waiting for agent #{}: {}", i, e);
+                    break;
                 }
             }
 
-            if !exited {
-                warn!("Agent process #{} did not exit in time, killing it...", i);
-                let _ = child.kill();
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            thread::sleep((deadline - now).min(Duration::from_millis(100)));
+        }
+
+        if exited {
+            info!("Agent #{} child process exited", i);
+            continue;
+        }
+
+        warn!("Agent process #{} did not exit in time, killing it...", i);
+        match child.kill() {
+            Ok(()) => {
                 let _ = child.wait();
-            } else {
-                info!("Background: Agent #{} child process exited", i);
+            }
+            Err(e) => {
+                // kill 失败时不再无界 wait；退出兜底也不会因此永久阻塞。
+                error!("Failed to kill agent process #{}: {}", i, e);
             }
         }
-    });
+    }
 
     Ok(())
 }
 
+/// 停止所有 Agent 的核心实现（Tauri invoke 和 HTTP handler 共享）。
+pub async fn stop_agent_impl(
+    maa_state: Arc<MaaState>,
+    instance_id: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || stop_agent_blocking(&maa_state, &instance_id))
+        .await
+        .map_err(|e| format!("Agent cleanup worker failed: {}", e))?
+}
+
 /// 停止所有 Agent 并断开连接 — Tauri invoke 入口，委托给 stop_agent_impl
 #[tauri::command]
-pub fn maa_stop_agent(state: State<'_, Arc<MaaState>>, instance_id: String) -> Result<(), String> {
-    stop_agent_impl(&state, &instance_id)
+pub async fn maa_stop_agent(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+) -> Result<(), String> {
+    let maa_state = state.inner().clone();
+    stop_agent_impl(maa_state, instance_id).await
 }

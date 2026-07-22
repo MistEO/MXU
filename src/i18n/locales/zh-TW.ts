@@ -168,6 +168,13 @@ export default {
       optionLabel: '請求設定',
       urlLabel: '請求地址',
       urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      methodLabel: '請求方式',
+      methodGet: 'GET',
+      methodPost: 'POST',
+      headersLabel: '請求標頭',
+      headersPlaceholder: '輸入 JSON 格式的請求標頭（如 {"Authorization":"Bearer xxx"}）',
+      bodyLabel: '請求體（POST 可用）',
+      bodyPlaceholder: '輸入 JSON 格式的請求體（如 {"key":"value"}）',
     },
     killProc: {
       label: '⛔ 結束程序',
@@ -334,6 +341,7 @@ export default {
     incompatibleResource: '不支援目前資源包',
     hotkeyPlaceholder: '點擊錄入快捷鍵',
     hotkeyCapturing: '按下快捷鍵...',
+    invalidJson: 'JSON 格式無效',
   },
 
   // 預設設定

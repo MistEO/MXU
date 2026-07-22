@@ -168,6 +168,13 @@ export default {
       optionLabel: '请求设置',
       urlLabel: '请求地址',
       urlPlaceholder: '输入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      methodLabel: '请求方式',
+      methodGet: 'GET',
+      methodPost: 'POST',
+      headersLabel: '请求头',
+      headersPlaceholder: '输入 JSON 格式的请求头（如 {"Authorization":"Bearer xxx"}）',
+      bodyLabel: '请求体（POST 可用）',
+      bodyPlaceholder: '输入 JSON 格式的请求体（如 {"key":"value"}）',
     },
     killProc: {
       label: '⛔ 结束进程',
@@ -338,6 +345,7 @@ export default {
     incompatibleResource: '不支持当前资源包',
     hotkeyPlaceholder: '点击录入快捷键',
     hotkeyCapturing: '按下快捷键...',
+    invalidJson: 'JSON 格式无效',
   },
 
   // 预设配置

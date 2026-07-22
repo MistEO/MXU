@@ -174,6 +174,13 @@ export default {
       optionLabel: 'Request Settings',
       urlLabel: 'Request URL',
       urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+      methodLabel: 'Request Method',
+      methodGet: 'GET',
+      methodPost: 'POST',
+      headersLabel: 'Request Headers',
+      headersPlaceholder: 'Enter JSON request headers (e.g. {"Authorization":"Bearer xxx"})',
+      bodyLabel: 'Request Body (POST available)',
+      bodyPlaceholder: 'Enter JSON request body (e.g. {"key":"value"})',
     },
     killProc: {
       label: '⛔ Kill Process',
@@ -348,6 +355,7 @@ export default {
     incompatibleResource: 'Not supported by current resource',
     hotkeyPlaceholder: 'Click to record shortcut',
     hotkeyCapturing: 'Press keys...',
+    invalidJson: 'Invalid JSON format',
   },
 
   // Preset

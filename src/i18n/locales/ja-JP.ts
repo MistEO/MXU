@@ -172,6 +172,13 @@ export default {
       optionLabel: 'リクエスト設定',
       urlLabel: 'リクエストURL',
       urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
+      methodLabel: 'リクエストメソッド',
+      methodGet: 'GET',
+      methodPost: 'POST',
+      headersLabel: 'リクエストヘッダー',
+      headersPlaceholder: 'JSON を入力（例：{"Authorization":"Bearer xxx"}）',
+      bodyLabel: 'リクエストボディ（POST 使用時）',
+      bodyPlaceholder: 'JSON ボディを入力（例：{"key":"value"}）',
     },
     killProc: {
       label: '⛔ プロセス終了',
@@ -343,6 +350,7 @@ export default {
     incompatibleResource: '現在のリソースパックに対応していません',
     hotkeyPlaceholder: 'クリックしてショートカットを記録',
     hotkeyCapturing: 'キーを押してください...',
+    invalidJson: 'JSON 形式が無効です',
   },
 
   // プリセット

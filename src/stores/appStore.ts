@@ -1,6 +1,7 @@
 import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
 import { saveConfig } from '@/services/configService';
 import { maaService } from '@/services/maaService';
+import { isTelemetryBlockedByBuild, setTelemetryEnabled } from '@/services/telemetryService';
 import {
   type AccentColor,
   applyTheme,
@@ -201,6 +202,7 @@ export const useAppStore = create<AppState>()(
     confirmBeforeDelete: false,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     autoClearLogsOnLaunch: true,
+    helpImproveSoftware: true,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -239,6 +241,13 @@ export const useAppStore = create<AppState>()(
     },
     setAutoClearLogsOnLaunch: (enabled) => {
       set({ autoClearLogsOnLaunch: enabled });
+    },
+    setHelpImproveSoftware: (enabled) => {
+      // 调试 / 开发版本强制关闭，忽略开启请求
+      const blocked = isTelemetryBlockedByBuild(get().projectInterface);
+      const next = blocked ? false : enabled;
+      set({ helpImproveSoftware: next });
+      void setTelemetryEnabled(next);
     },
     addCustomAccent: (accent) => {
       set((state) => ({
@@ -1345,6 +1354,10 @@ export const useAppStore = create<AppState>()(
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
         autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? true,
+        // 默认开启；调试 / 开发版本强制关闭
+        helpImproveSoftware: isTelemetryBlockedByBuild(get().projectInterface)
+          ? false
+          : (config.settings.helpImproveSoftware ?? true),
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -2292,6 +2305,7 @@ function generateConfig(): MxuConfig {
           confirmBeforeDelete: state.confirmBeforeDelete,
           maxLogsPerInstance: state.maxLogsPerInstance,
           autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
+          helpImproveSoftware: state.helpImproveSoftware,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -2381,6 +2395,7 @@ useAppStore.subscribe(
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
     autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
+    helpImproveSoftware: state.helpImproveSoftware,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

@@ -24,6 +24,7 @@ pub mod maa_agent;
 pub mod maa_core;
 pub mod state;
 pub mod system;
+pub mod telemetry;
 pub mod tray;
 pub mod update;
 

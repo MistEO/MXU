@@ -697,8 +697,8 @@ pub async fn start_tasks_impl(
     };
 
     debug!("[start_tasks] Submitting {} tasks...", tasks.len());
-    // (maa_task_id, selected_task_id) 配对列表，用于后续初始化 TaskRunState
-    let mut task_id_pairs: Vec<(i64, Option<String>)> = Vec::new();
+    // (maa_task_id, selected_task_id, entry) 配对列表，用于后续初始化 TaskRunState
+    let mut task_id_pairs: Vec<(i64, Option<String>, String)> = Vec::new();
     for (idx, task) in tasks.iter().enumerate() {
         debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
 
@@ -709,7 +709,7 @@ pub async fn start_tasks_impl(
         match tasker.post_task(&task.entry, &task.pipeline_override) {
             Ok(job) => {
                 info!("[start_tasks] post_task returned task_id: {}", job.id);
-                task_id_pairs.push((job.id, task.selected_task_id.clone()));
+                task_id_pairs.push((job.id, task.selected_task_id.clone(), task.entry.clone()));
                 debug!(
                     "[start_tasks] Task {} submitted successfully, task_id: {}",
                     idx, job.id
@@ -721,7 +721,7 @@ pub async fn start_tasks_impl(
         }
     }
 
-    let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _)| *id).collect();
+    let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _, _)| *id).collect();
     debug!(
         "[start_tasks] All tasks submitted, total: {} task_ids",
         task_ids.len()
@@ -752,17 +752,31 @@ pub async fn start_tasks_impl(
 
             let state = &mut instance.task_run_state;
             state.overall_status = Some("Running".to_string());
+            if reset_state {
+                state.entries.clear();
+            }
 
             // 建立 maaTaskId -> selectedTaskId 映射，并将有映射的任务初始化为 "pending"
-            for (maa_task_id, selected_task_id) in &task_id_pairs {
+            for (maa_task_id, selected_task_id, entry) in &task_id_pairs {
                 if let Some(sel_id) = selected_task_id {
                     state.mappings.insert(*maa_task_id, sel_id.clone());
                     state.statuses.insert(sel_id.clone(), "pending".to_string());
                 }
+                // 记录 entry 名供遥测使用（无论是否有 selected_task_id）
+                state.entries.insert(*maa_task_id, entry.clone());
             }
         }
     }
     debug!("[start_tasks] TaskRunState updated");
+
+    // 遥测：整批运行开始（仅首批；追加批次沿用已有 Transaction）
+    if reset_state {
+        let entries: Vec<String> = task_id_pairs
+            .iter()
+            .map(|(_, _, entry)| entry.clone())
+            .collect();
+        super::telemetry::on_run_start(&instance_id, &entries);
+    }
 
     info!(
         "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",

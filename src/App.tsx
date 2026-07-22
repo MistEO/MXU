@@ -40,6 +40,7 @@ import {
   clearPendingUpdateInfo,
   isDebugVersion,
 } from '@/services/updateService';
+import { initTelemetry, isTelemetryBlockedByBuild } from '@/services/telemetryService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
@@ -612,6 +613,27 @@ function App() {
       // 应用配置
       if (config.instances.length > 0) {
         importConfig(config);
+      }
+
+      // 初始化匿名遥测（仅当 interface 声明了 telemetry.sentry.dsn 且非调试 / 开发版本）
+      // 即便用户当前关闭，也传入配置以便后端缓存，用户在设置中开启时无需重启
+      const sentryCfg = result.interface.telemetry?.sentry;
+      if (sentryCfg?.dsn && !isTelemetryBlockedByBuild(result.interface)) {
+        const mxuVersion = typeof __MXU_VERSION__ !== 'undefined' ? __MXU_VERSION__ : '0.0.0';
+        const appName = result.interface.name;
+        const appVersion = result.interface.version ?? '0.0.0';
+        const channel = config.settings.mirrorChyan?.channel ?? 'production';
+        void initTelemetry({
+          dsn: sentryCfg.dsn,
+          enabled: config.settings.helpImproveSoftware ?? true,
+          release: `MXU@${mxuVersion}+${appName}@${appVersion}`,
+          environment: sentryCfg.environment ?? channel,
+          tracing: sentryCfg.tracing ?? true,
+          tracesSampleRate: sentryCfg.traces_sample_rate ?? 1.0,
+          appName,
+          appVersion,
+          mxuVersion,
+        });
       }
 
       // 应用保存的窗口大小和位置

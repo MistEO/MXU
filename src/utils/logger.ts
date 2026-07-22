@@ -197,6 +197,7 @@ export const loggers = {
   task: createLogger('Task'),
   ui: createLogger('UI'),
   app: createLogger('App'),
+  telemetry: createLogger('Telemetry'),
 };
 
 // 默认导出根日志器

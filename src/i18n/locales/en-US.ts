@@ -113,6 +113,11 @@ export default {
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint:
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
+    helpImproveSoftware: 'Help Improve the Software',
+    helpImproveSoftwareHint:
+      'Anonymously send crash reports and task statistics to help find common issues.',
+    helpImproveSoftwareDisabledHint:
+      'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',

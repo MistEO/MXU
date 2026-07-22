@@ -51,6 +51,17 @@ shell-words = "1.1.1"
 maa-framework = { version = "1", features = ["dynamic"] }
 rust-embed = "8"
 clap = { version = "4", features = ["derive"] }
+# 匿名遥测（数据埋点）
+sentry = { version = "0.34", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "reqwest",
+    "rustls",
+] }
+sysinfo = "0.32"
+machine-uid = "0.5"
+sha2 = "0.10"
 
 [profile.release]
 # 保留调试符号以生成 PDB 文件，便于崩溃分析

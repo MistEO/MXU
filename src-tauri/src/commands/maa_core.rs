@@ -1032,6 +1032,9 @@ pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String>
         state.overall_status = Some("Failed".to_string());
     }
 
+    // 遥测：用户取消，以 cancelled 结束当前运行的 Transaction（幂等，仅首次生效）
+    super::telemetry::on_run_cancelled(instance_id);
+
     tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())
 }

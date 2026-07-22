@@ -137,6 +137,9 @@ pub struct TaskRunState {
     pub statuses: HashMap<String, String>,
     /// maaTaskId → selectedTaskId
     pub mappings: HashMap<i64, String>,
+    /// maaTaskId → interface 任务名（entry），仅用于遥测埋点
+    #[serde(default)]
+    pub entries: HashMap<i64, String>,
     /// 任务队列（maaTaskId 列表，执行顺序）
     pub pending_task_ids: Vec<i64>,
     /// 当前执行到的任务索引

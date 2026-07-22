@@ -310,6 +310,9 @@ pub fn run() {
             commands::tray::update_tray_tooltip,
             // 配置同步命令（WebUI 实时同步）
             commands::app_config::notify_config_changed,
+            // 匿名遥测命令
+            commands::telemetry::telemetry_init,
+            commands::telemetry::telemetry_set_enabled,
         ])
         .on_window_event(|window, event| {
             match event {

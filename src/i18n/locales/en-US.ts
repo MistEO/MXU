@@ -241,6 +241,7 @@ export default {
         'No window was previously selected. Automatically matched "{{name}}". To change, select manually in Connection Settings — your choice will be remembered next time.',
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
+      workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
       agentSpawnHintFileNotFound:
         'Check whether antivirus blocked the Agent, then reinstall by overwriting the installation.',

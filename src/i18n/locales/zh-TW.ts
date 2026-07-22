@@ -230,6 +230,7 @@ export default {
         '尚未手動選擇過視窗，已自動匹配到「{{name}}」。如需更換，請在連接設定中手動選擇，下次將記住您的選擇。',
       resourceFailed: '資源載入失敗',
       startFailed: '任務啟動失敗',
+      workstationLocked: '偵測到電腦處於鎖定畫面狀態，請先解鎖後再執行任務',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
       agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
       agentSpawnHintAppControl:

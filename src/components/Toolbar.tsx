@@ -312,6 +312,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         });
         return false;
       }
+
+      // 连接 Controller 前检测锁屏状态：若电脑处于锁屏，快速失败并提示用户
+      if (await maaService.isWorkstationLocked()) {
+        log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
+        addLog(targetId, {
+          type: 'error',
+          message: t('taskList.autoConnect.workstationLocked'),
+        });
+        return false;
+      }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
       const resource = projectInterface?.resource.find((r) => r.name === resourceName);
       const savedDevice = targetInstance.savedDevice;

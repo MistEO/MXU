@@ -290,6 +290,8 @@ export interface SelectedTask {
   taskName: string;
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 各控制器独立的勾选状态；enabled 始终表示当前控制器的状态 */
+  enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
 }

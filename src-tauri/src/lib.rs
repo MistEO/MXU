@@ -279,6 +279,7 @@ pub fn run() {
             commands::download::cancel_download,
             // 系统相关命令
             commands::system::is_elevated,
+            commands::system::is_workstation_locked,
             commands::system::is_autostart,
             commands::system::get_start_instance,
             commands::system::has_quit_after_run_flag,

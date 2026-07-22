@@ -1047,6 +1047,22 @@ export const maaService = {
   },
 
   /**
+   * 检查当前电脑是否处于锁屏状态（仅 Tauri + Windows 生效）
+   * 检测异常或非 Tauri 环境按未锁屏处理，避免误拦截任务启动
+   */
+  async isWorkstationLocked(): Promise<boolean> {
+    try {
+      if (isTauri()) {
+        return await invoke<boolean>('is_workstation_locked');
+      }
+      return false;
+    } catch (err) {
+      log.warn('检测锁屏状态失败，按未锁屏处理:', err);
+      return false;
+    }
+  },
+
+  /**
    * 以管理员权限重启应用
    * @returns 如果成功启动新进程会退出当前进程，否则返回错误信息
    */

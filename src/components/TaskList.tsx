@@ -154,8 +154,12 @@ function useImportConfigActions(instanceId: string) {
       // 任务写入后 PresetSelector 自动消失，无需调用 skipPreset（避免触发 showAddTaskPanel）
       updateInstance(instanceId, {
         selectedTasks: importedTasks,
-        controllerName: payload.controllerName,
-        resourceName: payload.resourceName,
+        ...(payload.controllerName !== undefined && {
+          controllerName: payload.controllerName,
+        }),
+        ...(payload.resourceName !== undefined && {
+          resourceName: payload.resourceName,
+        }),
         preActions: payload.preActions,
       });
 

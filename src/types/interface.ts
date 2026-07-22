@@ -111,7 +111,7 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad' | 'Cloud';
 
 export interface ControllerItem {
   name: string;
@@ -132,6 +132,7 @@ export interface ControllerItem {
   wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
+  cloud?: CloudConfig;
 }
 
 export interface Win32Config {
@@ -156,6 +157,17 @@ export interface GamepadConfig {
   window_regex?: string;
   gamepad_type?: 'Xbox360' | 'DualShock4' | 'DS4';
   screencap?: string;
+}
+
+/**
+ * 云串流控制器预设（type 为 'Cloud'）。框架内置各服务商的窗口签名（进程/窗口类/
+ * 标题模板）与截图/输入方式，项目只需声明服务商与游戏名。加载时脱糖为 Win32 控制器。
+ */
+export interface CloudConfig {
+  /** 云服务商标识，目前支持 'geforce_now' */
+  provider: string;
+  /** 游戏名的正则片段，代入服务商标题模板匹配窗口（如 'Endfield'） */
+  game_title?: string;
 }
 
 export interface ResourceItem {

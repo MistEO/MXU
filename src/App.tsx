@@ -1579,7 +1579,11 @@ function App() {
   // 全局快捷键（窗口失焦时也生效）
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
-    if (!hotkeys?.globalEnabled) return;
+    const { setGlobalHotkeyError } = useAppStore.getState();
+    if (!hotkeys?.globalEnabled) {
+      setGlobalHotkeyError(null);
+      return;
+    }
     if (!isTauri()) return; // 浏览器环境不支持全局快捷键
 
     const startKey = hotkeys.startTasks || 'F10';
@@ -1591,6 +1595,8 @@ function App() {
     const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
     let lastStartTime = 0;
     const registerKeys = async () => {
+      // 记录正在注册的按键，失败时用于告知用户具体是哪个组合键
+      let registeringKey = startKey;
       try {
         const { register } = await getGlobalShortcut();
         await register(toTauriKey(startKey), () => {
@@ -1603,6 +1609,7 @@ function App() {
             }),
           );
         });
+        registeringKey = stopKey;
         // 避免重复注册相同的键
         if (stopKey !== startKey) {
           await register(toTauriKey(stopKey), () => {
@@ -1614,8 +1621,19 @@ function App() {
           });
         }
         log.info('全局快捷键已注册:', startKey, stopKey);
+        setGlobalHotkeyError(null);
       } catch (err) {
         log.error('注册全局快捷键失败:', err);
+
+        const message = err instanceof Error ? err.message : String(err);
+        let conflict = /already registered/i.test(message);
+        if (!conflict) {
+          conflict = await getGlobalShortcut()
+            .then(({ isRegistered }) => isRegistered(toTauriKey(registeringKey)))
+            .catch(() => false);
+        }
+
+        setGlobalHotkeyError({ combo: registeringKey, conflict, message });
       }
     };
 

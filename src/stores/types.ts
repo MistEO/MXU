@@ -83,6 +83,16 @@ export interface JustUpdatedInfo {
   channel?: string;
 }
 
+// 全局快捷键注册失败信息
+export interface GlobalHotkeyError {
+  /** 注册失败的快捷键组合（如 Ctrl+F12） */
+  combo: string;
+  /** 是否为按键被其他程序占用导致的冲突 */
+  conflict: boolean;
+  /** 原始错误信息 */
+  message: string;
+}
+
 export interface AppState {
   // 配置持久化保护（防止启动早期空状态覆盖用户配置）
   configPersistenceReady: boolean;
@@ -352,6 +362,10 @@ export interface AppState {
   // 快捷键设置
   hotkeys: HotkeySettings;
   setHotkeys: (hotkeys: HotkeySettings) => void;
+
+  // 全局快捷键注册失败信息（不落盘，仅本次运行）
+  globalHotkeyError: GlobalHotkeyError | null;
+  setGlobalHotkeyError: (err: GlobalHotkeyError | null) => void;
 
   // 任务选项预览显示设置
   showOptionPreview: boolean;

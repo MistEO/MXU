@@ -97,6 +97,9 @@ export default {
     hotkeysGlobal: '全局快捷键',
     hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
+    hotkeysGlobalConflict:
+      '快捷键 {{combo}} 已被占用，全局快捷键当前未生效。请更换按键，或检查是否有其他程序 / 重复运行的实例占用该组合键。',
+    hotkeysGlobalRegisterFailed: '全局快捷键 {{combo}} 注册失败：{{error}}',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
     autoStart: '开机自启动',

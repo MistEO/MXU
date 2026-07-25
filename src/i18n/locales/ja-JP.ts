@@ -97,6 +97,10 @@ export default {
     hotkeysGlobal: 'グローバルショートカット',
     hotkeysGlobalHint: 'ウィンドウ非アクティブ時もショートカットを有効にする',
     hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
+    hotkeysGlobalConflict:
+      'ショートカット {{combo}} は既に使用されているため、グローバルショートカットは現在無効です。別のキーに変更するか、他のプログラムや重複起動したインスタンスが占有していないか確認してください。',
+    hotkeysGlobalRegisterFailed:
+      'グローバルショートカット {{combo}} の登録に失敗しました：{{error}}',
     minimizeToTray: '閉じる時にトレイに最小化',
     minimizeToTrayHint: '閉じるボタンをクリックすると、終了せずにシステムトレイに隠れます',
     autoStart: 'スタートアップ時に起動',

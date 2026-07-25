@@ -306,6 +306,10 @@ export const useAppStore = create<AppState>()(
     },
     setHotkeys: (hotkeys) => set({ hotkeys }),
 
+    // 全局快捷键注册失败信息（不落盘，仅本次运行）
+    globalHotkeyError: null,
+    setGlobalHotkeyError: (err) => set({ globalHotkeyError: err }),
+
     // 当前页面
     currentPage: 'main',
     setCurrentPage: (page) => set({ currentPage: page }),

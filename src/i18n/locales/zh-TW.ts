@@ -96,6 +96,9 @@ export default {
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
     hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
+    hotkeysGlobalConflict:
+      '快捷鍵 {{combo}} 已被佔用，全域快捷鍵目前未生效。請更換按鍵，或檢查是否有其他程式 / 重複執行的實例佔用該組合鍵。',
+    hotkeysGlobalRegisterFailed: '全域快捷鍵 {{combo}} 註冊失敗：{{error}}',
     minimizeToTray: '關閉時最小化到托盤',
     minimizeToTrayHint: '點選關閉按鈕時隱藏到系統托盤而非退出程式',
     autoStart: '開機自啟動',

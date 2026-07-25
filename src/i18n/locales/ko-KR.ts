@@ -96,6 +96,9 @@ export default {
     hotkeysGlobal: '전역 단축키',
     hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
+    hotkeysGlobalConflict:
+      '단축키 {{combo}}이(가) 이미 사용 중이어서 전역 단축키가 현재 작동하지 않습니다. 다른 키로 변경하거나, 다른 프로그램 또는 중복 실행된 인스턴스가 해당 조합을 사용하고 있는지 확인해 주세요.',
+    hotkeysGlobalRegisterFailed: '전역 단축키 {{combo}} 등록 실패: {{error}}',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     autoStart: '시작 시 자동 실행',

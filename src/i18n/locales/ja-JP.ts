@@ -384,6 +384,8 @@ export default {
       'macOS ネイティブウィンドウコントローラーには MaaFramework v5.10.0-beta.1 以降が必要です。',
     macosSystemVersionRequired:
       'macOS ネイティブウィンドウコントローラーには macOS 14.0 以降が必要です。',
+    macosSystemVersionDetectionFailed:
+      '現在の macOS バージョンを判定できませんでした。詳細はログを確認してください。',
     gamepad: 'ゲームパッド',
     connecting: '接続中...',
     connected: '接続済み',

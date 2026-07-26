@@ -46,17 +46,30 @@ fn macos_window_id(handle: u64) -> Result<u32, String> {
 }
 
 #[cfg(any(target_os = "macos", test))]
-fn macos_system_version_supported(current: &str) -> bool {
-    let mut components = current.trim().split('.');
-    let Some(major) = components
-        .next()
-        .and_then(|component| component.parse::<u64>().ok())
-    else {
-        return false;
-    };
+fn macos_system_version_supported(current: &str) -> Result<bool, String> {
+    let normalized = current.trim();
+    if normalized.is_empty() {
+        return Err("macOS version is empty".to_string());
+    }
 
-    major >= MIN_MACOS_VERSION_MAJOR
-        && components.all(|component| !component.is_empty() && component.parse::<u64>().is_ok())
+    let mut components = normalized.split('.');
+    let major_component = components
+        .next()
+        .ok_or_else(|| format!("macOS version has no components: '{normalized}'"))?;
+    let major = major_component.parse::<u64>().map_err(|e| {
+        format!("invalid macOS major version '{major_component}' in '{normalized}': {e}")
+    })?;
+
+    for component in components {
+        if component.is_empty() {
+            return Err(format!("empty macOS version component in '{normalized}'"));
+        }
+        component.parse::<u64>().map_err(|e| {
+            format!("invalid macOS version component '{component}' in '{normalized}': {e}")
+        })?;
+    }
+
+    Ok(major >= MIN_MACOS_VERSION_MAJOR)
 }
 
 #[cfg(target_os = "macos")]
@@ -104,12 +117,17 @@ fn ensure_macos_system_version() -> Result<(), String> {
         )
     })?;
 
-    if macos_system_version_supported(&current) {
-        Ok(())
-    } else {
-        Err(format!(
+    match macos_system_version_supported(&current) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(format!(
             "MACOS_VERSION_REQUIRED: current={current}, minimum={MIN_MACOS_VERSION_MAJOR}.0"
-        ))
+        )),
+        Err(e) => {
+            warn!("Failed to parse macOS system version '{current}': {e}");
+            Err(format!(
+                "MACOS_VERSION_DETECTION_FAILED: current={current}, error={e}"
+            ))
+        }
     }
 }
 
@@ -891,12 +909,18 @@ mod tests {
 
     #[test]
     fn macos_system_version_requires_14() {
-        assert!(!macos_system_version_supported("13.6.9"));
-        assert!(macos_system_version_supported("14.0"));
-        assert!(macos_system_version_supported("14.0.1"));
-        assert!(macos_system_version_supported("15.0"));
-        assert!(!macos_system_version_supported("14.invalid"));
-        assert!(!macos_system_version_supported("unknown"));
+        assert_eq!(macos_system_version_supported("13.6.9"), Ok(false));
+        assert_eq!(macos_system_version_supported("14.0"), Ok(true));
+        assert_eq!(macos_system_version_supported("14.0.1"), Ok(true));
+        assert_eq!(macos_system_version_supported("15.0"), Ok(true));
+    }
+
+    #[test]
+    fn macos_system_version_reports_malformed_values() {
+        assert!(macos_system_version_supported("14.invalid").is_err());
+        assert!(macos_system_version_supported("14..1").is_err());
+        assert!(macos_system_version_supported("unknown").is_err());
+        assert!(macos_system_version_supported("").is_err());
     }
 
     #[test]

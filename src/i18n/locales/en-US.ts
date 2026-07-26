@@ -386,8 +386,9 @@ export default {
     macosUnsupportedPlatform: 'The native macOS window controller is only available on macOS.',
     macosVersionRequired:
       'The native macOS window controller requires MaaFramework v5.10.0-beta.1 or later.',
-    macosSystemVersionRequired:
-      'The native macOS window controller requires macOS 14.0 or later.',
+    macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
+    macosSystemVersionDetectionFailed:
+      'The current macOS version could not be detected. Check the logs for details.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',

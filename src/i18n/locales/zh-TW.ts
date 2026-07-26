@@ -371,6 +371,7 @@ export default {
     macosUnsupportedPlatform: 'macOS 原生視窗控制器僅可在 macOS 上使用。',
     macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
     macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
+    macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',

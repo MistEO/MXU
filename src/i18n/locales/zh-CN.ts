@@ -375,6 +375,7 @@ export default {
     macosUnsupportedPlatform: 'macOS 原生窗口控制器仅可在 macOS 上使用。',
     macosVersionRequired: 'macOS 原生窗口控制器需要 MaaFramework v5.10.0-beta.1 或更高版本。',
     macosSystemVersionRequired: 'macOS 原生窗口控制器需要 macOS 14.0 或更高版本。',
+    macosSystemVersionDetectionFailed: '无法识别当前 macOS 系统版本，请查看日志了解详情。',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',

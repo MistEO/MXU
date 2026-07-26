@@ -378,8 +378,9 @@ export default {
     macosUnsupportedPlatform: 'macOS 네이티브 창 컨트롤러는 macOS에서만 사용할 수 있습니다.',
     macosVersionRequired:
       'macOS 네이티브 창 컨트롤러에는 MaaFramework v5.10.0-beta.1 이상이 필요합니다.',
-    macosSystemVersionRequired:
-      'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
+    macosSystemVersionRequired: 'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
+    macosSystemVersionDetectionFailed:
+      '현재 macOS 버전을 확인할 수 없습니다. 자세한 내용은 로그를 확인하세요.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',

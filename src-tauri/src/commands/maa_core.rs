@@ -12,6 +12,8 @@ use tauri::State;
 use maa_framework::controller::{AdbControllerBuilder, Controller};
 use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
+#[cfg(target_os = "macos")]
+use maa_framework::toolkit::MacOSPermission;
 use maa_framework::toolkit::Toolkit;
 use maa_framework::MaaStatus;
 
@@ -24,11 +26,215 @@ use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, nor
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
 
+#[cfg(any(target_os = "macos", test))]
+const MIN_MACOS_MAAFW_VERSION: &str = "5.10.0-beta.1";
+
+#[cfg(any(target_os = "macos", test))]
+const MIN_MACOS_VERSION_MAJOR: u64 = 14;
+
 /// ControllerPool 复用时的合成 conn_id（负数，避免与 MaaFramework 正数 ID 冲突）
 static SYNTHETIC_CONN_ID: AtomicI64 = AtomicI64::new(-1);
 
 fn next_synthetic_conn_id() -> i64 {
     SYNTHETIC_CONN_ID.fetch_sub(1, Ordering::Relaxed)
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn macos_window_id(handle: u64) -> Result<u32, String> {
+    u32::try_from(handle)
+        .map_err(|_| format!("Invalid macOS window handle '{handle}': value exceeds u32::MAX"))
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn macos_system_version_supported(current: &str) -> bool {
+    let mut components = current.trim().split('.');
+    let Some(major) = components
+        .next()
+        .and_then(|component| component.parse::<u64>().ok())
+    else {
+        return false;
+    };
+
+    major >= MIN_MACOS_VERSION_MAJOR
+        && components.all(|component| !component.is_empty() && component.parse::<u64>().is_ok())
+}
+
+#[cfg(target_os = "macos")]
+fn current_macos_system_version() -> Result<String, String> {
+    const OS_PRODUCT_VERSION: &[u8] = b"kern.osproductversion\0";
+    let mut buffer = [0_u8; 32];
+    let mut size = buffer.len();
+
+    // SAFETY: OS_PRODUCT_VERSION is NUL-terminated, buffer is valid for `size` bytes,
+    // and this is a read-only sysctl call with no new value supplied.
+    let result = unsafe {
+        libc::sysctlbyname(
+            OS_PRODUCT_VERSION.as_ptr().cast(),
+            buffer.as_mut_ptr().cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if result != 0 {
+        return Err(std::io::Error::last_os_error().to_string());
+    }
+    if size == 0 || size > buffer.len() {
+        return Err(format!("invalid kern.osproductversion size: {size}"));
+    }
+
+    let end = buffer[..size]
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(size);
+    if end == 0 {
+        return Err("kern.osproductversion returned an empty value".to_string());
+    }
+
+    std::str::from_utf8(&buffer[..end])
+        .map(str::to_owned)
+        .map_err(|e| format!("invalid kern.osproductversion value: {e}"))
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_macos_system_version() -> Result<(), String> {
+    let current = current_macos_system_version().map_err(|e| {
+        format!(
+            "MACOS_VERSION_REQUIRED: current=unknown, minimum={MIN_MACOS_VERSION_MAJOR}.0, error={e}"
+        )
+    })?;
+
+    if macos_system_version_supported(&current) {
+        Ok(())
+    } else {
+        Err(format!(
+            "MACOS_VERSION_REQUIRED: current={current}, minimum={MIN_MACOS_VERSION_MAJOR}.0"
+        ))
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn macos_maafw_version_supported(current: &str) -> bool {
+    let Ok(current) = semver::Version::parse(current.trim().trim_start_matches('v')) else {
+        return false;
+    };
+    let Ok(minimum) = semver::Version::parse(MIN_MACOS_MAAFW_VERSION) else {
+        return false;
+    };
+
+    current >= minimum
+}
+
+#[cfg(target_os = "macos")]
+fn catch_macos_maafw_ffi<T>(
+    api: &str,
+    call: impl FnOnce() -> T + std::panic::UnwindSafe,
+) -> Result<T, String> {
+    std::panic::catch_unwind(call).map_err(|_| {
+        format!(
+            "MACOS_MAAFW_VERSION_REQUIRED: {api} unavailable, minimum=v{MIN_MACOS_MAAFW_VERSION}"
+        )
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_macos_maafw_version() -> Result<(), String> {
+    let current = catch_macos_maafw_ffi("MaaVersion", || maa_framework::maa_version().to_string())?;
+
+    if macos_maafw_version_supported(&current) {
+        Ok(())
+    } else {
+        Err(format!(
+            "MACOS_MAAFW_VERSION_REQUIRED: current={current}, minimum=v{MIN_MACOS_MAAFW_VERSION}"
+        ))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn check_macos_permission(
+    permission: MacOSPermission,
+    name: &str,
+    action: &str,
+) -> Result<bool, String> {
+    catch_macos_maafw_ffi("MaaToolkitMacOSCheckPermission", || {
+        Toolkit::macos_check_permission(permission)
+    })?
+    .map_err(|e| format!("MACOS_PERMISSIONS_REQUIRED: failed to {action} {name}: {e}"))
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_macos_requirements(require_accessibility: bool) -> Result<(), String> {
+    ensure_macos_system_version()?;
+    ensure_macos_maafw_version()?;
+
+    let permissions = [
+        (MacOSPermission::ScreenCapture, "ScreenCapture", true),
+        (
+            MacOSPermission::Accessibility,
+            "Accessibility",
+            require_accessibility,
+        ),
+    ];
+    let mut missing = Vec::new();
+
+    for (permission, name, required) in permissions {
+        if !required {
+            continue;
+        }
+
+        let granted = check_macos_permission(permission, name, "check")?;
+
+        if granted {
+            continue;
+        }
+
+        let request_error = catch_macos_maafw_ffi("MaaToolkitMacOSRequestPermission", || {
+            Toolkit::macos_request_permission(permission)
+        })
+        .and_then(|result| result.map_err(|e| e.to_string()))
+        .err();
+        if let Some(e) = &request_error {
+            warn!("Failed to request macOS {name} permission: {e}");
+        }
+
+        let granted = check_macos_permission(permission, name, "recheck")?;
+        if !granted {
+            if let Some(e) = request_error {
+                if e.starts_with("MACOS_MAAFW_VERSION_REQUIRED") {
+                    return Err(e);
+                }
+            }
+            missing.push(name);
+        }
+    }
+
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("MACOS_PERMISSIONS_REQUIRED: {}", missing.join(",")))
+    }
+}
+
+fn create_macos_controller(
+    handle: u64,
+    screencap_method: u64,
+    input_method: u64,
+) -> Result<Controller, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let window_id = macos_window_id(handle)?;
+        ensure_macos_requirements(input_method != 0)?;
+        catch_macos_maafw_ffi("MaaMacOSControllerCreate", || {
+            Controller::new_macos(window_id, screencap_method, input_method)
+        })?
+        .map_err(|e| e.to_string())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (handle, screencap_method, input_method);
+        Err("MACOS_UNSUPPORTED_PLATFORM".to_string())
+    }
 }
 
 /// 更新实例的 Controller 并清理不再使用的旧 Pool 条目
@@ -276,13 +482,22 @@ pub async fn maa_find_adb_devices(
     find_adb_devices_impl(state.inner().clone()).await
 }
 
-/// 查找 Win32 窗口的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+/// 查找桌面窗口的内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
 pub async fn find_win32_windows_impl(
     state: Arc<MaaState>,
     class_regex: Option<String>,
     window_regex: Option<String>,
 ) -> Result<Vec<Win32Window>, String> {
     tokio::task::spawn_blocking(move || {
+        #[cfg(target_os = "macos")]
+        ensure_macos_requirements(false)?;
+
+        #[cfg(target_os = "macos")]
+        let windows = catch_macos_maafw_ffi("MaaToolkitDesktopWindowFindAll", || {
+            Toolkit::find_desktop_windows()
+        })?
+        .map_err(|e| e.to_string())?;
+        #[cfg(not(target_os = "macos"))]
         let windows = Toolkit::find_desktop_windows().map_err(|e| e.to_string())?;
 
         let class_re = class_regex.as_ref().and_then(|r| regex::Regex::new(r).ok());
@@ -565,6 +780,12 @@ pub async fn connect_controller_impl(
                 )
                 .map_err(|e| e.to_string())?
             }
+            ControllerConfig::MacOS {
+                handle,
+                screencap_method,
+                input_method,
+                ..
+            } => create_macos_controller(*handle, *screencap_method, *input_method)?,
             ControllerConfig::WlRoots {
                 wlr_socket_path,
                 use_win32_vk_code,
@@ -618,6 +839,9 @@ pub async fn connect_controller_impl(
             | ControllerConfig::Win32 {
                 display_short_side, ..
             }
+            | ControllerConfig::MacOS {
+                display_short_side, ..
+            }
             | ControllerConfig::WlRoots {
                 display_short_side, ..
             }
@@ -659,6 +883,40 @@ pub async fn connect_controller_impl(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{macos_maafw_version_supported, macos_system_version_supported, macos_window_id};
+
+    #[test]
+    fn macos_system_version_requires_14() {
+        assert!(!macos_system_version_supported("13.6.9"));
+        assert!(macos_system_version_supported("14.0"));
+        assert!(macos_system_version_supported("14.0.1"));
+        assert!(macos_system_version_supported("15.0"));
+        assert!(!macos_system_version_supported("14.invalid"));
+        assert!(!macos_system_version_supported("unknown"));
+    }
+
+    #[test]
+    fn macos_maafw_version_requires_first_supported_release() {
+        assert!(!macos_maafw_version_supported("v5.10.0-beta.0"));
+        assert!(macos_maafw_version_supported("v5.10.0-beta.1"));
+        assert!(macos_maafw_version_supported("5.10.0"));
+        assert!(!macos_maafw_version_supported("unknown"));
+    }
+
+    #[test]
+    fn macos_window_id_accepts_u32_boundary() {
+        assert_eq!(macos_window_id(u64::from(u32::MAX)), Ok(u32::MAX));
+    }
+
+    #[test]
+    fn macos_window_id_rejects_values_above_u32_boundary() {
+        assert!(macos_window_id(u64::from(u32::MAX) + 1).is_err());
+        assert!(macos_window_id(u64::MAX).is_err());
+    }
 }
 
 /// 连接控制器（异步，通过回调通知完成状态）

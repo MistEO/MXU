@@ -380,6 +380,14 @@ export default {
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS Window',
+    macosPermissionsRequired:
+      'Screen Recording and Accessibility permissions are required. Grant them in macOS System Settings under Privacy & Security, then try again.',
+    macosUnsupportedPlatform: 'The native macOS window controller is only available on macOS.',
+    macosVersionRequired:
+      'The native macOS window controller requires MaaFramework v5.10.0-beta.1 or later.',
+    macosSystemVersionRequired:
+      'The native macOS window controller requires macOS 14.0 or later.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',

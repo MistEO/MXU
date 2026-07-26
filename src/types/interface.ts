@@ -111,7 +111,7 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType = 'Adb' | 'Win32' | 'MacOS' | 'WlRoots' | 'PlayCover' | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -129,6 +129,7 @@ export interface ControllerItem {
   option?: string[];
   adb?: Record<string, unknown>;
   win32?: Win32Config;
+  macos?: MacOSConfig;
   wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
@@ -140,6 +141,12 @@ export interface Win32Config {
   mouse?: string;
   keyboard?: string;
   screencap?: string | string[];
+}
+
+export interface MacOSConfig {
+  title_regex?: string;
+  screencap?: string;
+  input?: string;
 }
 
 export interface WlRootsConfig {

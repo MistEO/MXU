@@ -372,6 +372,14 @@ export default {
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 창',
+    macosPermissionsRequired:
+      '화면 기록 및 손쉬운 사용 권한이 필요합니다. macOS 시스템 설정의 개인정보 보호 및 보안에서 권한을 허용한 후 다시 시도하세요.',
+    macosUnsupportedPlatform: 'macOS 네이티브 창 컨트롤러는 macOS에서만 사용할 수 있습니다.',
+    macosVersionRequired:
+      'macOS 네이티브 창 컨트롤러에는 MaaFramework v5.10.0-beta.1 이상이 필요합니다.',
+    macosSystemVersionRequired:
+      'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',

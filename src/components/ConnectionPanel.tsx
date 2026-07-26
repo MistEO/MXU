@@ -24,7 +24,11 @@ import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { computeResourcePaths } from '@/utils/resourcePath';
 import { getProcessNameFromPath } from '@/utils/paths';
-import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
+import {
+  buildDesktopWindowControllerConfig,
+  getDesktopWindowFilters,
+  isDesktopWindowControllerType,
+} from '@/utils/controller';
 import { getInterfaceLangKey } from '@/i18n';
 import { generateId } from '@/stores/helpers';
 import {
@@ -184,6 +188,9 @@ export function ConnectionPanel() {
   const currentController =
     controllers.find((c) => c.name === currentControllerName) || controllers[0];
   const controllerType = currentController?.type;
+  const isDesktopWindowController = isDesktopWindowControllerType(controllerType);
+  const { classRegex: desktopWindowClassRegex, titleRegex: desktopWindowTitleRegex } =
+    getDesktopWindowFilters(currentController);
 
   // 获取资源列表
   const allResources = projectInterface?.resource || [];
@@ -312,10 +319,7 @@ export function ConnectionPanel() {
 
   // 判断是否需要搜索设备（PlayCover 不需要搜索）
   const needsDeviceSearch =
-    controllerType === 'Adb' ||
-    controllerType === 'Win32' ||
-    controllerType === 'Gamepad' ||
-    controllerType === 'WlRoots';
+    controllerType === 'Adb' || isDesktopWindowController || controllerType === 'WlRoots';
 
   // 记录上一次的控制器名称，用于检测切换
   const prevControllerNameRef = useRef<string | undefined>(currentControllerName);
@@ -348,7 +352,7 @@ export function ConnectionPanel() {
     const hasHistoricalDevice =
       savedDevice &&
       ((controllerType === 'Adb' && savedDevice.adbDeviceName) ||
-        ((controllerType === 'Win32' || controllerType === 'Gamepad') && savedDevice.windowName) ||
+        (isDesktopWindowController && savedDevice.windowName) ||
         (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
 
@@ -425,12 +429,11 @@ export function ConnectionPanel() {
           // 有保存设备但匹配失败，显示下拉框让用户选择
           setShowDeviceDropdown(true);
         }
-      } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-        const classRegex =
-          currentController.win32?.class_regex || currentController.gamepad?.class_regex;
-        const windowRegex =
-          currentController.win32?.window_regex || currentController.gamepad?.window_regex;
-        const windows = await maaService.findWin32Windows(classRegex, windowRegex);
+      } else if (isDesktopWindowController) {
+        const windows = await maaService.findWin32Windows(
+          desktopWindowClassRegex,
+          desktopWindowTitleRegex,
+        );
         setCachedWin32Windows(windows);
 
         // 自动连接策略（与 Adb 一致）
@@ -566,15 +569,15 @@ export function ConnectionPanel() {
         };
         deviceName = selectedAdbDevice.name || selectedAdbDevice.address;
         targetType = 'device';
-      } else if (controllerType === 'Win32' && selectedWindow) {
-        config = {
-          type: 'Win32',
-          handle: selectedWindow.handle,
-          screencap_method: parseWin32ScreencapMethod(currentController.win32?.screencap || ''),
-          mouse_method: parseWin32InputMethod(currentController.win32?.mouse || ''),
-          keyboard_method: parseWin32InputMethod(currentController.win32?.keyboard || ''),
-          display_short_side: currentController?.display_short_side,
-        };
+      } else if (isDesktopWindowController && selectedWindow) {
+        const desktopConfig = buildDesktopWindowControllerConfig(
+          currentController,
+          selectedWindow.handle,
+        );
+        if (!desktopConfig) {
+          throw new Error(t('controller.selectWindow'));
+        }
+        config = desktopConfig;
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
@@ -596,19 +599,9 @@ export function ConnectionPanel() {
         };
         deviceName = playcoverAddress;
         targetType = 'device';
-      } else if (controllerType === 'Gamepad' && selectedWindow) {
-        config = {
-          type: 'Gamepad',
-          handle: selectedWindow.handle,
-          display_short_side: currentController?.display_short_side,
-        };
-        deviceName = selectedWindow.window_name || selectedWindow.class_name;
-        targetType = 'window';
       } else {
         throw new Error(
-          controllerType === 'Win32' || controllerType === 'Gamepad'
-            ? t('controller.selectWindow')
-            : t('controller.selectDevice'),
+          isDesktopWindowController ? t('controller.selectWindow') : t('controller.selectDevice'),
         );
       }
 
@@ -735,6 +728,7 @@ export function ConnectionPanel() {
       case 'Win32':
       case 'WlRoots':
         return <Monitor className="w-4 h-4" />;
+      case 'MacOS':
       case 'PlayCover':
         return <Apple className="w-4 h-4" />;
       case 'Gamepad':
@@ -758,7 +752,7 @@ export function ConnectionPanel() {
       }
       return t('controller.selectDevice');
     }
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') {
+    if (isDesktopWindowController) {
       if (selectedWindow) {
         return selectedWindow.window_name || selectedWindow.class_name;
       }
@@ -894,28 +888,17 @@ export function ConnectionPanel() {
 
       await maaService.createInstance(instanceId).catch(() => {});
 
-      let config: ControllerConfig;
-      if (controllerType === 'Win32') {
-        config = {
-          type: 'Win32',
-          handle: win.handle,
-          screencap_method: parseWin32ScreencapMethod(currentController?.win32?.screencap || ''),
-          mouse_method: parseWin32InputMethod(currentController?.win32?.mouse || ''),
-          keyboard_method: parseWin32InputMethod(currentController?.win32?.keyboard || ''),
-          display_short_side: currentController?.display_short_side,
-        };
-      } else {
-        config = {
-          type: 'Gamepad',
-          handle: win.handle,
-          display_short_side: currentController?.display_short_side,
-        };
+      const config = buildDesktopWindowControllerConfig(currentController, win.handle);
+      if (!config) {
+        throw new Error(t('controller.selectWindow'));
       }
 
       await connectControllerInternal(config, win.window_name || win.class_name, 'window');
 
-      // 连接成功后异步获取进程路径（Win32 和 Gamepad 都基于窗口句柄）
-      void fetchAndStoreProcessPath(win.handle);
+      // 仅 Windows 窗口句柄支持进程路径查询。
+      if (controllerType === 'Win32' || controllerType === 'Gamepad') {
+        void fetchAndStoreProcessPath(win.handle);
+      }
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
       setIsConnected(false);
@@ -1003,12 +986,11 @@ export function ConnectionPanel() {
         if (devices.length > 0) {
           setShowDeviceDropdown(true);
         }
-      } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-        const classRegex =
-          currentController.win32?.class_regex || currentController.gamepad?.class_regex;
-        const windowRegex =
-          currentController.win32?.window_regex || currentController.gamepad?.window_regex;
-        const windows = await maaService.findWin32Windows(classRegex, windowRegex);
+      } else if (isDesktopWindowController) {
+        const windows = await maaService.findWin32Windows(
+          desktopWindowClassRegex,
+          desktopWindowTitleRegex,
+        );
         setCachedWin32Windows(windows);
 
         // 尝试匹配保存的窗口名称
@@ -1090,7 +1072,7 @@ export function ConnectionPanel() {
 
       return [];
     }
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') {
+    if (isDesktopWindowController) {
       // 如果缓存中有窗口，使用缓存列表
       if (cachedWin32Windows.length > 0) {
         return cachedWin32Windows.map((window) => ({
@@ -1154,7 +1136,7 @@ export function ConnectionPanel() {
   // 判断是否可以连接
   const canConnect = () => {
     if (controllerType === 'Adb') return !!selectedAdbDevice;
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') return !!selectedWindow;
+    if (isDesktopWindowController) return !!selectedWindow;
     if (controllerType === 'WlRoots') return !!selectedWlrootsSocket;
     if (controllerType === 'PlayCover') return playcoverAddress.trim().length > 0;
     return false;
@@ -1410,7 +1392,7 @@ export function ConnectionPanel() {
               </div>
             )}
 
-            {/* 设备选择（Adb/Win32/Gamepad/Wlroots）- 下拉框和刷新按钮同一行 */}
+            {/* 设备选择（Adb/Win32/MacOS/Gamepad/Wlroots）- 下拉框和刷新按钮同一行 */}
             {needsDeviceSearch && (
               <div className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
@@ -1505,7 +1487,7 @@ export function ConnectionPanel() {
                         <div className="px-3 py-3 text-center text-text-muted text-xs">
                           {isSearching
                             ? t('common.loading')
-                            : controllerType === 'Win32' || controllerType === 'Gamepad'
+                            : isDesktopWindowController
                               ? t('controller.noWindows')
                               : t('controller.noDevices')}
                         </div>
@@ -1526,7 +1508,7 @@ export function ConnectionPanel() {
                       : 'hover:bg-bg-hover hover:border-accent',
                   )}
                   title={
-                    controllerType === 'Win32' || controllerType === 'Gamepad'
+                    isDesktopWindowController
                       ? t('controller.refreshWindows')
                       : t('controller.refreshDevices')
                   }

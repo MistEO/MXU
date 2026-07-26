@@ -50,6 +50,9 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
     SHIFT: 0x10,
     CTRL: 0x11,
     ALT: 0x12,
+    META: 0x5b,
+    COMMAND: 0x5b,
+    CMD: 0x5b,
     PAUSE: 0x13,
     CAPSLOCK: 0x14,
     ESC: 0x1b,
@@ -113,6 +116,79 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
     F11: 0x7a,
     F12: 0x7b,
   },
+  // macOS 使用 CoreGraphics 的 CGKeyCode（对应 HIToolbox Events.h 中的 kVK_*）。
+  // 字母/数字键按 ANSI 键盘物理位置映射；修饰键使用左侧 Shift / Control / Option / Command。
+  MacOS: {
+    BACKSPACE: 0x33,
+    TAB: 0x30,
+    ENTER: 0x24,
+    SHIFT: 0x38,
+    CTRL: 0x3b,
+    ALT: 0x3a,
+    META: 0x37,
+    COMMAND: 0x37,
+    CMD: 0x37,
+    CAPSLOCK: 0x39,
+    ESC: 0x35,
+    SPACE: 0x31,
+    PAGEUP: 0x74,
+    PAGEDOWN: 0x79,
+    END: 0x77,
+    HOME: 0x73,
+    LEFT: 0x7b,
+    UP: 0x7e,
+    RIGHT: 0x7c,
+    DOWN: 0x7d,
+    DELETE: 0x75,
+    '0': 0x1d,
+    '1': 0x12,
+    '2': 0x13,
+    '3': 0x14,
+    '4': 0x15,
+    '5': 0x17,
+    '6': 0x16,
+    '7': 0x1a,
+    '8': 0x1c,
+    '9': 0x19,
+    A: 0x00,
+    B: 0x0b,
+    C: 0x08,
+    D: 0x02,
+    E: 0x0e,
+    F: 0x03,
+    G: 0x05,
+    H: 0x04,
+    I: 0x22,
+    J: 0x26,
+    K: 0x28,
+    L: 0x25,
+    M: 0x2e,
+    N: 0x2d,
+    O: 0x1f,
+    P: 0x23,
+    Q: 0x0c,
+    R: 0x0f,
+    S: 0x01,
+    T: 0x11,
+    U: 0x20,
+    V: 0x09,
+    W: 0x0d,
+    X: 0x07,
+    Y: 0x10,
+    Z: 0x06,
+    F1: 0x7a,
+    F2: 0x78,
+    F3: 0x63,
+    F4: 0x76,
+    F5: 0x60,
+    F6: 0x61,
+    F7: 0x62,
+    F8: 0x64,
+    F9: 0x65,
+    F10: 0x6d,
+    F11: 0x67,
+    F12: 0x6f,
+  },
   Adb: {
     BACKSPACE: 67,
     TAB: 61,
@@ -120,6 +196,9 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
     SHIFT: 59,
     CTRL: 113,
     ALT: 57,
+    META: 117,
+    COMMAND: 117,
+    CMD: 117,
     SPACE: 62,
     ESC: 111,
     DELETE: 112,
@@ -187,6 +266,9 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
     SHIFT: 42,
     CTRL: 29,
     ALT: 56,
+    META: 125,
+    COMMAND: 125,
+    CMD: 125,
     SPACE: 57,
     ESC: 1,
     DELETE: 111,
@@ -251,13 +333,16 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
 
 /**
  * 将单个按键名（如 "A"、"F1"、"Ctrl"）转换为指定控制器类型的虚拟键码。
- * 注意：这里按控制器 **类型**（Win32 / Adb / WlRoots）查表，而非控制器 name。
+ * 注意：这里按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，而非控制器 name。
  * 未知按键返回 null。
  */
 const convertHotkeyKeyName = (keyName: string, controllerType?: string): number | null => {
-  const controllerMap = HOTKEY_KEY_MAP[controllerType || ''] || HOTKEY_KEY_MAP.Win32;
+  // MacOS 必须使用 CGKeyCode；即使映射表意外缺失，也不能退回 Win32 VK。
+  const controllerMap =
+    HOTKEY_KEY_MAP[controllerType || ''] ??
+    (controllerType === 'MacOS' ? undefined : HOTKEY_KEY_MAP.Win32);
   const normalized = keyName.trim().toUpperCase();
-  const keyCode = controllerMap[normalized];
+  const keyCode = controllerMap?.[normalized];
   if (keyCode === undefined) {
     loggers.task.warn('未知热键按键，无法映射到虚拟键码', {
       keyName,
@@ -270,7 +355,7 @@ const convertHotkeyKeyName = (keyName: string, controllerType?: string): number 
 
 /**
  * 将组合键字符串（如 "Ctrl+Shift+A"）拆分为主键与修饰键。
- * 约定末位为主键，其余为修饰键（捕获时按 Ctrl/Alt/Shift 顺序排列）。
+ * 约定末位为主键，其余为修饰键（捕获时按 Ctrl/Meta/Alt/Shift 顺序排列）。
  */
 const splitHotkeyCombo = (value: string): { primary: string; modifiers: string[] } => {
   const parts = value
@@ -446,7 +531,7 @@ export const generateTaskPipelineOverride = (
 
   if (!projectInterface) return '[]';
 
-  // 热键键码按控制器 **类型**（Win32 / Adb / WlRoots）查表，这里先由 name 解析出 type
+  // 热键键码按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，这里先由 name 解析出 type
   const controllerType = controllerName
     ? projectInterface.controller.find((c) => c.name === controllerName)?.type
     : undefined;

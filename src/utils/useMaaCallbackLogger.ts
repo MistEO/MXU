@@ -11,6 +11,7 @@ import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { isTauri } from '@/utils/paths';
+import { isDesktopWindowControllerType } from '@/utils/controller';
 import * as wsService from '@/services/wsService';
 import {
   resolveI18nText,
@@ -161,7 +162,7 @@ function inferCtrlInfoFromInstance(instanceId: string): {
   if (!controller) return { type: undefined, name: undefined };
 
   // 根据控制器类型确定类型和名称
-  if (controller.type === 'Win32' || controller.type === 'Gamepad') {
+  if (isDesktopWindowControllerType(controller.type)) {
     return { type: 'window', name: savedDevice?.windowName };
   } else if (controller.type === 'Adb') {
     return { type: 'device', name: savedDevice?.adbDeviceName };

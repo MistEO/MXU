@@ -81,6 +81,13 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
+    MacOS {
+        handle: u64,
+        screencap_method: u64,
+        input_method: u64,
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
     WlRoots {
         wlr_socket_path: String,
         #[serde(default)]
@@ -110,6 +117,29 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ControllerConfig;
+
+    #[test]
+    fn deserializes_macos_controller_config_with_default_display_short_side() {
+        let config: ControllerConfig = serde_json::from_str(
+            r#"{"type":"MacOS","handle":42,"screencap_method":1,"input_method":2}"#,
+        )
+        .expect("MacOS controller config should deserialize");
+
+        assert_eq!(
+            config,
+            ControllerConfig::MacOS {
+                handle: 42,
+                screencap_method: 1,
+                input_method: 2,
+                display_short_side: None,
+            }
+        );
+    }
 }
 
 /// 连接状态

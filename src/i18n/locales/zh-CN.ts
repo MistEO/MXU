@@ -369,6 +369,12 @@ export default {
     win32: 'Windows 窗口',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 窗口',
+    macosPermissionsRequired:
+      '需要授予屏幕录制和辅助功能权限。请在 macOS“系统设置”的“隐私与安全性”中授权后重试。',
+    macosUnsupportedPlatform: 'macOS 原生窗口控制器仅可在 macOS 上使用。',
+    macosVersionRequired: 'macOS 原生窗口控制器需要 MaaFramework v5.10.0-beta.1 或更高版本。',
+    macosSystemVersionRequired: 'macOS 原生窗口控制器需要 macOS 14.0 或更高版本。',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',

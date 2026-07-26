@@ -15,10 +15,28 @@ import type {
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 import { isTauri } from '@/utils/paths';
+import i18n from '@/i18n';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
 import * as wsService from '@/services/wsService';
 
 const log = loggers.maa;
+
+function localizeControllerError(error: unknown): unknown {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('MACOS_PERMISSIONS_REQUIRED')) {
+    return new Error(i18n.t('controller.macosPermissionsRequired'));
+  }
+  if (message.includes('MACOS_UNSUPPORTED_PLATFORM')) {
+    return new Error(i18n.t('controller.macosUnsupportedPlatform'));
+  }
+  if (message.includes('MACOS_MAAFW_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.macosVersionRequired'));
+  }
+  if (message.includes('MACOS_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.macosSystemVersionRequired'));
+  }
+  return error;
+}
 
 /**
  * 从后端获取最新缓存截图，转换为 base64 data URL（浏览器专用）
@@ -181,37 +199,42 @@ export const maaService = {
   },
 
   /**
-   * 查找 Win32 窗口
-   * @param classRegex 窗口类名正则表达式（可选）
+   * 查找桌面窗口（Win32/macOS）
+   * @param classRegex 窗口类名正则表达式（仅 Win32/Gamepad，可选）
    * @param windowRegex 窗口标题正则表达式（可选）
    */
   async findWin32Windows(classRegex?: string, windowRegex?: string): Promise<Win32Window[]> {
-    log.info(
-      '搜索 Win32 窗口, classRegex:',
-      classRegex || '(无)',
-      ', windowRegex:',
-      windowRegex || '(无)',
-    );
-    let windows: Win32Window[];
-    if (isTauri()) {
-      windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
-        classRegex: classRegex || null,
-        windowRegex: windowRegex || null,
-      });
-    } else {
-      const params = new URLSearchParams();
-      if (classRegex) params.set('class_regex', classRegex);
-      if (windowRegex) params.set('window_regex', windowRegex);
-      const query = params.toString();
-      windows = await apiGet<Win32Window[]>(`/maa/windows${query ? `?${query}` : ''}`);
-    }
-    log.info('找到 Win32 窗口:', windows.length, '个');
-    windows.forEach((win, i) => {
-      log.debug(
-        `  窗口[${i}]: handle=${win.handle}, class=${win.class_name}, name=${win.window_name}`,
+    try {
+      log.info(
+        '搜索桌面窗口, classRegex:',
+        classRegex || '(无)',
+        ', windowRegex:',
+        windowRegex || '(无)',
       );
-    });
-    return windows;
+      let windows: Win32Window[];
+      if (isTauri()) {
+        windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
+          classRegex: classRegex || null,
+          windowRegex: windowRegex || null,
+        });
+      } else {
+        const params = new URLSearchParams();
+        if (classRegex) params.set('class_regex', classRegex);
+        if (windowRegex) params.set('window_regex', windowRegex);
+        const query = params.toString();
+        windows = await apiGet<Win32Window[]>(`/maa/windows${query ? `?${query}` : ''}`);
+      }
+      log.info('找到桌面窗口:', windows.length, '个');
+      windows.forEach((win, i) => {
+        log.debug(
+          `  窗口[${i}]: handle=${win.handle}, class=${win.class_name}, name=${win.window_name}`,
+        );
+      });
+      return windows;
+    } catch (err) {
+      log.error('搜索桌面窗口失败:', err);
+      throw localizeControllerError(err);
+    }
   },
 
   /**
@@ -269,16 +292,16 @@ export const maaService = {
     log.info('连接控制器, 实例:', instanceId, '类型:', config.type);
     log.debug('控制器配置:', config);
 
-    if (!isTauri()) {
-      log.info('浏览器环境，调用 HTTP API 连接控制器');
-      const result = await apiPost<{ connId: number }>(
-        `/maa/instances/${instanceId}/connect`,
-        config,
-      );
-      return result.connId;
-    }
-
     try {
+      if (!isTauri()) {
+        log.info('浏览器环境，调用 HTTP API 连接控制器');
+        const result = await apiPost<{ connId: number }>(
+          `/maa/instances/${instanceId}/connect`,
+          config,
+        );
+        return result.connId;
+      }
+
       const ctrlId = await invoke<number>('maa_connect_controller', {
         instanceId,
         config,
@@ -287,7 +310,7 @@ export const maaService = {
       return ctrlId;
     } catch (err) {
       log.error('控制器连接请求失败:', err);
-      throw err;
+      throw localizeControllerError(err);
     }
   },
 

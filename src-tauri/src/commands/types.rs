@@ -282,6 +282,8 @@ pub struct MaaState {
     pub lib_dir: Mutex<Option<PathBuf>>,
     pub resource_dir: Mutex<Option<PathBuf>>,
     pub instances: Mutex<HashMap<String, InstanceRuntime>>,
+    /// 串行化任务提交与当前会话 on_error 文件清理，避免状态检查后的启动竞态。
+    pub task_submission_cleanup_gate: Mutex<()>,
     /// 前置程序停止请求（用于中断等待退出）
     pub pre_action_stop_requests: Mutex<HashSet<String>>,
     /// Controller 连接池：相同配置的 Controller 复用同一个 MaaControllerHandle

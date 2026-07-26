@@ -67,7 +67,7 @@ import {
   mergeRuntimeLogs,
   persistRuntimeLogs,
 } from '@/utils/runtimeLogPersistence';
-import { getCurrentLogFileName } from '@/utils/logger';
+import { clearDiskLogFiles } from '@/utils/logCleanup';
 import {
   isTauri,
   isValidWindowSize,
@@ -733,12 +733,10 @@ function App() {
         if (store.autoClearLogsOnLaunch) {
           if (isTauri()) {
             try {
-              const deleted = await invoke<number>('clear_log_files', {
-                excludeFileName: getCurrentLogFileName(),
-              });
-              log.info('Auto-cleared log files on launch:', deleted);
-            } catch {
-              // ignore cleanup errors
+              const report = await clearDiskLogFiles();
+              log.info('Auto-cleared log files on launch:', report);
+            } catch (error) {
+              log.warn('Failed to auto-clear log files on launch:', error);
             }
           }
           clearPersistedRuntimeLogs();

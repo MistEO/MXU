@@ -700,6 +700,12 @@ pub async fn start_tasks_impl(
         debug!("[start_tasks] No agent configs, skipping agent setup");
     };
 
+    // 相对于当前会话 on_error 清理，将任务提交与运行状态登记视为一个原子区间。
+    let _task_submission_guard = maa_state
+        .task_submission_cleanup_gate
+        .lock()
+        .map_err(|e| format!("Failed to lock task submission gate: {}", e))?;
+
     // 遥测：整批运行开始（仅首批；追加批次沿用已有 Transaction）
     // 必须在 post_task 之前，否则首个任务的开始回调会早于 Transaction 创建、丢掉它的 Span
     if reset_state {

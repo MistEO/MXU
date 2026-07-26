@@ -561,6 +561,7 @@ export default {
   // 欢迎弹窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看欢迎信息',
   },
 
   // 新用户引导

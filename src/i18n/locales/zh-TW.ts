@@ -557,6 +557,7 @@ export default {
   // 欢迎彈窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看歡迎資訊',
   },
 
   // 新用戶引導

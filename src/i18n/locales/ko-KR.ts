@@ -570,6 +570,7 @@ export default {
   // 환영 대화상자
   welcome: {
     dismiss: '확인했습니다',
+    viewAgain: '환영 메시지 보기',
   },
 
   // 신규 사용자 가이드

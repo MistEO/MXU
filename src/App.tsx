@@ -99,9 +99,9 @@ const LazySettingsPage = lazy(async () => {
   return { default: module.SettingsPage };
 });
 
-const LazyWelcomeDialog = lazy(async () => {
+const LazyAutoWelcomeDialog = lazy(async () => {
   const module = await import('@/components/WelcomeDialog');
-  return { default: module.WelcomeDialog };
+  return { default: module.AutoWelcomeDialog };
 });
 
 const LazyDashboardView = lazy(async () => {
@@ -1806,8 +1806,10 @@ function App() {
 
         {/* 欢迎弹窗 */}
         {projectInterface.welcome && (
-          <Suspense fallback={null}>
-            <LazyWelcomeDialog />
+          <Suspense
+            fallback={<div className="fixed inset-0 z-50 pointer-events-none" aria-hidden />}
+          >
+            <LazyAutoWelcomeDialog />
           </Suspense>
         )}
 

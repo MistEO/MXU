@@ -13,6 +13,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
+import { buildTaskOptionSummary } from '@/services/telemetryService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
@@ -1144,6 +1145,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 useAppStore.getState().globalOptionValues,
               ),
               selected_task_id: selectedTask.id,
+              task_name: taskDef.name,
+              options: buildTaskOptionSummary(
+                selectedTask,
+                taskDef.option,
+                specialTask?.optionDefs ?? projectInterface?.option,
+              ),
             };
           });
 
@@ -1174,6 +1181,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             tcpCompatMode,
             piEnvs,
             resetState,
+            {
+              name: currentControllerName,
+              type: projectInterface?.controller.find((c) => c.name === currentControllerName)
+                ?.type,
+            },
           );
 
           log.info(`实例 ${targetInstance.name}: ${batchName}任务已提交, task_ids:`, batchTaskIds);

@@ -11,6 +11,7 @@ import type {
   TaskStatus,
   AgentConfig,
   TaskConfig,
+  ControllerTelemetryInfo,
   InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
@@ -586,6 +587,7 @@ export const maaService = {
    * @param piEnvs PI v2.5.0 环境变量（Agent 子进程注入）
    * @param resetState 是否重置后端任务运行状态（默认 true）。分段运行时，仅首段为 true，
    *                   后续段传 false 以追加任务、保留已完成段的状态。
+   * @param controllerInfo 当前 controller 的名称与类型（仅用于遥测埋点）
    * @returns 任务 ID 列表
    */
   async startTasks(
@@ -596,6 +598,7 @@ export const maaService = {
     tcpCompatMode?: boolean,
     piEnvs?: Record<string, string>,
     resetState: boolean = true,
+    controllerInfo?: ControllerTelemetryInfo,
   ): Promise<number[]> {
     log.info('启动任务, 实例:', instanceId, ', 任务数:', tasks.length, ', cwd:', cwd || '.');
     tasks.forEach((task, i) => {
@@ -621,6 +624,7 @@ export const maaService = {
           tcp_compat_mode: tcpCompatMode || false,
           pi_envs: agentConfigs && agentConfigs.length > 0 && piEnvs ? piEnvs : null,
           reset_state: resetState,
+          controller_info: controllerInfo ?? null,
         },
       );
       log.info('任务已提交 (HTTP), taskIds:', result.taskIds);
@@ -635,6 +639,7 @@ export const maaService = {
       tcpCompatMode: tcpCompatMode || false,
       piEnvs: hasAgent && piEnvs ? piEnvs : null,
       resetState,
+      controllerInfo: controllerInfo ?? null,
     });
     log.info('任务已提交, taskIds:', taskIds);
     return taskIds;

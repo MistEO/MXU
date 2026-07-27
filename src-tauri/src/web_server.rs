@@ -31,7 +31,7 @@ use crate::commands::{
         load_resource_impl, override_pipeline_impl, post_click_impl, post_screencap_impl,
         run_task_impl, stop_task_impl,
     },
-    types::{AgentConfig, ControllerConfig, MaaState, TaskConfig},
+    types::{AgentConfig, ControllerConfig, ControllerInfo, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
 };
 use crate::ws_broadcast::WsBroadcast;
@@ -906,6 +906,9 @@ struct StartTasksRequest {
     pi_envs: Option<std::collections::HashMap<String, String>>,
     #[serde(default)]
     reset_state: Option<bool>,
+    /// 当前 controller 描述，仅用于遥测埋点
+    #[serde(default)]
+    controller_info: Option<ControllerInfo>,
 }
 
 /// POST /api/maa/instances/:id/tasks/start
@@ -941,6 +944,7 @@ async fn handle_start_tasks(
         body.tcp_compat_mode.unwrap_or(false),
         body.pi_envs,
         body.reset_state.unwrap_or(true),
+        body.controller_info,
     )
     .await
     {

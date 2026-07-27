@@ -193,4 +193,14 @@ export interface TaskConfig {
   pipeline_override: string;
   /** 对应的前端选中任务 ID（用于后端跟踪 per-task 状态） */
   selected_task_id?: string;
+  /** interface 任务名（如 `SwitchTeam`），仅用于遥测埋点 */
+  task_name?: string;
+  /** 已脱敏的任务选项摘要，仅用于遥测埋点 */
+  options?: Record<string, string>;
+}
+
+/** 当前 controller 描述（仅用于遥测埋点） */
+export interface ControllerTelemetryInfo {
+  name?: string;
+  type?: string;
 }

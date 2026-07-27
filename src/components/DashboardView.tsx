@@ -25,6 +25,7 @@ import {
 import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
+import { buildTaskOptionSummary } from '@/services/telemetryService';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
@@ -302,6 +303,12 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                   useAppStore.getState().globalOptionValues,
                 ),
                 selected_task_id: selectedTask.id,
+                task_name: taskDef.name,
+                options: buildTaskOptionSummary(
+                  selectedTask,
+                  taskDef.option,
+                  specialTask?.optionDefs ?? projectInterface?.option,
+                ),
               };
             });
 
@@ -352,6 +359,11 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
               tcpCompatMode,
               piEnvs,
               resetState,
+              {
+                name: currentControllerName,
+                type: projectInterface?.controller.find((c) => c.name === currentControllerName)
+                  ?.type,
+              },
             );
 
             batchTaskIds.forEach((maaTaskId, index) => {

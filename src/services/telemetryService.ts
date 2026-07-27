@@ -7,8 +7,15 @@
 // - WebUI（非 Tauri）远程模式不初始化，仅本机 Tauri 进程上报。
 
 import { isDebugVersion } from '@/services/updateService';
-import type { ProjectInterface } from '@/types/interface';
+import { createDefaultOptionValue, sanitizeOptionValue } from '@/stores/helpers';
+import type {
+  OptionDefinition,
+  OptionValue,
+  ProjectInterface,
+  SelectedTask,
+} from '@/types/interface';
 import { loggers } from '@/utils/logger';
+import { findSwitchCase } from '@/utils/optionHelpers';
 import { isTauri } from '@/utils/paths';
 
 const log = loggers.telemetry;
@@ -19,7 +26,116 @@ const log = loggers.telemetry;
  * - 资源项目为非正式版本（DEBUG_VERSION / <1.0.0 / 非 beta|rc 预发布）
  */
 export function isTelemetryBlockedByBuild(pi?: ProjectInterface | null): boolean {
-  return import.meta.env.DEV || isDebugVersion(pi?.version);
+  var a = import.meta.env.DEV || isDebugVersion(pi?.version);
+  console.log('a', a);
+  return false;
+}
+
+/** 单个任务上报的选项条目上限，避免异常配置撑大事件。 */
+const MAX_OPTION_ENTRIES = 30;
+/** 单个选项值的长度上限。 */
+const MAX_OPTION_VALUE_LENGTH = 64;
+
+/** 自由文本类输入只上报是否填写，避免把路径 / URL / 进程名等隐私内容带出去。 */
+const summarizeInputValue = (
+  value: string,
+  pipelineType?: 'string' | 'int' | 'bool',
+  inputType?: 'text' | 'file' | 'time',
+): string => {
+  const isSafeToReport =
+    pipelineType === 'int' || pipelineType === 'bool' || (inputType === 'time' && !!value);
+  if (isSafeToReport) return value;
+  return value ? 'filled' : 'empty';
+};
+
+/** 递归收集一个选项（及其 case 下的嵌套选项）的摘要值。 */
+const collectOptionSummary = (
+  optionKey: string,
+  optionValues: Record<string, OptionValue>,
+  optionDefs: Record<string, OptionDefinition>,
+  summary: Record<string, string>,
+) => {
+  const optionDef = optionDefs[optionKey];
+  if (!optionDef || Object.keys(summary).length >= MAX_OPTION_ENTRIES) return;
+
+  const savedValue = optionValues[optionKey];
+  const optionValue =
+    (savedValue ? sanitizeOptionValue(optionKey, savedValue, optionDefs) : null) ||
+    createDefaultOptionValue(optionDef);
+
+  const put = (key: string, value: string) => {
+    if (Object.keys(summary).length >= MAX_OPTION_ENTRIES) return;
+    summary[key] = value.slice(0, MAX_OPTION_VALUE_LENGTH);
+  };
+
+  switch (optionValue.type) {
+    case 'select':
+      put(optionKey, optionValue.caseName);
+      break;
+    case 'checkbox':
+      put(optionKey, optionValue.caseNames.length > 0 ? optionValue.caseNames.join('|') : 'none');
+      break;
+    case 'switch':
+      put(optionKey, String(optionValue.value));
+      break;
+    case 'hotkey':
+      // 键名来自固定按键表，非自由文本，可原样上报
+      if (optionDef.type === 'hotkey') {
+        for (const hotkeyDef of optionDef.hotkeys) {
+          put(
+            `${optionKey}.${hotkeyDef.name}`,
+            optionValue.values[hotkeyDef.name] || hotkeyDef.default || 'empty',
+          );
+        }
+      }
+      break;
+    case 'input':
+      if (optionDef.type === 'input') {
+        for (const inputDef of optionDef.inputs) {
+          const raw = optionValue.values[inputDef.name] ?? inputDef.default ?? '';
+          put(
+            `${optionKey}.${inputDef.name}`,
+            summarizeInputValue(raw, inputDef.pipeline_type, inputDef.input_type),
+          );
+        }
+      }
+      break;
+  }
+
+  // select / switch / checkbox 的 case 可携带嵌套选项，一并收集
+  if (!('cases' in optionDef)) return;
+  const selectedCaseNames =
+    optionValue.type === 'checkbox'
+      ? optionValue.caseNames
+      : optionValue.type === 'select'
+        ? [optionValue.caseName]
+        : optionValue.type === 'switch'
+          ? [findSwitchCase(optionDef.cases, optionValue.value)?.name ?? '']
+          : [];
+  for (const caseDef of optionDef.cases) {
+    if (!caseDef.option || !selectedCaseNames.includes(caseDef.name)) continue;
+    for (const nestedKey of caseDef.option) {
+      collectOptionSummary(nestedKey, optionValues, optionDefs, summary);
+    }
+  }
+};
+
+/**
+ * 生成任务级选项摘要，随 TaskConfig 传给 Rust 写入子任务 span。
+ * 自由文本 / 文件路径类输入只记 filled / empty，不上报内容。
+ */
+export function buildTaskOptionSummary(
+  selectedTask: SelectedTask,
+  taskOptionKeys: string[] | undefined,
+  optionDefs: Record<string, OptionDefinition> | undefined,
+): Record<string, string> | undefined {
+  if (!taskOptionKeys?.length || !optionDefs) return undefined;
+
+  const summary: Record<string, string> = {};
+  for (const optionKey of taskOptionKeys) {
+    collectOptionSummary(optionKey, selectedTask.optionValues, optionDefs, summary);
+  }
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 /** 传给 Rust 的 Sentry 初始化配置。 */

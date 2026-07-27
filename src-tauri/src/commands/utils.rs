@@ -79,9 +79,6 @@ pub fn handle_task_callback(
         None => return,
     };
 
-    // 供遥测使用：任务开始时的 entry 名（在锁外调用埋点，避免嵌套锁）
-    let mut started_entry: Option<String> = None;
-
     let all_done = {
         let mut instances = match maa_state.instances.lock() {
             Ok(g) => g,
@@ -101,7 +98,6 @@ pub fn handle_task_callback(
             if let Some(selected_id) = state.mappings.get(&task_id).cloned() {
                 state.statuses.insert(selected_id, "running".to_string());
             }
-            started_entry = Some(state.entries.get(&task_id).cloned().unwrap_or_default());
             false // 未完成
         } else {
             // 任务成功或失败
@@ -133,8 +129,7 @@ pub fn handle_task_callback(
 
     // 遥测埋点（锁外调用，仅操作 telemetry 内部的 RUNS 锁）
     if is_started {
-        let entry = started_entry.unwrap_or_default();
-        super::telemetry::on_task_start(instance_id, task_id, &entry);
+        super::telemetry::on_task_start(instance_id, task_id);
     } else {
         super::telemetry::on_task_finished(instance_id, task_id, is_succeeded);
     }

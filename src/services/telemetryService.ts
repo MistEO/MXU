@@ -26,9 +26,7 @@ const log = loggers.telemetry;
  * - 资源项目为非正式版本（DEBUG_VERSION / <1.0.0 / 非 beta|rc 预发布）
  */
 export function isTelemetryBlockedByBuild(pi?: ProjectInterface | null): boolean {
-  var a = import.meta.env.DEV || isDebugVersion(pi?.version);
-  console.log('a', a);
-  return false;
+  return import.meta.env.DEV || isDebugVersion(pi?.version);
 }
 
 /** 单个任务上报的选项条目上限，避免异常配置撑大事件。 */

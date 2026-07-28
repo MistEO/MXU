@@ -334,19 +334,32 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipScreenshot(task.taskName));
       const shouldUseDummyController = !hasVisualTasks;
 
-      // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
-      // ADB、WlRoots、PlayCover 以及非视觉任务使用的 Dummy Controller 均可在锁屏时运行。
-      if (
-        !shouldUseDummyController &&
-        requiresUnlockedWorkstation(controller?.type) &&
-        (await maaService.isWorkstationLocked())
-      ) {
-        log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
-        addLog(targetId, {
-          type: 'error',
-          message: t('taskList.autoConnect.workstationLocked'),
-        });
-        return false;
+      if (!shouldUseDummyController) {
+        // 视觉任务必须有明确的控制器配置，避免状态异常时绕过按类型执行的安全检查。
+        if (!controller) {
+          log.warn(
+            `实例 ${targetInstance.name}: 找不到控制器配置${controllerName ? ` (${controllerName})` : ''}`,
+          );
+          addLog(targetId, {
+            type: 'error',
+            message: t('errors.controllerNotFound'),
+          });
+          return false;
+        }
+
+        // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
+        // ADB、WlRoots 和 PlayCover 均可在锁屏时运行。
+        if (
+          requiresUnlockedWorkstation(controller.type) &&
+          (await maaService.isWorkstationLocked())
+        ) {
+          log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
+          addLog(targetId, {
+            type: 'error',
+            message: t('taskList.autoConnect.workstationLocked'),
+          });
+          return false;
+        }
       }
 
       if (shouldUseDummyController) {

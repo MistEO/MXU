@@ -15,7 +15,12 @@ import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import { buildTaskOptionSummary } from '@/services/telemetryService';
 import clsx from 'clsx';
-import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
+import {
+  loggers,
+  generateTaskPipelineOverride,
+  computeResourcePaths,
+  requiresUnlockedWorkstation,
+} from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import {
   isPretaskName,
@@ -314,15 +319,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return false;
       }
 
-      // 连接 Controller 前检测锁屏状态：若电脑处于锁屏，快速失败并提示用户
-      if (await maaService.isWorkstationLocked()) {
-        log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
-        addLog(targetId, {
-          type: 'error',
-          message: t('taskList.autoConnect.workstationLocked'),
-        });
-        return false;
-      }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
       const resource = projectInterface?.resource.find((r) => r.name === resourceName);
       const savedDevice = targetInstance.savedDevice;
@@ -337,6 +333,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       );
       const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipScreenshot(task.taskName));
       const shouldUseDummyController = !hasVisualTasks;
+
+      // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
+      // ADB、WlRoots、PlayCover 以及非视觉任务使用的 Dummy Controller 均可在锁屏时运行。
+      if (
+        !shouldUseDummyController &&
+        requiresUnlockedWorkstation(controller?.type) &&
+        (await maaService.isWorkstationLocked())
+      ) {
+        log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
+        addLog(targetId, {
+          type: 'error',
+          message: t('taskList.autoConnect.workstationLocked'),
+        });
+        return false;
+      }
 
       if (shouldUseDummyController) {
         log.info(`实例 ${targetInstance.name}: 仅包含非视觉特殊任务，跳过截图/识别流程`);

@@ -10,6 +10,7 @@ import type {
   PretaskItem,
 } from '@/types/interface';
 import { normalizePretaskConfigs } from '@/types/interface';
+import { cloudToWin32Config } from '@/services/cloudProviders';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
@@ -363,10 +364,11 @@ function getPlatformFlags(os: string) {
 function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
   const { isWindows, isMacOS, isLinux } = getPlatformFlags(os);
   const unsupported = new Set<ControllerType>();
-  // 非 Windows 系统不支持 Win32 和 Gamepad
+  // 非 Windows 系统不支持 Win32、Gamepad 和 Cloud（云串流原生客户端仅 Windows）
   if (!isWindows) {
     unsupported.add('Win32');
     unsupported.add('Gamepad');
+    unsupported.add('Cloud');
   }
   // 非 macOS 系统不支持 PlayCover
   if (!isMacOS) {
@@ -380,11 +382,38 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
 }
 
 /**
+ * 将 Cloud 控制器脱糖为等价的 Win32 控制器：provider 决定窗口类/标题正则与截图/输入
+ * 方式（game_title 代入标题模板）。脱糖后，选择/连接/平台过滤等所有下游逻辑都按 Win32
+ * 处理，无需为 Cloud 单独分支。未知 provider 保持原样（不可选，属配置错误）。
+ */
+function expandCloudControllers(pi: ProjectInterface): void {
+  for (const controller of pi.controller) {
+    if (controller.type !== 'Cloud') continue;
+    if (!controller.cloud) {
+      log.warn(`Cloud 控制器 ${controller.name} 缺少 cloud 配置，跳过`);
+      continue;
+    }
+    const win32 = cloudToWin32Config(controller.cloud);
+    if (!win32) {
+      log.warn(`未知云服务商 ${controller.cloud.provider}（控制器 ${controller.name}）`);
+      continue;
+    }
+    controller.type = 'Win32';
+    controller.win32 = win32;
+    delete controller.cloud;
+    log.info(`Cloud 控制器 ${controller.name} 已脱糖为 Win32 (${win32.window_regex})`);
+  }
+}
+
+/**
  * 过滤掉指定平台不支持的控制器
  * 在解析阶段直接移除，使后续所有消费 controller 的地方都只看到兼容的控制器
  * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
 function filterControllersByPlatform(pi: ProjectInterface, os: string): void {
+  // 先把 Cloud 脱糖为 Win32，再按平台过滤（GFN 等云串流客户端归为 Windows-only）
+  expandCloudControllers(pi);
+
   const unsupported = getUnsupportedControllerTypes(os);
   if (unsupported.size === 0) return;
 

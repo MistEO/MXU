@@ -447,9 +447,14 @@ export const generateTaskPipelineOverride = (
   if (!projectInterface) return '[]';
 
   // 热键键码按控制器 **类型**（Win32 / Adb / WlRoots）查表，这里先由 name 解析出 type
-  const controllerType = controllerName
-    ? projectInterface.controller.find((c) => c.name === controllerName)?.type
+  // WlRoots 可配置接受 Win32 VK 或原始 evdev 键码，热键 override 必须与控制器配置一致。
+  const controllerDef = controllerName
+    ? projectInterface.controller.find((c) => c.name === controllerName)
     : undefined;
+  const controllerType =
+    controllerDef?.type === 'WlRoots' && controllerDef.wlroots?.use_win32_vk_code
+      ? 'Win32'
+      : controllerDef?.type;
 
   const overrides: Record<string, unknown>[] = [];
   const taskDef = projectInterface.task.find((t) => t.name === selectedTask.taskName);

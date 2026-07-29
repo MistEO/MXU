@@ -7,6 +7,7 @@ import { DesktopOnlyWrapper } from '@/components/ui/DesktopOnlyWrapper';
 export function HotkeySection() {
   const { t } = useTranslation();
   const { hotkeys, setHotkeys } = useAppStore();
+  const globalHotkeyError = useAppStore((state) => state.globalHotkeyError);
 
   return (
     <section id="section-hotkeys" className="space-y-4 scroll-mt-4">
@@ -75,6 +76,21 @@ export function HotkeySection() {
               <span>
                 {t('settings.hotkeysConflict')}
                 {hotkeys.globalEnabled && ` (${t('settings.hotkeysGlobalOnlyStart')})`}
+              </span>
+            </div>
+          )}
+
+          {/* 全局快捷键注册失败提示 */}
+          {globalHotkeyError && (
+            <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {globalHotkeyError.conflict
+                  ? t('settings.hotkeysGlobalConflict', { combo: globalHotkeyError.combo })
+                  : t('settings.hotkeysGlobalRegisterFailed', {
+                      combo: globalHotkeyError.combo,
+                      error: globalHotkeyError.message,
+                    })}
               </span>
             </div>
           )}

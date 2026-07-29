@@ -127,6 +127,16 @@ pub fn handle_task_callback(
         }
     }; // 锁在此处释放
 
+    // 遥测埋点（锁外调用，仅操作 telemetry 内部的 RUNS 锁）
+    if is_started {
+        super::telemetry::on_task_start(instance_id, task_id);
+    } else {
+        super::telemetry::on_task_finished(instance_id, task_id, is_succeeded);
+    }
+    if all_done {
+        super::telemetry::on_run_finished(instance_id);
+    }
+
     // 通知前端刷新状态
     emit_state_changed(app, instance_id, "task-progress");
     if all_done {

@@ -97,6 +97,9 @@ export default {
     hotkeysGlobal: '全局快捷键',
     hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
+    hotkeysGlobalConflict:
+      '快捷键 {{combo}} 已被占用，全局快捷键当前未生效。请更换按键，或检查是否有其他程序 / 重复运行的实例占用该组合键。',
+    hotkeysGlobalRegisterFailed: '全局快捷键 {{combo}} 注册失败：{{error}}',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
     autoStart: '开机自启动',
@@ -111,6 +114,9 @@ export default {
       '每次手动打开程序时，也自动执行上方选定的配置（关闭则仅在开机自启动时触发）',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表等危险操作会先弹出确认对话框',
+    helpImproveSoftware: '帮助改进软件',
+    helpImproveSoftwareHint: '匿名发送崩溃与任务统计，帮助发现常见问题',
+    helpImproveSoftwareDisabledHint: '当前为调试 / 开发版本，已禁用匿名数据上报',
     maxLogsPerInstance: '每个实例保留的日志上限',
     maxLogsPerInstanceHint: '超过上限会自动丢弃最旧的日志（建议 500～2000）',
     resetWindowLayout: '重置窗口布局',
@@ -568,6 +574,7 @@ export default {
   // 欢迎弹窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看欢迎信息',
   },
 
   // 新用户引导

@@ -13,8 +13,14 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
+import { buildTaskOptionSummary } from '@/services/telemetryService';
 import clsx from 'clsx';
-import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
+import {
+  loggers,
+  generateTaskPipelineOverride,
+  computeResourcePaths,
+  requiresUnlockedWorkstation,
+} from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import {
   isPretaskName,
@@ -317,15 +323,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return false;
       }
 
-      // 连接 Controller 前检测锁屏状态：若电脑处于锁屏，快速失败并提示用户
-      if (await maaService.isWorkstationLocked()) {
-        log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
-        addLog(targetId, {
-          type: 'error',
-          message: t('taskList.autoConnect.workstationLocked'),
-        });
-        return false;
-      }
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
       const resource = projectInterface?.resource.find((r) => r.name === resourceName);
       const savedDevice = targetInstance.savedDevice;
@@ -340,6 +337,34 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       );
       const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipScreenshot(task.taskName));
       const shouldUseDummyController = !hasVisualTasks;
+
+      if (!shouldUseDummyController) {
+        // 视觉任务必须有明确的控制器配置，避免状态异常时绕过按类型执行的安全检查。
+        if (!controller) {
+          log.warn(
+            `实例 ${targetInstance.name}: 找不到控制器配置${controllerName ? ` (${controllerName})` : ''}`,
+          );
+          addLog(targetId, {
+            type: 'error',
+            message: t('errors.controllerNotFound'),
+          });
+          return false;
+        }
+
+        // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
+        // ADB、WlRoots 和 PlayCover 均可在锁屏时运行。
+        if (
+          requiresUnlockedWorkstation(controller.type) &&
+          (await maaService.isWorkstationLocked())
+        ) {
+          log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
+          addLog(targetId, {
+            type: 'error',
+            message: t('taskList.autoConnect.workstationLocked'),
+          });
+          return false;
+        }
+      }
 
       if (shouldUseDummyController) {
         log.info(`实例 ${targetInstance.name}: 仅包含非视觉特殊任务，跳过截图/识别流程`);
@@ -1105,6 +1130,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 useAppStore.getState().globalOptionValues,
               ),
               selected_task_id: selectedTask.id,
+              task_name: taskDef.name,
+              options: buildTaskOptionSummary(
+                selectedTask,
+                taskDef.option,
+                specialTask?.optionDefs ?? projectInterface?.option,
+              ),
             };
           });
 
@@ -1135,6 +1166,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             tcpCompatMode,
             piEnvs,
             resetState,
+            {
+              name: currentControllerName,
+              type: projectInterface?.controller.find((c) => c.name === currentControllerName)
+                ?.type,
+            },
           );
 
           log.info(`实例 ${targetInstance.name}: ${batchName}任务已提交, task_ids:`, batchTaskIds);

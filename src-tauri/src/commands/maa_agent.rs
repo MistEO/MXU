@@ -19,7 +19,7 @@ use maa_framework::controller::Controller;
 use maa_framework::resource::Resource;
 use maa_framework::tasker::Tasker;
 
-use super::types::{AgentConfig, MaaState, TaskConfig};
+use super::types::{AgentConfig, ControllerInfo, MaaState, TaskConfig};
 use super::utils::{emit_callback_event, get_logs_dir, handle_task_callback, normalize_path};
 use regex::Regex;
 use std::sync::LazyLock;
@@ -523,6 +523,7 @@ pub async fn start_tasks_impl(
     tcp_compat_mode: bool,
     pi_envs: Option<HashMap<String, String>>,
     reset_state: bool,
+    controller_info: Option<ControllerInfo>,
 ) -> Result<Vec<i64>, String> {
     info!("start_tasks_impl called");
 
@@ -592,7 +593,10 @@ pub async fn start_tasks_impl(
             // 添加 Context Sink，用于接收 Node 级别的通知（包含 focus 消息）
             debug!("[start_tasks] Adding tasker context sink...");
             let app_handle = app.clone();
+            let inst_id_for_ctx_sink = instance_id.clone();
             t.add_context_sink(move |msg, detail| {
+                // 遥测：记录节点失败位置，供任务失败时上报
+                super::telemetry::on_node_event(&inst_id_for_ctx_sink, msg, detail);
                 emit_callback_event(&app_handle, msg, detail);
             })
             .map_err(|e| e.to_string())?;
@@ -696,9 +700,21 @@ pub async fn start_tasks_impl(
         debug!("[start_tasks] No agent configs, skipping agent setup");
     };
 
+    // 遥测：整批运行开始（仅首批；追加批次沿用已有 Transaction）
+    // 必须在 post_task 之前，否则首个任务的开始回调会早于 Transaction 创建、丢掉它的 Span
+    if reset_state {
+        let task_names: Vec<String> = tasks
+            .iter()
+            .map(|task| task.task_name.clone().unwrap_or_else(|| task.entry.clone()))
+            .collect();
+        super::telemetry::on_run_start(&instance_id, &task_names, controller_info.as_ref());
+    }
+
     debug!("[start_tasks] Submitting {} tasks...", tasks.len());
     // (maa_task_id, selected_task_id) 配对列表，用于后续初始化 TaskRunState
     let mut task_id_pairs: Vec<(i64, Option<String>)> = Vec::new();
+    // 持锁提交，确保任务开始回调不会早于遥测元数据登记
+    let mut telemetry_posting = super::telemetry::begin_posting(&instance_id);
     for (idx, task) in tasks.iter().enumerate() {
         debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
 
@@ -710,6 +726,16 @@ pub async fn start_tasks_impl(
             Ok(job) => {
                 info!("[start_tasks] post_task returned task_id: {}", job.id);
                 task_id_pairs.push((job.id, task.selected_task_id.clone()));
+                if let Some(posting) = telemetry_posting.as_mut() {
+                    posting.register(
+                        job.id,
+                        super::telemetry::TaskMeta {
+                            // 缺少 interface 任务名时退回 entry，保证 Span 有可读的名字
+                            name: task.task_name.clone().unwrap_or_else(|| task.entry.clone()),
+                            options: task.options.clone().unwrap_or_default(),
+                        },
+                    );
+                }
                 debug!(
                     "[start_tasks] Task {} submitted successfully, task_id: {}",
                     idx, job.id
@@ -720,6 +746,8 @@ pub async fn start_tasks_impl(
             }
         }
     }
+    // 提交完成，释放遥测状态锁（后续有 await，不能继续持有）
+    drop(telemetry_posting);
 
     let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _)| *id).collect();
     debug!(
@@ -787,6 +815,7 @@ pub async fn maa_start_tasks(
     tcp_compat_mode: bool,
     pi_envs: Option<HashMap<String, String>>,
     reset_state: Option<bool>,
+    controller_info: Option<ControllerInfo>,
 ) -> Result<Vec<i64>, String> {
     start_tasks_impl(
         app,
@@ -798,6 +827,7 @@ pub async fn maa_start_tasks(
         tcp_compat_mode,
         pi_envs,
         reset_state.unwrap_or(true),
+        controller_info,
     )
     .await
 }

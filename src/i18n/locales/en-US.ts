@@ -97,6 +97,9 @@ export default {
     hotkeysGlobal: 'Global hotkeys',
     hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     hotkeysGlobalOnlyStart: 'only start works in global mode',
+    hotkeysGlobalConflict:
+      'Hotkey {{combo}} is already taken, so global hotkeys are currently inactive. Please pick another key, or check whether another program or a duplicate instance is holding this combination.',
+    hotkeysGlobalRegisterFailed: 'Failed to register global hotkey {{combo}}: {{error}}',
     minimizeToTray: 'Minimize to tray on close',
     minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
     autoStart: 'Launch at startup',
@@ -113,6 +116,11 @@ export default {
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint:
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
+    helpImproveSoftware: 'Help Improve the Software',
+    helpImproveSoftwareHint:
+      'Anonymously send crash reports and task statistics to help find common issues.',
+    helpImproveSoftwareDisabledHint:
+      'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
@@ -589,6 +597,7 @@ export default {
   // Welcome dialog
   welcome: {
     dismiss: 'Got it',
+    viewAgain: 'View welcome message',
   },
 
   // Onboarding

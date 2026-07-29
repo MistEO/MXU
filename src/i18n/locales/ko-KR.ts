@@ -96,6 +96,9 @@ export default {
     hotkeysGlobal: '전역 단축키',
     hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
+    hotkeysGlobalConflict:
+      '단축키 {{combo}}이(가) 이미 사용 중이어서 전역 단축키가 현재 작동하지 않습니다. 다른 키로 변경하거나, 다른 프로그램 또는 중복 실행된 인스턴스가 해당 조합을 사용하고 있는지 확인해 주세요.',
+    hotkeysGlobalRegisterFailed: '전역 단축키 {{combo}} 등록 실패: {{error}}',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     autoStart: '시작 시 자동 실행',
@@ -111,6 +114,10 @@ export default {
       '앱을 수동으로 열 때도 위에서 선택한 구성을 자동 실행합니다 (비활성화 시 시스템 시작 시에만 실행)',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint: '삭제/목록 비우기 등 위험한 작업 전에 확인 대화 상자를 표시합니다',
+    helpImproveSoftware: '소프트웨어 개선에 참여',
+    helpImproveSoftwareHint:
+      '충돌 및 작업 통계를 익명으로 전송하여 일반적인 문제를 찾는 데 도움을 줍니다.',
+    helpImproveSoftwareDisabledHint: '디버그 / 개발 버전에서는 익명 데이터 전송이 비활성화됩니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
     resetWindowLayout: '창 레이아웃 초기화',
@@ -579,6 +586,7 @@ export default {
   // 환영 대화상자
   welcome: {
     dismiss: '확인했습니다',
+    viewAgain: '환영 메시지 보기',
   },
 
   // 신규 사용자 가이드

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Info, Mail, FileText, Loader2 } from 'lucide-react';
+import { Info, Mail, FileText, Loader2, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 
 import { useAppStore } from '@/stores/appStore';
+import { ManualWelcomeDialog } from '@/components/WelcomeDialog';
 import { getInterfaceLangKey } from '@/i18n';
 import {
   resolveContent,
@@ -30,6 +31,8 @@ export function AboutSection() {
     iconPath: undefined,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+  const closeWelcomeDialog = useCallback(() => setShowWelcomeDialog(false), []);
 
   const langKey = getInterfaceLangKey(language);
   const translations = interfaceTranslations[langKey];
@@ -123,6 +126,18 @@ export function AboutSection() {
 
             {/* 信息列表 */}
             <div className="space-y-2">
+              {/* 欢迎信息 */}
+              {projectInterface?.welcome && (
+                <button
+                  type="button"
+                  onClick={() => setShowWelcomeDialog(true)}
+                  className="w-full px-4 py-3 rounded-lg bg-bg-tertiary hover:bg-bg-hover text-sm font-medium text-text-primary transition-colors flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-5 h-5 text-accent" />
+                  {t('welcome.viewAgain')}
+                </button>
+              )}
+
               {/* 联系方式 */}
               {resolvedContent.contact && (
                 <div className="px-4 py-3 rounded-lg bg-bg-tertiary">
@@ -176,6 +191,10 @@ export function AboutSection() {
           </p>
         </div>
       </div>
+
+      {showWelcomeDialog && projectInterface?.welcome && (
+        <ManualWelcomeDialog onClose={closeWelcomeDialog} />
+      )}
     </section>
   );
 }

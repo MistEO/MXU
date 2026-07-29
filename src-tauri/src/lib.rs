@@ -86,6 +86,9 @@ pub fn run() {
                 }
             }
 
+            // 尽早初始化遥测，使后续启动流程中的崩溃也能上报
+            commands::telemetry::init_at_startup(&app_config);
+
             // 先注册共享状态，再启动依赖这些状态的后台任务，避免启动竞态
             app.manage(ws_broadcast.clone());
             app.manage(app_config.clone());
@@ -310,6 +313,9 @@ pub fn run() {
             commands::tray::update_tray_tooltip,
             // 配置同步命令（WebUI 实时同步）
             commands::app_config::notify_config_changed,
+            // 匿名遥测命令
+            commands::telemetry::telemetry_init,
+            commands::telemetry::telemetry_set_enabled,
         ])
         .on_window_event(|window, event| {
             match event {
@@ -328,6 +334,12 @@ pub fn run() {
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            // 退出前收尾遥测（结束 Session 与悬挂 Transaction 并 flush）
+            if matches!(event, tauri::RunEvent::Exit) {
+                commands::telemetry::on_app_exit();
+            }
+        });
 }

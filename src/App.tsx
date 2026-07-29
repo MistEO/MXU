@@ -40,6 +40,7 @@ import {
   clearPendingUpdateInfo,
   isDebugVersion,
 } from '@/services/updateService';
+import { initTelemetry, isTelemetryBlockedByBuild } from '@/services/telemetryService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
@@ -99,9 +100,9 @@ const LazySettingsPage = lazy(async () => {
   return { default: module.SettingsPage };
 });
 
-const LazyWelcomeDialog = lazy(async () => {
+const LazyAutoWelcomeDialog = lazy(async () => {
   const module = await import('@/components/WelcomeDialog');
-  return { default: module.WelcomeDialog };
+  return { default: module.AutoWelcomeDialog };
 });
 
 const LazyDashboardView = lazy(async () => {
@@ -612,6 +613,27 @@ function App() {
       // 应用配置
       if (config.instances.length > 0) {
         importConfig(config);
+      }
+
+      // 初始化匿名遥测（仅当 interface 声明了 telemetry.sentry.dsn 且非调试 / 开发版本）
+      // 即便用户当前关闭，也传入配置以便后端缓存，用户在设置中开启时无需重启
+      const sentryCfg = result.interface.telemetry?.sentry;
+      if (sentryCfg?.dsn && !isTelemetryBlockedByBuild(result.interface)) {
+        const mxuVersion = typeof __MXU_VERSION__ !== 'undefined' ? __MXU_VERSION__ : '0.0.0';
+        const appName = result.interface.name;
+        const appVersion = result.interface.version ?? '0.0.0';
+        const channel = config.settings.mirrorChyan?.channel ?? 'production';
+        void initTelemetry({
+          dsn: sentryCfg.dsn,
+          enabled: config.settings.helpImproveSoftware ?? true,
+          release: `MXU@${mxuVersion}+${appName}@${appVersion}`,
+          environment: sentryCfg.environment ?? channel,
+          tracing: sentryCfg.tracing ?? true,
+          tracesSampleRate: sentryCfg.traces_sample_rate ?? 1.0,
+          appName,
+          appVersion,
+          mxuVersion,
+        });
       }
 
       // 应用保存的窗口大小和位置
@@ -1579,7 +1601,11 @@ function App() {
   // 全局快捷键（窗口失焦时也生效）
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
-    if (!hotkeys?.globalEnabled) return;
+    const { setGlobalHotkeyError } = useAppStore.getState();
+    if (!hotkeys?.globalEnabled) {
+      setGlobalHotkeyError(null);
+      return;
+    }
     if (!isTauri()) return; // 浏览器环境不支持全局快捷键
 
     const startKey = hotkeys.startTasks || 'F10';
@@ -1591,6 +1617,8 @@ function App() {
     const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
     let lastStartTime = 0;
     const registerKeys = async () => {
+      // 记录正在注册的按键，失败时用于告知用户具体是哪个组合键
+      let registeringKey = startKey;
       try {
         const { register } = await getGlobalShortcut();
         await register(toTauriKey(startKey), () => {
@@ -1603,6 +1631,7 @@ function App() {
             }),
           );
         });
+        registeringKey = stopKey;
         // 避免重复注册相同的键
         if (stopKey !== startKey) {
           await register(toTauriKey(stopKey), () => {
@@ -1614,8 +1643,19 @@ function App() {
           });
         }
         log.info('全局快捷键已注册:', startKey, stopKey);
+        setGlobalHotkeyError(null);
       } catch (err) {
         log.error('注册全局快捷键失败:', err);
+
+        const message = err instanceof Error ? err.message : String(err);
+        let conflict = /already registered/i.test(message);
+        if (!conflict) {
+          conflict = await getGlobalShortcut()
+            .then(({ isRegistered }) => isRegistered(toTauriKey(registeringKey)))
+            .catch(() => false);
+        }
+
+        setGlobalHotkeyError({ combo: registeringKey, conflict, message });
       }
     };
 
@@ -1806,8 +1846,10 @@ function App() {
 
         {/* 欢迎弹窗 */}
         {projectInterface.welcome && (
-          <Suspense fallback={null}>
-            <LazyWelcomeDialog />
+          <Suspense
+            fallback={<div className="fixed inset-0 z-50 pointer-events-none" aria-hidden />}
+          >
+            <LazyAutoWelcomeDialog />
           </Suspense>
         )}
 

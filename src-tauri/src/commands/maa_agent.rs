@@ -595,7 +595,7 @@ pub async fn start_tasks_impl(
             let app_handle = app.clone();
             let inst_id_for_ctx_sink = instance_id.clone();
             t.add_context_sink(move |msg, detail| {
-                // 遥测：记录节点失败位置，供任务失败时上报
+                // 遥测：把失败节点挂到任务 Span 下，形成失败链路
                 super::telemetry::on_node_event(&inst_id_for_ctx_sink, msg, detail);
                 emit_callback_event(&app_handle, msg, detail);
             })

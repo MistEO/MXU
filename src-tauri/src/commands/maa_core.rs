@@ -896,8 +896,11 @@ pub fn run_task_impl(
             .map_err(|e| e.to_string())?;
 
         let app_for_context_sink = app.clone();
+        let instance_id_for_context_sink = instance_id.to_string();
         tasker
             .add_context_sink(move |msg, detail| {
+                // 遥测：把失败节点挂到任务 Span 下，形成失败链路
+                super::telemetry::on_node_event(&instance_id_for_context_sink, msg, detail);
                 emit_callback_event(&app_for_context_sink, msg, detail);
             })
             .map_err(|e| e.to_string())?;

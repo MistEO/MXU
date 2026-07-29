@@ -10,12 +10,13 @@
 //! - 隐私：`send_default_pii = false`，仅上报哈希机器 ID、硬件摘要、版本、任务名、脱敏后的选项与结果。
 //! - 网络：SDK 后台异步发送、队列有界，不阻塞主流程；`shutdown_timeout` 设小值避免退出卡顿。
 //! - 事件模型：一次进程运行 = 一个 Session（Release Health），
-//!   一次整批运行 = 一个 Transaction，每个 SavedTask = 一个 child Span。
+//!   一次整批运行 = 一个 Transaction，每个 SavedTask = 一个 child Span，
+//!   每个失败的 pipeline 节点 = 该任务 Span 下的一个 child Span。
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -64,13 +65,58 @@ struct RunState {
     children: HashMap<i64, sentry::TransactionOrSpan>,
     /// 已提交任务的元数据（maa_task_id → 任务名与选项摘要）。
     metas: HashMap<i64, TaskMeta>,
-    /// 各任务最近一次失败的节点（maa_task_id → 节点名与失败阶段）。
-    last_failures: HashMap<i64, (String, &'static str)>,
+    /// 各任务当前 pipeline 步骤的起点（maa_task_id → 节点 id 与开始时刻），用于算出在失败节点上卡了多久。
+    last_steps: HashMap<i64, (i64, Instant)>,
+    /// 各任务已上报的失败节点数（maa_task_id → 计数），用于限流。
+    failed_nodes: HashMap<i64, u32>,
+    /// 当前正在执行的外层 SavedTask id。
+    ///
+    /// Tasker 用单线程 AsyncRunner 串行执行 posted task，同一时刻至多一个，
+    /// 因此嵌套 `Context::run_task` 中失败的节点可据此归属回外层任务的 Span。
+    active_task: Option<i64>,
+    /// 嵌套子 pipeline 的入口（子 task_id → 所属外层任务 id 与入口名）。
+    nested_entries: BTreeMap<i64, (i64, String)>,
     /// Transaction 级 tag，在 finish 时通过临时 scope 应用（SDK 未提供直接设置 tag 的接口）。
     tags: BTreeMap<String, String>,
     /// 是否已有任务失败。
     has_failed: bool,
 }
+
+impl RunState {
+    /// 记住一个嵌套子 pipeline 的入口名。
+    ///
+    /// `Context::run_task` 会为子 pipeline 新发 task_id，其首个 `Node.PipelineNode.Starting`
+    /// 的 `name` 就是入口，据此可在失败时说明是哪个子任务挂的。
+    fn remember_nested(&mut self, task_id: i64, entry: &str) {
+        if entry.is_empty()
+            || self.children.contains_key(&task_id)
+            || self.nested_entries.contains_key(&task_id)
+        {
+            return;
+        }
+        let Some(owner) = self.active_task else {
+            return;
+        };
+
+        self.nested_entries
+            .insert(task_id, (owner, entry.to_string()));
+        while self.nested_entries.len() > MAX_NESTED_ENTRIES {
+            self.nested_entries.pop_first();
+        }
+    }
+}
+
+/// 单个任务最多上报的失败节点数。
+///
+/// SDK 对单个 Transaction 有 1000 个 Span 的硬上限且超出后静默丢弃，
+/// 这里主动限流是为了不让某个反复失败的长任务挤掉其他任务的 Span。
+const MAX_FAILED_NODES_PER_TASK: u32 = 32;
+
+/// 单次运行最多缓存的嵌套子 pipeline 入口数。
+///
+/// 长时间循环的任务会持续调用 `Context::run_task`，这里设上限避免无界增长；
+/// 超出后丢弃最早的记录，只影响失败 Span 上 `subtask` 字段的完整性。
+const MAX_NESTED_ENTRIES: usize = 4096;
 
 /// 单个 SavedTask 的遥测元数据，由前端在提交任务时给出。
 #[derive(Debug, Clone, Default)]
@@ -526,7 +572,10 @@ pub fn on_run_start(instance_id: &str, task_names: &[String], controller: Option
                 transaction,
                 children: HashMap::new(),
                 metas: HashMap::new(),
-                last_failures: HashMap::new(),
+                last_steps: HashMap::new(),
+                failed_nodes: HashMap::new(),
+                active_task: None,
+                nested_entries: BTreeMap::new(),
                 tags,
                 has_failed: false,
             },
@@ -570,6 +619,9 @@ pub fn begin_posting(instance_id: &str) -> Option<PostingGuard> {
 }
 
 /// 单个 SavedTask 开始：创建 child Span，description 用 interface 任务名。
+///
+/// Span 上会带 MaaFW 的 task id。它是进程内自增计数器、跨用户没有可比性，
+/// 因此只作为 data 供人工比对用户日志包里的 `maafw.log`，不设成可搜索的 tag。
 pub fn on_task_start(instance_id: &str, maa_task_id: i64) {
     if !is_active() {
         return;
@@ -581,23 +633,28 @@ pub fn on_task_start(instance_id: &str, maa_task_id: i64) {
             let span: sentry::TransactionOrSpan =
                 run.transaction.start_child("mxu.task", &meta.name).into();
             span.set_data("task", meta.name.clone().into());
+            span.set_data("task_id", maa_task_id.into());
             for (key, value) in &meta.options {
                 span.set_data(&format!("option.{key}"), value.clone().into());
             }
             run.children.insert(maa_task_id, span);
+            run.active_task = Some(maa_task_id);
         }
     }
 }
 
-/// 节点级回调：记录各任务最近一次失败的节点，供任务失败时上报。
+/// 节点级回调：把失败的 pipeline 节点挂成任务 Span 的 child Span，形成可追溯的失败链路。
+///
+/// 只认 `Node.PipelineNode.*`：它在 MaaFW 的每个 pipeline 步骤上恰好成对出现一次，
+/// 而 `Node.NextList.Failed` 每次截图未命中都会发一次，`Node.Action.Failed` 又拿不到识别卡死的情况。
 ///
 /// 由 tasker 的 context sink 调用，属于高频回调，因此先比较消息名再解析 JSON。
 pub fn on_node_event(instance_id: &str, message: &str, details: &str) {
-    let stage = match message {
-        // 动作执行失败，name 即失败节点
-        "Node.Action.Failed" => "action",
-        // next 列表全部未命中，name 为卡住的当前节点
-        "Node.NextList.Failed" => "recognition",
+    let failed = match message {
+        "Node.PipelineNode.Starting" => false,
+        "Node.PipelineNode.Failed" => true,
+        // Succeeded 的 detail 带完整识别结果（可能数 KB），而失败链路用不到它：
+        // last_steps 里的残留会被下一次 Starting 覆盖、并在任务结束时清空，无需解析
         _ => return,
     };
 
@@ -611,15 +668,131 @@ pub fn on_node_event(instance_id: &str, message: &str, details: &str) {
     let Some(task_id) = detail.get("task_id").and_then(|v| v.as_i64()) else {
         return;
     };
-    let Some(node) = detail.get("name").and_then(|v| v.as_str()) else {
+    let node_id = detail.get("node_id").and_then(|v| v.as_i64());
+
+    if failed {
+        record_failed_node(instance_id, task_id, node_id, &detail);
+        return;
+    }
+
+    let Some(node_id) = node_id else {
+        return;
+    };
+    // 子 pipeline 首个步骤的 name 即它的入口，此时登记才能在后续失败时说明是哪个子任务
+    let entry = detail
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    if let Ok(mut runs) = RUNS.lock() {
+        if let Some(run) = runs.get_mut(instance_id) {
+            run.last_steps.insert(task_id, (node_id, Instant::now()));
+            run.remember_nested(task_id, entry);
+        }
+    }
+}
+
+/// 为一个失败的 pipeline 步骤建一条 child Span 并立刻收尾。
+///
+/// 失败节点的取法依据 MaaFW 的 `PipelineTask::run_next`：
+/// `node_details` 只在命中节点且动作执行完毕后才写入回调，因此它的存在与否正好区分两种失败。
+fn record_failed_node(
+    instance_id: &str,
+    task_id: i64,
+    node_id: Option<i64>,
+    detail: &serde_json::Value,
+) {
+    // 回调里的 name 是发起这一步的节点（即上一个节点），不一定是失败的那个
+    let from_node = detail
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let hit_node = detail
+        .get("node_details")
+        .and_then(|d| d.get("name"))
+        .and_then(|v| v.as_str())
+        .filter(|name| !name.is_empty());
+
+    let (node, stage) = match hit_node {
+        // 命中了节点但动作执行失败，失败节点是命中的那个
+        Some(hit) => (hit, "action"),
+        // next 列表在 reco_timeout 内始终未命中，卡在发起这一步的节点上
+        None if !from_node.is_empty() => (from_node, "recognition"),
+        None => return,
+    };
+
+    let Ok(mut runs) = RUNS.lock() else {
+        return;
+    };
+    let Some(run) = runs.get_mut(instance_id) else {
         return;
     };
 
-    if let Ok(mut runs) = RUNS.lock() {
-        if let Some(run) = runs.get_mut(instance_id) {
-            run.last_failures.insert(task_id, (node.to_string(), stage));
+    // `Context::run_task` 的子 pipeline 会新发 task_id，回调里的 id 未登记过时归属到当前活跃的外层任务，
+    // 否则 FailureCollector 这类「子任务失败但吞掉」的流程只剩汇总节点能上报，看不到真正的根因节点
+    let owner_id = if run.children.contains_key(&task_id) {
+        task_id
+    } else {
+        match run.active_task {
+            Some(id) if run.children.contains_key(&id) => id,
+            _ => return,
+        }
+    };
+    let nested = owner_id != task_id;
+
+    // 只有 node_id 对得上才算得出耗时，否则宁可不写也不写错
+    let stuck_ms = run
+        .last_steps
+        .remove(&task_id)
+        .filter(|(id, _)| Some(*id) == node_id)
+        .map(|(_, started)| started.elapsed().as_millis() as u64);
+    // 冗余任务名，否则 Sentry 侧无法把节点 Span 归属到具体任务（span 查询不能沿父子关系向上过滤）
+    let task_name = run
+        .metas
+        .get(&owner_id)
+        .map(|meta| meta.name.clone())
+        .unwrap_or_default();
+    let subtask = if nested {
+        run.nested_entries
+            .get(&task_id)
+            .map(|(_, entry)| entry.clone())
+    } else {
+        None
+    };
+
+    let count = run.failed_nodes.entry(owner_id).or_insert(0);
+    *count += 1;
+    if *count > MAX_FAILED_NODES_PER_TASK {
+        return;
+    }
+
+    let Some(task_span) = run.children.get(&owner_id) else {
+        return;
+    };
+
+    let span = task_span.start_child("mxu.node", node);
+    span.set_status(sentry::protocol::SpanStatus::InternalError);
+    span.set_data("stage", stage.into());
+    if !task_name.is_empty() {
+        span.set_data("task", task_name.into());
+    }
+    span.set_data("task_id", task_id.into());
+    // 嵌套时 task_id 属于子 pipeline 而非父 Span 上的外层任务，标注出来免得比对日志时误判
+    if nested {
+        span.set_data("nested", true.into());
+        if let Some(subtask) = subtask {
+            span.set_data("subtask", subtask.into());
         }
     }
+    if let Some(node_id) = node_id {
+        span.set_data("node_id", node_id.into());
+    }
+    if let Some(stuck_ms) = stuck_ms {
+        span.set_data("duration_ms", stuck_ms.into());
+    }
+    if node != from_node && !from_node.is_empty() {
+        span.set_data("from_node", from_node.into());
+    }
+    span.finish();
 }
 
 /// 单个 SavedTask 结束：为 child Span 打结果并 finish。
@@ -633,8 +806,14 @@ pub fn on_task_finished(instance_id: &str, maa_task_id: i64, success: bool) {
             if !success {
                 run.has_failed = true;
             }
-            let failure = run.last_failures.remove(&maa_task_id);
             run.metas.remove(&maa_task_id);
+            run.last_steps.remove(&maa_task_id);
+            run.failed_nodes.remove(&maa_task_id);
+            run.nested_entries
+                .retain(|_, (owner, _)| *owner != maa_task_id);
+            if run.active_task == Some(maa_task_id) {
+                run.active_task = None;
+            }
             if let Some(span) = run.children.remove(&maa_task_id) {
                 span.set_data("result", if success { "success" } else { "failure" }.into());
                 span.set_status(if success {
@@ -642,16 +821,6 @@ pub fn on_task_finished(instance_id: &str, maa_task_id: i64, success: bool) {
                 } else {
                     sentry::protocol::SpanStatus::InternalError
                 });
-
-                if !success {
-                    if let Some((node, stage)) = failure {
-                        span.set_data("failed_node", node.clone().into());
-                        span.set_data("failed_stage", stage.into());
-                        // Transaction 上只记首个失败节点，便于按节点搜索整次运行
-                        run.tags.entry("failed_node".to_string()).or_insert(node);
-                    }
-                }
-
                 span.finish();
             }
         }

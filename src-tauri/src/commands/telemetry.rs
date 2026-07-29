@@ -74,36 +74,10 @@ struct RunState {
     /// Tasker 用单线程 AsyncRunner 串行执行 posted task，同一时刻至多一个，
     /// 因此嵌套 `Context::run_task` 中失败的节点可据此归属回外层任务的 Span。
     active_task: Option<i64>,
-    /// 嵌套子 pipeline 的入口（子 task_id → 所属外层任务 id 与入口名）。
-    nested_entries: BTreeMap<i64, (i64, String)>,
     /// Transaction 级 tag，在 finish 时通过临时 scope 应用（SDK 未提供直接设置 tag 的接口）。
     tags: BTreeMap<String, String>,
     /// 是否已有任务失败。
     has_failed: bool,
-}
-
-impl RunState {
-    /// 记住一个嵌套子 pipeline 的入口名。
-    ///
-    /// `Context::run_task` 会为子 pipeline 新发 task_id，其首个 `Node.PipelineNode.Starting`
-    /// 的 `name` 就是入口，据此可在失败时说明是哪个子任务挂的。
-    fn remember_nested(&mut self, task_id: i64, entry: &str) {
-        if entry.is_empty()
-            || self.children.contains_key(&task_id)
-            || self.nested_entries.contains_key(&task_id)
-        {
-            return;
-        }
-        let Some(owner) = self.active_task else {
-            return;
-        };
-
-        self.nested_entries
-            .insert(task_id, (owner, entry.to_string()));
-        while self.nested_entries.len() > MAX_NESTED_ENTRIES {
-            self.nested_entries.pop_first();
-        }
-    }
 }
 
 /// 单个任务最多上报的失败节点数。
@@ -111,12 +85,6 @@ impl RunState {
 /// SDK 对单个 Transaction 有 1000 个 Span 的硬上限且超出后静默丢弃，
 /// 这里主动限流是为了不让某个反复失败的长任务挤掉其他任务的 Span。
 const MAX_FAILED_NODES_PER_TASK: u32 = 32;
-
-/// 单次运行最多缓存的嵌套子 pipeline 入口数。
-///
-/// 长时间循环的任务会持续调用 `Context::run_task`，这里设上限避免无界增长；
-/// 超出后丢弃最早的记录，只影响失败 Span 上 `subtask` 字段的完整性。
-const MAX_NESTED_ENTRIES: usize = 4096;
 
 /// 单个 SavedTask 的遥测元数据，由前端在提交任务时给出。
 #[derive(Debug, Clone, Default)]
@@ -575,7 +543,6 @@ pub fn on_run_start(instance_id: &str, task_names: &[String], controller: Option
                 last_steps: HashMap::new(),
                 failed_nodes: HashMap::new(),
                 active_task: None,
-                nested_entries: BTreeMap::new(),
                 tags,
                 has_failed: false,
             },
@@ -678,15 +645,9 @@ pub fn on_node_event(instance_id: &str, message: &str, details: &str) {
     let Some(node_id) = node_id else {
         return;
     };
-    // 子 pipeline 首个步骤的 name 即它的入口，此时登记才能在后续失败时说明是哪个子任务
-    let entry = detail
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
     if let Ok(mut runs) = RUNS.lock() {
         if let Some(run) = runs.get_mut(instance_id) {
             run.last_steps.insert(task_id, (node_id, Instant::now()));
-            run.remember_nested(task_id, entry);
         }
     }
 }
@@ -701,8 +662,7 @@ fn record_failed_node(
     node_id: Option<i64>,
     detail: &serde_json::Value,
 ) {
-    // 回调里的 name 是发起这一步的节点（即上一个节点），不一定是失败的那个
-    let from_node = detail
+    let name = detail
         .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or_default();
@@ -710,13 +670,13 @@ fn record_failed_node(
         .get("node_details")
         .and_then(|d| d.get("name"))
         .and_then(|v| v.as_str())
-        .filter(|name| !name.is_empty());
+        .filter(|n| !n.is_empty());
 
     let (node, stage) = match hit_node {
         // 命中了节点但动作执行失败，失败节点是命中的那个
         Some(hit) => (hit, "action"),
         // next 列表在 reco_timeout 内始终未命中，卡在发起这一步的节点上
-        None if !from_node.is_empty() => (from_node, "recognition"),
+        None if !name.is_empty() => (name, "recognition"),
         None => return,
     };
 
@@ -737,7 +697,6 @@ fn record_failed_node(
             _ => return,
         }
     };
-    let nested = owner_id != task_id;
 
     // 只有 node_id 对得上才算得出耗时，否则宁可不写也不写错
     let stuck_ms = run
@@ -751,13 +710,6 @@ fn record_failed_node(
         .get(&owner_id)
         .map(|meta| meta.name.clone())
         .unwrap_or_default();
-    let subtask = if nested {
-        run.nested_entries
-            .get(&task_id)
-            .map(|(_, entry)| entry.clone())
-    } else {
-        None
-    };
 
     let count = run.failed_nodes.entry(owner_id).or_insert(0);
     *count += 1;
@@ -775,22 +727,13 @@ fn record_failed_node(
     if !task_name.is_empty() {
         span.set_data("task", task_name.into());
     }
+    // 嵌套 `Context::run_task` 时这是子 pipeline 的 id，与父 Span 上的外层任务不同
     span.set_data("task_id", task_id.into());
-    // 嵌套时 task_id 属于子 pipeline 而非父 Span 上的外层任务，标注出来免得比对日志时误判
-    if nested {
-        span.set_data("nested", true.into());
-        if let Some(subtask) = subtask {
-            span.set_data("subtask", subtask.into());
-        }
-    }
     if let Some(node_id) = node_id {
         span.set_data("node_id", node_id.into());
     }
     if let Some(stuck_ms) = stuck_ms {
         span.set_data("duration_ms", stuck_ms.into());
-    }
-    if node != from_node && !from_node.is_empty() {
-        span.set_data("from_node", from_node.into());
     }
     span.finish();
 }
@@ -809,8 +752,6 @@ pub fn on_task_finished(instance_id: &str, maa_task_id: i64, success: bool) {
             run.metas.remove(&maa_task_id);
             run.last_steps.remove(&maa_task_id);
             run.failed_nodes.remove(&maa_task_id);
-            run.nested_entries
-                .retain(|_, (owner, _)| *owner != maa_task_id);
             if run.active_task == Some(maa_task_id) {
                 run.active_task = None;
             }

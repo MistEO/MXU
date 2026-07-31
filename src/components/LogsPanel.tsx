@@ -10,14 +10,14 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Eraser, Copy, ChevronUp, ChevronDown, Archive } from 'lucide-react';
 import clsx from 'clsx';
-import { invoke } from '@tauri-apps/api/core';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { isTauri } from '@/utils/paths';
 import { useExportLogs } from '@/utils/useExportLogs';
 import { ExportLogsModal } from './settings/ExportLogsModal';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { getCurrentLogFileName } from '@/utils/logger';
+import { loggers } from '@/utils/logger';
+import { clearDiskLogFiles } from '@/utils/logCleanup';
 import { clearPersistedRuntimeLogs } from '@/utils/runtimeLogPersistence';
 import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { loadPersistedRuntimeLogs, mergeRuntimeLogs } from '@/utils/runtimeLogPersistence';
@@ -91,11 +91,10 @@ export function LogsPanel() {
   const clearLogFiles = useCallback(async () => {
     if (!isTauri()) return;
     try {
-      await invoke<number>('clear_log_files', {
-        excludeFileName: getCurrentLogFileName(),
-      });
-    } catch {
-      // ignore cleanup errors
+      const report = await clearDiskLogFiles('includeCurrentWhenIdle');
+      loggers.ui.info('Manual log cleanup completed:', report);
+    } catch (error) {
+      loggers.ui.warn('Manual log cleanup failed:', error);
     }
   }, []);
 

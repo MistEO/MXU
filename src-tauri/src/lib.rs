@@ -14,6 +14,8 @@ use ws_broadcast::WsBroadcast;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let process_started_at = std::time::SystemTime::now();
+
     // 日志目录：exe 目录/debug/logs（与前端日志同目录）
     let logs_dir = commands::utils::get_logs_dir();
 
@@ -26,6 +28,9 @@ pub fn run() {
     commands::system::migrate_legacy_autostart();
 
     tauri::Builder::default()
+        .manage(commands::log_cleanup::LogCleanupState::new(
+            process_started_at,
+        ))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -252,7 +257,7 @@ pub fn run() {
             commands::file_ops::local_file_exists,
             commands::file_ops::get_exe_dir,
             commands::file_ops::get_data_dir,
-            commands::file_ops::clear_log_files,
+            commands::log_cleanup::clear_log_files,
             commands::file_ops::get_cwd,
             commands::file_ops::check_exe_path,
             commands::file_ops::set_executable,

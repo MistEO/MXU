@@ -1139,6 +1139,10 @@ pub fn run_task_impl(
     pipeline_override: &str,
     selected_task_id: Option<&str>,
 ) -> Result<i64, String> {
+    let _task_submission_guard = state
+        .task_submission_cleanup_gate
+        .lock()
+        .map_err(|e| format!("Failed to lock task submission gate: {}", e))?;
     let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
     let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
 

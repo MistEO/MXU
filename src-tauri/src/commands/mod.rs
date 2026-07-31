@@ -20,6 +20,7 @@ pub mod utils;
 pub mod app_config;
 pub mod download;
 pub mod file_ops;
+pub mod log_cleanup;
 pub mod maa_agent;
 pub mod maa_core;
 pub mod state;

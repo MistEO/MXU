@@ -370,6 +370,11 @@ fn build_webhook_headers(headers: HashMap<String, String>) -> Result<HeaderMap, 
     let mut header_map = HeaderMap::new();
 
     for (name, value) in headers {
+        let name = name.trim();
+        if name.is_empty() || value.trim().is_empty() {
+            continue;
+        }
+
         let name = HeaderName::from_bytes(name.as_bytes())
             .map_err(|e| format!("invalid header name '{}': {}", name, e))?;
         let value = HeaderValue::from_str(&value)
@@ -462,6 +467,20 @@ mod webhook_tests {
             render_webhook_template(template, &placeholders),
             serde_json::json!({"content": r#"quoted "text" with \ slash"#})
         );
+    }
+
+    #[test]
+    fn unused_custom_header_slots_are_omitted() {
+        let headers = HashMap::from([
+            ("Authorization".to_string(), "Bearer token".to_string()),
+            ("X-API-Key".to_string(), String::new()),
+            (" ".to_string(), "unused".to_string()),
+        ]);
+
+        let headers = build_webhook_headers(headers).unwrap();
+
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers.get("Authorization").unwrap(), "Bearer token");
     }
 }
 

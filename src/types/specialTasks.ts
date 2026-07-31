@@ -306,7 +306,7 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_WEBHOOK_TASK_NAME,
   label: 'specialTask.webhook.label',
   entry: MXU_WEBHOOK_ENTRY,
-  option: ['__MXU_WEBHOOK_OPTION__'],
+  option: ['__MXU_WEBHOOK_OPTION__', '__MXU_WEBHOOK_HEADERS_SWITCH_OPTION__'],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       action: 'Custom',
@@ -320,22 +320,125 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
 const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
   type: 'input',
   label: 'specialTask.webhook.optionLabel',
+  description: 'specialTask.webhook.optionDescription',
   inputs: [
     {
       name: 'url',
       label: 'specialTask.webhook.urlLabel',
       default: '',
       pipeline_type: 'string',
+      verify: '^https?://.+$',
+      pattern_msg: 'specialTask.webhook.urlError',
       placeholder: 'specialTask.webhook.urlPlaceholder',
+    },
+    {
+      name: 'title',
+      label: 'specialTask.webhook.titleLabel',
+      default: 'MXU',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.titlePlaceholder',
+    },
+    {
+      name: 'content',
+      label: 'specialTask.webhook.contentLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.contentPlaceholder',
+    },
+    {
+      name: 'body_template',
+      label: 'specialTask.webhook.bodyTemplateLabel',
+      default: '{"content":"{title}\\n{content}\\n{time}"}',
+      pipeline_type: 'string',
+      verify: '^\\s*\\{[\\s\\S]*\\}\\s*$',
+      pattern_msg: 'specialTask.webhook.bodyTemplateError',
+      placeholder: 'specialTask.webhook.bodyTemplatePlaceholder',
     },
   ],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       custom_action_param: {
         url: '{url}',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body_template: '{body_template}',
+        title: '{title}',
+        content: '{content}',
+        timeout_secs: 15,
+        fail_on_non_success: true,
       },
     },
   },
+};
+
+const MXU_WEBHOOK_HEADERS_OPTION_DEF_INTERNAL: InputOption = {
+  type: 'input',
+  label: 'specialTask.webhook.headersOptionLabel',
+  description: 'specialTask.webhook.headersOptionDescription',
+  inputs: [
+    {
+      name: 'header_1_name',
+      label: 'specialTask.webhook.headerNameLabel',
+      default: 'Authorization',
+      pipeline_type: 'string',
+      verify: '^[A-Za-z0-9-]+$',
+      pattern_msg: 'specialTask.webhook.headerNameError',
+      placeholder: 'specialTask.webhook.headerNamePlaceholder',
+    },
+    {
+      name: 'header_1_value',
+      label: 'specialTask.webhook.headerValueLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.headerValuePlaceholder',
+    },
+    {
+      name: 'header_2_name',
+      label: 'specialTask.webhook.headerNameLabel2',
+      default: 'X-API-Key',
+      pipeline_type: 'string',
+      verify: '^[A-Za-z0-9-]+$',
+      pattern_msg: 'specialTask.webhook.headerNameError',
+      placeholder: 'specialTask.webhook.headerNamePlaceholder',
+    },
+    {
+      name: 'header_2_value',
+      label: 'specialTask.webhook.headerValueLabel2',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.headerValuePlaceholder',
+    },
+  ],
+  pipeline_override: {
+    [MXU_WEBHOOK_ENTRY]: {
+      custom_action_param: {
+        headers: {
+          '{header_1_name}': '{header_1_value}',
+          '{header_2_name}': '{header_2_value}',
+        },
+      },
+    },
+  },
+};
+
+const MXU_WEBHOOK_HEADERS_SWITCH_OPTION_DEF_INTERNAL: SwitchOption = {
+  type: 'switch',
+  label: 'specialTask.webhook.headersSwitchLabel',
+  description: 'specialTask.webhook.headersSwitchDescription',
+  cases: [
+    {
+      name: 'Yes',
+      label: 'specialTask.webhook.headersSwitchYes',
+      option: ['__MXU_WEBHOOK_HEADERS_OPTION__'],
+    },
+    {
+      name: 'No',
+      label: 'specialTask.webhook.headersSwitchNo',
+    },
+  ],
+  default_case: 'No',
 };
 
 // MXU_NOTIFY 任务定义
@@ -610,6 +713,8 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     taskDef: MXU_WEBHOOK_TASK_DEF_INTERNAL,
     optionDefs: {
       __MXU_WEBHOOK_OPTION__: MXU_WEBHOOK_OPTION_DEF_INTERNAL,
+      __MXU_WEBHOOK_HEADERS_SWITCH_OPTION__: MXU_WEBHOOK_HEADERS_SWITCH_OPTION_DEF_INTERNAL,
+      __MXU_WEBHOOK_HEADERS_OPTION__: MXU_WEBHOOK_HEADERS_OPTION_DEF_INTERNAL,
     },
     iconName: 'Bell',
     iconColorClass: 'text-accent/80',

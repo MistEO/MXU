@@ -5,8 +5,6 @@ import zhTW from './locales/zh-TW';
 import enUS from './locales/en-US';
 import jaJP from './locales/ja-JP';
 import koKR from './locales/ko-KR';
-import webhookTranslations from './webhookTranslations';
-import '../types/webhookEnhancement';
 
 /**
  * 支持的语言配置
@@ -78,51 +76,11 @@ export const getStoredLanguagePreference = (): LanguagePreference | null => {
 };
 
 const resources = {
-  'zh-CN': {
-    translation: {
-      ...zhCN,
-      specialTask: {
-        ...zhCN.specialTask,
-        webhook: { ...zhCN.specialTask.webhook, ...webhookTranslations['zh-CN'] },
-      },
-    },
-  },
-  'zh-TW': {
-    translation: {
-      ...zhTW,
-      specialTask: {
-        ...zhTW.specialTask,
-        webhook: { ...zhTW.specialTask.webhook, ...webhookTranslations['zh-TW'] },
-      },
-    },
-  },
-  'en-US': {
-    translation: {
-      ...enUS,
-      specialTask: {
-        ...enUS.specialTask,
-        webhook: { ...enUS.specialTask.webhook, ...webhookTranslations['en-US'] },
-      },
-    },
-  },
-  'ja-JP': {
-    translation: {
-      ...jaJP,
-      specialTask: {
-        ...jaJP.specialTask,
-        webhook: { ...jaJP.specialTask.webhook, ...webhookTranslations['ja-JP'] },
-      },
-    },
-  },
-  'ko-KR': {
-    translation: {
-      ...koKR,
-      specialTask: {
-        ...koKR.specialTask,
-        webhook: { ...koKR.specialTask.webhook, ...webhookTranslations['ko-KR'] },
-      },
-    },
-  },
+  'zh-CN': { translation: zhCN },
+  'zh-TW': { translation: zhTW },
+  'en-US': { translation: enUS },
+  'ja-JP': { translation: jaJP },
+  'ko-KR': { translation: koKR },
 };
 
 // 获取系统语言或存储的语言偏好

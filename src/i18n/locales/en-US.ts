@@ -180,8 +180,33 @@ export default {
     webhook: {
       label: '🔔 Webhook',
       optionLabel: 'Request Settings',
+      optionDescription:
+        'Always sends POST requests with application/json. The body supports {title}, {content}, and {time} placeholders.',
       urlLabel: 'Request URL',
       urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+      urlError: 'Enter a complete URL beginning with http:// or https://',
+      titleLabel: 'Notification title',
+      titlePlaceholder: 'Value used for the {title} placeholder',
+      contentLabel: 'Notification content',
+      contentPlaceholder: 'Value used for the {content} placeholder',
+      bodyTemplateLabel: 'JSON body template',
+      bodyTemplatePlaceholder: 'Example: {"content":"{title}\\n{content}\\n{time}"}',
+      bodyTemplateError: 'The body template must use JSON object syntax',
+      headersSwitchLabel: 'Custom headers',
+      headersSwitchDescription:
+        'Enable when Authorization, X-API-Key, or similar headers are required',
+      headersSwitchYes: 'Enable custom headers',
+      headersSwitchNo: 'Use only Content-Type: application/json',
+      headersOptionLabel: 'Header settings',
+      headersOptionDescription:
+        'Configure up to two additional headers. Content-Type remains application/json.',
+      headerNameLabel: 'Header name 1',
+      headerNameLabel2: 'Header name 2',
+      headerValueLabel: 'Header value 1',
+      headerValueLabel2: 'Header value 2',
+      headerNamePlaceholder: 'Example: Authorization',
+      headerValuePlaceholder: 'Example: Bearer token',
+      headerNameError: 'Header names may contain only letters, numbers, and hyphens',
     },
     killProc: {
       label: '⛔ Kill Process',

@@ -394,13 +394,15 @@ fn sanitize_webhook_url(url: &Url) -> String {
     format!("{}://{}/...", url.scheme(), authority)
 }
 
-fn build_webhook_placeholders(title: Option<String>, content: Option<String>) -> WebhookPlaceholders {
+fn build_webhook_placeholders(
+    title: Option<String>,
+    content: Option<String>,
+) -> WebhookPlaceholders {
     WebhookPlaceholders {
         // title 通常會出現在單行通知標題，移除換行可避免破壞部分服務的欄位格式。
         title: title
             .unwrap_or_else(|| "MXU".to_string())
-            .replace('\r', "")
-            .replace('\n', ""),
+            .replace(['\r', '\n'], ""),
         // content 保留換行，交由 JSON serializer 正確轉義。
         content: content.unwrap_or_default().replace('\r', ""),
         time: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -430,6 +432,36 @@ fn render_webhook_template(value: Value, placeholders: &WebhookPlaceholders) -> 
                 .collect(),
         ),
         value => value,
+    }
+}
+
+fn parse_webhook_body_template(template: Value) -> Result<Value, String> {
+    match template {
+        Value::String(template) => serde_json::from_str(&template)
+            .map_err(|e| format!("invalid body_template JSON: {}", e)),
+        template => Ok(template),
+    }
+}
+
+#[cfg(test)]
+mod webhook_tests {
+    use super::*;
+
+    #[test]
+    fn body_template_escapes_placeholder_values() {
+        let placeholders = WebhookPlaceholders {
+            title: "MXU".to_string(),
+            content: r#"quoted "text" with \ slash"#.to_string(),
+            time: "2026-07-31 12:00:00".to_string(),
+        };
+        let template =
+            parse_webhook_body_template(Value::String(r#"{"content":"{content}"}"#.to_string()))
+                .unwrap();
+
+        assert_eq!(
+            render_webhook_template(template, &placeholders),
+            serde_json::json!({"content": r#"quoted "text" with \ slash"#})
+        );
     }
 }
 
@@ -473,6 +505,13 @@ fn mxu_webhook_action_fn(
 
     let body = match body_template {
         Some(template) => {
+            let template = match parse_webhook_body_template(template) {
+                Ok(value) => value,
+                Err(e) => {
+                    warn!("[MXU_WEBHOOK] {}", e);
+                    return false;
+                }
+            };
             let placeholders = build_webhook_placeholders(title, content);
             Some(render_webhook_template(template, &placeholders))
         }
@@ -903,11 +942,11 @@ fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
         use winsafe::co::SC;
-        use winsafe::msg::wm;
+        use winsafe::msg::WmSysCommand;
         use winsafe::{HWND, POINT};
         unsafe {
             // NOTE: POINT::from(2) is equal to LPARAM(2)
-            HWND::BROADCAST.SendMessage(wm::SysCommand {
+            HWND::BROADCAST.SendMessage(WmSysCommand {
                 request: SC::MONITORPOWER,
                 position: POINT::from(2),
             });

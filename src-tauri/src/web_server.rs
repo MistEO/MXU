@@ -337,9 +337,13 @@ pub async fn start_web_server(
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any);
 
+    // 生产模式：前端从 tauri://localhost 加载（嵌入资源），fetch http://127.0.0.1:12701/api/* 是跨域。
+    // 必须允许任意 Origin，否则浏览器拦截所有 API 调用（表现为 "Could not connect to localhost"）。
     #[cfg(not(debug_assertions))]
-    let cors =
-        CorsLayer::new().allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
 
     let app = app.layer(cors);
 

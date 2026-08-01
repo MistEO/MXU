@@ -456,6 +456,17 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     filterControllersByPlatform(pi, backendOS);
 
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
+
+    // tauri 环境下后端 HTTP API（/api/*）走内置 axum web server（默认 12701），
+    // 但 getApiBase() 依赖 backendPort 才能返回绝对 URL（tauri://localhost 下相对 /api 不可达）。
+    // 这里显式设置默认端口，确保后续 fetch(getApiBase()/...) 直连后端。
+    try {
+      const port = await invoke<number>('get_web_server_port');
+      if (port > 0) setBackendPort(port);
+    } catch {
+      setBackendPort(12701);
+    }
+
     return { interface: pi, translations, basePath, dataPath, backendOS, backendArch };
   }
 

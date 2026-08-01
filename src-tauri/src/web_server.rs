@@ -18,7 +18,6 @@ use axum::{
 };
 #[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
-#[cfg(debug_assertions)]
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
 

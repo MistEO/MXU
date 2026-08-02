@@ -30,9 +30,9 @@ export function isTelemetryBlockedByBuild(pi?: ProjectInterface | null): boolean
 }
 
 /** 单个任务上报的选项条目上限，避免异常配置撑大事件。 */
-const MAX_OPTION_ENTRIES = 30;
+const MAX_OPTION_ENTRIES = 100;
 /** 单个选项值的长度上限。 */
-const MAX_OPTION_VALUE_LENGTH = 64;
+const MAX_OPTION_VALUE_LENGTH = 512;
 
 /** 自由文本类输入只上报是否填写，避免把路径 / URL / 进程名等隐私内容带出去。 */
 const summarizeInputValue = (
@@ -71,7 +71,14 @@ const collectOptionSummary = (
       put(optionKey, optionValue.caseName);
       break;
     case 'checkbox':
-      put(optionKey, optionValue.caseNames.length > 0 ? optionValue.caseNames.join('|') : 'none');
+      // 每个选中 case 单独一条，便于 Sentry 按单条筛选；勿再用 | 拼接
+      if (optionValue.caseNames.length === 0) {
+        put(optionKey, 'none');
+      } else {
+        for (const caseName of optionValue.caseNames) {
+          put(`${optionKey}.${caseName}`, 'true');
+        }
+      }
       break;
     case 'switch':
       put(optionKey, String(optionValue.value));

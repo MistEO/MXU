@@ -50,7 +50,9 @@ function OptionCollapseArrow({
       aria-expanded={!collapsed}
       aria-label={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
       title={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
-      className="p-1 rounded hover:bg-bg-hover flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
+      // ml-auto：吸收行内剩余空白（label 受 max-w-[60%] 限制无法全部吸收），
+      // 让箭头紧贴开关/下拉框，空隙只留在箭头左侧
+      className="p-1 rounded hover:bg-bg-hover flex-shrink-0 ml-auto disabled:cursor-not-allowed disabled:opacity-50"
     >
       <ChevronRight
         className={clsx(
@@ -758,7 +760,8 @@ export function OptionEditor({
           />
         )}
         <SelectComponent
-          className="w-[30%] flex-shrink-0 ml-auto"
+          // 有子选项时由箭头承担 ml-auto 贴右；无子选项时下拉框自身贴右
+          className={clsx('w-[30%] flex-shrink-0', nestedOptionKeys.length === 0 && 'ml-auto')}
           value={selectedCaseName}
           disabled={effectiveDisabled}
           basePath={basePath}

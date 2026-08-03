@@ -772,7 +772,7 @@ export const useAppStore = create<AppState>()(
                     ? {
                         ...t,
                         collapsedOptions: {
-                          ...t.collapsedOptions,
+                          ...(t.collapsedOptions ?? {}),
                           [optionKey]: !t.collapsedOptions?.[optionKey],
                         },
                       }

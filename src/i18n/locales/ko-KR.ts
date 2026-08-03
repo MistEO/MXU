@@ -347,6 +347,8 @@ export default {
     incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
     hotkeyPlaceholder: '클릭하여 단축키 입력',
     hotkeyCapturing: '키를 누르세요...',
+    expandOptions: '하위 옵션 펼치기',
+    collapseOptions: '하위 옵션 접기',
   },
 
   // 프리셋

@@ -344,6 +344,8 @@ export default {
     incompatibleResource: '不支持当前资源包',
     hotkeyPlaceholder: '点击录入快捷键',
     hotkeyCapturing: '按下快捷键...',
+    expandOptions: '展开子选项',
+    collapseOptions: '收起子选项',
   },
 
   // 预设配置

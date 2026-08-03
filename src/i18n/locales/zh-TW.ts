@@ -340,6 +340,8 @@ export default {
     incompatibleResource: '不支援目前資源包',
     hotkeyPlaceholder: '點擊錄入快捷鍵',
     hotkeyCapturing: '按下快捷鍵...',
+    expandOptions: '展開子選項',
+    collapseOptions: '收起子選項',
   },
 
   // 預設設定

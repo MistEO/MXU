@@ -761,6 +761,28 @@ export const useAppStore = create<AppState>()(
         ),
       })),
 
+    toggleOptionCollapsed: (instanceId, taskId, optionKey) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
+                selectedTasks: i.selectedTasks.map((t) =>
+                  t.id === taskId
+                    ? {
+                        ...t,
+                        collapsedOptions: {
+                          ...t.collapsedOptions,
+                          [optionKey]: !t.collapsedOptions?.[optionKey],
+                        },
+                      }
+                    : t,
+                ),
+              }
+            : i,
+        ),
+      })),
+
     setTaskOptionValue: (instanceId, taskId, optionKey, value) => {
       const pi = get().projectInterface;
 

@@ -192,6 +192,7 @@ export interface AppState {
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
   toggleTaskExpanded: (instanceId: string, taskId: string) => void;
+  toggleOptionCollapsed: (instanceId: string, taskId: string, optionKey: string) => void;
   setTaskOptionValue: (
     instanceId: string,
     taskId: string,

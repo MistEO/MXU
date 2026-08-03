@@ -356,6 +356,8 @@ export default {
     incompatibleResource: 'Not supported by current resource',
     hotkeyPlaceholder: 'Click to record shortcut',
     hotkeyCapturing: 'Press keys...',
+    expandOptions: 'Expand sub-options',
+    collapseOptions: 'Collapse sub-options',
   },
 
   // Preset

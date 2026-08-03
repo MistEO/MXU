@@ -351,6 +351,8 @@ export default {
     incompatibleResource: '現在のリソースパックに対応していません',
     hotkeyPlaceholder: 'クリックしてショートカットを記録',
     hotkeyCapturing: 'キーを押してください...',
+    expandOptions: '子オプションを展開',
+    collapseOptions: '子オプションを折りたたむ',
   },
 
   // プリセット

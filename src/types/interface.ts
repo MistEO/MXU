@@ -318,6 +318,8 @@ export interface SelectedTask {
   enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
+  /** 各选项的子选项折叠状态（optionKey → 是否折叠）；缺省 = 展开，向后兼容 */
+  collapsedOptions?: Record<string, boolean>;
 }
 
 export type OptionValue =

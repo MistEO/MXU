@@ -56,6 +56,8 @@ export interface SentryTelemetryConfig {
   tracing?: boolean;
   /** 事务采样率，取值 0~1。可选，默认 1.0。 */
   traces_sample_rate?: number;
+  /** 失败附件独立采样率，取值 0~1。Error Event 本身不受影响。可选，默认 1.0。 */
+  failure_attachments_sample_rate?: number;
   /** 环境标签（如 production、beta）。可选，缺省由 Client 决定。 */
   environment?: string;
 }

@@ -7,21 +7,26 @@
 //! - DSN 仅来自 interface.json 的 `telemetry.sentry.dsn`；空 DSN 或未开启时不初始化、不上报。
 //! - 初始化发生在 Tauri `setup()`（早于前端），使 WebView 起来之前的崩溃也能覆盖。
 //! - 用户开关（帮助改进软件）与构建期闸门（调试 / 开发版本）都在本模块判定。
-//! - 隐私：`send_default_pii = false`，仅上报哈希机器 ID、硬件摘要、版本、任务名、脱敏后的选项与结果。
+//! - `send_default_pii = false`；任务附件与现有“帮助改进软件”遥测开关共同启停。
 //! - 网络：SDK 后台异步发送、队列有界，不阻塞主流程；`shutdown_timeout` 设小值避免退出卡顿。
 //! - 事件模型：一次进程运行 = 一个 Session（Release Health），
 //!   一次整批运行 = 一个 Transaction，每个 SavedTask = 一个 child Span，
-//!   每个失败的 pipeline 节点 = 该任务 Span 下的一个 child Span。
+//!   每个失败的 pipeline 节点 = 该任务 Span 下的一个 child Span；外层 SavedTask
+//!   终态失败时再产生一条可聚类的 Error Event，并可附一份任务级诊断包。
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use super::task_diagnostics::{self, TaskBundle, TaskBundleError, TaskEvidenceStart};
 use super::types::ControllerInfo;
+use super::utils::get_logs_dir;
 use super::AppConfigState;
 
 /// Sentry 客户端守卫；持有期间遥测生效，置为 None 即关闭并 flush。
@@ -32,6 +37,14 @@ static TELEMETRY_CONFIG: Mutex<Option<TelemetryInitConfig>> = Mutex::new(None);
 static MACHINE_ID: OnceLock<String> = OnceLock::new();
 /// 进行中的运行遥测状态，按 instance_id 索引。
 static RUNS: Mutex<BTreeMap<String, RunState>> = Mutex::new(BTreeMap::new());
+/// 每次有实例开始整批运行时递增，用于发现任务证据区间内出现的其他运行实例。
+static EVIDENCE_EPOCH: AtomicU64 = AtomicU64::new(0);
+/// 退出或用户关闭遥测后不再接受新的附件 worker。
+static FAILURE_WORKERS_CLOSING: AtomicBool = AtomicBool::new(false);
+/// 串行化失败事件提交与 Sentry guard 的释放，避免退出竞态丢事件。
+static FAILURE_EVENT_SEND_LOCK: Mutex<()> = Mutex::new(());
+/// 待完成的附件 worker；退出时从这里生成无附件兜底事件。
+static PENDING_FAILURE_WORKERS: OnceLock<PendingFailureWorkers> = OnceLock::new();
 
 /// 前端传入的初始化配置（camelCase 对应 invoke 参数）。
 #[derive(Debug, Clone, Deserialize)]
@@ -49,6 +62,9 @@ pub struct TelemetryInitConfig {
     pub tracing: bool,
     /// 事务采样率 0~1。
     pub traces_sample_rate: f32,
+    /// 失败附件独立采样率 0~1；Error Event 本身不受此值影响。
+    #[serde(default = "default_sample_rate")]
+    pub failure_attachments_sample_rate: f32,
     /// 资源项目名（interface.name）。
     pub app_name: String,
     /// 资源项目版本（interface.version）。
@@ -59,6 +75,8 @@ pub struct TelemetryInitConfig {
 
 /// 单次整批运行的遥测状态。
 struct RunState {
+    /// 单次整批运行的随机关联 ID，同时写入本地日志与 Sentry。
+    run_id: String,
     /// 整批运行对应的 Transaction。
     transaction: sentry::TransactionOrSpan,
     /// 每个 SavedTask（maa_task_id）对应的 child Span。
@@ -69,6 +87,10 @@ struct RunState {
     last_steps: HashMap<i64, (i64, Instant)>,
     /// 各任务已上报的失败节点数（maa_task_id → 计数），用于限流。
     failed_nodes: HashMap<i64, u32>,
+    /// 各外层任务最后一个直接观测到的失败节点，用于终态失败事件的稳定分组。
+    failure_signals: HashMap<i64, FailureSignal>,
+    /// 各外层任务的运行时间和可选文件边界。
+    task_runtime: HashMap<i64, TaskRuntime>,
     /// 当前正在执行的外层 SavedTask id。
     ///
     /// Tasker 用单线程 AsyncRunner 串行执行 posted task，同一时刻至多一个，
@@ -78,6 +100,134 @@ struct RunState {
     tags: BTreeMap<String, String>,
     /// 是否已有任务失败。
     has_failed: bool,
+    /// 本次运行创建时的项目与附件配置，避免运行中切换项目导致事件错配。
+    event_config: FailureEventConfig,
+}
+
+#[derive(Debug, Clone, Default)]
+struct FailureEventConfig {
+    app_name: String,
+    app_version: String,
+    mxu_version: String,
+    failure_attachments_sample_rate: f32,
+}
+
+impl From<&TelemetryInitConfig> for FailureEventConfig {
+    fn from(config: &TelemetryInitConfig) -> Self {
+        Self {
+            app_name: config.app_name.clone(),
+            app_version: config.app_version.clone(),
+            mxu_version: config.mxu_version.clone(),
+            failure_attachments_sample_rate: config.failure_attachments_sample_rate.clamp(0.0, 1.0),
+        }
+    }
+}
+
+struct TaskRuntime {
+    started_at: Instant,
+    started_wall_time: SystemTime,
+    evidence_start: Option<TaskEvidenceStart>,
+    evidence_isolated: bool,
+    evidence_epoch: u64,
+}
+
+#[derive(Debug, Clone)]
+struct FailureSignal {
+    node: String,
+    stage: String,
+    source_task_id: i64,
+    node_id: Option<i64>,
+    duration_ms: Option<u64>,
+}
+
+#[derive(Clone)]
+struct TaskFailureReport {
+    run_id: String,
+    maa_task_id: i64,
+    task: TaskMeta,
+    duration_ms: Option<u64>,
+    started_wall_time: Option<SystemTime>,
+    failure: Option<FailureSignal>,
+    failed_node_count: u32,
+    trace_context: Option<sentry::protocol::TraceContext>,
+    tags: BTreeMap<String, String>,
+    event_config: FailureEventConfig,
+    evidence_start: Option<TaskEvidenceStart>,
+    evidence_isolated: bool,
+    evidence_epoch: u64,
+}
+
+struct PendingFailureWorkers {
+    next_id: AtomicU64,
+    reports: Mutex<BTreeMap<u64, TaskFailureReport>>,
+    idle: Condvar,
+}
+
+impl PendingFailureWorkers {
+    fn new() -> Self {
+        Self {
+            next_id: AtomicU64::new(1),
+            reports: Mutex::new(BTreeMap::new()),
+            idle: Condvar::new(),
+        }
+    }
+
+    fn register(&self, report: TaskFailureReport) -> Option<u64> {
+        let mut reports = self
+            .reports
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if FAILURE_WORKERS_CLOSING.load(Ordering::SeqCst) {
+            return None;
+        }
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        reports.insert(id, report);
+        Some(id)
+    }
+
+    fn take(&self, id: u64) -> Option<TaskFailureReport> {
+        let report = self
+            .reports
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&id);
+        if report.is_some() {
+            self.idle.notify_all();
+        }
+        report
+    }
+
+    fn wait_until_idle(&self, timeout: Duration) -> bool {
+        let reports = self
+            .reports
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if reports.is_empty() {
+            return true;
+        }
+        let (reports, _) = self
+            .idle
+            .wait_timeout_while(reports, timeout, |reports| !reports.is_empty())
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        reports.is_empty()
+    }
+
+    fn drain(&self) -> Vec<TaskFailureReport> {
+        let reports = std::mem::take(
+            &mut *self
+                .reports
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
+        if !reports.is_empty() {
+            self.idle.notify_all();
+        }
+        reports.into_values().collect()
+    }
+
+    fn cancel_all(&self) {
+        self.drain();
+    }
 }
 
 /// 单个任务最多上报的失败节点数。
@@ -85,6 +235,8 @@ struct RunState {
 /// SDK 对单个 Transaction 有 1000 个 Span 的硬上限且超出后静默丢弃，
 /// 这里主动限流是为了不让某个反复失败的长任务挤掉其他任务的 Span。
 const MAX_FAILED_NODES_PER_TASK: u32 = 32;
+/// 退出时给已经开始压缩的附件一个短暂完成窗口；超时则发送无附件兜底事件。
+const FAILURE_WORKER_DRAIN_TIMEOUT: Duration = Duration::from_millis(750);
 
 /// 单个 SavedTask 的遥测元数据，由前端在提交任务时给出。
 #[derive(Debug, Clone, Default)]
@@ -102,6 +254,14 @@ struct HardwareInfo {
     memory_total_mb: u64,
     gpu: String,
     os: String,
+}
+
+const fn default_sample_rate() -> f32 {
+    1.0
+}
+
+fn pending_failure_workers() -> &'static PendingFailureWorkers {
+    PENDING_FAILURE_WORKERS.get_or_init(PendingFailureWorkers::new)
 }
 
 /// 遥测是否处于激活状态（已初始化且客户端存在）。
@@ -199,6 +359,10 @@ fn build_startup_config(app_config: &AppConfigState) -> Option<TelemetryInitConf
             .unwrap_or(true),
         traces_sample_rate: sentry_cfg
             .get("traces_sample_rate")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(1.0) as f32,
+        failure_attachments_sample_rate: sentry_cfg
+            .get("failure_attachments_sample_rate")
             .and_then(|v| v.as_f64())
             .unwrap_or(1.0) as f32,
         app_name,
@@ -325,6 +489,12 @@ pub fn telemetry_set_enabled(enabled: bool) {
         return;
     }
 
+    FAILURE_WORKERS_CLOSING.store(true, Ordering::SeqCst);
+    let _send_guard = FAILURE_EVENT_SEND_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 用户主动关闭后不得再发送排队中的事件或附件。
+    pending_failure_workers().cancel_all();
     // 先正常结束 Session，否则它会一直挂着并最终被判为 abnormal，拉低 crash-free 率
     if is_active() {
         sentry::end_session_with_status(sentry::protocol::SessionStatus::Exited);
@@ -347,6 +517,8 @@ pub fn on_app_exit() {
         return;
     }
 
+    FAILURE_WORKERS_CLOSING.store(true, Ordering::SeqCst);
+
     // 退出时仍在跑的整批运行按取消收尾，避免整条 Transaction 丢失
     let pending: Vec<String> = RUNS
         .lock()
@@ -356,13 +528,38 @@ pub fn on_app_exit() {
         finish_run(&instance_id, Some(sentry::protocol::SpanStatus::Cancelled));
     }
 
+    let workers = pending_failure_workers();
+    let workers_completed = workers.wait_until_idle(FAILURE_WORKER_DRAIN_TIMEOUT);
+    let _send_guard = FAILURE_EVENT_SEND_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // Worker 超时后保留 Error Event，只有附件被省略。发送锁保证后台线程
+    // 无法在这里与 guard 释放交错，也不会产生重复事件。
+    let fallback_reports = workers.drain();
+    let fallback_count = fallback_reports.len();
+    for report in fallback_reports {
+        capture_failure_event(
+            report,
+            FailureAttachmentOutcome::Omitted {
+                status: "shutdown_fallback",
+                detail: "attachment worker did not finish before telemetry shutdown".to_string(),
+                selected_raw_bytes: None,
+                compressed_bytes: None,
+            },
+        );
+    }
+
     sentry::end_session_with_status(sentry::protocol::SessionStatus::Exited);
 
     // 丢弃守卫触发 flush（上限为 shutdown_timeout）
     if let Ok(mut slot) = TELEMETRY_GUARD.lock() {
         *slot = None;
     }
-    log::info!("[telemetry] 已结束 Session 并 flush");
+    log::info!(
+        "[telemetry] 已结束 Session 并 flush workers_completed={} fallback_events={}",
+        workers_completed,
+        fallback_count
+    );
 }
 
 /// 实际执行 Sentry 初始化并配置 scope。
@@ -380,6 +577,9 @@ fn do_init(config: &TelemetryInitConfig) {
     } else {
         0.0
     };
+
+    pending_failure_workers().cancel_all();
+    FAILURE_WORKERS_CLOSING.store(false, Ordering::SeqCst);
 
     let guard = sentry::init(sentry::ClientOptions {
         dsn: Some(dsn),
@@ -505,21 +705,38 @@ fn collect_gpu() -> String {
 
 // ============ 任务事件埋点 ============
 
+fn evidence_isolated_for_ids<'a>(
+    current_instance: &str,
+    mut running_instances: impl Iterator<Item = &'a str>,
+) -> bool {
+    !running_instances.any(|running_id| running_id != current_instance)
+}
+
 /// 整批运行开始：创建 Transaction，并记录本次使用的 controller。
 pub fn on_run_start(instance_id: &str, task_names: &[String], controller: Option<&ControllerInfo>) {
     if !is_active() {
         return;
     }
 
+    // A new run may write to the same process-wide debug directory. Active tasks
+    // compare this epoch at their terminal callback and omit ambiguous evidence.
+    EVIDENCE_EPOCH.fetch_add(1, Ordering::SeqCst);
+    let run_id = sentry::types::random_uuid().to_string();
+    let event_config = TELEMETRY_CONFIG
+        .lock()
+        .ok()
+        .and_then(|config| config.as_ref().map(FailureEventConfig::from))
+        .unwrap_or_default();
     let ctx = sentry::TransactionContext::new("mxu.task_run", "mxu.run");
     let transaction: sentry::TransactionOrSpan = sentry::start_transaction(ctx).into();
+    transaction.set_data("run_id", run_id.clone().into());
     transaction.set_data("task_count", (task_names.len() as u64).into());
     if !task_names.is_empty() {
         transaction.set_data("tasks", task_names.join(",").into());
     }
 
     // controller 既写 data（事件详情可见）又留作 tag（Sentry 中可搜索 / 分组）
-    let mut tags = BTreeMap::new();
+    let mut tags = BTreeMap::from([("run.id".to_string(), run_id.clone())]);
     if let Some(controller) = controller {
         for (key, value) in [
             ("controller.name", controller.name.as_deref()),
@@ -537,17 +754,22 @@ pub fn on_run_start(instance_id: &str, task_names: &[String], controller: Option
         runs.insert(
             instance_id.to_string(),
             RunState {
+                run_id: run_id.clone(),
                 transaction,
                 children: HashMap::new(),
                 metas: HashMap::new(),
                 last_steps: HashMap::new(),
                 failed_nodes: HashMap::new(),
+                failure_signals: HashMap::new(),
+                task_runtime: HashMap::new(),
                 active_task: None,
                 tags,
                 has_failed: false,
+                event_config,
             },
         );
     }
+    log::info!("[telemetry] run started run_id={run_id} instance_id={instance_id}");
 }
 
 /// 提交任务期间的元数据登记句柄，持有遥测状态锁。
@@ -594,18 +816,57 @@ pub fn on_task_start(instance_id: &str, maa_task_id: i64) {
         return;
     }
 
-    if let Ok(mut runs) = RUNS.lock() {
+    let capture_evidence = if let Ok(mut runs) = RUNS.lock() {
+        let evidence_isolated =
+            evidence_isolated_for_ids(instance_id, runs.keys().map(String::as_str));
+        let evidence_epoch = EVIDENCE_EPOCH.load(Ordering::SeqCst);
         if let Some(run) = runs.get_mut(instance_id) {
             let meta = run.metas.get(&maa_task_id).cloned().unwrap_or_default();
             let span: sentry::TransactionOrSpan =
                 run.transaction.start_child("mxu.task", &meta.name).into();
+            span.set_data("run_id", run.run_id.clone().into());
             span.set_data("task", meta.name.clone().into());
             span.set_data("task_id", maa_task_id.into());
             for (key, value) in &meta.options {
                 span.set_data(&format!("option.{key}"), value.clone().into());
             }
             run.children.insert(maa_task_id, span);
+            run.task_runtime.insert(
+                maa_task_id,
+                TaskRuntime {
+                    started_at: Instant::now(),
+                    started_wall_time: SystemTime::now(),
+                    evidence_start: None,
+                    evidence_isolated,
+                    evidence_epoch,
+                },
+            );
             run.active_task = Some(maa_task_id);
+            evidence_isolated
+                && should_sample_attachment(
+                    &run.run_id,
+                    maa_task_id,
+                    run.event_config.failure_attachments_sample_rate,
+                )
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    // Filesystem discovery can be slower than a state update, so do it without the
+    // telemetry-state lock. The prelude in the bundle builder covers lines written
+    // between the callback and this snapshot.
+    if capture_evidence {
+        let evidence_start = task_diagnostics::capture_task_start(&get_logs_dir());
+        if let Ok(mut runs) = RUNS.lock() {
+            if let Some(runtime) = runs
+                .get_mut(instance_id)
+                .and_then(|run| run.task_runtime.get_mut(&maa_task_id))
+            {
+                runtime.evidence_start = Some(evidence_start);
+            }
         }
     }
 }
@@ -713,6 +974,16 @@ fn record_failed_node(
 
     let count = run.failed_nodes.entry(owner_id).or_insert(0);
     *count += 1;
+    run.failure_signals.insert(
+        owner_id,
+        FailureSignal {
+            node: node.to_string(),
+            stage: stage.to_string(),
+            source_task_id: task_id,
+            node_id,
+            duration_ms: stuck_ms,
+        },
+    );
     if *count > MAX_FAILED_NODES_PER_TASK {
         return;
     }
@@ -744,17 +1015,23 @@ pub fn on_task_finished(instance_id: &str, maa_task_id: i64, success: bool) {
         return;
     }
 
-    if let Ok(mut runs) = RUNS.lock() {
+    let report = if let Ok(mut runs) = RUNS.lock() {
         if let Some(run) = runs.get_mut(instance_id) {
             if !success {
                 run.has_failed = true;
             }
-            run.metas.remove(&maa_task_id);
+            let task = run.metas.remove(&maa_task_id).unwrap_or_default();
+            let runtime = run.task_runtime.remove(&maa_task_id);
             run.last_steps.remove(&maa_task_id);
-            run.failed_nodes.remove(&maa_task_id);
+            let failed_node_count = run.failed_nodes.remove(&maa_task_id).unwrap_or(0);
+            let failure = run.failure_signals.remove(&maa_task_id);
             if run.active_task == Some(maa_task_id) {
                 run.active_task = None;
             }
+            let trace_context = run
+                .children
+                .get(&maa_task_id)
+                .map(|span| span.get_trace_context());
             if let Some(span) = run.children.remove(&maa_task_id) {
                 span.set_data("result", if success { "success" } else { "failure" }.into());
                 span.set_status(if success {
@@ -764,8 +1041,430 @@ pub fn on_task_finished(instance_id: &str, maa_task_id: i64, success: bool) {
                 });
                 span.finish();
             }
+
+            if success {
+                None
+            } else {
+                let (
+                    duration_ms,
+                    started_wall_time,
+                    evidence_start,
+                    evidence_isolated,
+                    evidence_epoch,
+                ) = runtime
+                    .map(|runtime| {
+                        (
+                            Some(runtime.started_at.elapsed().as_millis() as u64),
+                            Some(runtime.started_wall_time),
+                            runtime.evidence_start,
+                            runtime.evidence_isolated,
+                            runtime.evidence_epoch,
+                        )
+                    })
+                    .unwrap_or((
+                        None,
+                        None,
+                        None,
+                        true,
+                        EVIDENCE_EPOCH.load(Ordering::SeqCst),
+                    ));
+                Some(TaskFailureReport {
+                    run_id: run.run_id.clone(),
+                    maa_task_id,
+                    task,
+                    duration_ms,
+                    started_wall_time,
+                    failure,
+                    failed_node_count,
+                    trace_context,
+                    tags: run.tags.clone(),
+                    event_config: run.event_config.clone(),
+                    evidence_start,
+                    evidence_isolated,
+                    evidence_epoch,
+                })
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(report) = report {
+        submit_failure_report(report);
+    }
+}
+
+enum FailureAttachmentOutcome {
+    NotSelected,
+    Attached(TaskBundle),
+    Omitted {
+        status: &'static str,
+        detail: String,
+        selected_raw_bytes: Option<u64>,
+        compressed_bytes: Option<usize>,
+    },
+}
+
+fn submit_failure_report(mut report: TaskFailureReport) {
+    if !report.evidence_isolated {
+        report.evidence_start = None;
+        send_failure_event(
+            report,
+            FailureAttachmentOutcome::Omitted {
+                status: "concurrent_instance",
+                detail: "another instance run overlapped this task evidence window".to_string(),
+                selected_raw_bytes: None,
+                compressed_bytes: None,
+            },
+        );
+        return;
+    }
+
+    let Some(evidence_start) = report.evidence_start.take() else {
+        send_failure_event(report, FailureAttachmentOutcome::NotSelected);
+        return;
+    };
+    let selection = match task_diagnostics::capture_task_end(evidence_start) {
+        Ok(selection) => selection,
+        Err(error) => {
+            send_failure_event(report, attachment_error_outcome(error));
+            return;
+        }
+    };
+    if EVIDENCE_EPOCH.load(Ordering::SeqCst) != report.evidence_epoch {
+        send_failure_event(
+            report,
+            FailureAttachmentOutcome::Omitted {
+                status: "concurrent_instance",
+                detail: "another instance run started before the evidence boundary was frozen"
+                    .to_string(),
+                selected_raw_bytes: None,
+                compressed_bytes: None,
+            },
+        );
+        return;
+    }
+
+    let workers = pending_failure_workers();
+    let Some(worker_id) = workers.register(report.clone()) else {
+        send_failure_event(
+            report,
+            FailureAttachmentOutcome::Omitted {
+                status: "shutdown_in_progress",
+                detail: "telemetry shutdown started before attachment compression".to_string(),
+                selected_raw_bytes: None,
+                compressed_bytes: None,
+            },
+        );
+        return;
+    };
+
+    // Preserve the configured client and top scope when crossing the thread boundary.
+    // Stable file handles and end offsets are already frozen; only compression runs
+    // in the background. The pending registry owns an event-only fallback for exit.
+    let hub = Arc::new(sentry::Hub::new_from_top(sentry::Hub::current()));
+    if let Err(error) = std::thread::Builder::new()
+        .name("mxu-failure-attachment".to_string())
+        .spawn(move || {
+            sentry::Hub::run(hub, || {
+                let outcome = match task_diagnostics::build_task_bundle(
+                    selection,
+                    &report.run_id,
+                    report.maa_task_id,
+                ) {
+                    Ok(bundle) => FailureAttachmentOutcome::Attached(bundle),
+                    Err(error) => attachment_error_outcome(error),
+                };
+                complete_failure_worker(worker_id, report, outcome);
+            });
+        })
+    {
+        log::warn!("[telemetry] failed to start attachment worker: {error}");
+        if let Some(report) = workers.take(worker_id) {
+            send_failure_event(
+                report,
+                FailureAttachmentOutcome::Omitted {
+                    status: "worker_unavailable",
+                    detail: error.to_string(),
+                    selected_raw_bytes: None,
+                    compressed_bytes: None,
+                },
+            );
         }
     }
+}
+
+fn complete_failure_worker(
+    worker_id: u64,
+    report: TaskFailureReport,
+    outcome: FailureAttachmentOutcome,
+) {
+    let _send_guard = FAILURE_EVENT_SEND_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // Shutdown or an explicit opt-out may already have consumed/cancelled this
+    // worker's fallback. In that case the detached compressor must remain silent.
+    if pending_failure_workers().take(worker_id).is_some() && is_active() {
+        capture_failure_event(report, outcome);
+    }
+}
+
+fn send_failure_event(report: TaskFailureReport, outcome: FailureAttachmentOutcome) {
+    let _send_guard = FAILURE_EVENT_SEND_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if is_active() {
+        capture_failure_event(report, outcome);
+    }
+}
+
+fn attachment_error_outcome(error: TaskBundleError) -> FailureAttachmentOutcome {
+    match error {
+        TaskBundleError::NoEvidence => FailureAttachmentOutcome::Omitted {
+            status: "no_evidence",
+            detail: TaskBundleError::NoEvidence.to_string(),
+            selected_raw_bytes: None,
+            compressed_bytes: None,
+        },
+        TaskBundleError::TooLarge {
+            selected_raw_bytes,
+            compressed_bytes,
+        } => FailureAttachmentOutcome::Omitted {
+            status: "too_large",
+            detail: TaskBundleError::TooLarge {
+                selected_raw_bytes,
+                compressed_bytes,
+            }
+            .to_string(),
+            selected_raw_bytes: Some(selected_raw_bytes),
+            compressed_bytes,
+        },
+        error => FailureAttachmentOutcome::Omitted {
+            status: "build_failed",
+            detail: error.to_string(),
+            selected_raw_bytes: None,
+            compressed_bytes: None,
+        },
+    }
+}
+
+fn capture_failure_event(report: TaskFailureReport, outcome: FailureAttachmentOutcome) {
+    let task_name = if report.task.name.is_empty() {
+        "unknown-task".to_string()
+    } else {
+        report.task.name.clone()
+    };
+    let observed_node = report
+        .failure
+        .as_ref()
+        .map(|failure| failure.node.as_str())
+        .unwrap_or("terminal_failure");
+    let observed_stage = report
+        .failure
+        .as_ref()
+        .map(|failure| failure.stage.as_str())
+        .unwrap_or("unknown");
+
+    let mut event = sentry::protocol::Event {
+        message: Some(format!(
+            "Maa task failed: {task_name} at {observed_node} ({observed_stage})"
+        )),
+        logger: Some("mxu.task".to_string()),
+        transaction: Some("mxu.task.failure".to_string()),
+        fingerprint: Cow::Owned(vec![
+            Cow::Borrowed("mxu-task-failure"),
+            Cow::Owned(report.event_config.app_name.clone()),
+            Cow::Owned(task_name.clone()),
+            Cow::Owned(observed_node.to_string()),
+            Cow::Owned(observed_stage.to_string()),
+        ]),
+        ..Default::default()
+    };
+
+    event.tags = report.tags;
+    for (key, value) in [
+        ("app.name", report.event_config.app_name.as_str()),
+        ("app.version", report.event_config.app_version.as_str()),
+        ("mxu.version", report.event_config.mxu_version.as_str()),
+        ("task.name", task_name.as_str()),
+        ("failure.node", observed_node),
+        ("failure.stage", observed_stage),
+        ("result", "failure"),
+    ] {
+        if !value.is_empty() {
+            event.tags.insert(key.to_string(), tag_value(value));
+        }
+    }
+
+    event
+        .extra
+        .insert("run_id".to_string(), report.run_id.clone().into());
+    event
+        .extra
+        .insert("task_id".to_string(), report.maa_task_id.into());
+    event.extra.insert(
+        "failed_node_count".to_string(),
+        (report.failed_node_count as u64).into(),
+    );
+    if let Some(duration_ms) = report.duration_ms {
+        event
+            .extra
+            .insert("task_duration_ms".to_string(), duration_ms.into());
+    }
+    if let Some(started_at_ms) = report.started_wall_time.and_then(unix_time_ms) {
+        event
+            .extra
+            .insert("task_started_at_ms".to_string(), started_at_ms.into());
+    }
+    if let Some(failure) = &report.failure {
+        event.extra.insert(
+            "failure.source_task_id".to_string(),
+            failure.source_task_id.into(),
+        );
+        if let Some(node_id) = failure.node_id {
+            event
+                .extra
+                .insert("failure.node_id".to_string(), node_id.into());
+        }
+        if let Some(duration_ms) = failure.duration_ms {
+            event
+                .extra
+                .insert("failure.duration_ms".to_string(), duration_ms.into());
+        }
+    }
+    for (key, value) in report.task.options {
+        event.extra.insert(format!("option.{key}"), value.into());
+    }
+    if let Some(trace_context) = report.trace_context {
+        event.contexts.insert(
+            "trace".to_string(),
+            sentry::protocol::Context::Trace(Box::new(trace_context)),
+        );
+    }
+
+    let attachment = match outcome {
+        FailureAttachmentOutcome::NotSelected => {
+            event
+                .extra
+                .insert("attachment.status".to_string(), "not_selected".into());
+            None
+        }
+        FailureAttachmentOutcome::Attached(bundle) => {
+            event
+                .extra
+                .insert("attachment.status".to_string(), "attached".into());
+            event.extra.insert(
+                "attachment.log_count".to_string(),
+                (bundle.log_count as u64).into(),
+            );
+            event.extra.insert(
+                "attachment.image_count".to_string(),
+                (bundle.image_count as u64).into(),
+            );
+            event.extra.insert(
+                "attachment.selected_raw_bytes".to_string(),
+                bundle.selected_raw_bytes.into(),
+            );
+            event.extra.insert(
+                "attachment.compressed_bytes".to_string(),
+                (bundle.buffer.len() as u64).into(),
+            );
+            event.extra.insert(
+                "attachment.selection".to_string(),
+                "appended_bytes_with_64k_prelude".into(),
+            );
+            if !bundle.warnings.is_empty() {
+                event.extra.insert(
+                    "attachment.warnings".to_string(),
+                    bundle.warnings.join(",").into(),
+                );
+            }
+            Some(sentry::protocol::Attachment {
+                buffer: bundle.buffer,
+                filename: bundle.filename,
+                content_type: Some("application/zip".to_string()),
+                ..Default::default()
+            })
+        }
+        FailureAttachmentOutcome::Omitted {
+            status,
+            detail,
+            selected_raw_bytes,
+            compressed_bytes,
+        } => {
+            event
+                .extra
+                .insert("attachment.status".to_string(), status.into());
+            event
+                .extra
+                .insert("attachment.detail".to_string(), detail.into());
+            if let Some(size) = selected_raw_bytes {
+                event
+                    .extra
+                    .insert("attachment.selected_raw_bytes".to_string(), size.into());
+            }
+            if let Some(size) = compressed_bytes {
+                event.extra.insert(
+                    "attachment.compressed_bytes".to_string(),
+                    (size as u64).into(),
+                );
+            }
+            None
+        }
+    };
+
+    let expected_event_id = event.event_id;
+    let captured_event_id = if let Some(attachment) = attachment {
+        sentry::with_scope(
+            |scope| scope.add_attachment(attachment),
+            || sentry::capture_event(event),
+        )
+    } else {
+        sentry::capture_event(event)
+    };
+    let event_id = if captured_event_id.is_nil() {
+        expected_event_id
+    } else {
+        captured_event_id
+    };
+    log::info!(
+        "[telemetry] task failure event_id={} run_id={} task_id={} task={}",
+        event_id,
+        report.run_id,
+        report.maa_task_id,
+        task_name
+    );
+}
+
+fn should_sample_attachment(run_id: &str, maa_task_id: i64, sample_rate: f32) -> bool {
+    let sample_rate = sample_rate.clamp(0.0, 1.0);
+    if sample_rate <= 0.0 {
+        return false;
+    }
+    if sample_rate >= 1.0 {
+        return true;
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"mxu-failure-attachment-v1:");
+    hasher.update(run_id.as_bytes());
+    hasher.update(maa_task_id.to_le_bytes());
+    let digest = hasher.finalize();
+    let bucket = u64::from_le_bytes(digest[..8].try_into().expect("SHA-256 has 8 bytes"));
+    let normalized = bucket as f64 / u64::MAX as f64;
+    normalized < sample_rate as f64
+}
+
+fn tag_value(value: &str) -> String {
+    value.chars().take(200).collect()
+}
+
+fn unix_time_ms(time: SystemTime) -> Option<u64> {
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis() as u64)
 }
 
 /// 整批运行结束：finish Transaction。
@@ -829,5 +1528,128 @@ fn finish_run(instance_id: &str, forced_status: Option<sentry::protocol::SpanSta
                 || transaction.finish(),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn failure_report() -> TaskFailureReport {
+        TaskFailureReport {
+            run_id: "run-123".to_string(),
+            maa_task_id: 42,
+            task: TaskMeta {
+                name: "DailyTask".to_string(),
+                options: BTreeMap::from([("mode".to_string(), "normal".to_string())]),
+            },
+            duration_ms: Some(1_500),
+            started_wall_time: Some(UNIX_EPOCH + Duration::from_secs(10)),
+            failure: Some(FailureSignal {
+                node: "EnterBattle".to_string(),
+                stage: "recognition".to_string(),
+                source_task_id: 43,
+                node_id: Some(7),
+                duration_ms: Some(800),
+            }),
+            failed_node_count: 3,
+            trace_context: None,
+            tags: BTreeMap::from([("run.id".to_string(), "run-123".to_string())]),
+            event_config: FailureEventConfig {
+                app_name: "MaaEnd".to_string(),
+                app_version: "2.0.0".to_string(),
+                mxu_version: "0.1.0".to_string(),
+                failure_attachments_sample_rate: 1.0,
+            },
+            evidence_start: None,
+            evidence_isolated: true,
+            evidence_epoch: 1,
+        }
+    }
+
+    #[test]
+    fn terminal_failure_creates_one_groupable_event_with_one_attachment() {
+        let envelopes = sentry::test::with_captured_envelopes(|| {
+            capture_failure_event(
+                failure_report(),
+                FailureAttachmentOutcome::Attached(TaskBundle {
+                    buffer: b"zip-body".to_vec(),
+                    filename: "failure.zip".to_string(),
+                    log_count: 2,
+                    image_count: 1,
+                    selected_raw_bytes: 1024,
+                    warnings: Vec::new(),
+                }),
+            );
+        });
+
+        assert_eq!(envelopes.len(), 1);
+        let items: Vec<_> = envelopes[0].items().collect();
+        assert_eq!(items.len(), 2);
+        let sentry::protocol::EnvelopeItem::Event(event) = items[0] else {
+            panic!("first envelope item should be an event");
+        };
+        assert_eq!(event.tags["task.name"], "DailyTask");
+        assert_eq!(event.tags["failure.node"], "EnterBattle");
+        assert_eq!(event.tags["failure.stage"], "recognition");
+        assert_eq!(event.fingerprint.len(), 5);
+        assert_eq!(event.fingerprint[0], "mxu-task-failure");
+        assert_eq!(event.fingerprint[2], "DailyTask");
+        assert_eq!(event.fingerprint[3], "EnterBattle");
+        let sentry::protocol::EnvelopeItem::Attachment(attachment) = items[1] else {
+            panic!("second envelope item should be an attachment");
+        };
+        assert_eq!(attachment.filename, "failure.zip");
+        assert_eq!(attachment.buffer, b"zip-body");
+    }
+
+    #[test]
+    fn attachment_sampling_has_stable_boundaries() {
+        assert!(!should_sample_attachment("run", 1, 0.0));
+        assert!(should_sample_attachment("run", 1, 1.0));
+        assert_eq!(
+            should_sample_attachment("run", 42, 0.5),
+            should_sample_attachment("run", 42, 0.5)
+        );
+    }
+
+    #[test]
+    fn missing_attachment_sample_rate_defaults_to_full_sampling() {
+        let config: TelemetryInitConfig = serde_json::from_value(serde_json::json!({
+            "dsn": "https://public@example.invalid/1",
+            "enabled": true,
+            "release": "MXU@1.0.0+App@1.0.0",
+            "environment": "test",
+            "tracing": true,
+            "tracesSampleRate": 1.0,
+            "appName": "App",
+            "appVersion": "1.0.0",
+            "mxuVersion": "1.0.0"
+        }))
+        .expect("deserialize telemetry config");
+
+        assert_eq!(config.failure_attachments_sample_rate, 1.0);
+    }
+
+    #[test]
+    fn evidence_is_omitted_when_another_instance_run_exists() {
+        assert!(evidence_isolated_for_ids("a", ["a"].into_iter()));
+        assert!(!evidence_isolated_for_ids("a", ["a", "b"].into_iter()));
+    }
+
+    #[test]
+    fn pending_failure_reports_can_be_drained_for_shutdown_fallback() {
+        FAILURE_WORKERS_CLOSING.store(false, Ordering::SeqCst);
+        let workers = PendingFailureWorkers::new();
+        let worker_id = workers
+            .register(failure_report())
+            .expect("register pending failure");
+        assert!(!workers.wait_until_idle(Duration::ZERO));
+
+        let fallback = workers.drain();
+        assert_eq!(fallback.len(), 1);
+        assert_eq!(fallback[0].maa_task_id, 42);
+        assert!(workers.take(worker_id).is_none());
+        assert!(workers.wait_until_idle(Duration::ZERO));
     }
 }

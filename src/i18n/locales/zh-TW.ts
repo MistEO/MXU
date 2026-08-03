@@ -114,7 +114,8 @@ export default {
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
     helpImproveSoftware: '協助改進軟體',
-    helpImproveSoftwareHint: '匿名傳送崩潰與任務統計，協助發現常見問題',
+    helpImproveSoftwareHint:
+      '匿名傳送崩潰、任務統計及失敗任務的相關日誌與錯誤截圖，協助發現常見問題',
     helpImproveSoftwareDisabledHint: '目前為除錯 / 開發版本，已停用匿名資料回報',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',

@@ -118,7 +118,7 @@ export default {
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
     helpImproveSoftware: 'Help Improve the Software',
     helpImproveSoftwareHint:
-      'Anonymously send crash reports and task statistics to help find common issues.',
+      'Anonymously send crash reports, task statistics, and relevant logs and error screenshots from failed tasks to help find common issues.',
     helpImproveSoftwareDisabledHint:
       'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',

@@ -243,3 +243,23 @@ export const defaultConfig: MxuConfig = {
     helpImproveSoftware: true,
   },
 };
+
+/**
+ * 判断任意值是否是结构上可用的 MxuConfig。
+ *
+ * `parseJsonc` 解析失败时不抛异常而是返回 undefined，若不校验就会把 undefined
+ * 当成配置一路传下去，直到访问 `config.instances` 时才炸。所有读盘路径都必须先过这里。
+ */
+export function isValidMxuConfig(value: unknown): value is MxuConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Partial<MxuConfig>;
+  return (
+    typeof candidate.version === 'string' &&
+    Array.isArray(candidate.instances) &&
+    typeof candidate.settings === 'object' &&
+    candidate.settings !== null &&
+    !Array.isArray(candidate.settings)
+  );
+}

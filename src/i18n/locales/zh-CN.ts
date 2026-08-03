@@ -571,6 +571,12 @@ export default {
     webServerAddress: 'Web 服务地址',
   },
 
+  // 配置自愈提示
+  config: {
+    recoveredFromBackup: '配置文件已损坏，已自动恢复到 {{time}} 的备份',
+    recoveryFailed: '配置文件已损坏且没有可用备份，已重置为默认配置',
+  },
+
   // 欢迎弹窗
   welcome: {
     dismiss: '我知道了',

@@ -22,6 +22,7 @@ import {
   loadConfig,
   loadConfigFromStorage,
   consumeSelfSave,
+  consumeConfigRecoveryNotice,
   markSelfSave,
   resolveI18nText,
   checkAndPrepareDownload,
@@ -29,6 +30,7 @@ import {
   proxySettingsForUpdateDownload,
   stopInstanceTasksAndExitApp,
 } from '@/services';
+import type { ConfigRecoveryNotice } from '@/services';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import * as wsService from '@/services/wsService';
 import {
@@ -59,7 +61,7 @@ import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
   clearPersistedRuntimeLogs,
@@ -86,7 +88,7 @@ import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ScrollText } from 'lucide-react';
-import { defaultWindowSize } from '@/types/config';
+import { defaultConfig, defaultWindowSize, isValidMxuConfig } from '@/types/config';
 
 const log = loggers.app;
 
@@ -601,6 +603,32 @@ function App() {
       // 加载用户配置（mxu-{项目名}.json）- 从数据目录加载
       const projectName = result.interface.name;
       let config = await loadConfig(result.dataPath, projectName);
+
+      // loadConfig 已保证返回结构有效，这里再兜一层，避免任何路径把非法值传到下游
+      if (!isValidMxuConfig(config)) {
+        log.error('配置结构异常，回退到默认配置');
+        config = defaultConfig;
+      }
+
+      // 配置损坏自愈提示。Rust 侧在启动早期就会先尝试修复磁盘上的文件，
+      // 前端读盘时也可能自行触发，两侧的通知都取走后只提示一次。
+      const tsRecovery = consumeConfigRecoveryNotice();
+      let backendRecovery: ConfigRecoveryNotice | null = null;
+      if (isTauri()) {
+        try {
+          backendRecovery = await invoke<ConfigRecoveryNotice | null>(
+            'take_config_recovery_notice',
+          );
+        } catch (err) {
+          log.debug('获取后端配置自愈通知失败:', err);
+        }
+      }
+      const recovery = tsRecovery ?? backendRecovery;
+      if (recovery?.kind === 'restored') {
+        toast.warning(t('config.recoveredFromBackup', { time: recovery.backupTime ?? '' }));
+      } else if (recovery?.kind === 'reset') {
+        toast.error(t('config.recoveryFailed'));
+      }
 
       // 浏览器环境下，如果没有从 public 目录加载到配置，尝试从 localStorage 加载
       if (config.instances.length === 0) {

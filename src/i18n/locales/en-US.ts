@@ -594,6 +594,14 @@ export default {
     webServerAddress: 'Web Server Address',
   },
 
+  // Config self-heal notices
+  config: {
+    recoveredFromBackup:
+      'The config file was corrupted and has been restored from the {{time}} backup',
+    recoveryFailed:
+      'The config file was corrupted and no usable backup was found, so it has been reset to defaults',
+  },
+
   // Welcome dialog
   welcome: {
     dismiss: 'Got it',

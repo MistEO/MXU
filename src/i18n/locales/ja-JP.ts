@@ -592,6 +592,14 @@ export default {
     webServerAddress: 'Web サーバーアドレス',
   },
 
+  // 設定の自動修復通知
+  config: {
+    recoveredFromBackup:
+      '設定ファイルが破損していたため、{{time}} のバックアップから自動的に復元しました',
+    recoveryFailed:
+      '設定ファイルが破損しており、利用可能なバックアップもないため、既定の設定にリセットしました',
+  },
+
   // ウェルカムダイアログ
   welcome: {
     dismiss: '了解しました',

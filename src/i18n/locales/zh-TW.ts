@@ -567,6 +567,12 @@ export default {
     webServerAddress: 'Web 服務地址',
   },
 
+  // 設定自我修復提示
+  config: {
+    recoveredFromBackup: '設定檔已損壞，已自動還原到 {{time}} 的備份',
+    recoveryFailed: '設定檔已損壞且沒有可用的備份，已重設為預設設定',
+  },
+
   // 欢迎彈窗
   welcome: {
     dismiss: '我知道了',

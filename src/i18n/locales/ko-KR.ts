@@ -583,6 +583,13 @@ export default {
     webServerAddress: 'Web 서버 주소',
   },
 
+  // 설정 자동 복구 알림
+  config: {
+    recoveredFromBackup: '설정 파일이 손상되어 {{time}} 백업에서 자동으로 복원했습니다',
+    recoveryFailed:
+      '설정 파일이 손상되었고 사용할 수 있는 백업이 없어 기본 설정으로 초기화했습니다',
+  },
+
   // 환영 대화상자
   welcome: {
     dismiss: '확인했습니다',

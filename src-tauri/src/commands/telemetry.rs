@@ -683,8 +683,12 @@ fn mark_step_start(instance_id: &str, task_id: i64, node_id: i64) {
 
 /// 为一个需要上报的节点事件建一条 child Span 并立刻收尾。
 ///
-/// 节点名的取法依据 MaaFW 的 `PipelineTask::run_next`：`node_details` 只在命中节点且动作
-/// 执行完毕后才写入回调，因此它的存在与否正好区分「命中后动作失败」与「next 列表始终未命中」。
+/// Span 名取 `details.name`：MaaFW 的各 `Node.*` 回调里 `name` 与 `focus` 恒来自同一节点
+/// （`Node.PipelineNode.*` / `Node.NextList.*` 是当前搜索 `next` 的节点，其余是被识别 / 执行的
+/// 节点），因此它就是配置了 `trace` 的那个节点，上报名与配置位置才不会错位。
+///
+/// `node_details` 只在命中节点且动作执行完毕后才写入回调，故仅用于区分失败阶段，并作为
+/// `hit_node` 保留失败根因。
 fn record_node_event(
     instance_id: &str,
     message: &str,
@@ -692,6 +696,13 @@ fn record_node_event(
     node_id: Option<i64>,
     detail: &serde_json::Value,
 ) {
+    let Some(node) = detail
+        .get("name")
+        .and_then(|v| v.as_str())
+        .filter(|n| !n.is_empty())
+    else {
+        return;
+    };
     let hit_node = message
         .starts_with("Node.PipelineNode.")
         .then(|| {
@@ -702,13 +713,6 @@ fn record_node_event(
                 .filter(|n| !n.is_empty())
         })
         .flatten();
-    let name = detail
-        .get("name")
-        .and_then(|v| v.as_str())
-        .filter(|n| !n.is_empty());
-    let Some(node) = hit_node.or(name) else {
-        return;
-    };
     // 失败落在哪一阶段：命中节点后动作执行失败，还是 next 列表在 reco_timeout 内始终未命中
     let stage = (message == "Node.PipelineNode.Failed").then(|| {
         if hit_node.is_some() {
@@ -773,6 +777,9 @@ fn record_node_event(
         SpanStatus::Ok
     });
     span.set_data("message", message.into());
+    if let Some(hit_node) = hit_node {
+        span.set_data("hit_node", hit_node.into());
+    }
     if let Some(stage) = stage {
         span.set_data("stage", stage.into());
     }

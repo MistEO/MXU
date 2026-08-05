@@ -47,6 +47,24 @@ async function dispatchFocusNotification(message: string) {
   }
 }
 
+/**
+ * v2.3.0: 归一化 focus 模板（字符串简写 / 对象完整写法）。
+ * 无展示内容（v2.9.1 起 content 可缺省，如只配 trace）时返回 undefined。
+ */
+function parseFocusEntry(
+  entry: FocusTemplate,
+): { content: string; displayChannels: FocusDisplayChannel[] } | undefined {
+  if (typeof entry === 'string') {
+    return { content: entry, displayChannels: ['log'] };
+  }
+  if (!entry.content) return undefined;
+  const display = entry.display;
+  return {
+    content: entry.content,
+    displayChannels: display ? (Array.isArray(display) ? display : [display]) : ['log'],
+  };
+}
+
 // Focus 消息的占位符替换（不包含 {image}，由专门函数处理）
 function replaceFocusPlaceholders(
   template: string,
@@ -300,22 +318,13 @@ function handleCallback(
   // 获取 ID 名称映射函数
   const { getCtrlName, getCtrlType, getResName, getResBatchInfo } = useAppStore.getState();
 
-  // 首先检查是否有 focus 字段，有则优先处理 focus 消息
+  // 首先检查是否有 focus 字段，有展示内容则优先处理 focus 消息
+  // （v2.9.1 起对象可以只配 trace 不配 content，这种没有展示内容，落回常规消息处理）
   const focus = details.focus as Record<string, FocusTemplate> | undefined;
-  if (focus && focus[message]) {
-    const focusEntry = focus[message];
-
-    // v2.3.0: 解析 focus 模板（支持字符串简写和对象完整写法）
-    let focusTemplate: string;
-    let displayChannels: FocusDisplayChannel[];
-    if (typeof focusEntry === 'string') {
-      focusTemplate = focusEntry;
-      displayChannels = ['log'];
-    } else {
-      focusTemplate = focusEntry.content;
-      const d = focusEntry.display;
-      displayChannels = d ? (Array.isArray(d) ? d : [d]) : ['log'];
-    }
+  const focusTemplateEntry = focus?.[message];
+  const focusEntry = focusTemplateEntry ? parseFocusEntry(focusTemplateEntry) : undefined;
+  if (focusEntry) {
+    const { content: focusTemplate, displayChannels } = focusEntry;
 
     // 如果包含 {image} 占位符，先快速显示不含图片的版本，避免阻塞
     const hasImagePlaceholder = focusTemplate.includes('{image}');

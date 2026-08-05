@@ -121,7 +121,8 @@ export default {
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌並刪除舊的日誌檔案',
+    autoClearLogsOnLaunchHint:
+      '每次啟動項目時，自動清理運行日誌，並刪除舊的日誌檔案與 on_error、vision 目錄下的除錯截圖',
   },
 
   // 特殊任務

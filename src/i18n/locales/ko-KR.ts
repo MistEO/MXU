@@ -124,7 +124,7 @@ export default {
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
     autoClearLogsOnLaunch: '로그 자동 지우기',
     autoClearLogsOnLaunchHint:
-      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일을 삭제합니다',
+      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일과 on_error, vision 폴더의 디버그 스크린샷을 삭제합니다',
   },
 
   // 특수 작업

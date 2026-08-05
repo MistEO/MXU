@@ -736,7 +736,7 @@ function App() {
               const deleted = await invoke<number>('clear_log_files', {
                 excludeFileName: getCurrentLogFileName(),
               });
-              log.info('Auto-cleared log files on launch:', deleted);
+              log.info('Auto-cleared log files and debug artifacts on launch:', deleted);
             } catch {
               // ignore cleanup errors
             }

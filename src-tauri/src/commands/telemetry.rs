@@ -85,8 +85,8 @@ struct RunState {
 /// 单个任务最多上报的节点数（失败节点与 `trace` 显式开启的节点共用这份预算）。
 ///
 /// SDK 对单个 Transaction 有 1000 个 Span 的硬上限且超出后静默丢弃，
-/// 这里主动限流是为了不让某个反复失败的长任务挤掉其他任务的 Span。
-const MAX_TRACED_NODES_PER_TASK: u32 = 64;
+/// 这里与该上限对齐，避免本侧更早截断。
+const MAX_TRACED_NODES_PER_TASK: u32 = 1000;
 
 /// 单个 SavedTask 的遥测元数据，由前端在提交任务时给出。
 #[derive(Debug, Clone, Default)]

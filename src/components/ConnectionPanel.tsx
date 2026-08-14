@@ -884,6 +884,9 @@ export function ConnectionPanel() {
       if (linuxNeeds?.needWlrSocket) {
         parts.push(selectedWlrootsSocket || savedDevice?.wlrSocketPath || '');
       }
+      if (linuxNeeds?.isPortal) {
+        parts.push('Portal');
+      }
       const filtered = parts.filter(Boolean);
       return filtered.length > 0 ? filtered.join(' + ') : t('controller.selectDevice');
     }
@@ -1346,42 +1349,38 @@ export function ConnectionPanel() {
       return [];
     }
     if (controllerType === 'Linux' && linuxNeeds) {
-      // 按需求依次展示待选择的设备列表（已选中的不再展示）
-      if (
-        linuxNeeds.needGamescopeNode &&
-        !selectedGamescopeNode &&
-        cachedGamescopeNodes.length > 0
-      ) {
-        return cachedGamescopeNodes.map((node) => ({
-          id: `gamescope:${node.id}`,
-          name: node.name,
-          description: String(node.id),
-          selected: false,
-          onClick: () => handleSelectLinuxGamescopeNode(node),
-          isHistorical: false,
-        }));
-      }
-      if (linuxNeeds.needEisSocket && !selectedEisSocket && cachedGamescopeEisSockets.length > 0) {
-        return cachedGamescopeEisSockets.map((socket) => ({
-          id: `eis:${socket.path}`,
-          name: socket.path,
-          description: socket.path,
-          selected: false,
-          onClick: () => handleSelectLinuxEisSocket(socket.path),
-          isHistorical: false,
-        }));
-      }
-      if (linuxNeeds.needWlrSocket && !selectedWlrootsSocket && cachedWlrootsSockets.length > 0) {
-        return cachedWlrootsSockets.map((socket) => ({
-          id: `wlr:${socket}`,
-          name: socket,
-          description: socket,
-          selected: false,
-          onClick: () => handleSelectLinuxWlrSocket(socket),
-          isHistorical: false,
-        }));
-      }
-      return [];
+      // 展示所有已发现的选择项（含当前选中项），保证下拉不为空
+      const nodeItems = linuxNeeds.needGamescopeNode
+        ? cachedGamescopeNodes.map((node) => ({
+            id: `gamescope:${node.id}`,
+            name: node.name,
+            description: String(node.id),
+            selected: selectedGamescopeNode?.id === node.id,
+            onClick: () => handleSelectLinuxGamescopeNode(node),
+            isHistorical: false,
+          }))
+        : [];
+      const eisItems = linuxNeeds.needEisSocket
+        ? cachedGamescopeEisSockets.map((socket) => ({
+            id: `eis:${socket.path}`,
+            name: socket.path,
+            description: socket.path,
+            selected: selectedEisSocket === socket.path,
+            onClick: () => handleSelectLinuxEisSocket(socket.path),
+            isHistorical: false,
+          }))
+        : [];
+      const wlrItems = linuxNeeds.needWlrSocket
+        ? cachedWlrootsSockets.map((socket) => ({
+            id: `wlr:${socket}`,
+            name: socket,
+            description: socket,
+            selected: selectedWlrootsSocket === socket,
+            onClick: () => handleSelectLinuxWlrSocket(socket),
+            isHistorical: false,
+          }))
+        : [];
+      return [...nodeItems, ...eisItems, ...wlrItems];
     }
     return [];
   };
@@ -1674,15 +1673,7 @@ export function ConnectionPanel() {
                     <span
                       className={clsx(
                         'truncate',
-                        (
-                          controllerType === 'Adb'
-                            ? selectedAdbDevice
-                            : controllerType === 'WlRoots'
-                              ? selectedWlrootsSocket
-                              : selectedWindow
-                        )
-                          ? 'text-text-primary'
-                          : 'text-text-muted',
+                        isConnected || canConnect() ? 'text-text-primary' : 'text-text-muted',
                       )}
                     >
                       {getSelectedDeviceText()}
@@ -1745,9 +1736,11 @@ export function ConnectionPanel() {
                         <div className="px-3 py-3 text-center text-text-muted text-xs">
                           {isSearching
                             ? t('common.loading')
-                            : isDesktopWindowController
-                              ? t('controller.noWindows')
-                              : t('controller.noDevices')}
+                            : isConnected
+                              ? t('controller.connected')
+                              : isDesktopWindowController
+                                ? t('controller.noWindows')
+                                : t('controller.noDevices')}
                         </div>
                       )}
                     </div>

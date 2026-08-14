@@ -380,6 +380,7 @@ export default {
     adb: 'Android 기기',
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 창',
     macosPermissionsRequired:

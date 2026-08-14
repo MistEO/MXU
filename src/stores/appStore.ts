@@ -1718,9 +1718,13 @@ export const useAppStore = create<AppState>()(
     cachedAdbDevices: [],
     cachedWin32Windows: [],
     cachedWlrootsSockets: [],
+    cachedGamescopeNodes: [],
+    cachedGamescopeEisSockets: [],
     setCachedAdbDevices: (devices) => set({ cachedAdbDevices: devices }),
     setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
     setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
+    setCachedGamescopeNodes: (nodes) => set({ cachedGamescopeNodes: nodes }),
+    setCachedGamescopeEisSockets: (sockets) => set({ cachedGamescopeEisSockets: sockets }),
 
     // 从后端恢复 MAA 运行时状态（后端是单一真相来源）
     // skipRunningState: 运行时 state-changed 事件（connected/resource-loading）调用时
@@ -1800,6 +1804,8 @@ export const useAppStore = create<AppState>()(
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
           cachedWlrootsSockets: states.cachedWlrootsSockets,
+          cachedGamescopeNodes: states.cachedGamescopeNodes,
+          cachedGamescopeEisSockets: states.cachedGamescopeEisSockets,
         };
       }),
 

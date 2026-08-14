@@ -373,6 +373,7 @@ export default {
     adb: 'Android 裝置',
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 視窗',
     macosPermissionsRequired:

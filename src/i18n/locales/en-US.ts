@@ -389,6 +389,7 @@ export default {
     adb: 'Android Device',
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS Window',
     macosPermissionsRequired:

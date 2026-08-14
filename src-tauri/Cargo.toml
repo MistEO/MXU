@@ -76,3 +76,9 @@ winsafe = { version = "0.0.28", features = [
     "gdi",
     "user"
 ] }
+
+# 本地开发：使用本地 maa-framework-rs（含 Linux 控制器 / Portal / Gamescope Toolkit 绑定）
+# 提交前请确认相对路径布局（与 MXU 同级目录）。
+[patch.crates-io]
+maa-framework = { path = "../../maa-framework-rs/maa-framework" }
+maa-framework-sys = { path = "../../maa-framework-rs/maa-framework-sys" }

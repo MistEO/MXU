@@ -18,8 +18,8 @@ use maa_framework::toolkit::Toolkit;
 use maa_framework::MaaStatus;
 
 use super::types::{
-    AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
-    Win32Window,
+    AdbDevice, ConnectionStatus, ControllerConfig, GamescopeEisSocket, GamescopeNode, MaaState,
+    TaskStatus, VersionCheckResult, Win32Window,
 };
 use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
@@ -252,6 +252,34 @@ fn create_macos_controller(
     {
         let _ = (handle, screencap_method, input_method);
         Err("MACOS_UNSUPPORTED_PLATFORM".to_string())
+    }
+}
+
+/// 构建 Linux 控制器配置（`Controller::new_linux` 所需）
+#[allow(clippy::too_many_arguments)]
+fn build_linux_controller_config(
+    screencap_method: u64,
+    input_method: u64,
+    wlr_socket_path: Option<&str>,
+    pw_socket_fd: Option<i32>,
+    pw_node_id: Option<u32>,
+    uinput_path: Option<&str>,
+    uinput_screen_width: Option<i32>,
+    uinput_screen_height: Option<i32>,
+    eis_socket_path: Option<&str>,
+    use_win32_vk_code: Option<bool>,
+) -> maa_framework::common::LinuxControllerConfig {
+    maa_framework::common::LinuxControllerConfig {
+        screencap_method,
+        input_method,
+        wlr_socket_path: wlr_socket_path.map(str::to_owned),
+        pw_socket_fd,
+        pw_node_id,
+        uinput_screen_width,
+        uinput_screen_height,
+        uinput_path: uinput_path.map(str::to_owned),
+        eis_socket_path: eis_socket_path.map(str::to_owned),
+        use_win32_vk_code,
     }
 }
 
@@ -611,6 +639,78 @@ pub async fn maa_find_wlroots_sockets(
     find_wlroots_sockets_impl(state.inner().clone()).await
 }
 
+/// 查找 PipeWire session-daemon 节点（如 gamescope 窗口捕获节点）
+/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_gamescope_nodes_impl(state: Arc<MaaState>) -> Result<Vec<GamescopeNode>, String> {
+    tokio::task::spawn_blocking(move || {
+        let nodes = Toolkit::find_gamescope_nodes().map_err(|e| e.to_string())?;
+
+        let result_nodes: Vec<GamescopeNode> = nodes
+            .into_iter()
+            .map(|n| GamescopeNode {
+                name: n.name,
+                id: n.id,
+            })
+            .collect();
+
+        if let Ok(mut cached) = state.cached_gamescope_nodes.lock() {
+            *cached = result_nodes.clone();
+        }
+
+        info!("find_gamescope_nodes_impl: {} node(s)", result_nodes.len());
+        Ok(result_nodes)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 查找 gamescope PipeWire 节点
+#[tauri::command]
+pub async fn maa_find_gamescope_nodes(
+    state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<GamescopeNode>, String> {
+    info!("maa_find_gamescope_nodes called");
+    find_gamescope_nodes_impl(state.inner().clone()).await
+}
+
+/// 查找 libei (EIS) socket（如 gamescope 提供的输入 socket）
+/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_gamescope_eis_sockets_impl(
+    state: Arc<MaaState>,
+) -> Result<Vec<GamescopeEisSocket>, String> {
+    tokio::task::spawn_blocking(move || {
+        let sockets = Toolkit::find_gamescope_eis_sockets().map_err(|e| e.to_string())?;
+
+        let result_sockets: Vec<GamescopeEisSocket> = sockets
+            .into_iter()
+            .map(|s| GamescopeEisSocket {
+                path: s.path.to_string_lossy().to_string(),
+            })
+            .collect();
+
+        if let Ok(mut cached) = state.cached_gamescope_eis_sockets.lock() {
+            *cached = result_sockets.clone();
+        }
+
+        info!(
+            "find_gamescope_eis_sockets_impl: {} eis socket(s)",
+            result_sockets.len()
+        );
+        Ok(result_sockets)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 查找 gamescope EIS socket
+#[tauri::command]
+pub async fn maa_find_gamescope_eis_sockets(
+    state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<GamescopeEisSocket>, String> {
+    info!("maa_find_gamescope_eis_sockets called");
+    find_gamescope_eis_sockets_impl(state.inner().clone()).await
+}
+
 // ============================================================================
 // 实例管理命令
 // ============================================================================
@@ -808,8 +908,22 @@ pub async fn connect_controller_impl(
                 wlr_socket_path,
                 use_win32_vk_code,
                 ..
-            } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
-                .map_err(|e| e.to_string())?,
+            } => {
+                // 迁移：WlRoots 已废弃，内部改用 Linux 控制器（Wlr 截图 + Wlr 输入）
+                let linux_config = build_linux_controller_config(
+                    maa_framework::common::LinuxScreencapMethod::WLR.bits(),
+                    maa_framework::common::LinuxInputMethod::WLR.bits(),
+                    Some(wlr_socket_path.as_str()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(*use_win32_vk_code),
+                );
+                Controller::new_linux(&linux_config).map_err(|e| e.to_string())?
+            }
             ControllerConfig::PlayCover { address, uuid, .. } => {
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
@@ -839,6 +953,69 @@ pub async fn connect_controller_impl(
                     .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
 
                 Controller::new_gamepad(hwnd, gp_type, screencap).map_err(|e| e.to_string())?
+            }
+            ControllerConfig::Linux {
+                screencap_method,
+                input_method,
+                pipewire_source,
+                wlr_socket_path,
+                pw_socket_fd,
+                pw_node_id,
+                uinput_path,
+                uinput_screen_width,
+                uinput_screen_height,
+                eis_socket_path,
+                use_win32_vk_code,
+                ..
+            } => {
+                let mut pw_fd = *pw_socket_fd;
+                let mut pw_node = *pw_node_id;
+
+                // Portal 截图：在后端打开 ScreenCast 门户，FD 不离开后端进程
+                if pipewire_source.as_deref() == Some("Portal") {
+                    let token = {
+                        let guard = state_arc
+                            .portal_restore_token
+                            .lock()
+                            .map_err(|e| e.to_string())?;
+                        guard.clone()
+                    };
+
+                    let helper =
+                        maa_framework::toolkit::PortalHelper::new().map_err(|e| e.to_string())?;
+
+                    if let Some(t) = token.as_deref() {
+                        if !t.is_empty() {
+                            helper.set_restore_token(t).map_err(|e| e.to_string())?;
+                        }
+                    }
+                    helper.set_persist(true);
+                    helper.open_stream().map_err(|e| e.to_string())?;
+
+                    pw_fd = Some(helper.get_pipewire_fd());
+                    pw_node = Some(helper.get_pipewire_node_id());
+
+                    let new_token = helper.get_restore_token();
+                    if !new_token.is_empty() {
+                        if let Ok(mut guard) = state_arc.portal_restore_token.lock() {
+                            *guard = Some(new_token);
+                        }
+                    }
+                }
+
+                let linux_config = build_linux_controller_config(
+                    *screencap_method,
+                    *input_method,
+                    wlr_socket_path.as_deref(),
+                    pw_fd,
+                    pw_node,
+                    uinput_path.as_deref(),
+                    *uinput_screen_width,
+                    *uinput_screen_height,
+                    eis_socket_path.as_deref(),
+                    *use_win32_vk_code,
+                );
+                Controller::new_linux(&linux_config).map_err(|e| e.to_string())?
             }
         };
 
@@ -870,6 +1047,9 @@ pub async fn connect_controller_impl(
                 display_short_side, ..
             }
             | ControllerConfig::Dummy {
+                display_short_side, ..
+            }
+            | ControllerConfig::Linux {
                 display_short_side, ..
             } => display_short_side.unwrap_or(720),
         };

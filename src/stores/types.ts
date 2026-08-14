@@ -16,7 +16,14 @@ import type {
   ScreenshotFrameRate,
   HotkeySettings,
 } from '@/types/config';
-import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
+import type {
+  ConnectionStatus,
+  TaskStatus,
+  AdbDevice,
+  Win32Window,
+  GamescopeNode,
+  GamescopeEisSocket,
+} from '@/types/maa';
 import type { AccentColor, CustomAccent } from '@/themes';
 
 /** 单个任务的运行状态 */
@@ -286,9 +293,13 @@ export interface AppState {
   cachedAdbDevices: AdbDevice[];
   cachedWin32Windows: Win32Window[];
   cachedWlrootsSockets: string[];
+  cachedGamescopeNodes: GamescopeNode[];
+  cachedGamescopeEisSockets: GamescopeEisSocket[];
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
   setCachedWlrootsSockets: (sockets: string[]) => void;
+  setCachedGamescopeNodes: (nodes: GamescopeNode[]) => void;
+  setCachedGamescopeEisSockets: (sockets: GamescopeEisSocket[]) => void;
 
   // 从后端恢复 MAA 运行时状态
   restoreBackendStates: (
@@ -312,6 +323,8 @@ export interface AppState {
       cachedAdbDevices: AdbDevice[];
       cachedWin32Windows: Win32Window[];
       cachedWlrootsSockets: string[];
+      cachedGamescopeNodes: GamescopeNode[];
+      cachedGamescopeEisSockets: GamescopeEisSocket[];
     },
     options?: { skipRunningState?: boolean },
   ) => void;

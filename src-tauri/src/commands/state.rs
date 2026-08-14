@@ -8,7 +8,10 @@ use std::sync::Arc;
 
 use tauri::State;
 
-use super::types::{AdbDevice, AllInstanceStates, InstanceState, MaaState, Win32Window};
+use super::types::{
+    AdbDevice, AllInstanceStates, GamescopeEisSocket, GamescopeNode, InstanceState, MaaState,
+    Win32Window,
+};
 
 /// 获取单个实例的运行时状态
 #[tauri::command]
@@ -58,6 +61,14 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
         .cached_wlroots_sockets
         .lock()
         .map_err(|e| e.to_string())?;
+    let cached_gamescope_nodes = state
+        .cached_gamescope_nodes
+        .lock()
+        .map_err(|e| e.to_string())?;
+    let cached_gamescope_eis = state
+        .cached_gamescope_eis_sockets
+        .lock()
+        .map_err(|e| e.to_string())?;
 
     let mut instance_states = HashMap::new();
 
@@ -87,6 +98,8 @@ pub fn maa_get_all_states(state: State<Arc<MaaState>>) -> Result<AllInstanceStat
         cached_adb_devices: cached_adb.clone(),
         cached_win32_windows: cached_win32.clone(),
         cached_wlroots_sockets: cached_wlroots.clone(),
+        cached_gamescope_nodes: cached_gamescope_nodes.clone(),
+        cached_gamescope_eis_sockets: cached_gamescope_eis.clone(),
     })
 }
 
@@ -117,6 +130,32 @@ pub fn maa_get_cached_wlroots_sockets(state: State<Arc<MaaState>>) -> Result<Vec
     debug!("maa_get_cached_wlroots_sockets called");
     let cached = state
         .cached_wlroots_sockets
+        .lock()
+        .map_err(|e| e.to_string())?;
+    Ok(cached.clone())
+}
+
+/// 获取缓存的 gamescope PipeWire 节点列表
+#[tauri::command]
+pub fn maa_get_cached_gamescope_nodes(
+    state: State<Arc<MaaState>>,
+) -> Result<Vec<GamescopeNode>, String> {
+    debug!("maa_get_cached_gamescope_nodes called");
+    let cached = state
+        .cached_gamescope_nodes
+        .lock()
+        .map_err(|e| e.to_string())?;
+    Ok(cached.clone())
+}
+
+/// 获取缓存的 gamescope EIS socket 列表
+#[tauri::command]
+pub fn maa_get_cached_gamescope_eis_sockets(
+    state: State<Arc<MaaState>>,
+) -> Result<Vec<GamescopeEisSocket>, String> {
+    debug!("maa_get_cached_gamescope_eis_sockets called");
+    let cached = state
+        .cached_gamescope_eis_sockets
         .lock()
         .map_err(|e| e.to_string())?;
     Ok(cached.clone())

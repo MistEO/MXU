@@ -384,6 +384,7 @@ export default {
     adb: 'Android デバイス',
     win32: 'Windows ウィンドウ',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS ウィンドウ',
     macosPermissionsRequired:

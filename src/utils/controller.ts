@@ -1,6 +1,10 @@
 import type { ControllerItem, ControllerType } from '@/types/interface';
 import type { ControllerConfig } from '@/types/maa';
 import {
+  LinuxInputMethod,
+  LinuxScreencapMethod,
+  parseLinuxInputMethod,
+  parseLinuxScreencapMethod,
   parseMacOSInputMethod,
   parseMacOSScreencapMethod,
   parseWin32InputMethod,
@@ -90,6 +94,7 @@ const WORKSTATION_UNLOCK_REQUIREMENT: Record<ControllerType, boolean> = {
   Win32: true,
   MacOS: false,
   WlRoots: false,
+  Linux: false,
   PlayCover: false,
   Gamepad: true,
 };
@@ -98,4 +103,64 @@ const WORKSTATION_UNLOCK_REQUIREMENT: Record<ControllerType, boolean> = {
 export function requiresUnlockedWorkstation(controllerType: ControllerType): boolean {
   // Fail closed for unexpected runtime values loaded from interface.json.
   return WORKSTATION_UNLOCK_REQUIREMENT[controllerType] ?? true;
+}
+
+/** Linux 控制器发现需求描述。 */
+export interface LinuxDiscoveryNeeds {
+  /** 截图或输入使用 Wlr 时需要 wayland socket */
+  needWlrSocket: boolean;
+  /** 截图 PipeWire + Gamescope 源时需要 gamescope 节点 */
+  needGamescopeNode: boolean;
+  /** 输入 Libei 时需要 EIS socket */
+  needEisSocket: boolean;
+  /** 截图 PipeWire + Portal 源：无需前端发现，连接时后端打开门户 */
+  isPortal: boolean;
+}
+
+/**
+ * 计算 Linux 控制器在运行时需要发现哪些设备。
+ */
+export function getLinuxDiscoveryNeeds(
+  controller: ControllerItem | undefined,
+): LinuxDiscoveryNeeds {
+  const linux = controller?.linux;
+  const screencap = parseLinuxScreencapMethod(linux?.screencap);
+  const input = parseLinuxInputMethod(linux?.input);
+  const pipewireSource = linux?.pipewire_source ?? 'Gamescope';
+
+  return {
+    needWlrSocket: screencap === LinuxScreencapMethod.Wlr || input === LinuxInputMethod.Wlr,
+    needGamescopeNode:
+      screencap === LinuxScreencapMethod.PipeWire && pipewireSource === 'Gamescope',
+    needEisSocket: input === LinuxInputMethod.Libei,
+    isPortal: screencap === LinuxScreencapMethod.PipeWire && pipewireSource === 'Portal',
+  };
+}
+
+/**
+ * 构建 Linux 控制器运行时配置。
+ *
+ * portal 截图时无需传入 pw 节点信息：后端会在 connect 时打开 ScreenCast 门户并填充 FD/节点。
+ */
+export function buildLinuxControllerConfig(
+  controller: ControllerItem | undefined,
+  discovery: {
+    wlrSocketPath?: string;
+    pwNodeId?: number;
+    eisSocketPath?: string;
+  },
+): ControllerConfig {
+  const linux = controller?.linux;
+
+  return {
+    type: 'Linux',
+    screencap_method: parseLinuxScreencapMethod(linux?.screencap),
+    input_method: parseLinuxInputMethod(linux?.input),
+    pipewire_source: linux?.pipewire_source ?? 'Gamescope',
+    wlr_socket_path: discovery.wlrSocketPath,
+    pw_node_id: discovery.pwNodeId,
+    eis_socket_path: discovery.eisSocketPath,
+    use_win32_vk_code: linux?.use_win32_vk_code ?? false,
+    display_short_side: controller?.display_short_side,
+  };
 }

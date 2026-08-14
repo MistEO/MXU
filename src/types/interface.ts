@@ -134,7 +134,14 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'MacOS' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType =
+  | 'Adb'
+  | 'Win32'
+  | 'MacOS'
+  | 'WlRoots'
+  | 'Linux'
+  | 'PlayCover'
+  | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -154,6 +161,7 @@ export interface ControllerItem {
   win32?: Win32Config;
   macos?: MacOSConfig;
   wlroots?: WlRootsConfig;
+  linux?: LinuxConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
 }
@@ -175,6 +183,13 @@ export interface MacOSConfig {
 export interface WlRootsConfig {
   wlr_socket_path?: string;
   use_win32_vk_code?: boolean;
+}
+
+export interface LinuxConfig {
+  screencap?: string;
+  input?: string;
+  use_win32_vk_code?: boolean;
+  pipewire_source?: 'Gamescope' | 'Portal';
 }
 
 export interface PlayCoverConfig {
@@ -350,6 +365,10 @@ export interface SavedDeviceInfo {
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
+  /** Linux 控制器：gamescope PipeWire 节点名（节点 id 会随会话变化，故存名） */
+  gamescopeNodeName?: string;
+  /** Linux 控制器：gamescope EIS socket 路径 */
+  eisSocketPath?: string;
   /** Win32 连接窗口对应的进程可执行文件路径 */
   connectedProgramPath?: string;
 }

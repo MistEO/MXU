@@ -26,9 +26,10 @@ use crate::commands::{
     maa_agent::{start_tasks_impl, stop_agent_impl},
     maa_core::{
         connect_controller_impl, destroy_instance_impl, find_adb_devices_impl,
-        find_win32_windows_impl, find_wlroots_sockets_impl, get_cached_image_impl,
-        load_resource_impl, override_pipeline_impl, post_click_impl, post_screencap_impl,
-        run_task_impl, stop_task_impl,
+        find_gamescope_eis_sockets_impl, find_gamescope_nodes_impl, find_win32_windows_impl,
+        find_wlroots_sockets_impl, get_cached_image_impl, load_resource_impl,
+        override_pipeline_impl, post_click_impl, post_screencap_impl, run_task_impl,
+        stop_task_impl,
     },
     types::{AgentConfig, ControllerConfig, ControllerInfo, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
@@ -223,6 +224,11 @@ pub async fn start_web_server(
         .route("/maa/devices", get(handle_get_adb_devices))
         .route("/maa/windows", get(handle_get_win32_windows))
         .route("/maa/wlroots-sockets", get(handle_get_wlroots_sockets))
+        .route("/maa/gamescope-nodes", get(handle_get_gamescope_nodes))
+        .route(
+            "/maa/gamescope-eis-sockets",
+            get(handle_get_gamescope_eis_sockets),
+        )
         // Maa 实例管理
         .route(
             "/maa/instances/:id",
@@ -618,9 +624,25 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
     let adb_result = state.maa_state.cached_adb_devices.lock();
     let win32_result = state.maa_state.cached_win32_windows.lock();
     let wlroots_result = state.maa_state.cached_wlroots_sockets.lock();
+    let gamescope_nodes_result = state.maa_state.cached_gamescope_nodes.lock();
+    let gamescope_eis_result = state.maa_state.cached_gamescope_eis_sockets.lock();
 
-    match (instances_result, adb_result, win32_result, wlroots_result) {
-        (Ok(mut instances), Ok(adb), Ok(win32), Ok(wlroots)) => {
+    match (
+        instances_result,
+        adb_result,
+        win32_result,
+        wlroots_result,
+        gamescope_nodes_result,
+        gamescope_eis_result,
+    ) {
+        (
+            Ok(mut instances),
+            Ok(adb),
+            Ok(win32),
+            Ok(wlroots),
+            Ok(gamescope_nodes),
+            Ok(gamescope_eis),
+        ) => {
             let mut instance_states: HashMap<String, serde_json::Value> = HashMap::new();
 
             for (id, runtime) in instances.iter_mut() {
@@ -651,6 +673,8 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
                 "cached_adb_devices": serde_json::to_value(&*adb).unwrap_or(serde_json::Value::Array(vec![])),
                 "cached_win32_windows": serde_json::to_value(&*win32).unwrap_or(serde_json::Value::Array(vec![])),
                 "cached_wlroots_sockets": serde_json::to_value(&*wlroots).unwrap_or(serde_json::Value::Array(vec![])),
+                "cached_gamescope_nodes": serde_json::to_value(&*gamescope_nodes).unwrap_or(serde_json::Value::Array(vec![])),
+                "cached_gamescope_eis_sockets": serde_json::to_value(&*gamescope_eis).unwrap_or(serde_json::Value::Array(vec![])),
             }))
             .into_response()
         }
@@ -739,6 +763,32 @@ async fn handle_get_win32_windows(
 /// 扫描并返回 WlRoots socket 列表（会更新 MaaState 缓存）
 async fn handle_get_wlroots_sockets(State(state): State<WebState>) -> impl IntoResponse {
     match find_wlroots_sockets_impl(state.maa_state).await {
+        Ok(sockets) => Json(serde_json::to_value(&sockets).unwrap_or_default()).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// GET /api/maa/gamescope-nodes
+/// 扫描并返回 gamescope PipeWire 节点列表（会更新 MaaState 缓存）
+async fn handle_get_gamescope_nodes(State(state): State<WebState>) -> impl IntoResponse {
+    match find_gamescope_nodes_impl(state.maa_state).await {
+        Ok(nodes) => Json(serde_json::to_value(&nodes).unwrap_or_default()).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// GET /api/maa/gamescope-eis-sockets
+/// 扫描并返回 gamescope EIS socket 列表（会更新 MaaState 缓存）
+async fn handle_get_gamescope_eis_sockets(State(state): State<WebState>) -> impl IntoResponse {
+    match find_gamescope_eis_sockets_impl(state.maa_state).await {
         Ok(sockets) => Json(serde_json::to_value(&sockets).unwrap_or_default()).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

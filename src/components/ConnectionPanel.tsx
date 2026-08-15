@@ -23,8 +23,7 @@ import { resolveI18nText } from '@/services/contentResolver';
 import type {
   AdbDevice,
   Win32Window,
-  GamescopeNode,
-  GamescopeEisSocket,
+  GamescopeInstance,
   ControllerConfig,
 } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
@@ -58,13 +57,11 @@ export function ConnectionPanel() {
     cachedAdbDevices,
     cachedWin32Windows,
     cachedWlrootsSockets,
-    cachedGamescopeNodes,
-    cachedGamescopeEisSockets,
+    cachedGamescopeInstances,
     setCachedAdbDevices,
     setCachedWin32Windows,
     setCachedWlrootsSockets,
-    setCachedGamescopeNodes,
-    setCachedGamescopeEisSockets,
+    setCachedGamescopeInstances,
     selectedController,
     selectedResource,
     setSelectedController,
@@ -100,8 +97,8 @@ export function ConnectionPanel() {
   const [selectedAdbDevice, setSelectedAdbDevice] = useState<AdbDevice | null>(null);
   const [selectedWindow, setSelectedWindow] = useState<Win32Window | null>(null);
   const [selectedWlrootsSocket, setSelectedWlrootsSocket] = useState<string | null>(null);
-  const [selectedGamescopeNode, setSelectedGamescopeNode] = useState<GamescopeNode | null>(null);
-  const [selectedEisSocket, setSelectedEisSocket] = useState<string | null>(null);
+  const [selectedGamescopeInstance, setSelectedGamescopeInstance] =
+    useState<GamescopeInstance | null>(null);
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   // PlayCover 地址从保存的配置初始化
   const [playcoverAddress, setPlaycoverAddress] = useState(
@@ -289,24 +286,14 @@ export function ConnectionPanel() {
       setSelectedWlrootsSocket(null);
     }
 
-    if (savedDevice?.gamescopeNodeName && cachedGamescopeNodes.length > 0) {
-      // 从缓存中找到匹配的 gamescope 节点（按名匹配，节点 id 会随会话变化）
-      const matchedNode = cachedGamescopeNodes.find(
-        (n) => n.name === savedDevice.gamescopeNodeName,
+    if (savedDevice?.gamescopeDisplayNo !== undefined && cachedGamescopeInstances.length > 0) {
+      // 从缓存中找到匹配的 gamescope 实例（按 display 号匹配，节点 id 会随会话变化）
+      const matchedInstance = cachedGamescopeInstances.find(
+        (i) => i.display_no === savedDevice.gamescopeDisplayNo,
       );
-      setSelectedGamescopeNode(matchedNode || null);
+      setSelectedGamescopeInstance(matchedInstance || null);
     } else {
-      setSelectedGamescopeNode(null);
-    }
-
-    if (savedDevice?.eisSocketPath && cachedGamescopeEisSockets.length > 0) {
-      // 从缓存中找到匹配的 EIS socket（按路径精确匹配）
-      const matchedEis = cachedGamescopeEisSockets.find(
-        (s) => s.path === savedDevice.eisSocketPath,
-      );
-      setSelectedEisSocket(matchedEis ? matchedEis.path : null);
-    } else {
-      setSelectedEisSocket(null);
+      setSelectedGamescopeInstance(null);
     }
 
     // 恢复 PlayCover 地址
@@ -393,8 +380,7 @@ export function ConnectionPanel() {
         (isDesktopWindowController && savedDevice.windowName) ||
         (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'Linux' &&
-          (savedDevice.gamescopeNodeName ||
-            savedDevice.eisSocketPath ||
+          (savedDevice.gamescopeDisplayNo !== undefined ||
             savedDevice.wlrSocketPath)) ||
         (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
 
@@ -538,41 +524,36 @@ export function ConnectionPanel() {
       } else if (controllerType === 'Linux' && linuxNeeds) {
         // 发现所需的全部设备（按当前配置的截图/输入方法）
         let wlrSockets: string[] = [];
-        let nodes: GamescopeNode[] = [];
-        let eisSockets: GamescopeEisSocket[] = [];
+        let instances: GamescopeInstance[] = [];
 
         if (linuxNeeds.needWlrSocket) {
           wlrSockets = await maaService.findWlrootsSockets();
           setCachedWlrootsSockets(wlrSockets);
         }
-        if (linuxNeeds.needGamescopeNode) {
-          nodes = await maaService.findGamescopeNodes();
-          setCachedGamescopeNodes(nodes);
-        }
-        if (linuxNeeds.needEisSocket) {
-          eisSockets = await maaService.findGamescopeEisSockets();
-          setCachedGamescopeEisSockets(eisSockets);
+        if (linuxNeeds.needGamescopeNode || linuxNeeds.needEisSocket) {
+          instances = await maaService.findGamescopeInstances();
+          setCachedGamescopeInstances(instances);
         }
 
-        // 自动选择：优先匹配保存的设备，否则选第一个
-        let autoNode: GamescopeNode | null = null;
-        let autoEis: string | null = null;
+        // 按需过滤：仅保留提供所需字段的实例（截图需 node id，输入需 EIS socket）
+        const eligibleInstances = instances.filter((inst) => {
+          if (linuxNeeds.needGamescopeNode && inst.pipewire_node_id === 0) return false;
+          if (linuxNeeds.needEisSocket && !inst.eis_socket_path) return false;
+          return true;
+        });
+
+        // 自动选择：优先匹配保存的 display 号，否则选第一个符合条件实例
+        let autoInstance: GamescopeInstance | null = null;
         let autoWlr: string | null = null;
 
-        if (linuxNeeds.needGamescopeNode) {
-          if (savedDevice?.gamescopeNodeName) {
-            const matched = nodes.filter((n) => n.name === savedDevice.gamescopeNodeName);
-            if (matched.length === 1) autoNode = matched[0];
-          } else if (nodes.length > 0) {
-            autoNode = nodes[0];
-          }
-        }
-        if (linuxNeeds.needEisSocket) {
-          if (savedDevice?.eisSocketPath) {
-            const matched = eisSockets.filter((s) => s.path === savedDevice.eisSocketPath);
-            if (matched.length === 1) autoEis = matched[0].path;
-          } else if (eisSockets.length > 0) {
-            autoEis = eisSockets[0].path;
+        if (linuxNeeds.needGamescopeNode || linuxNeeds.needEisSocket) {
+          if (savedDevice?.gamescopeDisplayNo !== undefined) {
+            const matched = eligibleInstances.filter(
+              (i) => i.display_no === savedDevice.gamescopeDisplayNo,
+            );
+            if (matched.length === 1) autoInstance = matched[0];
+          } else if (eligibleInstances.length > 0) {
+            autoInstance = eligibleInstances[0];
           }
         }
         if (linuxNeeds.needWlrSocket) {
@@ -584,12 +565,11 @@ export function ConnectionPanel() {
           }
         }
 
-        setSelectedGamescopeNode(autoNode);
-        setSelectedEisSocket(autoEis);
+        setSelectedGamescopeInstance(autoInstance);
         setSelectedWlrootsSocket(autoWlr);
 
-        if (isLinuxReadyWith(autoNode, autoEis, autoWlr)) {
-          void connectLinuxDevice(autoNode, autoEis, autoWlr);
+        if (isLinuxReadyWith(autoInstance, autoWlr)) {
+          void connectLinuxDevice(autoInstance, autoWlr);
         } else {
           setShowDeviceDropdown(true);
         }
@@ -875,11 +855,10 @@ export function ConnectionPanel() {
     }
     if (controllerType === 'Linux') {
       const parts: string[] = [];
-      if (linuxNeeds?.needGamescopeNode) {
-        parts.push(selectedGamescopeNode?.name || savedDevice?.gamescopeNodeName || '');
-      }
-      if (linuxNeeds?.needEisSocket) {
-        parts.push(selectedEisSocket || savedDevice?.eisSocketPath || '');
+      if (linuxNeeds?.needGamescopeNode || linuxNeeds?.needEisSocket) {
+        const displayNo =
+          selectedGamescopeInstance?.display_no ?? savedDevice?.gamescopeDisplayNo;
+        parts.push(displayNo !== undefined ? `gamescope-${displayNo}` : '');
       }
       if (linuxNeeds?.needWlrSocket) {
         parts.push(selectedWlrootsSocket || savedDevice?.wlrSocketPath || '');
@@ -1070,20 +1049,19 @@ export function ConnectionPanel() {
   // === Linux 控制器连接逻辑 ===
 
   // Linux：判断给定选择是否满足当前配置所需的全部设备
-  const isLinuxReadyWith = (node: GamescopeNode | null, eis: string | null, wlr: string | null) => {
+  const isLinuxReadyWith = (instance: GamescopeInstance | null, wlr: string | null) => {
     if (!linuxNeeds) return false;
-    if (linuxNeeds.needGamescopeNode && !node) return false;
-    if (linuxNeeds.needEisSocket && !eis) return false;
+    if (linuxNeeds.needGamescopeNode || linuxNeeds.needEisSocket) {
+      if (!instance) return false;
+      if (linuxNeeds.needGamescopeNode && instance.pipewire_node_id === 0) return false;
+      if (linuxNeeds.needEisSocket && !instance.eis_socket_path) return false;
+    }
     if (linuxNeeds.needWlrSocket && !wlr) return false;
     return true;
   };
 
   // Linux：执行连接（断开旧连接、初始化、创建实例、构建配置并连接）
-  const connectLinuxDevice = async (
-    node: GamescopeNode | null,
-    eis: string | null,
-    wlr: string | null,
-  ) => {
+  const connectLinuxDevice = async (instance: GamescopeInstance | null, wlr: string | null) => {
     setIsConnecting(true);
     setDeviceError(null);
 
@@ -1103,11 +1081,14 @@ export function ConnectionPanel() {
 
       const config = buildLinuxControllerConfig(currentController, {
         wlrSocketPath: wlr ?? undefined,
-        pwNodeId: node?.id,
-        eisSocketPath: eis ?? undefined,
+        pwNodeId: instance?.pipewire_node_id,
+        eisSocketPath: instance?.eis_socket_path || undefined,
       });
 
-      const deviceName = node?.name || eis || wlr || (linuxNeeds?.isPortal ? 'Portal' : 'Linux');
+      const deviceName =
+        (instance ? `gamescope-${instance.display_no}` : '') ||
+        wlr ||
+        (linuxNeeds?.isPortal ? 'Portal' : 'Linux');
       await connectControllerInternal(config, deviceName, 'device');
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
@@ -1125,27 +1106,15 @@ export function ConnectionPanel() {
     setInstanceSavedDevice(instanceId, { ...inst?.savedDevice, ...patch });
   };
 
-  const handleSelectLinuxGamescopeNode = (node: GamescopeNode) => {
-    setSelectedGamescopeNode(node);
-    saveLinuxDeviceInfo({ gamescopeNodeName: node.name });
+  const handleSelectLinuxGamescopeInstance = (instance: GamescopeInstance) => {
+    setSelectedGamescopeInstance(instance);
+    saveLinuxDeviceInfo({ gamescopeDisplayNo: instance.display_no });
     setShowDeviceDropdown(false);
 
-    if (isLinuxReadyWith(node, selectedEisSocket, selectedWlrootsSocket)) {
-      void connectLinuxDevice(node, selectedEisSocket, selectedWlrootsSocket);
+    if (isLinuxReadyWith(instance, selectedWlrootsSocket)) {
+      void connectLinuxDevice(instance, selectedWlrootsSocket);
     } else {
       // 还有其它设备需要选择，重新打开下拉框
-      setShowDeviceDropdown(true);
-    }
-  };
-
-  const handleSelectLinuxEisSocket = (path: string) => {
-    setSelectedEisSocket(path);
-    saveLinuxDeviceInfo({ eisSocketPath: path });
-    setShowDeviceDropdown(false);
-
-    if (isLinuxReadyWith(selectedGamescopeNode, path, selectedWlrootsSocket)) {
-      void connectLinuxDevice(selectedGamescopeNode, path, selectedWlrootsSocket);
-    } else {
       setShowDeviceDropdown(true);
     }
   };
@@ -1155,8 +1124,8 @@ export function ConnectionPanel() {
     saveLinuxDeviceInfo({ wlrSocketPath: path });
     setShowDeviceDropdown(false);
 
-    if (isLinuxReadyWith(selectedGamescopeNode, selectedEisSocket, path)) {
-      void connectLinuxDevice(selectedGamescopeNode, selectedEisSocket, path);
+    if (isLinuxReadyWith(selectedGamescopeInstance, path)) {
+      void connectLinuxDevice(selectedGamescopeInstance, path);
     } else {
       setShowDeviceDropdown(true);
     }
@@ -1350,26 +1319,28 @@ export function ConnectionPanel() {
     }
     if (controllerType === 'Linux' && linuxNeeds) {
       // 展示所有已发现的选择项（含当前选中项），保证下拉不为空
-      const nodeItems = linuxNeeds.needGamescopeNode
-        ? cachedGamescopeNodes.map((node) => ({
-            id: `gamescope:${node.id}`,
-            name: node.name,
-            description: String(node.id),
-            selected: selectedGamescopeNode?.id === node.id,
-            onClick: () => handleSelectLinuxGamescopeNode(node),
-            isHistorical: false,
-          }))
-        : [];
-      const eisItems = linuxNeeds.needEisSocket
-        ? cachedGamescopeEisSockets.map((socket) => ({
-            id: `eis:${socket.path}`,
-            name: socket.path,
-            description: socket.path,
-            selected: selectedEisSocket === socket.path,
-            onClick: () => handleSelectLinuxEisSocket(socket.path),
-            isHistorical: false,
-          }))
-        : [];
+      const instanceItems =
+        linuxNeeds.needGamescopeNode || linuxNeeds.needEisSocket
+          ? cachedGamescopeInstances
+              .filter((inst) => {
+                if (linuxNeeds.needGamescopeNode && inst.pipewire_node_id === 0) return false;
+                if (linuxNeeds.needEisSocket && !inst.eis_socket_path) return false;
+                return true;
+              })
+              .map((inst) => ({
+                id: `gamescope:${inst.display_no}`,
+                name: `gamescope-${inst.display_no}`,
+                description: [
+                  inst.pipewire_node_id ? `node ${inst.pipewire_node_id}` : '',
+                  inst.eis_socket_path,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+                selected: selectedGamescopeInstance?.display_no === inst.display_no,
+                onClick: () => handleSelectLinuxGamescopeInstance(inst),
+                isHistorical: false,
+              }))
+          : [];
       const wlrItems = linuxNeeds.needWlrSocket
         ? cachedWlrootsSockets.map((socket) => ({
             id: `wlr:${socket}`,
@@ -1380,7 +1351,7 @@ export function ConnectionPanel() {
             isHistorical: false,
           }))
         : [];
-      return [...nodeItems, ...eisItems, ...wlrItems];
+      return [...instanceItems, ...wlrItems];
     }
     return [];
   };
@@ -1391,7 +1362,7 @@ export function ConnectionPanel() {
     if (isDesktopWindowController) return !!selectedWindow;
     if (controllerType === 'WlRoots') return !!selectedWlrootsSocket;
     if (controllerType === 'Linux') {
-      return isLinuxReadyWith(selectedGamescopeNode, selectedEisSocket, selectedWlrootsSocket);
+      return isLinuxReadyWith(selectedGamescopeInstance, selectedWlrootsSocket);
     }
     if (controllerType === 'PlayCover') return playcoverAddress.trim().length > 0;
     return false;
@@ -1429,6 +1400,9 @@ export function ConnectionPanel() {
       if (savedDevice?.wlrSocketPath) {
         return truncateText(savedDevice.wlrSocketPath, 6);
       }
+      if (savedDevice?.gamescopeDisplayNo !== undefined) {
+        return `gamescope-${savedDevice.gamescopeDisplayNo}`;
+      }
       if (savedDevice?.playcoverAddress) {
         return truncateText(savedDevice.playcoverAddress, 6);
       }
@@ -1445,6 +1419,7 @@ export function ConnectionPanel() {
       (activeInstance.savedDevice.adbDeviceName ||
         activeInstance.savedDevice.windowName ||
         activeInstance.savedDevice.wlrSocketPath ||
+        activeInstance.savedDevice.gamescopeDisplayNo !== undefined ||
         activeInstance.savedDevice.playcoverAddress);
 
     return (
@@ -1562,8 +1537,7 @@ export function ConnectionPanel() {
                           setSelectedAdbDevice(null);
                           setSelectedWindow(null);
                           setSelectedWlrootsSocket(null);
-                          setSelectedGamescopeNode(null);
-                          setSelectedEisSocket(null);
+                          setSelectedGamescopeInstance(null);
 
                           // 检查当前资源是否支持新控制器，如果不支持则切换到第一个可用资源
                           const newControllerResources = allResources.filter((r) => {

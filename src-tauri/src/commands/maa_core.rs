@@ -18,8 +18,8 @@ use maa_framework::toolkit::Toolkit;
 use maa_framework::MaaStatus;
 
 use super::types::{
-    AdbDevice, ConnectionStatus, ControllerConfig, GamescopeEisSocket, GamescopeNode, MaaState,
-    TaskStatus, VersionCheckResult, Win32Window,
+    AdbDevice, ConnectionStatus, ControllerConfig, GamescopeInstance, MaaState, TaskStatus,
+    VersionCheckResult, Win32Window,
 };
 use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
@@ -639,76 +639,44 @@ pub async fn maa_find_wlroots_sockets(
     find_wlroots_sockets_impl(state.inner().clone()).await
 }
 
-/// 查找 PipeWire session-daemon 节点（如 gamescope 窗口捕获节点）
+/// 查找 gamescope 实例（同一 display 上的 PipeWire 截图节点 + libei EIS socket）
 /// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
-pub async fn find_gamescope_nodes_impl(state: Arc<MaaState>) -> Result<Vec<GamescopeNode>, String> {
-    tokio::task::spawn_blocking(move || {
-        let nodes = Toolkit::find_gamescope_nodes().map_err(|e| e.to_string())?;
-
-        let result_nodes: Vec<GamescopeNode> = nodes
-            .into_iter()
-            .map(|n| GamescopeNode {
-                name: n.name,
-                id: n.id,
-            })
-            .collect();
-
-        if let Ok(mut cached) = state.cached_gamescope_nodes.lock() {
-            *cached = result_nodes.clone();
-        }
-
-        info!("find_gamescope_nodes_impl: {} node(s)", result_nodes.len());
-        Ok(result_nodes)
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-/// 查找 gamescope PipeWire 节点
-#[tauri::command]
-pub async fn maa_find_gamescope_nodes(
-    state: State<'_, Arc<MaaState>>,
-) -> Result<Vec<GamescopeNode>, String> {
-    info!("maa_find_gamescope_nodes called");
-    find_gamescope_nodes_impl(state.inner().clone()).await
-}
-
-/// 查找 libei (EIS) socket（如 gamescope 提供的输入 socket）
-/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
-pub async fn find_gamescope_eis_sockets_impl(
+pub async fn find_gamescope_instances_impl(
     state: Arc<MaaState>,
-) -> Result<Vec<GamescopeEisSocket>, String> {
+) -> Result<Vec<GamescopeInstance>, String> {
     tokio::task::spawn_blocking(move || {
-        let sockets = Toolkit::find_gamescope_eis_sockets().map_err(|e| e.to_string())?;
+        let instances = Toolkit::find_gamescope_instances().map_err(|e| e.to_string())?;
 
-        let result_sockets: Vec<GamescopeEisSocket> = sockets
+        let result_instances: Vec<GamescopeInstance> = instances
             .into_iter()
-            .map(|s| GamescopeEisSocket {
-                path: s.path.to_string_lossy().to_string(),
+            .map(|i| GamescopeInstance {
+                display_no: i.display_no,
+                pipewire_node_id: i.pipewire_node_id,
+                eis_socket_path: i.eis_socket_path,
             })
             .collect();
 
-        if let Ok(mut cached) = state.cached_gamescope_eis_sockets.lock() {
-            *cached = result_sockets.clone();
+        if let Ok(mut cached) = state.cached_gamescope_instances.lock() {
+            *cached = result_instances.clone();
         }
 
         info!(
-            "find_gamescope_eis_sockets_impl: {} eis socket(s)",
-            result_sockets.len()
+            "find_gamescope_instances_impl: {} instance(s)",
+            result_instances.len()
         );
-        Ok(result_sockets)
+        Ok(result_instances)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// 查找 gamescope EIS socket
+/// 查找 gamescope 实例
 #[tauri::command]
-pub async fn maa_find_gamescope_eis_sockets(
+pub async fn maa_find_gamescope_instances(
     state: State<'_, Arc<MaaState>>,
-) -> Result<Vec<GamescopeEisSocket>, String> {
-    info!("maa_find_gamescope_eis_sockets called");
-    find_gamescope_eis_sockets_impl(state.inner().clone()).await
+) -> Result<Vec<GamescopeInstance>, String> {
+    info!("maa_find_gamescope_instances called");
+    find_gamescope_instances_impl(state.inner().clone()).await
 }
 
 // ============================================================================

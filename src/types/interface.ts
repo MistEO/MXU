@@ -365,10 +365,8 @@ export interface SavedDeviceInfo {
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
-  /** Linux 控制器：gamescope PipeWire 节点名（节点 id 会随会话变化，故存名） */
-  gamescopeNodeName?: string;
-  /** Linux 控制器：gamescope EIS socket 路径 */
-  eisSocketPath?: string;
+  /** Linux 控制器：gamescope display 号（gamescope-<n> 的 n，节点 id 会随会话变化，故存 display 号） */
+  gamescopeDisplayNo?: number;
   /** Win32 连接窗口对应的进程可执行文件路径 */
   connectedProgramPath?: string;
 }

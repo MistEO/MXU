@@ -6,8 +6,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AdbDevice,
   Win32Window,
-  GamescopeNode,
-  GamescopeEisSocket,
+  GamescopeInstance,
   ControllerConfig,
   ConnectionStatus,
   TaskStatus,
@@ -259,33 +258,20 @@ export const maaService = {
   },
 
   /**
-   * 查找 gamescope PipeWire 节点（截图源，节点 id 可作为 pw_node_id）
+   * 查找 gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
    */
-  async findGamescopeNodes(): Promise<GamescopeNode[]> {
-    log.info('搜索 gamescope 节点...');
-    const nodes = isTauri()
-      ? await invoke<GamescopeNode[]>('maa_find_gamescope_nodes')
-      : await apiGet<GamescopeNode[]>('/maa/gamescope-nodes');
-    log.info('找到 gamescope 节点:', nodes.length, '个');
-    nodes.forEach((node, i) => {
-      log.debug(`  节点[${i}]: name=${node.name}, id=${node.id}`);
+  async findGamescopeInstances(): Promise<GamescopeInstance[]> {
+    log.info('搜索 gamescope 实例...');
+    const instances = isTauri()
+      ? await invoke<GamescopeInstance[]>('maa_find_gamescope_instances')
+      : await apiGet<GamescopeInstance[]>('/maa/gamescope-instances');
+    log.info('找到 gamescope 实例:', instances.length, '个');
+    instances.forEach((inst, i) => {
+      log.debug(
+        `  实例[${i}]: display_no=${inst.display_no}, pipewire_node_id=${inst.pipewire_node_id}, eis_socket_path=${inst.eis_socket_path}`,
+      );
     });
-    return nodes;
-  },
-
-  /**
-   * 查找 gamescope EIS socket（libei 输入，路径可作为 eis_socket_path）
-   */
-  async findGamescopeEisSockets(): Promise<GamescopeEisSocket[]> {
-    log.info('搜索 gamescope EIS socket...');
-    const sockets = isTauri()
-      ? await invoke<GamescopeEisSocket[]>('maa_find_gamescope_eis_sockets')
-      : await apiGet<GamescopeEisSocket[]>('/maa/gamescope-eis-sockets');
-    log.info('找到 gamescope EIS socket:', sockets.length, '个');
-    sockets.forEach((socket, i) => {
-      log.debug(`  socket[${i}]: ${socket.path}`);
-    });
-    return sockets;
+    return instances;
   },
 
   /**
@@ -983,8 +969,7 @@ export const maaService = {
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
     cachedWlrootsSockets: string[];
-    cachedGamescopeNodes: GamescopeNode[];
-    cachedGamescopeEisSockets: GamescopeEisSocket[];
+    cachedGamescopeInstances: GamescopeInstance[];
   } | null> {
     try {
       type RawTaskRunState = {
@@ -1006,8 +991,7 @@ export const maaService = {
         cached_adb_devices: AdbDevice[];
         cached_win32_windows: Win32Window[];
         cached_wlroots_sockets: string[];
-        cached_gamescope_nodes: GamescopeNode[];
-        cached_gamescope_eis_sockets: GamescopeEisSocket[];
+        cached_gamescope_instances: GamescopeInstance[];
       };
 
       // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
@@ -1055,8 +1039,7 @@ export const maaService = {
         cachedAdbDevices: states.cached_adb_devices,
         cachedWin32Windows: states.cached_win32_windows,
         cachedWlrootsSockets: states.cached_wlroots_sockets,
-        cachedGamescopeNodes: states.cached_gamescope_nodes,
-        cachedGamescopeEisSockets: states.cached_gamescope_eis_sockets,
+        cachedGamescopeInstances: states.cached_gamescope_instances,
       };
     } catch (err) {
       log.error('获取所有状态失败:', err);

@@ -17,15 +17,11 @@ export interface Win32Window {
   window_name: string;
 }
 
-/** PipeWire session-daemon 节点（如 gamescope 窗口捕获节点） */
-export interface GamescopeNode {
-  name: string;
-  id: number;
-}
-
-/** libei (EIS) socket（如 gamescope 提供的输入 socket） */
-export interface GamescopeEisSocket {
-  path: string;
+/** gamescope 实例（同一 display 上的截图节点 + libei 输入 socket） */
+export interface GamescopeInstance {
+  display_no: number;
+  pipewire_node_id: number;
+  eis_socket_path: string;
 }
 
 /** ADB 控制器配置 */

@@ -29,7 +29,7 @@ import {
   resolveCompatTaskDef,
 } from '@/types/pretasks';
 import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
-import type { TaskConfig, ControllerConfig } from '@/types/maa';
+import type { TaskConfig, ControllerConfig, GamescopeInstance } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import {
   buildDesktopWindowControllerConfig,
@@ -74,8 +74,7 @@ async function discoverLinuxControllerConfig(
   const needs = getLinuxDiscoveryNeeds(controller);
 
   let wlrPath: string | undefined;
-  let nodeId: number | undefined;
-  let eisPath: string | undefined;
+  let gamescopeInstance: GamescopeInstance | undefined;
 
   if (needs.needWlrSocket) {
     const sockets = await maaService.findWlrootsSockets();
@@ -90,41 +89,37 @@ async function discoverLinuxControllerConfig(
     }
     wlrPath = matched;
   }
-  if (needs.needGamescopeNode) {
-    const nodes = await maaService.findGamescopeNodes();
-    const matched = savedDevice?.gamescopeNodeName
-      ? nodes.find((n) => n.name === savedDevice.gamescopeNodeName)
-      : nodes[0];
+  if (needs.needGamescopeNode || needs.needEisSocket) {
+    const instances = await maaService.findGamescopeInstances();
+    const eligible = instances.filter((inst) => {
+      if (needs.needGamescopeNode && inst.pipewire_node_id === 0) return false;
+      if (needs.needEisSocket && !inst.eis_socket_path) return false;
+      return true;
+    });
+    const matched =
+      savedDevice?.gamescopeDisplayNo !== undefined
+        ? eligible.find((i) => i.display_no === savedDevice.gamescopeDisplayNo)
+        : eligible[0];
     if (!matched) {
       log.warn(
-        `未找到 gamescope 节点${savedDevice?.gamescopeNodeName ? ` (${savedDevice.gamescopeNodeName})` : ''}`,
+        `未找到 gamescope 实例${savedDevice?.gamescopeDisplayNo !== undefined ? ` (gamescope-${savedDevice.gamescopeDisplayNo})` : ''}`,
       );
       return null;
     }
-    nodeId = matched.id;
-  }
-  if (needs.needEisSocket) {
-    const sockets = await maaService.findGamescopeEisSockets();
-    const matched = savedDevice?.eisSocketPath
-      ? sockets.find((s) => s.path === savedDevice.eisSocketPath)
-      : sockets[0];
-    if (!matched) {
-      log.warn(
-        `未找到 EIS socket${savedDevice?.eisSocketPath ? ` (${savedDevice.eisSocketPath})` : ''}`,
-      );
-      return null;
-    }
-    eisPath = matched.path;
+    gamescopeInstance = matched;
   }
 
   const config = buildLinuxControllerConfig(controller, {
     wlrSocketPath: wlrPath,
-    pwNodeId: nodeId,
-    eisSocketPath: eisPath,
+    pwNodeId: gamescopeInstance?.pipewire_node_id,
+    eisSocketPath: gamescopeInstance?.eis_socket_path || undefined,
   });
 
   const deviceName =
-    [wlrPath, nodeId !== undefined ? String(nodeId) : undefined, eisPath]
+    [
+      wlrPath,
+      gamescopeInstance ? `gamescope-${gamescopeInstance.display_no}` : undefined,
+    ]
       .filter(Boolean)
       .join(' + ') || 'Linux';
 

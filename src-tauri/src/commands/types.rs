@@ -60,17 +60,12 @@ pub struct Win32Window {
     pub window_name: String,
 }
 
-/// PipeWire session-daemon 节点（如 gamescope 窗口捕获节点）
+/// gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GamescopeNode {
-    pub name: String,
-    pub id: u32,
-}
-
-/// libei (EIS) socket（如 gamescope 提供的输入 socket）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GamescopeEisSocket {
-    pub path: String,
+pub struct GamescopeInstance {
+    pub display_no: u32,
+    pub pipewire_node_id: u32,
+    pub eis_socket_path: String,
 }
 
 /// 控制器类型
@@ -235,8 +230,7 @@ pub struct AllInstanceStates {
     pub cached_adb_devices: Vec<AdbDevice>,
     pub cached_win32_windows: Vec<Win32Window>,
     pub cached_wlroots_sockets: Vec<String>,
-    pub cached_gamescope_nodes: Vec<GamescopeNode>,
-    pub cached_gamescope_eis_sockets: Vec<GamescopeEisSocket>,
+    pub cached_gamescope_instances: Vec<GamescopeInstance>,
 }
 
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
@@ -362,10 +356,8 @@ pub struct MaaState {
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
     /// 缓存的 WlRoots socket 列表（全局共享）
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
-    /// 缓存的 gamescope PipeWire 节点列表（全局共享）
-    pub cached_gamescope_nodes: Mutex<Vec<GamescopeNode>>,
-    /// 缓存的 gamescope EIS socket 列表（全局共享）
-    pub cached_gamescope_eis_sockets: Mutex<Vec<GamescopeEisSocket>>,
+    /// 缓存的 gamescope 实例列表（全局共享）
+    pub cached_gamescope_instances: Mutex<Vec<GamescopeInstance>>,
     /// Portal ScreenCast 会话的 restore token（仅存内存，不落盘）
     pub portal_restore_token: Mutex<Option<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）

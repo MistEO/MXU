@@ -115,7 +115,7 @@ fn estimate_compressed_upper_bound(path: &Path, file_size: u64) -> u64 {
         .unwrap_or("")
         .to_lowercase();
     match ext.as_str() {
-        "png" | "jpg" | "jpeg" => file_size, // 已压缩，DEFLATE 无效
+        "png" | "jpg" | "jpeg" | "dmp" => file_size, // 已压缩或二进制，DEFLATE 无效
         "log" | "json" | "txt" | "toml" | "yaml" | "yml" | "xml" | "csv" => {
             file_size.saturating_div(4) // 实测 10-25x，4x 留有足够余量
         }
@@ -596,7 +596,7 @@ fn export_logs_blocking(
 
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    // ─── 1. 收集常规文件（log / config / 子目录下的 log/json） ───
+    // ─── 1. 收集常规文件（log / dmp / config / 子目录下的 log/json/dmp） ───
     let mut regular_entries: Vec<ExportEntry> = Vec::new();
 
     let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
@@ -605,7 +605,7 @@ fn export_logs_blocking(
         if !path.is_file() {
             continue;
         }
-        if path.extension().map(|e| e != "log").unwrap_or(true) {
+        if !has_extension(&path, &["log", "dmp"]) {
             continue;
         }
         let Some(archive_name) = path.file_name().map(|n| n.to_string_lossy().to_string()) else {
@@ -620,7 +620,7 @@ fn export_logs_blocking(
 
     let config_dir = data_dir.join("config");
     regular_entries.extend(collect_files_recursively(&config_dir, "config")?);
-    regular_entries.extend(collect_debug_subdir_files(&debug_dir, &["log", "json"])?);
+    regular_entries.extend(collect_debug_subdir_files(&debug_dir, &["log", "json", "dmp"])?);
 
     // ─── 2. 收集图片（on_error + vision，按 mtime 新→旧） ───
     let on_error_images = collect_debug_images(&debug_dir.join("on_error"), "on_error");

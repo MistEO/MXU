@@ -24,7 +24,7 @@ use super::types::{
 use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
 /// MaaFramework 最小支持版本
-const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
+const MIN_MAAFW_VERSION: &str = "5.12.1";
 
 #[cfg(any(target_os = "macos", test))]
 const MIN_MACOS_MAAFW_VERSION: &str = "5.10.0-beta.1";
@@ -441,7 +441,7 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
         return Err("MaaFramework not initialized".to_string());
     }
 
-    // 去掉版本号前缀 'v'（如 "v5.5.0-beta.1" -> "5.5.0-beta.1"）
+    // 去掉版本号前缀 'v'（如 "v5.12.1" -> "5.12.1"）
     let current_clean = current_str.trim_start_matches('v');
     let min_clean = MIN_MAAFW_VERSION.trim_start_matches('v');
 

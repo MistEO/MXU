@@ -134,6 +134,7 @@ export const Win32InputMethod = {
   PostMessageWithCursorPos: 1n << 6n,
   SendMessageWithWindowPos: 1n << 7n,
   PostMessageWithWindowPos: 1n << 8n,
+  Interception: 1n << 9n,
 } as const;
 
 /** Win32 截图方法名称映射 */
@@ -159,6 +160,7 @@ export const Win32InputMethodNames: Record<string, bigint> = {
   PostMessageWithCursorPos: Win32InputMethod.PostMessageWithCursorPos,
   SendMessageWithWindowPos: Win32InputMethod.SendMessageWithWindowPos,
   PostMessageWithWindowPos: Win32InputMethod.PostMessageWithWindowPos,
+  Interception: Win32InputMethod.Interception,
 };
 
 /** macOS 截图方法 */

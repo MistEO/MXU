@@ -48,7 +48,7 @@ os_info = "3"
 urlencoding = "2.1"
 notify-rust = "4"
 shell-words = "1.1.1"
-maa-framework = { version = "1", features = ["dynamic"] }
+maa-framework = { version = "1.22.0", features = ["dynamic"] }
 rust-embed = "8"
 clap = { version = "4", features = ["derive"] }
 # 匿名遥测（数据埋点）
@@ -77,8 +77,3 @@ winsafe = { version = "0.0.28", features = [
     "user"
 ] }
 
-# 本地开发：使用本地 maa-framework-rs（含 Linux 控制器 / Portal / Gamescope Toolkit 绑定）
-# 提交前请确认相对路径布局（与 MXU 同级目录）。
-[patch.crates-io]
-maa-framework = { path = "../../maa-framework-rs/maa-framework" }
-maa-framework-sys = { path = "../../maa-framework-rs/maa-framework-sys" }

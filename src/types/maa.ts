@@ -1,5 +1,7 @@
 // MaaFramework 类型定义
 
+import { loggers } from '@/utils/logger';
+
 /** ADB 设备信息 */
 export interface AdbDevice {
   name: string;
@@ -210,7 +212,11 @@ export function parseWin32InputMethod(name: string): number {
   if (method !== undefined) {
     return Number(method);
   }
-  // 默认使用 Seize
+  // 默认使用 Seize；遇到非合规值时记录警告
+  loggers.config.warn(
+    '遇到非合规的 Win32 输入方法名称，已回退到默认值 Seize。',
+    { name, fallback: 'Seize' },
+  );
   return Number(Win32InputMethod.Seize);
 }
 

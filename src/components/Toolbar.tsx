@@ -35,6 +35,7 @@ import {
   buildDesktopWindowControllerConfig,
   buildLinuxControllerConfig,
   getDesktopWindowFilters,
+  getLinuxDeviceName,
   getLinuxDiscoveryNeeds,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
@@ -69,7 +70,8 @@ const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
  */
 async function discoverLinuxControllerConfig(
   controller: ControllerItem,
-  savedDevice?: SavedDeviceInfo,
+  savedDevice: SavedDeviceInfo | undefined,
+  labels: { portal: string; linux: string },
 ): Promise<{ config: ControllerConfig; deviceName: string } | null> {
   const needs = getLinuxDiscoveryNeeds(controller);
 
@@ -117,10 +119,14 @@ async function discoverLinuxControllerConfig(
     uinputScreenHeight: savedDevice?.uinputScreenHeight,
   });
 
-  const deviceName =
-    [wlrPath, gamescopeInstance ? `gamescope-${gamescopeInstance.display_no}` : undefined]
-      .filter(Boolean)
-      .join(' + ') || 'Linux';
+  const deviceName = getLinuxDeviceName(
+    controller,
+    {
+      wlrSocketPath: wlrPath,
+      gamescopeDisplayNo: gamescopeInstance?.display_no,
+    },
+    labels,
+  );
 
   return { config, deviceName };
 }
@@ -821,7 +827,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               deviceName = savedDevice.playcoverAddress;
               targetType = 'device';
             } else if (controllerType === 'Linux') {
-              const found = await discoverLinuxControllerConfig(controller, savedDevice);
+              const found = await discoverLinuxControllerConfig(controller, savedDevice, {
+                portal: t('controller.portal'),
+                linux: t('controller.linux'),
+              });
               if (!found) {
                 log.warn(`实例 ${targetInstance.name}: 未找到 Linux 控制器所需设备`);
                 return false;
@@ -922,7 +931,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               });
               return false;
             } else if (controllerType === 'Linux') {
-              const found = await discoverLinuxControllerConfig(controller);
+              const found = await discoverLinuxControllerConfig(controller, undefined, {
+                portal: t('controller.portal'),
+                linux: t('controller.linux'),
+              });
               if (!found) {
                 log.warn(`实例 ${targetInstance.name}: 未搜索到 Linux 控制器所需设备`);
                 addLog(targetId, {

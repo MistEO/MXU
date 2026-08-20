@@ -29,6 +29,7 @@ import {
   buildDesktopWindowControllerConfig,
   buildLinuxControllerConfig,
   getDesktopWindowFilters,
+  getLinuxDeviceName,
   getLinuxDiscoveryNeeds,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
@@ -394,7 +395,9 @@ export function ConnectionPanel() {
         (isDesktopWindowController && savedDevice.windowName) ||
         (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'Linux' &&
-          (savedDevice.gamescopeDisplayNo !== undefined || savedDevice.wlrSocketPath)) ||
+          ((savedDevice.gamescopeDisplayNo !== undefined &&
+            (linuxNeeds?.needGamescopeNode || linuxNeeds?.needEisSocket)) ||
+            (savedDevice.wlrSocketPath && linuxNeeds?.needWlrSocket))) ||
         (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
 
     if (hasHistoricalDevice && needsDeviceSearch) {
@@ -1107,10 +1110,14 @@ export function ConnectionPanel() {
         uinputScreenHeight: parsedHeight,
       });
 
-      const deviceName =
-        (instance ? `gamescope-${instance.display_no}` : '') ||
-        wlr ||
-        (linuxNeeds?.isPortal ? t('controller.portal') : t('controller.linux'));
+      const deviceName = getLinuxDeviceName(
+        currentController,
+        {
+          wlrSocketPath: wlr ?? undefined,
+          gamescopeDisplayNo: instance?.display_no,
+        },
+        { portal: t('controller.portal'), linux: t('controller.linux') },
+      );
       await connectControllerInternal(config, deviceName, 'device');
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
@@ -1235,7 +1242,7 @@ export function ConnectionPanel() {
         if (sockets.length > 0) {
           setShowDeviceDropdown(true);
         }
-      } else if (controllerType === 'Linux') {
+      } else if (controllerType === 'Linux' && linuxNeeds) {
         // Linux：复用 handleSearch 的发现+匹配+自动连接逻辑
         setIsSearching(false);
         await handleSearch();
@@ -1419,6 +1426,20 @@ export function ConnectionPanel() {
       if (savedDevice?.windowName) {
         return truncateText(savedDevice.windowName, 6);
       }
+      if (controllerType === 'Linux' && savedDevice) {
+        // Linux：按当前配置输出实际使用的设备（portal/uinput 等忽略残留的 gamescope-<n>）
+        return truncateText(
+          getLinuxDeviceName(
+            currentController,
+            {
+              wlrSocketPath: savedDevice.wlrSocketPath,
+              gamescopeDisplayNo: savedDevice.gamescopeDisplayNo,
+            },
+            { portal: t('controller.portal'), linux: t('controller.linux') },
+          ),
+          24,
+        );
+      }
       if (savedDevice?.wlrSocketPath) {
         return truncateText(savedDevice.wlrSocketPath, 6);
       }
@@ -1435,14 +1456,21 @@ export function ConnectionPanel() {
       return t('controller.disconnected');
     };
 
-    // 判断是否有历史设备记录
-    const hasHistoricalDevice =
-      activeInstance?.savedDevice &&
-      (activeInstance.savedDevice.adbDeviceName ||
-        activeInstance.savedDevice.windowName ||
-        activeInstance.savedDevice.wlrSocketPath ||
-        activeInstance.savedDevice.gamescopeDisplayNo !== undefined ||
-        activeInstance.savedDevice.playcoverAddress);
+    // 判断是否有历史设备记录（按当前控制器配置筛选：不依赖 gamescope 的配置不把残留的 gamescopeDisplayNo 视为历史设备）
+    const hasHistoricalDevice = () => {
+      const s = activeInstance?.savedDevice;
+      if (!s) return false;
+      return (
+        s.adbDeviceName ||
+        s.windowName ||
+        (controllerType === 'WlRoots' && s.wlrSocketPath) ||
+        (controllerType === 'Linux' &&
+          ((s.gamescopeDisplayNo !== undefined &&
+            (linuxNeeds?.needGamescopeNode || linuxNeeds?.needEisSocket)) ||
+            (s.wlrSocketPath && linuxNeeds?.needWlrSocket))) ||
+        s.playcoverAddress
+      );
+    };
 
     return (
       <div className="flex items-center gap-2">
@@ -1459,7 +1487,7 @@ export function ConnectionPanel() {
             <Wifi className="w-3 h-3" />
             {getDeviceStatusText()}
           </span>
-        ) : hasHistoricalDevice && currentController ? (
+        ) : hasHistoricalDevice() && currentController ? (
           <span
             className="flex items-center gap-1 text-text-muted text-xs"
             title={getDeviceStatusText()}

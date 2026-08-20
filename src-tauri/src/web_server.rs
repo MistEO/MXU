@@ -223,7 +223,10 @@ pub async fn start_web_server(
         .route("/maa/devices", get(handle_get_adb_devices))
         .route("/maa/windows", get(handle_get_win32_windows))
         .route("/maa/wlroots-sockets", get(handle_get_wlroots_sockets))
-        .route("/maa/gamescope-instances", get(handle_get_gamescope_instances))
+        .route(
+            "/maa/gamescope-instances",
+            get(handle_get_gamescope_instances),
+        )
         // Maa 实例管理
         .route(
             "/maa/instances/:id",
@@ -628,13 +631,7 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
         wlroots_result,
         gamescope_instances_result,
     ) {
-        (
-            Ok(mut instances),
-            Ok(adb),
-            Ok(win32),
-            Ok(wlroots),
-            Ok(gamescope_instances),
-        ) => {
+        (Ok(mut instances), Ok(adb), Ok(win32), Ok(wlroots), Ok(gamescope_instances)) => {
             let mut instance_states: HashMap<String, serde_json::Value> = HashMap::new();
 
             for (id, runtime) in instances.iter_mut() {

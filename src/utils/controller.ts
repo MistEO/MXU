@@ -148,6 +148,8 @@ export function buildLinuxControllerConfig(
     wlrSocketPath?: string;
     pwNodeId?: number;
     eisSocketPath?: string;
+    uinputScreenWidth?: number;
+    uinputScreenHeight?: number;
   },
 ): ControllerConfig {
   const linux = controller?.linux;
@@ -160,6 +162,8 @@ export function buildLinuxControllerConfig(
     wlr_socket_path: discovery.wlrSocketPath,
     pw_node_id: discovery.pwNodeId,
     eis_socket_path: discovery.eisSocketPath,
+    uinput_screen_width: discovery.uinputScreenWidth,
+    uinput_screen_height: discovery.uinputScreenHeight,
     use_win32_vk_code: linux?.use_win32_vk_code ?? false,
     display_short_side: controller?.display_short_side,
   };

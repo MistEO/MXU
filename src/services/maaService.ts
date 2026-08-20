@@ -40,6 +40,9 @@ function localizeControllerError(error: unknown): unknown {
   if (message.includes('MACOS_VERSION_REQUIRED')) {
     return new Error(i18n.t('controller.macosSystemVersionRequired'));
   }
+  if (message.includes('LINUX_MAAFW_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.linuxVersionRequired'));
+  }
   return error;
 }
 

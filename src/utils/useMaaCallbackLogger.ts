@@ -186,6 +186,13 @@ function inferCtrlInfoFromInstance(instanceId: string): {
     return { type: 'device', name: savedDevice?.adbDeviceName };
   } else if (controller.type === 'WlRoots') {
     return { type: 'device', name: savedDevice?.wlrSocketPath };
+  } else if (controller.type === 'Linux') {
+    const name =
+      savedDevice?.wlrSocketPath ??
+      (savedDevice?.gamescopeDisplayNo !== undefined
+        ? `gamescope-${savedDevice.gamescopeDisplayNo}`
+        : undefined);
+    return { type: 'device', name };
   } else if (controller.type === 'PlayCover') {
     return { type: 'device', name: savedDevice?.playcoverAddress };
   }

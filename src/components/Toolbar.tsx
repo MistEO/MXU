@@ -113,13 +113,12 @@ async function discoverLinuxControllerConfig(
     wlrSocketPath: wlrPath,
     pwNodeId: gamescopeInstance?.pipewire_node_id,
     eisSocketPath: gamescopeInstance?.eis_socket_path || undefined,
+    uinputScreenWidth: savedDevice?.uinputScreenWidth,
+    uinputScreenHeight: savedDevice?.uinputScreenHeight,
   });
 
   const deviceName =
-    [
-      wlrPath,
-      gamescopeInstance ? `gamescope-${gamescopeInstance.display_no}` : undefined,
-    ]
+    [wlrPath, gamescopeInstance ? `gamescope-${gamescopeInstance.display_no}` : undefined]
       .filter(Boolean)
       .join(' + ') || 'Linux';
 
@@ -423,7 +422,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
-        // ADB、WlRoots 和 PlayCover 均可在锁屏时运行。
+        // ADB、Linux 和 PlayCover 均可在锁屏时运行。
         if (
           requiresUnlockedWorkstation(controller.type) &&
           (await maaService.isWorkstationLocked())

@@ -20,12 +20,8 @@ import clsx from 'clsx';
 import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { resolveI18nText } from '@/services/contentResolver';
-import type {
-  AdbDevice,
-  Win32Window,
-  GamescopeInstance,
-  ControllerConfig,
-} from '@/types/maa';
+import { LinuxInputMethod, parseLinuxInputMethod } from '@/types/maa';
+import type { AdbDevice, Win32Window, GamescopeInstance, ControllerConfig } from '@/types/maa';
 import type { ControllerItem, ResourceItem } from '@/types/interface';
 import { computeResourcePaths } from '@/utils/resourcePath';
 import { getProcessNameFromPath } from '@/utils/paths';
@@ -44,6 +40,14 @@ import {
   waitForResResult,
   autoReconnectAttempted,
 } from './connection';
+
+/** 将 uinput 尺寸输入字符串解析为正整数；空串或非法输入返回 undefined */
+function parseUinputDimension(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 export function ConnectionPanel() {
   const { t } = useTranslation();
@@ -99,6 +103,13 @@ export function ConnectionPanel() {
   const [selectedWlrootsSocket, setSelectedWlrootsSocket] = useState<string | null>(null);
   const [selectedGamescopeInstance, setSelectedGamescopeInstance] =
     useState<GamescopeInstance | null>(null);
+  // uinput 输入的物理屏幕分辨率（宽/高）
+  const [uinputScreenWidth, setUinputScreenWidth] = useState<string>(
+    activeInstance?.savedDevice?.uinputScreenWidth?.toString() ?? '',
+  );
+  const [uinputScreenHeight, setUinputScreenHeight] = useState<string>(
+    activeInstance?.savedDevice?.uinputScreenHeight?.toString() ?? '',
+  );
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   // PlayCover 地址从保存的配置初始化
   const [playcoverAddress, setPlaycoverAddress] = useState(
@@ -203,6 +214,9 @@ export function ConnectionPanel() {
   const { classRegex: desktopWindowClassRegex, titleRegex: desktopWindowTitleRegex } =
     getDesktopWindowFilters(currentController);
   const linuxNeeds = controllerType === 'Linux' ? getLinuxDiscoveryNeeds(currentController) : null;
+  const isUinputInput =
+    controllerType === 'Linux' &&
+    parseLinuxInputMethod(currentController?.linux?.input) === LinuxInputMethod.UInput;
 
   // 获取资源列表
   const allResources = projectInterface?.resource || [];
@@ -380,8 +394,7 @@ export function ConnectionPanel() {
         (isDesktopWindowController && savedDevice.windowName) ||
         (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'Linux' &&
-          (savedDevice.gamescopeDisplayNo !== undefined ||
-            savedDevice.wlrSocketPath)) ||
+          (savedDevice.gamescopeDisplayNo !== undefined || savedDevice.wlrSocketPath)) ||
         (controllerType === 'PlayCover' && savedDevice.playcoverAddress));
 
     if (hasHistoricalDevice && needsDeviceSearch) {
@@ -856,15 +869,14 @@ export function ConnectionPanel() {
     if (controllerType === 'Linux') {
       const parts: string[] = [];
       if (linuxNeeds?.needGamescopeNode || linuxNeeds?.needEisSocket) {
-        const displayNo =
-          selectedGamescopeInstance?.display_no ?? savedDevice?.gamescopeDisplayNo;
+        const displayNo = selectedGamescopeInstance?.display_no ?? savedDevice?.gamescopeDisplayNo;
         parts.push(displayNo !== undefined ? `gamescope-${displayNo}` : '');
       }
       if (linuxNeeds?.needWlrSocket) {
         parts.push(selectedWlrootsSocket || savedDevice?.wlrSocketPath || '');
       }
       if (linuxNeeds?.isPortal) {
-        parts.push('Portal');
+        parts.push(t('controller.portal'));
       }
       const filtered = parts.filter(Boolean);
       return filtered.length > 0 ? filtered.join(' + ') : t('controller.selectDevice');
@@ -1079,16 +1091,26 @@ export function ConnectionPanel() {
 
       await maaService.createInstance(instanceId).catch(() => {});
 
+      const parsedWidth = parseUinputDimension(uinputScreenWidth);
+      const parsedHeight = parseUinputDimension(uinputScreenHeight);
+
       const config = buildLinuxControllerConfig(currentController, {
         wlrSocketPath: wlr ?? undefined,
         pwNodeId: instance?.pipewire_node_id,
         eisSocketPath: instance?.eis_socket_path || undefined,
+        uinputScreenWidth: parsedWidth,
+        uinputScreenHeight: parsedHeight,
+      });
+
+      saveLinuxDeviceInfo({
+        uinputScreenWidth: parsedWidth,
+        uinputScreenHeight: parsedHeight,
       });
 
       const deviceName =
         (instance ? `gamescope-${instance.display_no}` : '') ||
         wlr ||
-        (linuxNeeds?.isPortal ? 'Portal' : 'Linux');
+        (linuxNeeds?.isPortal ? t('controller.portal') : t('controller.linux'));
       await connectControllerInternal(config, deviceName, 'device');
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : t('controller.connectionFailed'));
@@ -1580,6 +1602,40 @@ export function ConnectionPanel() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* uinput 输入的屏幕分辨率 */}
+            {isUinputInput && (
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={uinputScreenWidth}
+                  onChange={(e) => setUinputScreenWidth(e.target.value)}
+                  placeholder={t('controller.uinputWidth')}
+                  disabled={isConnected || isConnecting || isRunning}
+                  className={clsx(
+                    'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
+                    'text-text-primary placeholder:text-text-muted',
+                    'focus:outline-none focus:border-accent transition-colors',
+                    (isConnected || isRunning) && 'opacity-60 cursor-not-allowed',
+                  )}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={uinputScreenHeight}
+                  onChange={(e) => setUinputScreenHeight(e.target.value)}
+                  placeholder={t('controller.uinputHeight')}
+                  disabled={isConnected || isConnecting || isRunning}
+                  className={clsx(
+                    'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
+                    'text-text-primary placeholder:text-text-muted',
+                    'focus:outline-none focus:border-accent transition-colors',
+                    (isConnected || isRunning) && 'opacity-60 cursor-not-allowed',
+                  )}
+                />
               </div>
             )}
 

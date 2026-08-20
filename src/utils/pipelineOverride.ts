@@ -331,9 +331,12 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
   },
 };
 
+// Linux 控制器复用 WlRoots 的 evdev 键码表（use_win32_vk_code=false 时）
+HOTKEY_KEY_MAP.Linux = HOTKEY_KEY_MAP.WlRoots;
+
 /**
  * 将单个按键名（如 "A"、"F1"、"Ctrl"）转换为指定控制器类型的虚拟键码。
- * 注意：这里按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，而非控制器 name。
+ * 注意：这里按控制器 **类型**（Win32 / MacOS / Adb / WlRoots / Linux）查表，而非控制器 name。
  * 未知按键返回 null。
  */
 const convertHotkeyKeyName = (keyName: string, controllerType?: string): number | null => {
@@ -537,7 +540,8 @@ export const generateTaskPipelineOverride = (
     ? projectInterface.controller.find((c) => c.name === controllerName)
     : undefined;
   const controllerType =
-    controllerDef?.type === 'WlRoots' && controllerDef.wlroots?.use_win32_vk_code
+    (controllerDef?.type === 'WlRoots' && controllerDef.wlroots?.use_win32_vk_code) ||
+    (controllerDef?.type === 'Linux' && controllerDef.linux?.use_win32_vk_code)
       ? 'Win32'
       : controllerDef?.type;
 

@@ -26,6 +26,10 @@ use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, nor
 /// MaaFramework 最小支持版本
 const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
 
+/// Linux 控制器所需的最小 MaaFramework 版本（libei 输入 / gamescope 发现 / Portal 辅助）
+#[cfg(target_os = "linux")]
+const MIN_LINUX_MAAFW_VERSION: &str = "5.13.0-beta.3";
+
 #[cfg(any(target_os = "macos", test))]
 const MIN_MACOS_MAAFW_VERSION: &str = "5.10.0-beta.1";
 
@@ -166,6 +170,35 @@ fn ensure_macos_maafw_version() -> Result<(), String> {
             "MACOS_MAAFW_VERSION_REQUIRED: current={current}, minimum=v{MIN_MACOS_MAAFW_VERSION}"
         ))
     }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_maafw_version_supported(current: &str) -> bool {
+    let Ok(current) = semver::Version::parse(current.trim().trim_start_matches('v')) else {
+        return false;
+    };
+    let Ok(minimum) = semver::Version::parse(MIN_LINUX_MAAFW_VERSION) else {
+        return false;
+    };
+
+    current >= minimum
+}
+
+#[cfg(target_os = "linux")]
+fn ensure_linux_maafw_version() -> Result<(), String> {
+    let current = maa_framework::maa_version().to_string();
+    if linux_maafw_version_supported(&current) {
+        Ok(())
+    } else {
+        Err(format!(
+            "LINUX_MAAFW_VERSION_REQUIRED: current={current}, minimum=v{MIN_LINUX_MAAFW_VERSION}"
+        ))
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn ensure_linux_maafw_version() -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -645,6 +678,7 @@ pub async fn find_gamescope_instances_impl(
     state: Arc<MaaState>,
 ) -> Result<Vec<GamescopeInstance>, String> {
     tokio::task::spawn_blocking(move || {
+        ensure_linux_maafw_version()?;
         let instances = Toolkit::find_gamescope_instances().map_err(|e| e.to_string())?;
 
         let result_instances: Vec<GamescopeInstance> = instances
@@ -878,6 +912,7 @@ pub async fn connect_controller_impl(
                 ..
             } => {
                 // 迁移：WlRoots 已废弃，内部改用 Linux 控制器（Wlr 截图 + Wlr 输入）
+                ensure_linux_maafw_version()?;
                 let linux_config = build_linux_controller_config(
                     maa_framework::common::LinuxScreencapMethod::WLR.bits(),
                     maa_framework::common::LinuxInputMethod::WLR.bits(),
@@ -936,6 +971,7 @@ pub async fn connect_controller_impl(
                 use_win32_vk_code,
                 ..
             } => {
+                ensure_linux_maafw_version()?;
                 let mut pw_fd = *pw_socket_fd;
                 let mut pw_node = *pw_node_id;
 

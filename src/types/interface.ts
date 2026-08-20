@@ -367,6 +367,9 @@ export interface SavedDeviceInfo {
   playcoverAddress?: string;
   /** Linux 控制器：gamescope display 号（gamescope-<n> 的 n，节点 id 会随会话变化，故存 display 号） */
   gamescopeDisplayNo?: number;
+  /** Linux 控制器：uinput 输入的物理屏幕分辨率（宽/高） */
+  uinputScreenWidth?: number;
+  uinputScreenHeight?: number;
   /** Win32 连接窗口对应的进程可执行文件路径 */
   connectedProgramPath?: string;
 }

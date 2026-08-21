@@ -2,6 +2,7 @@
 //!
 //! 提供 MXU 特有的自定义动作实现，如 MXU_SLEEP 等
 
+use crate::commands::utils::emit_callback_event;
 use chrono::TimeZone;
 use log::{info, warn};
 use maa_framework::custom::FnAction;
@@ -316,10 +317,12 @@ const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 
 /// MXU_WEBHOOK custom action 回调函数
 /// 从 custom_action_param 中读取 method/url/headers/body/title/content，
-/// 执行 HTTP GET/POST 请求（参考 MAA 外部通知的 Custom Webhook 机制）
-fn mxu_webhook_action_fn(
+/// 执行 HTTP GET/POST 请求（参考 MAA 外部通知的 Custom Webhook 机制）。
+/// `app_handle` 用于在失败时向前端运行日志窗口推送失败原因。
+fn mxu_webhook_action_impl(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
+    app_handle: Option<&AppHandle>,
 ) -> bool {
     let param_str = args.param;
     info!("[MXU_WEBHOOK] Received param: {}", param_str);
@@ -434,18 +437,40 @@ fn mxu_webhook_action_fn(
     match request.send() {
         Ok(resp) => {
             let status = resp.status();
-            info!("[MXU_WEBHOOK] Response status: {}", status);
             if status.is_success() {
+                info!("[MXU_WEBHOOK] Response status: {}", status);
                 true
             } else {
-                warn!("[MXU_WEBHOOK] Non-success status code: {}", status);
-                true // 仍然返回成功，只要请求发出去了
+                // 简洁输出：仅状态码 + 标准原因短语（如 400 Bad Request），便于一眼定位
+                let reason = status.canonical_reason().unwrap_or("");
+                log::error!("[MXU_WEBHOOK] Bad request: {} {}", status, reason);
+                emit_webhook_failed(
+                    app_handle,
+                    &serde_json::json!({
+                        "status": status.as_u16(),
+                        "reason": reason,
+                    }),
+                );
+                false
             }
         }
         Err(e) => {
             log::error!("[MXU_WEBHOOK] Request failed: {}", e);
+            emit_webhook_failed(
+                app_handle,
+                &serde_json::json!({
+                    "error": e.to_string(),
+                }),
+            );
             false
         }
+    }
+}
+
+/// 向前端运行日志窗口推送 Webhook 失败原因（message = "MXU.Webhook.Failed"）。
+fn emit_webhook_failed(app_handle: Option<&AppHandle>, detail: &serde_json::Value) {
+    if let Some(app) = app_handle {
+        emit_callback_event(app, "MXU.Webhook.Failed".to_string(), detail.to_string());
     }
 }
 
@@ -967,9 +992,41 @@ pub fn register_all_mxu_actions(
     reg_action!(MXU_SLEEP_ACTION, mxu_sleep_action_fn);
     reg_action!(MXU_WAITUNTIL_ACTION, mxu_waituntil_action_fn);
     reg_action!(MXU_LAUNCH_ACTION, mxu_launch_action_fn);
-    reg_action!(MXU_WEBHOOK_ACTION, mxu_webhook_action_fn);
     reg_action!(MXU_NOTIFY_ACTION, mxu_notify_action_fn);
     reg_action!(MXU_POWER_ACTION, mxu_power_action_fn);
+
+    // MXU_WEBHOOK 需要 AppHandle 在失败时向前端运行日志窗口推送失败原因，单独注册（不使用 reg_action! 宏）
+    let webhook_app_handle = app_handle.clone();
+    let webhook_wrapper = move |ctx: &maa_framework::context::Context,
+                                args: &maa_framework::custom::ActionArgs|
+          -> bool {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mxu_webhook_action_impl(ctx, args, Some(&webhook_app_handle))
+        }))
+        .unwrap_or_else(|e| {
+            let msg = if let Some(s) = e.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic payload".to_string()
+            };
+            log::error!("[MXU] Custom action {} panicked: {}", MXU_WEBHOOK_ACTION, msg);
+            false
+        })
+    };
+    if let Err(e) = resource.register_custom_action(
+        MXU_WEBHOOK_ACTION,
+        Box::new(FnAction::new(webhook_wrapper)),
+    ) {
+        warn!("[MXU] Failed to register {}: {:?}", MXU_WEBHOOK_ACTION, e);
+        failed_count += 1;
+    } else {
+        info!(
+            "[MXU] Custom action {} registered successfully",
+            MXU_WEBHOOK_ACTION
+        );
+    }
 
     let killproc_app_handle = app_handle.clone();
     let killproc_instance_id = instance_id.to_string();

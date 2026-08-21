@@ -491,6 +491,7 @@ export default {
       taskStarting: '任务开始: {{name}}',
       taskSucceeded: '任务完成: {{name}}',
       taskFailed: '任务失败: {{name}}',
+      webhookFailed: 'Webhook 推送失败: {{detail}}',
       stopTask: '停止任务',
       // 定时任务消息
       scheduleStarting: '定时执行开始 [{{policy}}] {{time}}',

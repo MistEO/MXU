@@ -532,6 +532,26 @@ function handleCallback(
       break;
     }
 
+    // ==================== MXU 内置特殊任务消息 ====================
+    // Webhook 推送失败：由 mxu_actions.rs 在 custom action 失败时通过 emit_callback_event 推送
+    case 'MXU.Webhook.Failed': {
+      const d = details as MaaCallbackDetails & Record<string, unknown>;
+      // 简洁输出：仅状态码 + 标准原因短语（如 400 Bad Request）；网络错误则显示 error
+      let detail = '';
+      const status = typeof d.status === 'number' ? d.status : null;
+      const reason = typeof d.reason === 'string' ? d.reason : '';
+      if (status !== null) {
+        detail = reason ? `${status} ${reason}` : `status=${status}`;
+      } else if (typeof d.error === 'string' && d.error) {
+        detail = d.error;
+      }
+      addLog(instanceId, {
+        type: 'error',
+        message: t('logs.messages.webhookFailed', { detail }),
+      });
+      break;
+    }
+
     // ==================== 节点消息（仅在有 focus 时显示，否则忽略）====================
     // 这些消息只有在 focus 配置时才显示，上面已经处理过了
     case 'Node.Recognition.Starting':

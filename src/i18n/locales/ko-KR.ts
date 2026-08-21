@@ -498,6 +498,7 @@ export default {
       taskStarting: '작업 시작: {{name}}',
       taskSucceeded: '작업 완료: {{name}}',
       taskFailed: '작업 실패: {{name}}',
+      webhookFailed: 'Webhook 푸시 실패: {{detail}}',
       stopTask: '작업 중지',
       // 예약 메시지
       scheduleStarting: '예약 실행 시작 [{{policy}}] {{time}}',

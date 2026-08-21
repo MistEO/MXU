@@ -487,6 +487,7 @@ export default {
       taskStarting: '任務開始: {{name}}',
       taskSucceeded: '任務完成: {{name}}',
       taskFailed: '任務失敗: {{name}}',
+      webhookFailed: 'Webhook 推送失敗: {{detail}}',
       stopTask: '停止任務',
       // 定時任務訊息
       scheduleStarting: '定時執行開始 [{{policy}}] {{time}}',

@@ -507,6 +507,7 @@ export default {
       taskStarting: 'Task started: {{name}}',
       taskSucceeded: 'Task completed: {{name}}',
       taskFailed: 'Task failed: {{name}}',
+      webhookFailed: 'Webhook push failed: {{detail}}',
       stopTask: 'Stop Task',
       // Schedule messages
       scheduleStarting: 'Scheduled execution started [{{policy}}] {{time}}',

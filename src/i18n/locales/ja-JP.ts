@@ -506,6 +506,7 @@ export default {
       taskStarting: 'タスクを開始: {{name}}',
       taskSucceeded: 'タスクが完了しました: {{name}}',
       taskFailed: 'タスクが失敗しました: {{name}}',
+      webhookFailed: 'Webhook プッシュ失敗: {{detail}}',
       stopTask: 'タスクを停止',
       // スケジュールメッセージ
       scheduleStarting: 'スケジュール実行を開始 [{{policy}}] {{time}}',

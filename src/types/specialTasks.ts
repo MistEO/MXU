@@ -306,7 +306,11 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_WEBHOOK_TASK_NAME,
   label: 'specialTask.webhook.label',
   entry: MXU_WEBHOOK_ENTRY,
-  option: ['__MXU_WEBHOOK_METHOD_OPTION__', '__MXU_WEBHOOK_OPTION__'],
+  option: [
+    '__MXU_WEBHOOK_TEMPLATE_OPTION__',
+    '__MXU_WEBHOOK_METHOD_OPTION__',
+    '__MXU_WEBHOOK_OPTION__',
+  ],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       action: 'Custom',
@@ -316,22 +320,194 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   },
 };
 
+// MXU_WEBHOOK 预设模板下拉选项定义（参考 MAA 外部通知的 WebhookPresetTemplate / 各 Provider 实现）
+// 选中模板会「全量覆盖」url/headers/body（保留 title/content），用户仍可手改。
+// 注意：这些 case 不带 pipeline_override，模板本身不参与请求，只做联动填充。
+// preserve: ['title', 'content'] —— 切换模板只重置请求参数，不丢用户填的标题/内容。
+const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
+  type: 'select',
+  label: 'specialTask.webhook.templateLabel',
+  cases: [
+    {
+      name: 'custom',
+      label: 'specialTask.webhook.templateCustom',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: '',
+          headers: '',
+          body: '',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'discord',
+      label: 'specialTask.webhook.templateDiscord',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: '',
+          headers: '',
+          body: '{"content": "{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'serverchan',
+      label: 'specialTask.webhook.templateServerChan',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          // 官方支持 JSON body：{"title":..., "desp":...}；sendkey 若为 sctp 前缀的 Server酱3
+          // key，需把 url 换成 https://<uid>.push.ft07.com/send/<sendkey>.send
+          url: 'https://sctapi.ftqq.com/<sendkey>.send',
+          headers: '',
+          body: '{"title": "{title}", "desp": "{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'telegram',
+      label: 'specialTask.webhook.templateTelegram',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://api.telegram.org/bot<bot_token>/sendMessage',
+          headers: '',
+          body: '{"chat_id": "<chat_id>", "text": "{title}: {content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'dingtalk',
+      label: 'specialTask.webhook.templateDingTalk',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://oapi.dingtalk.com/robot/send?access_token=<access_token>',
+          headers: '',
+          body: '{"msgtype": "text", "text": {"content": "{title}: {content}"}}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'bark',
+      label: 'specialTask.webhook.templateBark',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://api.day.app/push',
+          headers: '',
+          body: '{"device_key": "<device_key>", "title": "{title}", "body": "{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'qmsg',
+      label: 'specialTask.webhook.templateQmsg',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://qmsg.zendee.cn/jsend/<key>',
+          headers: '',
+          body: '{"msg": "{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'gotify',
+      label: 'specialTask.webhook.templateGotify',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://<server>/message',
+          headers: 'X-Gotify-Key: <token>',
+          body: '{"title": "{title}", "message": "{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'kook_channel',
+      label: 'specialTask.webhook.templateKookChannel',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://www.kookapp.cn/api/v3/message/create',
+          headers: 'Authorization: Bot <bot_token>',
+          body: '{"type": 9, "target_id": "<channel_id>", "content": "**{title}**\\n{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'kook_direct',
+      label: 'specialTask.webhook.templateKookDirect',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://www.kookapp.cn/api/v3/direct-message/create',
+          headers: 'Authorization: Bot <bot_token>',
+          body: '{"type": 9, "target_id": "<user_id>", "content": "**{title}**\\n{content}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'meow',
+      label: 'specialTask.webhook.templateMeow',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://api.chuckfang.com/<nickname>',
+          headers: '',
+          body: '{"title":"{title}","msg":"{content}\\n{time}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'ntfy',
+      label: 'specialTask.webhook.templateNtfy',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://ntfy.sh/<topic>',
+          headers: '',
+          body: '{"message": "{content}", "title": "{title}"}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+    {
+      name: 'wecom',
+      label: 'specialTask.webhook.templateWecom',
+      preset_apply: {
+        optionKey: '__MXU_WEBHOOK_OPTION__',
+        values: {
+          url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=<key>',
+          headers: '',
+          body: '{"msgtype": "text", "text": {"content": "{content}"}}',
+        },
+        preserve: ['title', 'content'],
+      },
+    },
+  ],
+  default_case: 'custom',
+};
+
 // MXU_WEBHOOK 请求方法下拉选项定义（GET / POST）
 const MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL: SelectOption = {
   type: 'select',
   label: 'specialTask.webhook.methodLabel',
   cases: [
-    {
-      name: 'GET',
-      label: 'specialTask.webhook.methodGet',
-      pipeline_override: {
-        [MXU_WEBHOOK_ENTRY]: {
-          custom_action_param: {
-            method: 'GET',
-          },
-        },
-      },
-    },
     {
       name: 'POST',
       label: 'specialTask.webhook.methodPost',
@@ -343,14 +519,26 @@ const MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL: SelectOption = {
         },
       },
     },
+    {
+      name: 'GET',
+      label: 'specialTask.webhook.methodGet',
+      pipeline_override: {
+        [MXU_WEBHOOK_ENTRY]: {
+          custom_action_param: {
+            method: 'GET',
+          },
+        },
+      },
+    },
   ],
-  default_case: 'GET',
+  default_case: 'POST',
 };
 
 // MXU_WEBHOOK 输入选项定义（URL / Headers / Body 模板 / 占位符数据源）
 const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
   type: 'input',
   label: 'specialTask.webhook.optionLabel',
+  description: 'specialTask.webhook.templateHint',
   inputs: [
     {
       name: 'url',
@@ -676,6 +864,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     entry: MXU_WEBHOOK_ENTRY,
     taskDef: MXU_WEBHOOK_TASK_DEF_INTERNAL,
     optionDefs: {
+      __MXU_WEBHOOK_TEMPLATE_OPTION__: MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL,
       __MXU_WEBHOOK_METHOD_OPTION__: MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL,
       __MXU_WEBHOOK_OPTION__: MXU_WEBHOOK_OPTION_DEF_INTERNAL,
     },

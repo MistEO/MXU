@@ -224,6 +224,22 @@ export interface CaseItem {
   icon?: string;
   option?: string[];
   pipeline_override?: Record<string, unknown>;
+  /**
+   * MXU 扩展：选中该 case 时，将模板值写入指定的 input 选项（预设模板联动填充）。
+   * 用于「模板下拉 → 自动填充 url/headers/body 输入框，用户仍可手改」的场景。
+   */
+  preset_apply?: {
+    /** 目标 input 选项的 optionKey（如 '__MXU_WEBHOOK_OPTION__'） */
+    optionKey: string;
+    /** 要写入的字段名 → 值 */
+    values: Record<string, string>;
+    /**
+     * 保留字段列表。提供时启用「全量覆盖」模式：目标 input 选项的除 preserve 之外
+     * 的所有字段都用 values 覆盖（模板未提供的字段清空）；preserve 中的字段保留现有值。
+     * 未提供时回退为「浅合并」：仅覆盖 values 中出现的字段。
+     */
+    preserve?: string[];
+  };
 }
 
 export interface InputItem {

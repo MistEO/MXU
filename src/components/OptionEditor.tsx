@@ -797,6 +797,46 @@ export function OptionEditor({
               type: 'select',
               caseName: next,
             });
+            // MXU 扩展：预设模板联动填充（preset_apply）——选中模板 case 时，
+            // 把模板值写入目标 input 选项，用户仍可手改。
+            // 提供了 preserve 时启用「全量覆盖」：除 preserve 字段外全部用模板值覆盖
+            // （模板未提供的字段清空），preserve 字段保留现有值；未提供 preserve 时浅合并。
+            if (isMxuOption && optionDef.type === 'select') {
+              const caseDef = optionDef.cases.find((c) => c.name === next);
+              const preset = caseDef?.preset_apply;
+              if (preset) {
+                const targetOption = findMxuOptionByKey(preset.optionKey);
+                if (targetOption?.type === 'input') {
+                  const existing = allOptionValues[preset.optionKey];
+                  const existingValues =
+                    existing && existing.type === 'input' ? existing.values : {};
+                  let nextValues: Record<string, string>;
+                  if (preset.preserve) {
+                    nextValues = {};
+                    for (const input of targetOption.inputs) {
+                      if (preset.preserve.includes(input.name)) {
+                        nextValues[input.name] = existingValues[input.name] ?? '';
+                      } else {
+                        nextValues[input.name] = preset.values[input.name] ?? '';
+                      }
+                    }
+                  } else {
+                    nextValues = { ...existingValues, ...preset.values };
+                  }
+                  if (globalScope) {
+                    setGlobalOptionValue(preset.optionKey, {
+                      type: 'input',
+                      values: nextValues,
+                    });
+                  } else {
+                    setTaskOptionValue(instanceId, taskId, preset.optionKey, {
+                      type: 'input',
+                      values: nextValues,
+                    });
+                  }
+                }
+              }
+            }
           }}
         />
       </div>

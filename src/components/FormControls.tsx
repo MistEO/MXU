@@ -154,6 +154,48 @@ export function TextInput({
   );
 }
 
+// ============ TextAreaInput 多行文本输入框（纯输入框，无标签） ============
+
+interface TextAreaInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  hasError?: boolean;
+  className?: string;
+  rows?: number;
+}
+
+export function TextAreaInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  hasError,
+  className,
+  rows = 3,
+}: TextAreaInputProps) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      rows={rows}
+      className={clsx(
+        'px-3 py-1.5 text-sm rounded-md border resize-y',
+        'bg-bg-secondary text-text-primary font-mono',
+        'focus:outline-none focus:ring-1',
+        disabled && 'opacity-60 cursor-not-allowed',
+        hasError
+          ? 'border-error focus:border-error focus:ring-error/20'
+          : 'border-border focus:border-accent focus:ring-accent/20',
+        className,
+      )}
+    />
+  );
+}
+
 // ============ TextField 文本字段（带标签和提示） ============
 
 interface TextFieldProps extends BaseFieldProps {

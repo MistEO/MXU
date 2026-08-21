@@ -438,9 +438,13 @@ const collectOptionOverrides = (
   ) {
     const inputDefs =
       optionDef.type === 'hotkey' ? optionDef.hotkeys || [] : optionDef.inputs || [];
+    // MXU 扩展：模板字段（如 webhook 的 body）值内部的占位符保留给后端运行时渲染，
+    // 前端只整体嵌入，避免替换扫到模板值内部造成 JSON 转义破坏。
+    const templateDefs = inputDefs.filter((i) => i.template);
+    const normalDefs = inputDefs.filter((i) => !i.template);
     let overrideStr = JSON.stringify(optionDef.pipeline_override);
 
-    for (const inputDef of inputDefs) {
+    for (const inputDef of normalDefs) {
       const inputName = inputDef.name;
       const inputVal = optionValue.values[inputName] ?? inputDef.default ?? '';
 
@@ -497,6 +501,26 @@ const collectOptionOverrides = (
         // 兜底替换未加引号的占位符（极少数写法）
         overrideStr = overrideStr.replace(placeholderRegex, escapedStringVal);
       }
+    }
+
+    // MXU 扩展：模板字段最后整体嵌入为 JSON 字符串字面量，
+    // 其值内部的 {title}/{content}/{time} 等占位符原样保留，由后端 Custom Action 渲染。
+    for (const inputDef of templateDefs) {
+      const inputName = inputDef.name;
+      const inputVal = optionValue.values[inputName] ?? inputDef.default ?? '';
+      const placeholder = `{${inputName}}`;
+      const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const stringVal = inputVal || '';
+      // 带引号占位符（标准写法）：整体替换为 JSON 字符串字面量
+      overrideStr = overrideStr.replace(
+        new RegExp(`"${escapedPlaceholder}"`, 'g'),
+        JSON.stringify(stringVal),
+      );
+      // 兜底替换未加引号的占位符
+      overrideStr = overrideStr.replace(
+        new RegExp(escapedPlaceholder, 'g'),
+        JSON.stringify(stringVal).slice(1, -1),
+      );
     }
 
     try {

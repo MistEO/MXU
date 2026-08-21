@@ -17,7 +17,14 @@ import {
 } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
-import { SwitchButton, TextInput, FileInput, TimeInput, HotkeyInput } from './FormControls';
+import {
+  SwitchButton,
+  TextInput,
+  TextAreaInput,
+  FileInput,
+  TimeInput,
+  HotkeyInput,
+} from './FormControls';
 import { Tooltip } from './ui/Tooltip';
 
 /** 判断 switch 类型的选项是否有子选项 */
@@ -338,6 +345,15 @@ function InputField({
             value={value}
             onChange={onChange}
             disabled={disabled}
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
+          />
+        ) : input.input_type === 'textarea' ? (
+          <TextAreaInput
+            value={value}
+            onChange={onChange}
+            placeholder={inputPlaceholder}
+            disabled={disabled}
+            hasError={!!validationError}
             className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : (

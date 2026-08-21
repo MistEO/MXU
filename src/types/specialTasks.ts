@@ -306,7 +306,7 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   name: MXU_WEBHOOK_TASK_NAME,
   label: 'specialTask.webhook.label',
   entry: MXU_WEBHOOK_ENTRY,
-  option: ['__MXU_WEBHOOK_OPTION__'],
+  option: ['__MXU_WEBHOOK_METHOD_OPTION__', '__MXU_WEBHOOK_OPTION__'],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       action: 'Custom',
@@ -316,7 +316,38 @@ const MXU_WEBHOOK_TASK_DEF_INTERNAL: TaskItem = {
   },
 };
 
-// MXU_WEBHOOK 输入选项定义（URL）
+// MXU_WEBHOOK 请求方法下拉选项定义（GET / POST）
+const MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL: SelectOption = {
+  type: 'select',
+  label: 'specialTask.webhook.methodLabel',
+  cases: [
+    {
+      name: 'GET',
+      label: 'specialTask.webhook.methodGet',
+      pipeline_override: {
+        [MXU_WEBHOOK_ENTRY]: {
+          custom_action_param: {
+            method: 'GET',
+          },
+        },
+      },
+    },
+    {
+      name: 'POST',
+      label: 'specialTask.webhook.methodPost',
+      pipeline_override: {
+        [MXU_WEBHOOK_ENTRY]: {
+          custom_action_param: {
+            method: 'POST',
+          },
+        },
+      },
+    },
+  ],
+  default_case: 'GET',
+};
+
+// MXU_WEBHOOK 输入选项定义（URL / Headers / Body 模板 / 占位符数据源）
 const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
   type: 'input',
   label: 'specialTask.webhook.optionLabel',
@@ -328,11 +359,47 @@ const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
       pipeline_type: 'string',
       placeholder: 'specialTask.webhook.urlPlaceholder',
     },
+    {
+      name: 'headers',
+      label: 'specialTask.webhook.headersLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'textarea',
+      placeholder: 'specialTask.webhook.headersPlaceholder',
+    },
+    {
+      name: 'body',
+      label: 'specialTask.webhook.bodyLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'textarea',
+      placeholder: 'specialTask.webhook.bodyPlaceholder',
+      template: true,
+    },
+    {
+      name: 'title',
+      label: 'specialTask.webhook.titleLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhook.titlePlaceholder',
+    },
+    {
+      name: 'content',
+      label: 'specialTask.webhook.contentLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'textarea',
+      placeholder: 'specialTask.webhook.contentPlaceholder',
+    },
   ],
   pipeline_override: {
     [MXU_WEBHOOK_ENTRY]: {
       custom_action_param: {
         url: '{url}',
+        headers: '{headers}',
+        body: '{body}',
+        title: '{title}',
+        content: '{content}',
       },
     },
   },
@@ -609,6 +676,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     entry: MXU_WEBHOOK_ENTRY,
     taskDef: MXU_WEBHOOK_TASK_DEF_INTERNAL,
     optionDefs: {
+      __MXU_WEBHOOK_METHOD_OPTION__: MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL,
       __MXU_WEBHOOK_OPTION__: MXU_WEBHOOK_OPTION_DEF_INTERNAL,
     },
     iconName: 'Bell',

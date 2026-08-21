@@ -38,7 +38,7 @@ const MAX_OPTION_VALUE_LENGTH = 512;
 const summarizeInputValue = (
   value: string,
   pipelineType?: 'string' | 'int' | 'bool',
-  inputType?: 'text' | 'file' | 'time',
+  inputType?: 'text' | 'file' | 'time' | 'textarea',
 ): string => {
   const isSafeToReport =
     pipelineType === 'int' || pipelineType === 'bool' || (inputType === 'time' && !!value);

@@ -236,11 +236,18 @@ export interface InputItem {
   verify?: string;
   pattern_msg?: string;
   /**
-   * MXU 扩展：输入控件类型，'file' 会渲染文件选择器，'time' 会渲染时间选择器
+   * MXU 扩展：输入控件类型，'file' 会渲染文件选择器，'time' 会渲染时间选择器，
+   * 'textarea' 会渲染多行文本输入框
    */
-  input_type?: 'text' | 'file' | 'time';
+  input_type?: 'text' | 'file' | 'time' | 'textarea';
   /** MXU 扩展：输入框占位提示文本（i18n key） */
   placeholder?: string;
+  /**
+   * MXU 扩展：标记该字段值为「模板」。为 true 时，其值内部的其他占位符
+   * （如 `{title}`/`{content}`/`{time}`）不会被前端替换，而是原样传给后端
+   * 由 Custom Action 运行时渲染（避免 JSON 转义破坏结构）。
+   */
+  template?: boolean;
 }
 
 export interface SelectOption {

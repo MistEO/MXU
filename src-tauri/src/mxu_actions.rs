@@ -315,7 +315,8 @@ fn mxu_launch_action_fn(
 const MXU_WEBHOOK_ACTION: &str = "MXU_WEBHOOK_ACTION";
 
 /// MXU_WEBHOOK custom action 回调函数
-/// 从 custom_action_param 中读取 url，执行 HTTP GET 请求
+/// 从 custom_action_param 中读取 method/url/headers/body/title/content，
+/// 执行 HTTP GET/POST 请求（参考 MAA 外部通知的 Custom Webhook 机制）
 fn mxu_webhook_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -339,7 +340,73 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    info!("[MXU_WEBHOOK] Sending GET request to: {}", url);
+    let method = json
+        .get("method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("GET")
+        .to_uppercase();
+    let headers_raw = json
+        .get("headers")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let body_template = json
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let title = json
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let content = json
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    // 占位符替换：title/content 会作为 JSON 字符串字面量嵌入 body 模板，
+    // 需转义反斜杠、引号和换行，否则含这些字符的内容会破坏 JSON 结构；
+    // time 由本端生成，无特殊字符，无需转义。
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let body = body_template
+        .replace("{title}", &escape_json_string(&title))
+        .replace("{content}", &escape_json_string(&content))
+        .replace("{time}", &now);
+
+    // 解析自定义 Headers（每行一条，格式：名称: 值）
+    let mut header_map = reqwest::header::HeaderMap::new();
+    for line in headers_raw.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some((name, value)) = line.split_once(':') {
+            let name = name.trim();
+            let value = value.trim();
+            if let (Ok(n), Ok(v)) = (
+                reqwest::header::HeaderName::from_bytes(name.as_bytes()),
+                reqwest::header::HeaderValue::from_str(value),
+            ) {
+                header_map.insert(n, v);
+            } else {
+                warn!("[MXU_WEBHOOK] Invalid header line: {}", line);
+            }
+        } else {
+            warn!("[MXU_WEBHOOK] Invalid header line (missing ':'): {}", line);
+        }
+    }
+
+    let is_post = method == "POST";
+    // POST 且未显式指定 Content-Type 时，默认使用 application/json（对齐 MAA 行为）
+    if is_post && !header_map.contains_key(reqwest::header::CONTENT_TYPE) {
+        header_map.insert(
+            reqwest::header::CONTENT_TYPE,
+            reqwest::header::HeaderValue::from_str("application/json")
+                .expect("application/json is a valid header value"),
+        );
+    }
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -352,7 +419,19 @@ fn mxu_webhook_action_fn(
         }
     };
 
-    match client.get(&url).send() {
+    let mut request = if is_post {
+        client.post(&url)
+    } else {
+        client.get(&url)
+    };
+    request = request.headers(header_map);
+    if is_post {
+        request = request.body(body);
+    }
+
+    info!("[MXU_WEBHOOK] Sending {} request to: {}", method, url);
+
+    match request.send() {
         Ok(resp) => {
             let status = resp.status();
             info!("[MXU_WEBHOOK] Response status: {}", status);
@@ -368,6 +447,15 @@ fn mxu_webhook_action_fn(
             false
         }
     }
+}
+
+/// 转义嵌入 JSON 字符串字面量的特殊字符：反斜杠、引号；换行转为 \n 字面量，\r 丢弃。
+fn escape_json_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\r', "")
+        .replace('\n', "\\n")
 }
 
 // ============================================================================

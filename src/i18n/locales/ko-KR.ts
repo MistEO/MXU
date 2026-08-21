@@ -205,6 +205,18 @@ export default {
       templateWecom: '기업 위챗',
       templateHint: '프리셋 템플릿의 &lt;&gt; 플레이스홀더(예: &lt;key&gt;, &lt;bot_token&gt;)를 실제 값으로 바꾸세요',
     },
+    webhookLog: {
+      label: '🔔 WebHook 로그 알림',
+      optionLabel: '요청 설정',
+      optionDescription:
+        '작업 시작/성공/실패 시 자동 알림. 제목은 "APP명 알림", 내용은 "작업명: 상태"',
+      urlLabel: '요청 URL',
+      urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
+      headersLabel: '헤더',
+      headersPlaceholder: '한 줄에 하나, 형식: 이름: 값',
+      bodyLabel: '본문 (JSON 템플릿)',
+      bodyPlaceholder: '{title}, {content}, {time} 플레이스홀더 지원',
+    },
     killProc: {
       label: '⛔ 프로세스 종료',
       selfLabel: '자체 프로세스 종료',

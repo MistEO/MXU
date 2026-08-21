@@ -1079,6 +1079,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             continue;
           }
           const specialTask = getMxuSpecialTask(selectedTask.taskName);
+          // autoLogPush 特殊任务（如 WebHook 日志推送）仅作为配置载体，
+          // 不进入 MaaFramework 执行队列（推送逻辑在前端监听回调触发）
+          if (specialTask?.autoLogPush) {
+            continue;
+          }
           const taskDef =
             specialTask?.taskDef ||
             projectInterface?.task.find((t) => t.name === selectedTask.taskName);

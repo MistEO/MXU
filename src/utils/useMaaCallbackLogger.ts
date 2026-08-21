@@ -9,7 +9,8 @@ import { maaService, type MaaCallbackDetails } from '@/services/maaService';
 import { useAppStore, type LogType } from '@/stores/appStore';
 import { loggers } from '@/utils/logger';
 import i18n, { getInterfaceLangKey } from '@/i18n';
-import { getMxuSpecialTask } from '@/types/specialTasks';
+import { getMxuSpecialTask, MXU_WEBHOOK_LOG_ENTRY } from '@/types/specialTasks';
+import { pushTaskEvent } from '@/services/webhookLogPush';
 import { isTauri } from '@/utils/paths';
 import { isDesktopWindowControllerType } from '@/utils/controller';
 import * as wsService from '@/services/wsService';
@@ -491,6 +492,10 @@ function handleCallback(
           name: taskName || details.entry || '',
         }),
       });
+      // WebHook 日志推送：跳过日志推送任务自身，避免自触发
+      if (details.entry !== MXU_WEBHOOK_LOG_ENTRY) {
+        void pushTaskEvent(instanceId, taskName || details.entry || '', 'starting');
+      }
       break;
     }
 
@@ -510,6 +515,9 @@ function handleCallback(
           name: taskName || details.entry || '',
         }),
       });
+      if (details.entry !== MXU_WEBHOOK_LOG_ENTRY) {
+        void pushTaskEvent(instanceId, taskName || details.entry || '', 'succeeded');
+      }
       break;
     }
 
@@ -529,6 +537,9 @@ function handleCallback(
           name: taskName || details.entry || '',
         }),
       });
+      if (details.entry !== MXU_WEBHOOK_LOG_ENTRY) {
+        void pushTaskEvent(instanceId, taskName || details.entry || '', 'failed');
+      }
       break;
     }
 

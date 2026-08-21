@@ -209,6 +209,18 @@ export default {
       templateWecom: 'WeCom',
       templateHint: 'Replace the &lt;&gt; placeholders in the preset template (e.g. &lt;key&gt;, &lt;bot_token&gt;) with actual values',
     },
+    webhookLog: {
+      label: '🔔 WebHook Log Push',
+      optionLabel: 'Request Settings',
+      optionDescription:
+        'Automatically pushes on task start/success/failure; title = "{APP} notification", content = "{task}: {status}"',
+      urlLabel: 'Request URL',
+      urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
+      headersLabel: 'Headers',
+      headersPlaceholder: 'One per line, format: Name: Value',
+      bodyLabel: 'Body (JSON template)',
+      bodyPlaceholder: 'Supports {title}, {content}, {time} placeholders',
+    },
     killProc: {
       label: '⛔ Kill Process',
       selfLabel: 'Kill Self',

@@ -231,6 +231,14 @@ export interface CaseItem {
   preset_apply?: {
     /** 目标 input 选项的 optionKey（如 '__MXU_WEBHOOK_OPTION__'） */
     optionKey: string;
+    /**
+     * MXU 扩展：按字段名匹配目标 input 选项（替代 optionKey）。
+     * 提供时，会在当前任务已保存的选项值中查找「包含这些字段名的 input 选项」，
+     * 用于多个任务复用同一模板但使用不同选项 key 的场景
+     * （如 __MXU_WEBHOOK_OPTION__ 与 __MXU_WEBHOOK_LOG_OPTION__ 都含 url/headers/body）。
+     * 找不到匹配项时回退到 optionKey。
+     */
+    fields?: string[];
     /** 要写入的字段名 → 值 */
     values: Record<string, string>;
     /**

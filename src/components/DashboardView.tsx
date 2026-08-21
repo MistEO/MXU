@@ -253,6 +253,9 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
               // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
               if (isPretaskName(selectedTask.taskName)) return null;
               const specialTask = getMxuSpecialTask(selectedTask.taskName);
+              // autoLogPush 特殊任务（如 WebHook 日志推送）仅作为配置载体，
+              // 不进入 MaaFramework 执行队列（推送逻辑在前端监听回调触发）
+              if (specialTask?.autoLogPush) return null;
               const taskDef =
                 specialTask?.taskDef ||
                 projectInterface?.task.find((t) => t.name === selectedTask.taskName);

@@ -28,6 +28,7 @@ export interface MxuSpecialTaskDefinition {
     | 'Clock'
     | 'Zap'
     | 'Bell'
+    | 'BellRing'
     | 'Timer'
     | 'Pause'
     | 'Play'
@@ -38,6 +39,12 @@ export interface MxuSpecialTaskDefinition {
   iconColorClass: string;
   /** 是否绕过截图/识别流程的非视觉任务 */
   skipScreenshot: boolean;
+  /**
+   * MXU 扩展：是否开启「运行日志推送」。
+   * 为 true 时，前端在任务开始/成功/失败时会自动用该任务的 webhook 配置推送日志，
+   * title 取 APP 名 + "通知"，content 取任务名 + 状态。
+   */
+  autoLogPush?: boolean;
 }
 
 // MXU_SLEEP 特殊任务常量（保留向后兼容）
@@ -59,6 +66,11 @@ export const MXU_LAUNCH_ACTION = 'MXU_LAUNCH_ACTION';
 export const MXU_WEBHOOK_TASK_NAME = '__MXU_WEBHOOK__';
 export const MXU_WEBHOOK_ENTRY = 'MXU_WEBHOOK';
 export const MXU_WEBHOOK_ACTION = 'MXU_WEBHOOK_ACTION';
+
+// MXU_WEBHOOK_LOG 特殊任务常量（自动推送运行日志的 Webhook）
+export const MXU_WEBHOOK_LOG_TASK_NAME = '__MXU_WEBHOOK_LOG__';
+export const MXU_WEBHOOK_LOG_ENTRY = 'MXU_WEBHOOK_LOG';
+export const MXU_WEBHOOK_LOG_ACTION = 'MXU_WEBHOOK_LOG_ACTION';
 
 // MXU_NOTIFY 特殊任务常量
 export const MXU_NOTIFY_TASK_NAME = '__MXU_NOTIFY__';
@@ -333,6 +345,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateCustom',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: '',
           headers: '',
@@ -346,6 +359,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateDiscord',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: '',
           headers: '',
@@ -359,6 +373,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateServerChan',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           // 官方支持 JSON body：{"title":..., "desp":...}；sendkey 若为 sctp 前缀的 Server酱3
           // key，需把 url 换成 https://<uid>.push.ft07.com/send/<sendkey>.send
@@ -374,6 +389,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateTelegram',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://api.telegram.org/bot<bot_token>/sendMessage',
           headers: '',
@@ -387,6 +403,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateDingTalk',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://oapi.dingtalk.com/robot/send?access_token=<access_token>',
           headers: '',
@@ -400,6 +417,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateBark',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://api.day.app/push',
           headers: '',
@@ -413,6 +431,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateQmsg',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://qmsg.zendee.cn/jsend/<key>',
           headers: '',
@@ -426,6 +445,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateGotify',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://<server>/message',
           headers: 'X-Gotify-Key: <token>',
@@ -439,6 +459,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateKookChannel',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://www.kookapp.cn/api/v3/message/create',
           headers: 'Authorization: Bot <bot_token>',
@@ -452,6 +473,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateKookDirect',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://www.kookapp.cn/api/v3/direct-message/create',
           headers: 'Authorization: Bot <bot_token>',
@@ -465,6 +487,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateMeow',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://api.chuckfang.com/<nickname>',
           headers: '',
@@ -478,6 +501,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateNtfy',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://ntfy.sh/<topic>',
           headers: '',
@@ -491,6 +515,7 @@ const MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL: SelectOption = {
       label: 'specialTask.webhook.templateWecom',
       preset_apply: {
         optionKey: '__MXU_WEBHOOK_OPTION__',
+        fields: ['url', 'headers', 'body'],
         values: {
           url: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=<key>',
           headers: '',
@@ -588,6 +613,65 @@ const MXU_WEBHOOK_OPTION_DEF_INTERNAL: InputOption = {
         body: '{body}',
         title: '{title}',
         content: '{content}',
+      },
+    },
+  },
+};
+
+// MXU_WEBHOOK_LOG 任务定义（自动推送运行日志的 Webhook）
+// 复用 MXU_WEBHOOK 的模板/方法/输入选项，但 title/content 由前端自动填充（autoLogPush）。
+// 该任务本身不执行 custom_action（无画面逻辑），仅作为「运行日志推送」的配置载体。
+const MXU_WEBHOOK_LOG_TASK_DEF_INTERNAL: TaskItem = {
+  name: MXU_WEBHOOK_LOG_TASK_NAME,
+  label: 'specialTask.webhookLog.label',
+  entry: MXU_WEBHOOK_LOG_ENTRY,
+  option: ['__MXU_WEBHOOK_TEMPLATE_OPTION__', '__MXU_WEBHOOK_METHOD_OPTION__', '__MXU_WEBHOOK_LOG_OPTION__'],
+  pipeline_override: {
+    [MXU_WEBHOOK_LOG_ENTRY]: {
+      action: 'Custom',
+      custom_action: MXU_WEBHOOK_LOG_ACTION,
+      target: MXU_NON_VISUAL_CUSTOM_TARGET,
+    },
+  },
+};
+
+// MXU_WEBHOOK_LOG 输入选项定义（URL / Headers / Body 模板，无 title/content，由自动填充）
+const MXU_WEBHOOK_LOG_OPTION_DEF_INTERNAL: InputOption = {
+  type: 'input',
+  label: 'specialTask.webhookLog.optionLabel',
+  description: 'specialTask.webhookLog.optionDescription',
+  inputs: [
+    {
+      name: 'url',
+      label: 'specialTask.webhookLog.urlLabel',
+      default: '',
+      pipeline_type: 'string',
+      placeholder: 'specialTask.webhookLog.urlPlaceholder',
+    },
+    {
+      name: 'headers',
+      label: 'specialTask.webhookLog.headersLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'textarea',
+      placeholder: 'specialTask.webhookLog.headersPlaceholder',
+    },
+    {
+      name: 'body',
+      label: 'specialTask.webhookLog.bodyLabel',
+      default: '',
+      pipeline_type: 'string',
+      input_type: 'textarea',
+      placeholder: 'specialTask.webhookLog.bodyPlaceholder',
+      template: true,
+    },
+  ],
+  pipeline_override: {
+    [MXU_WEBHOOK_LOG_ENTRY]: {
+      custom_action_param: {
+        url: '{url}',
+        headers: '{headers}',
+        body: '{body}',
       },
     },
   },
@@ -871,6 +955,20 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     iconName: 'Bell',
     iconColorClass: 'text-accent/80',
     skipScreenshot: true,
+  },
+  [MXU_WEBHOOK_LOG_TASK_NAME]: {
+    taskName: MXU_WEBHOOK_LOG_TASK_NAME,
+    entry: MXU_WEBHOOK_LOG_ENTRY,
+    taskDef: MXU_WEBHOOK_LOG_TASK_DEF_INTERNAL,
+    optionDefs: {
+      __MXU_WEBHOOK_TEMPLATE_OPTION__: MXU_WEBHOOK_TEMPLATE_OPTION_DEF_INTERNAL,
+      __MXU_WEBHOOK_METHOD_OPTION__: MXU_WEBHOOK_METHOD_OPTION_DEF_INTERNAL,
+      __MXU_WEBHOOK_LOG_OPTION__: MXU_WEBHOOK_LOG_OPTION_DEF_INTERNAL,
+    },
+    iconName: 'BellRing',
+    iconColorClass: 'text-accent/80',
+    skipScreenshot: true,
+    autoLogPush: true,
   },
 };
 

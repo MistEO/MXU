@@ -805,9 +805,20 @@ export function OptionEditor({
               const caseDef = optionDef.cases.find((c) => c.name === next);
               const preset = caseDef?.preset_apply;
               if (preset) {
-                const targetOption = findMxuOptionByKey(preset.optionKey);
+                // 解析目标选项 key：优先按字段名匹配当前任务的 input 选项，
+                // 找不到时回退到 preset.optionKey
+                let targetOptionKey = preset.optionKey;
+                if (preset.fields && preset.fields.length > 0) {
+                  const matched = Object.keys(allOptionValues).find((key) => {
+                    const v = allOptionValues[key];
+                    if (!v || v.type !== 'input') return false;
+                    return preset.fields!.every((f) => f in v.values);
+                  });
+                  if (matched) targetOptionKey = matched;
+                }
+                const targetOption = findMxuOptionByKey(targetOptionKey);
                 if (targetOption?.type === 'input') {
-                  const existing = allOptionValues[preset.optionKey];
+                  const existing = allOptionValues[targetOptionKey];
                   const existingValues =
                     existing && existing.type === 'input' ? existing.values : {};
                   let nextValues: Record<string, string>;
@@ -824,12 +835,12 @@ export function OptionEditor({
                     nextValues = { ...existingValues, ...preset.values };
                   }
                   if (globalScope) {
-                    setGlobalOptionValue(preset.optionKey, {
+                    setGlobalOptionValue(targetOptionKey, {
                       type: 'input',
                       values: nextValues,
                     });
                   } else {
-                    setTaskOptionValue(instanceId, taskId, preset.optionKey, {
+                    setTaskOptionValue(instanceId, taskId, targetOptionKey, {
                       type: 'input',
                       values: nextValues,
                     });

@@ -207,6 +207,18 @@ export default {
       templateWecom: '企業微信',
       templateHint: 'プリセットテンプレート内の &lt;&gt; プレースホルダー（例：&lt;key&gt;、&lt;bot_token&gt;）を実際の値に置き換えてください',
     },
+    webhookLog: {
+      label: '🔔 WebHook ログ通知',
+      optionLabel: 'リクエスト設定',
+      optionDescription:
+        'タスク開始/成功/失敗時に自動通知。タイトルは「APP名通知」、内容は「タスク名：状態」',
+      urlLabel: 'リクエストURL',
+      urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
+      headersLabel: 'ヘッダー',
+      headersPlaceholder: '1行につき1つ、形式：名前: 値',
+      bodyLabel: 'ボディ（JSONテンプレート）',
+      bodyPlaceholder: '{title}、{content}、{time} プレースホルダーをサポート',
+    },
     killProc: {
       label: '⛔ プロセス終了',
       selfLabel: '自身のプロセスを終了',

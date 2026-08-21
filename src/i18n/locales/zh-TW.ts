@@ -202,6 +202,18 @@ export default {
       templateWecom: '企業微信',
       templateHint: '請將預製模板中的 &lt;&gt; 佔位符（如 &lt;key&gt;、&lt;bot_token&gt;）替換為實際值',
     },
+    webhookLog: {
+      label: '🔔 WebHook 日誌推送',
+      optionLabel: '請求設定',
+      optionDescription:
+        '任務開始/成功/失敗時自動推送，標題自動取「APP名通知」，內容自動取「任務名：狀態」',
+      urlLabel: '請求地址',
+      urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
+      headersLabel: '請求頭',
+      headersPlaceholder: '每行一條，格式：名稱: 值',
+      bodyLabel: '請求體（JSON 模板）',
+      bodyPlaceholder: '支援 {title}、{content}、{time} 佔位符',
+    },
     killProc: {
       label: '⛔ 結束程序',
       selfLabel: '結束自身程序',

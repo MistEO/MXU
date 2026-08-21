@@ -331,6 +331,10 @@ fn mxu_webhook_action_impl(
         Ok(v) => v,
         Err(e) => {
             warn!("[MXU_WEBHOOK] Failed to parse param JSON: {}", e);
+            emit_webhook_failed(
+                app_handle,
+                &serde_json::json!({ "error": format!("参数 JSON 解析失败: {}", e) }),
+            );
             return false;
         }
     };
@@ -339,6 +343,10 @@ fn mxu_webhook_action_impl(
         Some(u) if !u.trim().is_empty() => u.to_string(),
         _ => {
             warn!("[MXU_WEBHOOK] Missing or empty 'url' parameter");
+            emit_webhook_failed(
+                app_handle,
+                &serde_json::json!({ "error": "请求地址为空，请检查 Webhook 任务配置" }),
+            );
             return false;
         }
     };
@@ -418,6 +426,10 @@ fn mxu_webhook_action_impl(
         Ok(c) => c,
         Err(e) => {
             log::error!("[MXU_WEBHOOK] Failed to build HTTP client: {}", e);
+            emit_webhook_failed(
+                app_handle,
+                &serde_json::json!({ "error": format!("HTTP 客户端创建失败: {}", e) }),
+            );
             return false;
         }
     };

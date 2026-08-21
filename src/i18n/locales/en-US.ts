@@ -242,6 +242,9 @@ export default {
         'No window was previously selected. Automatically matched "{{name}}". To change, select manually in Connection Settings — your choice will be remembered next time.',
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
+      alreadyRunning: 'Tasks are already running or a pre-action is still in progress',
+      noRunnableTasks: 'No runnable tasks; check the task definitions and entry configuration',
+      primaryTasksIncomplete: 'Primary tasks did not finish normally; trailing tasks were skipped',
       workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
       agentSpawnHintFileNotFound:
@@ -515,7 +518,6 @@ export default {
       hotkeyActionStart: 'Start tasks',
       hotkeyActionStop: 'Stop tasks',
       hotkeyStartSuccess: 'Started tasks via hotkey:',
-      hotkeyStartFailed: 'Failed to start tasks via hotkey',
       hotkeyStopSuccess: 'Stopped tasks via hotkey',
       hotkeyStopFailed: 'Failed to stop tasks via hotkey',
     },

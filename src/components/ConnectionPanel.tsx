@@ -27,6 +27,7 @@ import { getProcessNameFromPath } from '@/utils/paths';
 import {
   buildDesktopWindowControllerConfig,
   getDesktopWindowFilters,
+  findMatchingAdbDevice,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
 import { getInterfaceLangKey } from '@/i18n';
@@ -250,7 +251,7 @@ export function ConnectionPanel() {
     const savedDevice = activeInstance?.savedDevice;
     if (savedDevice?.adbDeviceName && cachedAdbDevices.length > 0) {
       // 从缓存中找到匹配的 ADB 设备
-      const matchedDevice = cachedAdbDevices.find((d) => d.name === savedDevice.adbDeviceName);
+      const matchedDevice = findMatchingAdbDevice(cachedAdbDevices, savedDevice);
       setSelectedAdbDevice(matchedDevice || null);
     } else {
       setSelectedAdbDevice(null);
@@ -400,15 +401,12 @@ export function ConnectionPanel() {
         setCachedAdbDevices(devices);
 
         // 自动连接策略：
-        // 1. 如果有保存的设备名称且能唯一匹配 → 自动连接该设备
-        // 2. 如果没有保存的设备名称（首次使用）且扫描到设备 → 自动连接第一个
+        // 1. 如果有保存的设备信息且能唯一匹配 → 自动连接该设备
+        // 2. 如果没有保存的设备信息（首次使用）且扫描到设备 → 自动连接第一个
         // 3. 如果有保存的设备但匹配不到 → 显示下拉框让用户选择
         let autoSelected: AdbDevice | null = null;
         if (savedDevice?.adbDeviceName) {
-          const matched = devices.filter((d) => d.name === savedDevice.adbDeviceName);
-          if (matched.length === 1) {
-            autoSelected = matched[0];
-          }
+          autoSelected = findMatchingAdbDevice(devices, savedDevice, true) || null;
         } else if (devices.length > 0) {
           // 没有保存设备时自动选择第一个
           autoSelected = devices[0];
@@ -780,8 +778,11 @@ export function ConnectionPanel() {
     setSelectedAdbDevice(device);
     setShowDeviceDropdown(false);
 
-    // 保存设备名称到实例配置
-    setInstanceSavedDevice(instanceId, { adbDeviceName: device.name });
+    // 保存设备名称和地址到实例配置。
+    setInstanceSavedDevice(instanceId, {
+      adbDeviceName: device.name,
+      adbDeviceAddress: device.address,
+    });
 
     // 自动连接
     setIsConnecting(true);
@@ -969,9 +970,9 @@ export function ConnectionPanel() {
         const devices = await maaService.findAdbDevices();
         setCachedAdbDevices(devices);
 
-        // 尝试匹配保存的设备名称
+        // 尝试匹配保存的设备信息
         if (savedDevice?.adbDeviceName) {
-          const matched = devices.find((d) => d.name === savedDevice.adbDeviceName);
+          const matched = findMatchingAdbDevice(devices, savedDevice);
           if (matched) {
             // 找到匹配的，自动连接
             setIsSearching(false);

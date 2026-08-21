@@ -34,6 +34,7 @@ import { normalizeAgentConfigs } from '@/types/interface';
 import {
   buildDesktopWindowControllerConfig,
   getDesktopWindowFilters,
+  findMatchingAdbDevice,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
 import { SchedulePanel } from './SchedulePanel';
@@ -540,7 +541,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                   if (controllerType === 'Adb') {
                     const devices = await maaService.findAdbDevices();
                     if (savedDevice?.adbDeviceName) {
-                      deviceFound = devices.some((d) => d.name === savedDevice.adbDeviceName);
+                      deviceFound = !!findMatchingAdbDevice(devices, savedDevice);
                     } else {
                       deviceFound = devices.length > 0;
                     }
@@ -694,13 +695,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           let targetType: 'device' | 'window' = 'device';
 
           if (canUseSavedDevice && savedDevice && controllerType) {
-            // 有保存的设备配置，按名称精确匹配
+            // 有保存的设备配置，地址优先匹配，兼容旧配置按名称匹配
             log.info(`实例 ${targetInstance.name}: 自动连接已保存的设备...`);
             onPhaseChange?.('searching');
 
             if (controllerType === 'Adb' && savedDevice.adbDeviceName) {
               const devices = await maaService.findAdbDevices();
-              const matchedDevice = devices.find((d) => d.name === savedDevice.adbDeviceName);
+              const matchedDevice = findMatchingAdbDevice(devices, savedDevice);
               if (!matchedDevice) {
                 log.warn(`实例 ${targetInstance.name}: 未找到设备 ${savedDevice.adbDeviceName}`);
                 return false;

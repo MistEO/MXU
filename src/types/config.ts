@@ -29,6 +29,8 @@ export interface SavedTask {
 export interface SavedDeviceInfo {
   // ADB 设备：保存设备名称
   adbDeviceName?: string;
+  // ADB 设备：保存设备地址（新配置优先，旧配置仍可按名称匹配）
+  adbDeviceAddress?: string;
   // Win32/MacOS/Gamepad：保存窗口名称
   windowName?: string;
   // WlRoots：保存 Wayland socket 路径

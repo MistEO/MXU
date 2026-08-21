@@ -206,7 +206,7 @@ export default {
       label: '🔔 WebHook 日誌推送',
       optionLabel: '請求設定',
       optionDescription:
-        '任務開始/成功/失敗時自動推送，標題自動取「APP名通知」，內容自動取「任務名：狀態」',
+        '請將預製模板中的 &lt;&gt; 佔位符（如 &lt;key&gt;、&lt;bot_token&gt;）替換為實際值',
       urlLabel: '請求地址',
       urlPlaceholder: '輸入完整的 URL（如 https://example.com/webhook?key=xxx）',
       headersLabel: '請求頭',

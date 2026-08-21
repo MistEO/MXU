@@ -174,7 +174,7 @@ export default {
       bodyPlaceholder: '알림 내용을 입력하세요',
     },
     webhook: {
-      label: '🔔 Webhook',
+      label: '🔔 Webhook 알림',
       optionLabel: '요청 설정',
       methodLabel: '요청 메서드',
       methodGet: 'GET',
@@ -209,7 +209,7 @@ export default {
       label: '🔔 WebHook 로그 알림',
       optionLabel: '요청 설정',
       optionDescription:
-        '작업 시작/성공/실패 시 자동 알림. 제목은 "APP명 알림", 내용은 "작업명: 상태"',
+        '프리셋 템플릿의 &lt;&gt; 플레이스홀더(예: &lt;key&gt;, &lt;bot_token&gt;)를 실제 값으로 바꾸세요',
       urlLabel: '요청 URL',
       urlPlaceholder: '전체 URL을 입력하세요 (예: https://example.com/webhook?key=xxx)',
       headersLabel: '헤더',

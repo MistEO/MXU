@@ -178,7 +178,7 @@ export default {
       bodyPlaceholder: 'Enter notification content',
     },
     webhook: {
-      label: '🔔 Webhook',
+      label: '🔔 	Webhook notification',
       optionLabel: 'Request Settings',
       methodLabel: 'Request Method',
       methodGet: 'GET',
@@ -213,7 +213,7 @@ export default {
       label: '🔔 WebHook Log Push',
       optionLabel: 'Request Settings',
       optionDescription:
-        'Automatically pushes on task start/success/failure; title = "{APP} notification", content = "{task}: {status}"',
+        'Replace the &lt;&gt; placeholders in the preset template (e.g. &lt;key&gt;, &lt;bot_token&gt;) with actual values',
       urlLabel: 'Request URL',
       urlPlaceholder: 'Enter full URL (e.g. https://example.com/webhook?key=xxx)',
       headersLabel: 'Headers',

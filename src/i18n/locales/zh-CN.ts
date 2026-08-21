@@ -171,7 +171,7 @@ export default {
       bodyPlaceholder: '输入通知内容',
     },
     webhook: {
-      label: '🔔 Webhook',
+      label: '🔔 Webhook 通知',
       optionLabel: '请求设置',
       methodLabel: '请求方法',
       methodGet: 'GET',
@@ -206,7 +206,7 @@ export default {
       label: '🔔 WebHook 日志推送',
       optionLabel: '请求设置',
       optionDescription:
-        '任务开始/成功/失败时自动推送，标题自动取「APP名通知」，内容自动取「任务名：状态」',
+        '请将预制模板中的 &lt;&gt; 占位符（如 &lt;key&gt;、&lt;bot_token&gt;）替换为实际值',
       urlLabel: '请求地址',
       urlPlaceholder: '输入完整的 URL（如 https://example.com/webhook?key=xxx）',
       headersLabel: '请求头',

@@ -176,7 +176,7 @@ export default {
       bodyPlaceholder: '通知内容を入力',
     },
     webhook: {
-      label: '🔔 Webhook',
+      label: '🔔 Webhook 通知',
       optionLabel: 'リクエスト設定',
       methodLabel: 'リクエストメソッド',
       methodGet: 'GET',
@@ -211,7 +211,7 @@ export default {
       label: '🔔 WebHook ログ通知',
       optionLabel: 'リクエスト設定',
       optionDescription:
-        'タスク開始/成功/失敗時に自動通知。タイトルは「APP名通知」、内容は「タスク名：状態」',
+        'プリセットテンプレート内の &lt;&gt; プレースホルダー（例：&lt;key&gt;、&lt;bot_token&gt;）を実際の値に置き換えてください',
       urlLabel: 'リクエストURL',
       urlPlaceholder: '完全なURLを入力（例：https://example.com/webhook?key=xxx）',
       headersLabel: 'ヘッダー',

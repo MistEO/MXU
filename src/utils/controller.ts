@@ -1,6 +1,10 @@
 import type { ControllerItem, ControllerType } from '@/types/interface';
 import type { ControllerConfig } from '@/types/maa';
 import {
+  LinuxInputMethod,
+  LinuxScreencapMethod,
+  parseLinuxInputMethod,
+  parseLinuxScreencapMethod,
   parseMacOSInputMethod,
   parseMacOSScreencapMethod,
   parseWin32InputMethod,
@@ -90,6 +94,7 @@ const WORKSTATION_UNLOCK_REQUIREMENT: Record<ControllerType, boolean> = {
   Win32: true,
   MacOS: false,
   WlRoots: false,
+  Linux: false,
   PlayCover: false,
   Gamepad: true,
 };
@@ -98,4 +103,142 @@ const WORKSTATION_UNLOCK_REQUIREMENT: Record<ControllerType, boolean> = {
 export function requiresUnlockedWorkstation(controllerType: ControllerType): boolean {
   // Fail closed for unexpected runtime values loaded from interface.json.
   return WORKSTATION_UNLOCK_REQUIREMENT[controllerType] ?? true;
+}
+
+/** Linux 控制器发现需求描述。 */
+export interface LinuxDiscoveryNeeds {
+  /** 截图或输入使用 Wlr 时需要 wayland socket */
+  needWlrSocket: boolean;
+  /** 截图 PipeWire + Gamescope 源时需要 gamescope 节点 */
+  needGamescopeNode: boolean;
+  /** 输入 Libei 时需要 EIS socket */
+  needEisSocket: boolean;
+  /** 截图 PipeWire + Portal 源：无需前端发现，连接时后端打开门户 */
+  isPortal: boolean;
+}
+
+/**
+ * 计算 Linux 控制器在运行时需要发现哪些设备。
+ */
+export function getLinuxDiscoveryNeeds(
+  controller: ControllerItem | undefined,
+): LinuxDiscoveryNeeds {
+  const linux = controller?.linux;
+  const screencap = parseLinuxScreencapMethod(linux?.screencap);
+  const input = parseLinuxInputMethod(linux?.input);
+  const pipewireSource = linux?.pipewire_source ?? 'Gamescope';
+
+  return {
+    needWlrSocket: screencap === LinuxScreencapMethod.Wlr || input === LinuxInputMethod.Wlr,
+    needGamescopeNode:
+      screencap === LinuxScreencapMethod.PipeWire && pipewireSource === 'Gamescope',
+    needEisSocket: input === LinuxInputMethod.Libei,
+    isPortal: screencap === LinuxScreencapMethod.PipeWire && pipewireSource === 'Portal',
+  };
+}
+
+/** 计算 Linux 控制器设备名称的输入（与 SavedDeviceInfo 的 Linux 字段兼容）。 */
+export interface LinuxDeviceNameSource {
+  wlrSocketPath?: string;
+  gamescopeDisplayNo?: number;
+}
+
+/**
+ * 计算 Linux 控制器的设备显示名：有什么设备输出什么设备，多设备用 ` + ` 拼接、同源去重。
+ *
+ * 映射规则：
+ * - 截图 wlr → `wayland-<n>`；pipewire(gamescope) → `gamescope-<n>`；pipewire(portal) → 传入的 portal 标签
+ * - 输入 wlr → `wayland-<n>`；libei → `gamescope-<n>`（EIS 所属的 gamescope 实例）；uinput → `/dev/uinput`
+ *
+ * 仅按当前配置实际需要的设备取字段：不依赖 gamescope 的配置（如 Portal+Uinput）会忽略
+ * 残留的 savedDevice.gamescopeDisplayNo，避免显示过期的 `gamescope-<n>`。
+ */
+export function getLinuxDeviceName(
+  controller: ControllerItem | undefined,
+  source: LinuxDeviceNameSource,
+  labels: { portal: string; linux: string } = { portal: 'portal', linux: 'Linux' },
+): string {
+  if (controller?.type !== 'Linux') return labels.linux;
+
+  const linux = controller.linux;
+  const screencap = parseLinuxScreencapMethod(linux?.screencap);
+  const input = parseLinuxInputMethod(linux?.input);
+  const pipewireSource = linux?.pipewire_source ?? 'Gamescope';
+  const { wlrSocketPath, gamescopeDisplayNo } = source;
+  const tokens: string[] = [];
+
+  // 截图设备（在前）
+  if (screencap === LinuxScreencapMethod.Wlr) {
+    if (wlrSocketPath) tokens.push(linuxWaylandToken(wlrSocketPath));
+  } else if (screencap === LinuxScreencapMethod.PipeWire) {
+    if (pipewireSource === 'Portal') {
+      tokens.push(labels.portal);
+    } else if (gamescopeDisplayNo !== undefined) {
+      tokens.push(`gamescope-${gamescopeDisplayNo}`);
+    }
+  }
+
+  // 输入设备（在后）
+  if (input === LinuxInputMethod.Wlr) {
+    if (wlrSocketPath) tokens.push(linuxWaylandToken(wlrSocketPath));
+  } else if (input === LinuxInputMethod.Libei) {
+    if (gamescopeDisplayNo !== undefined) tokens.push(`gamescope-${gamescopeDisplayNo}`);
+  } else if (input === LinuxInputMethod.UInput) {
+    tokens.push(UINPUT_DEVICE);
+  }
+
+  // 同源去重（gamescope 同时服务截图和 libei 输入时只显示一次）
+  const unique = Array.from(new Set(tokens));
+  return unique.length > 0 ? unique.join(' + ') : labels.linux;
+}
+
+/** 设备命名时 uinput 的字面路径。 */
+const UINPUT_DEVICE = '/dev/uinput';
+
+/**
+ * 将 wlr/wayland socket 路径/名称规范化为 `wayland-<n>` 显示名。
+ *
+ * 支持三种常见形态：`wayland-1`、`/run/user/1000/wayland-0`、`wayland-1.sock`。
+ * 解析不出尾号时回退为 basename。
+ */
+export function linuxWaylandToken(wlrSocketPath: string): string {
+  const base = wlrSocketPath.split('/').pop() ?? wlrSocketPath;
+  const cleaned = base
+    .replace(/\.sock$/, '')
+    .replace(/\.lock$/, '')
+    .replace(/\.\d+$/, '');
+  const m = cleaned.match(/(\d+)$/);
+  return m ? `wayland-${m[1]}` : base;
+}
+
+/**
+ * 构建 Linux 控制器运行时配置。
+ *
+ * portal 截图时无需传入 pw 节点信息：后端会在 connect 时打开 ScreenCast 门户并填充 FD/节点。
+ */
+export function buildLinuxControllerConfig(
+  controller: ControllerItem | undefined,
+  discovery: {
+    wlrSocketPath?: string;
+    pwNodeId?: number;
+    eisSocketPath?: string;
+    uinputScreenWidth?: number;
+    uinputScreenHeight?: number;
+  },
+): ControllerConfig {
+  const linux = controller?.linux;
+
+  return {
+    type: 'Linux',
+    screencap_method: parseLinuxScreencapMethod(linux?.screencap),
+    input_method: parseLinuxInputMethod(linux?.input),
+    pipewire_source: linux?.pipewire_source ?? 'Gamescope',
+    wlr_socket_path: discovery.wlrSocketPath,
+    pw_node_id: discovery.pwNodeId,
+    eis_socket_path: discovery.eisSocketPath,
+    uinput_screen_width: discovery.uinputScreenWidth,
+    uinput_screen_height: discovery.uinputScreenHeight,
+    use_win32_vk_code: linux?.use_win32_vk_code ?? false,
+    display_short_side: controller?.display_short_side,
+  };
 }

@@ -389,6 +389,10 @@ export default {
     adb: 'Android Device',
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: 'Width (px)',
+    uinputHeight: 'Height (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS Window',
     macosPermissionsRequired:
@@ -399,6 +403,7 @@ export default {
     macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
     macosSystemVersionDetectionFailed:
       'The current macOS version could not be detected. Check the logs for details.',
+    linuxVersionRequired: 'The Linux controller requires MaaFramework v5.13.0-beta.3 or later.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',

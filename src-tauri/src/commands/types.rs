@@ -60,6 +60,14 @@ pub struct Win32Window {
     pub window_name: String,
 }
 
+/// gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GamescopeInstance {
+    pub display_no: u32,
+    pub pipewire_node_id: u32,
+    pub eis_socket_path: String,
+}
+
 /// 控制器类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "type")]
@@ -114,6 +122,31 @@ pub enum ControllerConfig {
     /// 空 controller：截图返回纯黑图、输入 no-op。
     /// 用于在游戏未连接/已关闭时执行不依赖游戏画面的 MXU 特殊任务。
     Dummy {
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
+    /// Linux 原生控制器（截图：Wlr/PipeWire，输入：Wlr/UInput/Libei）
+    Linux {
+        screencap_method: u64,
+        input_method: u64,
+        #[serde(default)]
+        pipewire_source: Option<String>,
+        #[serde(default)]
+        wlr_socket_path: Option<String>,
+        #[serde(default)]
+        pw_socket_fd: Option<i32>,
+        #[serde(default)]
+        pw_node_id: Option<u32>,
+        #[serde(default)]
+        uinput_path: Option<String>,
+        #[serde(default)]
+        uinput_screen_width: Option<i32>,
+        #[serde(default)]
+        uinput_screen_height: Option<i32>,
+        #[serde(default)]
+        eis_socket_path: Option<String>,
+        #[serde(default)]
+        use_win32_vk_code: Option<bool>,
         #[serde(default)]
         display_short_side: Option<i32>,
     },
@@ -197,6 +230,7 @@ pub struct AllInstanceStates {
     pub cached_adb_devices: Vec<AdbDevice>,
     pub cached_win32_windows: Vec<Win32Window>,
     pub cached_wlroots_sockets: Vec<String>,
+    pub cached_gamescope_instances: Vec<GamescopeInstance>,
 }
 
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
@@ -322,6 +356,10 @@ pub struct MaaState {
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
     /// 缓存的 WlRoots socket 列表（全局共享）
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
+    /// 缓存的 gamescope 实例列表（全局共享）
+    pub cached_gamescope_instances: Mutex<Vec<GamescopeInstance>>,
+    /// Portal ScreenCast 会话的 restore token（仅存内存，不落盘）
+    pub portal_restore_token: Mutex<Option<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）
     pub log_buffer: Mutex<LogBuffer>,
     /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）

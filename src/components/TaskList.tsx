@@ -49,6 +49,10 @@ import { isPretaskName } from '@/types/pretasks';
 import { loggers } from '@/utils/logger';
 import { toast } from 'sonner';
 import clsx from 'clsx';
+import {
+  getAllMxuSpecialTasks,
+  getAllMxuSpecialTasksOptions,
+} from '@/types/specialTasks.ts';
 
 /** 单个预设卡片 */
 function PresetCard({ preset, onApply }: { preset: PresetItem; onApply: () => void }) {
@@ -121,9 +125,14 @@ function useImportConfigActions(instanceId: string) {
 
       const { tabName, payload } = result;
 
+      const specialTaskDefs = getAllMxuSpecialTasks().map((t) => t.taskDef);
+      const specialTaskOptions = getAllMxuSpecialTasksOptions();
+      const mergedDefs = [...projectInterface.task, ...specialTaskDefs];
+      const mergedOptions = { ...projectInterface.option, ...specialTaskOptions };
+
       const importedTasks = payload.selectedTasks
         .map((task) => {
-          const taskDef = projectInterface.task.find((t) => t.name === task.taskName);
+          const taskDef = mergedDefs.find((t) => t.name === task.taskName);
           if (!taskDef) {
             loggers.config.warn(
               `导入标签页配置时，任务 "${task.taskName}" 在当前 Project Interface 中不存在，已跳过`,
@@ -132,11 +141,11 @@ function useImportConfigActions(instanceId: string) {
           }
 
           const defaultValues =
-            taskDef.option && projectInterface.option
-              ? initializeAllOptionValues(taskDef.option, projectInterface.option)
+            taskDef.option && mergedOptions
+              ? initializeAllOptionValues(taskDef.option, mergedOptions)
               : {};
-          const cleanedValues = projectInterface.option
-            ? sanitizeOptionValues(task.optionValues, projectInterface.option)
+          const cleanedValues = mergedOptions
+            ? sanitizeOptionValues(task.optionValues, mergedOptions)
             : {};
 
           return {

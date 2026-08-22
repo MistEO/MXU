@@ -678,6 +678,20 @@ export function getAllMxuSpecialTasks(): MxuSpecialTaskDefinition[] {
 }
 
 /**
+ * 获取所有 MXU 特殊任务参数列表
+ * @returns 特殊任务参数记录
+ */
+export function getAllMxuSpecialTasksOptions() : Record<string, OptionDefinition> {
+  let rec: Record<string, OptionDefinition> = {};
+  getAllMxuSpecialTasks().forEach(specialTask => {
+    Object.entries(specialTask.optionDefs).forEach((t)=>{
+      rec[t[0]]=t[1]
+    })
+  })
+  return rec;
+}
+
+/**
  * 判断是否应跳过截图/识别流程
  * @param taskName 任务名称
  */

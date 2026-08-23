@@ -331,9 +331,12 @@ const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
   },
 };
 
+// Linux 控制器复用 WlRoots 的 evdev 键码表（use_win32_vk_code=false 时）
+HOTKEY_KEY_MAP.Linux = HOTKEY_KEY_MAP.WlRoots;
+
 /**
  * 将单个按键名（如 "A"、"F1"、"Ctrl"）转换为指定控制器类型的虚拟键码。
- * 注意：这里按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，而非控制器 name。
+ * 注意：这里按控制器 **类型**（Win32 / MacOS / Adb / WlRoots / Linux）查表，而非控制器 name。
  * 未知按键返回 null。
  */
 const convertHotkeyKeyName = (keyName: string, controllerType?: string): number | null => {
@@ -531,10 +534,16 @@ export const generateTaskPipelineOverride = (
 
   if (!projectInterface) return '[]';
 
-  // 热键键码按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，这里先由 name 解析出 type
-  const controllerType = controllerName
-    ? projectInterface.controller.find((c) => c.name === controllerName)?.type
+  // 热键键码按控制器 **类型**（Win32 / MacOS / Adb / WlRoots）查表，这里先由 name 解析出 type。
+  // WlRoots 可配置接受 Win32 VK 或原始 evdev 键码，热键 override 必须与控制器配置一致。
+  const controllerDef = controllerName
+    ? projectInterface.controller.find((c) => c.name === controllerName)
     : undefined;
+  const controllerType =
+    (controllerDef?.type === 'WlRoots' && controllerDef.wlroots?.use_win32_vk_code) ||
+    (controllerDef?.type === 'Linux' && controllerDef.linux?.use_win32_vk_code)
+      ? 'Win32'
+      : controllerDef?.type;
 
   const overrides: Record<string, unknown>[] = [];
   const taskDef = projectInterface.task.find((t) => t.name === selectedTask.taskName);

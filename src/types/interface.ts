@@ -136,7 +136,14 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'MacOS' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType =
+  | 'Adb'
+  | 'Win32'
+  | 'MacOS'
+  | 'WlRoots'
+  | 'Linux'
+  | 'PlayCover'
+  | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -156,6 +163,7 @@ export interface ControllerItem {
   win32?: Win32Config;
   macos?: MacOSConfig;
   wlroots?: WlRootsConfig;
+  linux?: LinuxConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
 }
@@ -177,6 +185,13 @@ export interface MacOSConfig {
 export interface WlRootsConfig {
   wlr_socket_path?: string;
   use_win32_vk_code?: boolean;
+}
+
+export interface LinuxConfig {
+  screencap?: string;
+  input?: string;
+  use_win32_vk_code?: boolean;
+  pipewire_source?: 'Gamescope' | 'Portal';
 }
 
 export interface PlayCoverConfig {
@@ -320,6 +335,8 @@ export interface SelectedTask {
   enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
+  /** 各选项的子选项折叠状态（optionKey → 是否折叠）；缺省 = 展开，向后兼容 */
+  collapsedOptions?: Record<string, boolean>;
 }
 
 export type OptionValue =
@@ -350,6 +367,11 @@ export interface SavedDeviceInfo {
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
+  /** Linux 控制器：gamescope display 号（gamescope-<n> 的 n，节点 id 会随会话变化，故存 display 号） */
+  gamescopeDisplayNo?: number;
+  /** Linux 控制器：uinput 输入的物理屏幕分辨率（宽/高） */
+  uinputScreenWidth?: number;
+  uinputScreenHeight?: number;
   /** Win32 连接窗口对应的进程可执行文件路径 */
   connectedProgramPath?: string;
 }
@@ -419,8 +441,14 @@ export interface PresetItem {
 export type FocusDisplayChannel = 'log' | 'toast' | 'notification' | 'dialog' | 'modal';
 
 export interface FocusTemplateObject {
-  content: string;
+  /** 展示内容；缺省时该消息不展示，仅用于配置 trace */
+  content?: string;
   display?: FocusDisplayChannel | FocusDisplayChannel[];
+  /**
+   * v2.9.1: 是否把本次节点结果上传到遥测平台。
+   * 缺省时仅 `Node.PipelineNode.Failed` 视为 true，其余消息视为 false。
+   */
+  trace?: boolean;
 }
 
 export type FocusTemplate = string | FocusTemplateObject;

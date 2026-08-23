@@ -29,15 +29,24 @@ import {
   resolveCompatTaskDef,
 } from '@/types/pretasks';
 import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
-import type { TaskConfig, ControllerConfig } from '@/types/maa';
+import type { TaskConfig, ControllerConfig, GamescopeInstance } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import {
   buildDesktopWindowControllerConfig,
+  buildLinuxControllerConfig,
   getDesktopWindowFilters,
+  getLinuxDeviceName,
+  getLinuxDiscoveryNeeds,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
 import { SchedulePanel } from './SchedulePanel';
-import type { Instance, TaskItem, PretaskItem } from '@/types/interface';
+import type {
+  Instance,
+  TaskItem,
+  PretaskItem,
+  ControllerItem,
+  SavedDeviceInfo,
+} from '@/types/interface';
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { PermissionModal } from './toolbar/PermissionModal';
@@ -54,6 +63,73 @@ import { buildPiEnvVars } from '@/utils/piEnv';
 
 const log = loggers.task;
 const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
+
+/**
+ * 发现 Linux 控制器所需的全部设备并构建运行时配置。
+ * savedDevice 存在时按保存值精确匹配，否则自动选择第一个。
+ */
+async function discoverLinuxControllerConfig(
+  controller: ControllerItem,
+  savedDevice: SavedDeviceInfo | undefined,
+  labels: { portal: string; linux: string },
+): Promise<{ config: ControllerConfig; deviceName: string } | null> {
+  const needs = getLinuxDiscoveryNeeds(controller);
+
+  let wlrPath: string | undefined;
+  let gamescopeInstance: GamescopeInstance | undefined;
+
+  if (needs.needWlrSocket) {
+    const sockets = await maaService.findWlrootsSockets();
+    const matched = savedDevice?.wlrSocketPath
+      ? sockets.find((s) => s === savedDevice.wlrSocketPath)
+      : sockets[0];
+    if (!matched) {
+      log.warn(
+        `未找到 WlRoots socket${savedDevice?.wlrSocketPath ? ` (${savedDevice.wlrSocketPath})` : ''}`,
+      );
+      return null;
+    }
+    wlrPath = matched;
+  }
+  if (needs.needGamescopeNode || needs.needEisSocket) {
+    const instances = await maaService.findGamescopeInstances();
+    const eligible = instances.filter((inst) => {
+      if (needs.needGamescopeNode && inst.pipewire_node_id === 0) return false;
+      if (needs.needEisSocket && !inst.eis_socket_path) return false;
+      return true;
+    });
+    const matched =
+      savedDevice?.gamescopeDisplayNo !== undefined
+        ? eligible.find((i) => i.display_no === savedDevice.gamescopeDisplayNo)
+        : eligible[0];
+    if (!matched) {
+      log.warn(
+        `未找到 gamescope 实例${savedDevice?.gamescopeDisplayNo !== undefined ? ` (gamescope-${savedDevice.gamescopeDisplayNo})` : ''}`,
+      );
+      return null;
+    }
+    gamescopeInstance = matched;
+  }
+
+  const config = buildLinuxControllerConfig(controller, {
+    wlrSocketPath: wlrPath,
+    pwNodeId: gamescopeInstance?.pipewire_node_id,
+    eisSocketPath: gamescopeInstance?.eis_socket_path || undefined,
+    uinputScreenWidth: savedDevice?.uinputScreenWidth,
+    uinputScreenHeight: savedDevice?.uinputScreenHeight,
+  });
+
+  const deviceName = getLinuxDeviceName(
+    controller,
+    {
+      wlrSocketPath: wlrPath,
+      gamescopeDisplayNo: gamescopeInstance?.display_no,
+    },
+    labels,
+  );
+
+  return { config, deviceName };
+}
 
 interface ToolbarProps {
   showAddPanel: boolean;
@@ -352,7 +428,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
-        // ADB、WlRoots 和 PlayCover 均可在锁屏时运行。
+        // ADB、Linux 和 PlayCover 均可在锁屏时运行。
         if (
           requiresUnlockedWorkstation(controller.type) &&
           (await maaService.isWorkstationLocked())
@@ -750,6 +826,18 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               };
               deviceName = savedDevice.playcoverAddress;
               targetType = 'device';
+            } else if (controllerType === 'Linux') {
+              const found = await discoverLinuxControllerConfig(controller, savedDevice, {
+                portal: t('controller.portal'),
+                linux: t('controller.linux'),
+              });
+              if (!found) {
+                log.warn(`实例 ${targetInstance.name}: 未找到 Linux 控制器所需设备`);
+                return false;
+              }
+              config = found.config;
+              deviceName = found.deviceName;
+              targetType = 'device';
             }
           } else if (!shouldUseDummyController && controllerType) {
             // 没有保存的设备配置，自动搜索并连接第一个结果
@@ -842,6 +930,29 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 message: t('taskList.autoConnect.needConfig'),
               });
               return false;
+            } else if (controllerType === 'Linux') {
+              const found = await discoverLinuxControllerConfig(controller, undefined, {
+                portal: t('controller.portal'),
+                linux: t('controller.linux'),
+              });
+              if (!found) {
+                log.warn(`实例 ${targetInstance.name}: 未搜索到 Linux 控制器所需设备`);
+                addLog(targetId, {
+                  type: 'error',
+                  message: t('taskList.autoConnect.noDeviceFound'),
+                });
+                return false;
+              }
+              config = found.config;
+              deviceName = found.deviceName;
+              targetType = 'device';
+              log.info(`实例 ${targetInstance.name}: 自动选择 Linux 设备: ${found.deviceName}`);
+              addLog(targetId, {
+                type: 'info',
+                message: t('taskList.autoConnect.autoSelectedDevice', {
+                  name: found.deviceName,
+                }),
+              });
             }
           }
 

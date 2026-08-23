@@ -123,7 +123,8 @@ export default {
     resetWindowLayout: '重置窗口布局',
     resetWindowLayoutHint: '将窗口大小恢复为默认值，并居中显示',
     autoClearLogsOnLaunch: '自动清理运行日志',
-    autoClearLogsOnLaunchHint: '每次启动项目时，自动清理运行日志并删除旧的日志文件',
+    autoClearLogsOnLaunchHint:
+      '每次启动项目时，自动清理运行日志，并删除旧的日志文件与 on_error、vision 目录下的调试截图',
   },
 
   // 特殊任务
@@ -345,6 +346,8 @@ export default {
     incompatibleResource: '不支持当前资源包',
     hotkeyPlaceholder: '点击录入快捷键',
     hotkeyCapturing: '按下快捷键...',
+    expandOptions: '展开子选项',
+    collapseOptions: '收起子选项',
   },
 
   // 预设配置
@@ -375,6 +378,10 @@ export default {
     adb: 'Android 设备',
     win32: 'Windows 窗口',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '宽 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 窗口',
     macosPermissionsRequired:
@@ -383,6 +390,7 @@ export default {
     macosVersionRequired: 'macOS 原生窗口控制器需要 MaaFramework v5.10.0-beta.1 或更高版本。',
     macosSystemVersionRequired: 'macOS 原生窗口控制器需要 macOS 14.0 或更高版本。',
     macosSystemVersionDetectionFailed: '无法识别当前 macOS 系统版本，请查看日志了解详情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更高版本。',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',
@@ -570,6 +578,12 @@ export default {
     restartLater: '稍后重启',
     restartNow: '立即重启',
     webServerAddress: 'Web 服务地址',
+  },
+
+  // 配置自愈提示
+  config: {
+    recoveredFromBackup: '配置文件已损坏，已自动恢复到 {{time}} 的备份',
+    recoveryFailed: '配置文件已损坏且没有可用备份，已重置为默认配置',
   },
 
   // 欢迎弹窗

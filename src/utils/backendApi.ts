@@ -16,12 +16,22 @@ export function setBackendPort(port: number): void {
 }
 
 export function getApiBase(): string {
-  // 正常情况：通过 Nginx 反向代理，用相对路径
+  // 已探测到后端直连端口：优先使用绝对 URL。
+  // 这是 tauri 生产模式的关键路径 —— tauri://localhost 下相对路径 /api 会 404
+  // （tauri 不代理 /api 到后端端口），只有浏览器 dev 模式（Vite proxy）相对路径才可用。
+  if (backendPort > 0) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const hostname = window.location.hostname || '127.0.0.1';
+    return `${protocol}//${hostname}:${backendPort}/api`;
+  }
+
+  // 浏览器 dev 模式 / 远程访问：通过代理相对路径或直连
   if (window.location.host) {
+    // dev 模式（Vite proxy）或后端已在同源反代下
     return '/api';
   }
 
-  // Fallback：直连后端
+  // Fallback：直连后端（file:// 或未设置 host）
   const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
   const hostname = window.location.hostname || '127.0.0.1';
   const port = backendPort || 12701;

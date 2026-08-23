@@ -126,7 +126,7 @@ export default {
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
-      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルを削除します',
+      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルと on_error・vision 内のデバッグスクリーンショットを削除します',
   },
 
   // 特殊タスク
@@ -351,6 +351,8 @@ export default {
     incompatibleResource: '現在のリソースパックに対応していません',
     hotkeyPlaceholder: 'クリックしてショートカットを記録',
     hotkeyCapturing: 'キーを押してください...',
+    expandOptions: '子オプションを展開',
+    collapseOptions: '子オプションを折りたたむ',
   },
 
   // プリセット
@@ -382,6 +384,10 @@ export default {
     adb: 'Android デバイス',
     win32: 'Windows ウィンドウ',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '幅 (px)',
+    uinputHeight: '高さ (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS ウィンドウ',
     macosPermissionsRequired:
@@ -394,6 +400,7 @@ export default {
       'macOS ネイティブウィンドウコントローラーには macOS 14.0 以降が必要です。',
     macosSystemVersionDetectionFailed:
       '現在の macOS バージョンを判定できませんでした。詳細はログを確認してください。',
+    linuxVersionRequired: 'Linux コントローラーには MaaFramework v5.13.0-beta.3 以降が必要です。',
     gamepad: 'ゲームパッド',
     connecting: '接続中...',
     connected: '接続済み',
@@ -590,6 +597,14 @@ export default {
     restartLater: '後で',
     restartNow: '今すぐ再起動',
     webServerAddress: 'Web サーバーアドレス',
+  },
+
+  // 設定の自動修復通知
+  config: {
+    recoveredFromBackup:
+      '設定ファイルが破損していたため、{{time}} のバックアップから自動的に復元しました',
+    recoveryFailed:
+      '設定ファイルが破損しており、利用可能なバックアップもないため、既定の設定にリセットしました',
   },
 
   // ウェルカムダイアログ

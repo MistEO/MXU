@@ -122,7 +122,8 @@ export default {
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌並刪除舊的日誌檔案',
+    autoClearLogsOnLaunchHint:
+      '每次啟動項目時，自動清理運行日誌，並刪除舊的日誌檔案與 on_error、vision 目錄下的除錯截圖',
   },
 
   // 特殊任務
@@ -341,6 +342,8 @@ export default {
     incompatibleResource: '不支援目前資源包',
     hotkeyPlaceholder: '點擊錄入快捷鍵',
     hotkeyCapturing: '按下快捷鍵...',
+    expandOptions: '展開子選項',
+    collapseOptions: '收起子選項',
   },
 
   // 預設設定
@@ -371,6 +374,10 @@ export default {
     adb: 'Android 裝置',
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '寬 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 視窗',
     macosPermissionsRequired:
@@ -379,6 +386,7 @@ export default {
     macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
     macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
     macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更新版本。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',
@@ -566,6 +574,12 @@ export default {
     restartLater: '稍後重啟',
     restartNow: '立即重啟',
     webServerAddress: 'Web 服務地址',
+  },
+
+  // 設定自我修復提示
+  config: {
+    recoveredFromBackup: '設定檔已損壞，已自動還原到 {{time}} 的備份',
+    recoveryFailed: '設定檔已損壞且沒有可用的備份，已重設為預設設定',
   },
 
   // 欢迎彈窗

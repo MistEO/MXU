@@ -18,6 +18,8 @@ const ZIP_EOCD_BYTES: u64 = 22;
 const ZIP_CENTRAL_DIR_FIXED_BYTES: u64 = 46;
 /// 保留最近 N 次导出（含本次），多余的会在每次导出完成后清理。
 const MAX_EXPORTS_TO_KEEP: usize = 10;
+/// 需要随日志一起清空的调试产物子目录（内容由 MaaFW 的 save_on_error / save_draw 写入）。
+const DEBUG_ARTIFACT_DIRS: [&str; 2] = ["on_error", "vision"];
 
 #[derive(Clone)]
 struct ExportEntry {
@@ -113,7 +115,7 @@ fn estimate_compressed_upper_bound(path: &Path, file_size: u64) -> u64 {
         .unwrap_or("")
         .to_lowercase();
     match ext.as_str() {
-        "png" | "jpg" | "jpeg" => file_size, // 已压缩，DEFLATE 无效
+        "png" | "jpg" | "jpeg" | "dmp" => file_size, // 已压缩或二进制，DEFLATE 无效
         "log" | "json" | "txt" | "toml" | "yaml" | "yml" | "xml" | "csv" => {
             file_size.saturating_div(4) // 实测 10-25x，4x 留有足够余量
         }
@@ -294,7 +296,38 @@ pub fn get_data_dir() -> Result<String, String> {
     Ok(data_dir.to_string_lossy().to_string())
 }
 
-/// 删除 debug 目录中的 .log 文件，可选择排除一个当前正在使用的日志文件
+/// 清空调试产物目录内容，保留目录本身。返回成功删除的条目数。
+///
+/// 保留目录本身是因为 MaaFW 的 save_on_error 直接往 `on_error/` 写文件，父目录缺失会写入失败。
+fn clear_debug_artifact_dir(dir: &Path) -> u64 {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            log::debug!("Failed to read debug dir [{}]: {}", dir.display(), e);
+            return 0;
+        }
+    };
+
+    let mut deleted = 0_u64;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let result = if path.is_dir() {
+            std::fs::remove_dir_all(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+
+        match result {
+            Ok(()) => deleted = deleted.saturating_add(1),
+            Err(e) => log::debug!("Failed to delete debug entry [{}]: {}", path.display(), e),
+        }
+    }
+
+    deleted
+}
+
+/// 删除 debug 目录中的 .log 文件，并清空 on_error/、vision/ 内的调试产物（保留这两个目录本身）。
+/// 可选择排除一个当前正在使用的日志文件。返回删除的文件与调试产物总数。
 #[tauri::command]
 pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String> {
     let debug_dir = get_app_data_dir()?.join("debug");
@@ -333,6 +366,14 @@ pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String>
             Ok(()) => deleted = deleted.saturating_add(1),
             Err(e) => log::debug!("Failed to delete log file [{}]: {}", path.display(), e),
         }
+    }
+
+    for dir_name in DEBUG_ARTIFACT_DIRS {
+        let artifact_dir = debug_dir.join(dir_name);
+        if !artifact_dir.is_dir() {
+            continue;
+        }
+        deleted = deleted.saturating_add(clear_debug_artifact_dir(&artifact_dir));
     }
 
     Ok(deleted)
@@ -555,7 +596,7 @@ fn export_logs_blocking(
 
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    // ─── 1. 收集常规文件（log / config / 子目录下的 log/json） ───
+    // ─── 1. 收集常规文件（log / dmp / config / 子目录下的 log/json/dmp） ───
     let mut regular_entries: Vec<ExportEntry> = Vec::new();
 
     let entries = std::fs::read_dir(&debug_dir).map_err(|e| format!("读取日志目录失败: {}", e))?;
@@ -564,7 +605,7 @@ fn export_logs_blocking(
         if !path.is_file() {
             continue;
         }
-        if path.extension().map(|e| e != "log").unwrap_or(true) {
+        if !has_extension(&path, &["log", "dmp"]) {
             continue;
         }
         let Some(archive_name) = path.file_name().map(|n| n.to_string_lossy().to_string()) else {
@@ -579,7 +620,10 @@ fn export_logs_blocking(
 
     let config_dir = data_dir.join("config");
     regular_entries.extend(collect_files_recursively(&config_dir, "config")?);
-    regular_entries.extend(collect_debug_subdir_files(&debug_dir, &["log", "json"])?);
+    regular_entries.extend(collect_debug_subdir_files(
+        &debug_dir,
+        &["log", "json", "dmp"],
+    )?);
 
     // ─── 2. 收集图片（on_error + vision，按 mtime 新→旧） ───
     let on_error_images = collect_debug_images(&debug_dir.join("on_error"), "on_error");

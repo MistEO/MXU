@@ -373,9 +373,10 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
     unsupported.add('MacOS');
     unsupported.add('PlayCover');
   }
-  // 非 Linux 系统不支持 WlRoots
+  // 非 Linux 系统不支持 WlRoots 和 Linux 控制器
   if (!isLinux) {
     unsupported.add('WlRoots');
+    unsupported.add('Linux');
   }
   return unsupported;
 }
@@ -386,6 +387,13 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
  * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
 function filterControllersByPlatform(pi: ProjectInterface, os: string): void {
+  // WlRoots 已废弃：仍保留兼容（类型合法），但打印 deprecated 提示
+  for (const c of pi.controller) {
+    if (c.type === 'WlRoots') {
+      log.warn(`[interface] 控制器 "${c.name}" 使用了已废弃的 WlRoots 类型，请迁移到 Linux 控制器`);
+    }
+  }
+
   const unsupported = getUnsupportedControllerTypes(os);
   if (unsupported.size === 0) return;
 
@@ -456,6 +464,18 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     filterControllersByPlatform(pi, backendOS);
 
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
+
+    // tauri 环境下后端 HTTP API（/api/*）走内置 axum web server（默认 12701），
+    // 但 getApiBase() 依赖 backendPort 才能返回绝对 URL（tauri://localhost 下相对 /api 不可达）。
+    // 这里显式设置端口（web server 未就绪时 get_web_server_port 返回 0，也回退默认端口），
+    // 确保后续 fetch(getApiBase()/...) 直连后端。
+    try {
+      const port = await invoke<number>('get_web_server_port');
+      setBackendPort(port > 0 ? port : 12701);
+    } catch {
+      setBackendPort(12701);
+    }
+
     return { interface: pi, translations, basePath, dataPath, backendOS, backendArch };
   }
 

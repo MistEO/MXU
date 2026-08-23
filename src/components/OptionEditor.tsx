@@ -5,7 +5,16 @@ import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolve
 import type { OptionValue, CaseItem, InputItem, OptionDefinition } from '@/types/interface';
 import { findMxuOptionByKey } from '@/types/specialTasks';
 import clsx from 'clsx';
-import { Info, AlertCircle, Loader2, FileText, Link, ChevronDown, Check } from 'lucide-react';
+import {
+  Info,
+  AlertCircle,
+  Loader2,
+  FileText,
+  Link,
+  ChevronDown,
+  Check,
+  ChevronRight,
+} from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
 import { SwitchButton, TextInput, FileInput, TimeInput, HotkeyInput } from './FormControls';
@@ -16,6 +25,43 @@ export function switchHasNestedOptions(optionDef: OptionDefinition): boolean {
   if (optionDef.type !== 'switch') return false;
   // SwitchOption 的 cases 是 [CaseItem, CaseItem]，始终有两个元素
   return optionDef.cases.some((c: CaseItem) => c.option && c.option.length > 0);
+}
+
+/** 子选项折叠箭头：复用任务标题的 ChevronRight 样式，位于开关/下拉框左侧 */
+function OptionCollapseArrow({
+  collapsed,
+  onToggle,
+  disabled = false,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // 所在行整体点击会切换开关/下拉框，必须阻止冒泡
+        e.stopPropagation();
+        onToggle();
+      }}
+      disabled={disabled}
+      aria-expanded={!collapsed}
+      aria-label={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
+      title={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
+      // ml-auto：吸收行内剩余空白（label 受 max-w-[60%] 限制无法全部吸收），
+      // 让箭头紧贴开关/下拉框，空隙只留在箭头左侧
+      className="p-1 rounded hover:bg-bg-hover flex-shrink-0 ml-auto disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <ChevronRight
+        className={clsx(
+          'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',
+          !collapsed && 'rotate-90',
+        )}
+      />
+    </button>
+  );
 }
 
 /** 异步加载图标组件 */
@@ -360,6 +406,14 @@ export function OptionEditor({
     () => instances.find((item) => item.id === instanceId),
     [instances, instanceId],
   );
+  // 子选项折叠状态：任务作用域存 store（随配置持久化）；全局作用域用本地 state 兜底
+  const collapsedOptions = useMemo(() => {
+    if (globalScope) return undefined;
+    const instance = instances.find((i) => i.id === instanceId);
+    const task = instance?.selectedTasks.find((t) => t.id === taskId);
+    return task?.collapsedOptions;
+  }, [globalScope, instances, instanceId, taskId]);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
 
   if (!optionDef) return null;
 
@@ -428,6 +482,17 @@ export function OptionEditor({
   const selectedCase = getSelectedCase();
   const nestedOptionKeys = selectedCase?.option || [];
 
+  // 当前选项的子选项是否处于折叠状态（缺省展开）
+  const isCollapsed = globalScope ? localCollapsed : !!collapsedOptions?.[optionKey];
+  const handleToggleCollapsed = () => {
+    if (effectiveDisabled) return;
+    if (globalScope) {
+      setLocalCollapsed((prev) => !prev);
+    } else {
+      useAppStore.getState().toggleOptionCollapsed(instanceId, taskId, optionKey);
+    }
+  };
+
   // Switch 类型
   if (optionDef.type === 'switch') {
     const isChecked = effectiveValue?.type === 'switch' ? effectiveValue.value : false;
@@ -478,6 +543,13 @@ export function OptionEditor({
               translations={translations}
             />
           </div>
+          {nestedOptionKeys.length > 0 && (
+            <OptionCollapseArrow
+              collapsed={isCollapsed}
+              onToggle={handleToggleCollapsed}
+              disabled={effectiveDisabled}
+            />
+          )}
           <div className="pointer-events-none flex-shrink-0" aria-hidden="true">
             <SwitchButton
               value={isChecked}
@@ -487,23 +559,30 @@ export function OptionEditor({
             />
           </div>
         </div>
-        {/* 渲染嵌套选项 */}
+        {/* 渲染嵌套选项（可折叠，复用任务标题的 grid 展开动画） */}
         {nestedOptionKeys.length > 0 && (
-          <div className="space-y-3">
-            {nestedOptionKeys.map((nestedKey) => (
-              <OptionEditor
-                key={nestedKey}
-                instanceId={instanceId}
-                taskId={taskId}
-                optionKey={nestedKey}
-                value={allOptionValues[nestedKey]}
-                depth={depth + 1}
-                disabled={effectiveDisabled}
-                globalScope={globalScope}
-                controllerIncompatible={isOptionIncompatible}
-                parentIncompatibilityReason={incompatibleReasonType}
-              />
-            ))}
+          <div
+            className="grid transition-[grid-template-rows] duration-150 ease-out"
+            style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+          >
+            <div className={clsx('min-h-0', isCollapsed ? 'overflow-hidden' : 'overflow-visible')}>
+              <div className="space-y-3">
+                {nestedOptionKeys.map((nestedKey) => (
+                  <OptionEditor
+                    key={nestedKey}
+                    instanceId={instanceId}
+                    taskId={taskId}
+                    optionKey={nestedKey}
+                    value={allOptionValues[nestedKey]}
+                    depth={depth + 1}
+                    disabled={effectiveDisabled}
+                    globalScope={globalScope}
+                    controllerIncompatible={isOptionIncompatible}
+                    parentIncompatibilityReason={incompatibleReasonType}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -673,8 +752,16 @@ export function OptionEditor({
             translations={translations}
           />
         </div>
+        {nestedOptionKeys.length > 0 && (
+          <OptionCollapseArrow
+            collapsed={isCollapsed}
+            onToggle={handleToggleCollapsed}
+            disabled={effectiveDisabled}
+          />
+        )}
         <SelectComponent
-          className="w-[30%] flex-shrink-0 ml-auto"
+          // 有子选项时由箭头承担 ml-auto 贴右；无子选项时下拉框自身贴右
+          className={clsx('w-[30%] flex-shrink-0', nestedOptionKeys.length === 0 && 'ml-auto')}
           value={selectedCaseName}
           disabled={effectiveDisabled}
           basePath={basePath}
@@ -697,23 +784,30 @@ export function OptionEditor({
           }}
         />
       </div>
-      {/* 渲染嵌套选项 */}
+      {/* 渲染嵌套选项（可折叠，复用任务标题的 grid 展开动画） */}
       {nestedOptionKeys.length > 0 && (
-        <div className="space-y-3">
-          {nestedOptionKeys.map((nestedKey) => (
-            <OptionEditor
-              key={nestedKey}
-              instanceId={instanceId}
-              taskId={taskId}
-              optionKey={nestedKey}
-              value={allOptionValues[nestedKey]}
-              depth={depth + 1}
-              disabled={effectiveDisabled}
-              globalScope={globalScope}
-              controllerIncompatible={isOptionIncompatible}
-              parentIncompatibilityReason={incompatibleReasonType}
-            />
-          ))}
+        <div
+          className="grid transition-[grid-template-rows] duration-150 ease-out"
+          style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+        >
+          <div className={clsx('min-h-0', isCollapsed ? 'overflow-hidden' : 'overflow-visible')}>
+            <div className="space-y-3">
+              {nestedOptionKeys.map((nestedKey) => (
+                <OptionEditor
+                  key={nestedKey}
+                  instanceId={instanceId}
+                  taskId={taskId}
+                  optionKey={nestedKey}
+                  value={allOptionValues[nestedKey]}
+                  depth={depth + 1}
+                  disabled={effectiveDisabled}
+                  globalScope={globalScope}
+                  controllerIncompatible={isOptionIncompatible}
+                  parentIncompatibilityReason={incompatibleReasonType}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

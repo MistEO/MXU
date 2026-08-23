@@ -380,6 +380,10 @@ export default {
     adb: 'Android 기기',
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '너비 (px)',
+    uinputHeight: '높이 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 창',
     macosPermissionsRequired:
@@ -390,6 +394,7 @@ export default {
     macosSystemVersionRequired: 'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
     macosSystemVersionDetectionFailed:
       '현재 macOS 버전을 확인할 수 없습니다. 자세한 내용은 로그를 확인하세요.',
+    linuxVersionRequired: 'Linux 컨트롤러에는 MaaFramework v5.13.0-beta.3 이상이 필요합니다.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',

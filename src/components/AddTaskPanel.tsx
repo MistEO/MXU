@@ -29,6 +29,7 @@ import {
   getAllMxuSpecialTasks,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
+  MXU_WEBHOOK_TASK_NAME,
 } from '@/types/specialTasks';
 import { getPretaskItems, pretaskName, pretaskItemId, buildPretaskDef } from '@/types/pretasks';
 import { generateId } from '@/stores/helpers';
@@ -183,8 +184,11 @@ export function AddTaskPanel() {
     setAddTaskPanelHeight,
   } = useAppStore();
 
-  // 获取所有注册的特殊任务
-  const specialTasks = useMemo(() => getAllMxuSpecialTasks(), []);
+  // Webhook 保留在注册表中以兼容已有任务，但不再提供新增入口。
+  const specialTasks = useMemo(
+    () => getAllMxuSpecialTasks().filter((task) => task.taskName !== MXU_WEBHOOK_TASK_NAME),
+    [],
+  );
 
   const pretasks = useMemo(() => getPretaskItems(projectInterface), [projectInterface]);
 

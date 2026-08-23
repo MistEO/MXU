@@ -626,9 +626,21 @@ mod tests {
         let proxy_address = listener.local_addr().expect("get test proxy address");
         let proxy = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept proxied request");
-            let mut request = [0_u8; 2048];
-            let bytes_read = stream.read(&mut request).expect("read proxied request");
-            let request = String::from_utf8_lossy(&request[..bytes_read]);
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 2048];
+                let bytes_read = stream.read(&mut chunk).expect("read proxied request");
+                assert!(bytes_read > 0, "proxy closed before request headers");
+                request.extend_from_slice(&chunk[..bytes_read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+                assert!(
+                    request.len() <= 64 * 1024,
+                    "proxy request headers too large"
+                );
+            }
+            let request = String::from_utf8_lossy(&request);
             assert!(request.starts_with("HEAD http://example.invalid/update.zip HTTP/1.1"));
             stream
                 .write_all(

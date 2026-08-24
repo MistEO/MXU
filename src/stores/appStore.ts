@@ -11,7 +11,7 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance } from '@/types/config';
+import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance, SavedTask } from '@/types/config';
 import {
   clampAddTaskPanelHeight,
   DEFAULT_MAX_LOGS_PER_INSTANCE,
@@ -2343,7 +2343,7 @@ function generateConfig(): MxuConfig {
   const state = useAppStore.getState();
   const pi = state.projectInterface;
   const projectName = pi?.name;
-  const persistTasks = (tasks: { optionValues: Record<string, OptionValue> }[]) =>
+  const persistTasks = (tasks: SavedTask[]): SavedTask[] =>
     tasks.map((t) => ({
       ...t,
       optionValues: persistOptionValues(t.optionValues, pi, projectName),

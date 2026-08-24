@@ -17,7 +17,6 @@ import type {
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 import { redactSecretsInText } from '@/utils/passwordOptionValues';
-import { redactSecretsInText } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
 import i18n from '@/i18n';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';

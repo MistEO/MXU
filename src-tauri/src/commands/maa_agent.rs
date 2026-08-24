@@ -746,6 +746,7 @@ pub async fn start_tasks_impl(
                     task_id_pairs.push((job.id, task.selected_task_id.clone()));
                     // 立即登记，保证回调不会先于状态
                     let state = &mut instance.task_run_state;
+                    state.pending_task_ids.push(job.id);
                     if let Some(sel_id) = &task.selected_task_id {
                         state.mappings.insert(job.id, sel_id.clone());
                         state.statuses.insert(sel_id.clone(), "pending".to_string());

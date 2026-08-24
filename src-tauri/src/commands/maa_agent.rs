@@ -715,92 +715,88 @@ pub async fn start_tasks_impl(
     let mut task_id_pairs: Vec<(i64, Option<String>)> = Vec::new();
     // 持锁提交，确保任务开始回调不会早于遥测元数据登记
     let mut telemetry_posting = super::telemetry::begin_posting(&instance_id);
-    for (idx, task) in tasks.iter().enumerate() {
-        debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
-
-        info!(
-            "[start_tasks] Calling post_task: entry={}, override={}",
-            task.entry, task.pipeline_override
+    let task_ids_ret;
+    {
+        // 初始化/追加后端 TaskRunState（单一真相来源）并缓存 task_ids
+        debug!(
+            "[start_tasks] Updating TaskRunState (reset_state={})...",
+            reset_state
         );
-        match tasker.post_task(&task.entry, &task.pipeline_override) {
-            Ok(job) => {
-                info!("[start_tasks] post_task returned task_id: {}", job.id);
-                task_id_pairs.push((job.id, task.selected_task_id.clone()));
-                if let Some(posting) = telemetry_posting.as_mut() {
-                    posting.register(
-                        job.id,
-                        super::telemetry::TaskMeta {
-                            // 缺少 interface 任务名时退回 entry，保证 Span 有可读的名字
-                            name: task.task_name.clone().unwrap_or_else(|| task.entry.clone()),
-                            options: task.options.clone().unwrap_or_default(),
-                        },
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances.get_mut(&instance_id).ok_or("Instance not found")?;
+        if reset_state {
+            // 首批：重置任务运行状态
+            instance.task_ids.clear();
+            let state = &mut instance.task_run_state;
+            state.statuses.clear();
+            state.mappings.clear();
+            state.pending_task_ids.clear();
+            state.current_task_index = 0;
+        }
+        for (idx, task) in tasks.iter().enumerate() {
+            debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
+
+            info!(
+                "[start_tasks] Calling post_task: entry={}, override={}",
+                task.entry, task.pipeline_override
+            );
+            match tasker.post_task(&task.entry, &task.pipeline_override) {
+                Ok(job) => {
+                    info!("[start_tasks] post_task returned task_id: {}", job.id);
+                    task_id_pairs.push((job.id, task.selected_task_id.clone()));
+                    // 立即登记，保证回调不会先于状态
+                    let state = &mut instance.task_run_state;
+                    if let Some(sel_id) = &task.selected_task_id {
+                        state.mappings.insert(job.id, sel_id.clone());
+                        state.statuses.insert(sel_id.clone(), "pending".to_string());
+                    }
+                    if let Some(posting) = telemetry_posting.as_mut() {
+                        posting.register(
+                            job.id,
+                            super::telemetry::TaskMeta {
+                                // 缺少 interface 任务名时退回 entry，保证 Span 有可读的名字
+                                name: task.task_name.clone().unwrap_or_else(|| task.entry.clone()),
+                                options: task.options.clone().unwrap_or_default(),
+                            },
+                        );
+                    }
+                    debug!(
+                        "[start_tasks] Task {} submitted successfully, task_id: {}",
+                        idx, job.id
                     );
                 }
-                debug!(
-                    "[start_tasks] Task {} submitted successfully, task_id: {}",
-                    idx, job.id
-                );
-            }
-            Err(_e) => {
-                warn!("[start_tasks] Failed to post task: {}", task.entry);
+                Err(_e) => {
+                    warn!("[start_tasks] Failed to post task: {}", task.entry);
+                }
             }
         }
+        let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _)| *id).collect();
+        task_ids_ret = task_ids.clone();
+        debug!(
+            "[start_tasks] All tasks submitted, total: {} task_ids",
+            task_ids.len()
+        );
+        let state = &mut instance.task_run_state;
+        state.overall_status = Some("Running".to_string());
+        if reset_state {
+            instance.task_ids = task_ids;
+        } else {
+            instance.task_ids.extend(task_ids);
+        }
+        debug!("[start_tasks] TaskRunState updated");
     }
     // 提交完成，释放遥测状态锁（后续有 await，不能继续持有）
     drop(telemetry_posting);
 
-    let task_ids: Vec<i64> = task_id_pairs.iter().map(|(id, _)| *id).collect();
-    debug!(
-        "[start_tasks] All tasks submitted, total: {} task_ids",
-        task_ids.len()
-    );
-
-    // 初始化/追加后端 TaskRunState（单一真相来源）并缓存 task_ids
-    debug!(
-        "[start_tasks] Updating TaskRunState (reset_state={})...",
-        reset_state
-    );
-    {
-        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
-        if let Some(instance) = instances.get_mut(&instance_id) {
-            if reset_state {
-                // 首批：重置任务运行状态
-                instance.task_ids = task_ids.clone();
-                let state = &mut instance.task_run_state;
-                state.statuses.clear();
-                state.mappings.clear();
-                state.pending_task_ids = task_ids.clone();
-                state.current_task_index = 0;
-            } else {
-                // 追加批次（分段运行）：保留已完成状态，仅追加新任务
-                instance.task_ids.extend(task_ids.iter().copied());
-                let state = &mut instance.task_run_state;
-                state.pending_task_ids.extend(task_ids.iter().copied());
-            }
-
-            let state = &mut instance.task_run_state;
-            state.overall_status = Some("Running".to_string());
-
-            // 建立 maaTaskId -> selectedTaskId 映射，并将有映射的任务初始化为 "pending"
-            for (maa_task_id, selected_task_id) in &task_id_pairs {
-                if let Some(sel_id) = selected_task_id {
-                    state.mappings.insert(*maa_task_id, sel_id.clone());
-                    state.statuses.insert(sel_id.clone(), "pending".to_string());
-                }
-            }
-        }
-    }
-    debug!("[start_tasks] TaskRunState updated");
-
-    info!(
-        "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",
-        task_ids.len()
-    );
-
     // 通知所有客户端：任务已启动，需刷新运行时状态
     super::utils::emit_state_changed(&app, &instance_id, "task-started");
 
-    Ok(task_ids)
+    info!(
+        "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",
+        task_ids_ret.len()
+    );
+
+    Ok(task_ids_ret)
 }
 
 /// 启动任务（支持多个 Agent）— Tauri invoke 入口，委托给 start_tasks_impl

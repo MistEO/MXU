@@ -513,9 +513,7 @@ async fn start_single_agent(
     }).await.map_err(|e| e.to_string())?
 }
 
-/// 确保 agent 进程存活且与 tasker 同步。
-/// 幂等：如果已有存活且同步的 agent，直接返回。
-/// 三态：复用（存活+同步）→ 重挂（存活+代际不符）→ 重建（有进程已退出/空）
+/// 幂等确保 agent 存活：存活且同步则复用，代际不符则重挂或重建。
 async fn ensure_agents(
     app: &tauri::AppHandle,
     maa_state: &Arc<MaaState>,
@@ -550,7 +548,6 @@ async fn ensure_agents(
         let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
 
-        // 没有 agent_configs 或为空 → 停止旧 agent 并返回
         if agent_configs.is_empty() {
             drop(instances);
             debug!("[ensure_agents] Agent configs is empty, stopping old agents");
@@ -581,10 +578,8 @@ async fn ensure_agents(
         return Ok(());
     }
 
-    // === Resource 变更：保留进程，只做 re-bind + re-connect + re-register ===
-    // AgentClient::bind(new_resource) 会先 clear_custom_registration() 再换 bound_res_，
-    // 然后 connect() 发送 StartUpRequest 让 AgentServer 重新上报 custom 列表，
-    // 最后 register_sinks() 迁移事件 sink。全程不调用 disconnect()，避免发送 ShutDownRequest。
+    // === Resource 变更：保留进程重挂（bind+connect 让 agent 重报 custom，再迁移 sink）===
+    // 不能调用 disconnect()，否则会发送 ShutDownRequest 使进程退出
     if all_alive && !resource_ok {
         info!("[ensure_agents] Resource changed, re-binding agents...");
 
@@ -668,7 +663,6 @@ async fn ensure_agents(
             }
         }
 
-        // 存回 instance
         {
             let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
             if let Some(instance) = instances.get_mut(instance_id) {
@@ -686,8 +680,7 @@ async fn ensure_agents(
         return Ok(());
     }
 
-    // === 仅 tasker 代际不符（resource 没变、进程存活）→ 只重挂 sink ===
-    // 注意：此时 resource_ok 为 true、all_alive 为 true，只有 tasker_ok 为 false
+    // === 仅 tasker 代际不符 → 只重挂 sink ===
     info!("[ensure_agents] Agents alive, tasker changed, re-registering sinks");
 
     {
@@ -820,10 +813,7 @@ pub async fn start_tasks_impl(
         return Err("Tasker not properly initialized".to_string());
     }
 
-    // 确保 agent 存活并同步（幂等：存活且同步则直接复用）
-    // 统一处理 None / Some([]) / Some(non-empty) 三种情况：
-    // - 空配置 → ensure_agents 内部自动调用 stop_agent_impl 清理旧进程
-    // - 有配置 → 正常复用或重建
+    // 空配置也会走 ensure_agents：其内部会调用 stop_agent_impl 清理旧进程
     debug!("[start_tasks] Checking agent configs...");
     let pi_envs = pi_envs.unwrap_or_default();
     let configs = agent_configs.unwrap_or_default();
@@ -977,11 +967,8 @@ pub async fn maa_start_tasks(
 
 /// 停止所有 Agent（Tauri invoke 和 HTTP handler 共享）。
 ///
-/// 注意：disconnect() 必须在这里**同步**执行完毕再返回——
-/// AgentClient 在 drop 时会清理其注册的 custom action/recognition，
-/// 若把 disconnect 放到后台线程，旧 agent 的反注册可能晚于新 agent 的注册，
-/// 把新 agent 的同名 custom 条目删掉（insert_or_assign vs erase 竞态）。
-/// 子进程的宽限等待与强杀才放到后台线程。
+/// disconnect() 必须**同步**执行：AgentClient 在 drop 时反注册 custom action，
+/// 若放到后台，旧 agent 的反注册可能晚于新 agent 的注册、误删新条目。
 pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
     info!("stop_agent_impl called for instance: {}", instance_id);
 
@@ -1006,18 +993,13 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
         children.len()
     );
 
-    // 同步断开所有 client：确保 custom 反注册发生在新 agent 注册之前
     for client in &clients {
         let _ = client.disconnect();
     }
     drop(clients); // Drop 在此同步执行 clear_custom_registration()
 
-    // 子进程收尾放到后台：等待其自然退出，绝不强制 kill。
-    // MXU 无法得知 agent 正在做什么（保存文件 / 落盘缓存 / 执行关键操作），
-    // 强杀可能导致数据损坏。disconnect() 已发送 ShutDownRequest，
-    // agent 会在完成收尾后自行退出；若长时间未退出说明它仍在工作中。
-    // 每个 child 最多等待 30 秒，超时后停止等待并记日志，不再强制 kill。
-    // 进程残留由 agent 侧 parentwatch（MXU 退出时自尽）兜底。
+    // 后台等待子进程自然退出，绝不强杀（可能正在落盘关键数据）；
+    // 每个 child 限时 30s，超时放弃等待，残留由 agent 侧 parentwatch 兜底
     thread::spawn(move || {
         for (i, mut child) in children.into_iter().enumerate() {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);

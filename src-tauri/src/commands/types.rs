@@ -242,16 +242,9 @@ pub struct InstanceRuntime {
     /// 当前控制器的配置（用于 ControllerPool 引用管理）
     pub controller_config: Option<ControllerConfig>,
     pub tasker: Option<Tasker>,
-    /// 每次重建 tasker 时递增，用于 agent 检测"tasker 已换过，需重挂 sink"
     pub tasker_generation: u64,
-    /// 上次 agent 注册 sink 时捕获的 tasker_generation 值
-    /// 相等 → sink 链仍有效；不等 → 需要重挂
     pub agent_tasker_generation: u64,
-    /// 每次替换 resource 时递增。Resource 变更会连带重建 tasker，
-    /// 但 agent 的 custom recognition/action 注册在旧 Resource 上，
-    /// 无法仅靠重挂 sink 迁移，必须完整重建 agent。
     pub resource_generation: u64,
-    /// 上次拉起 agent 时捕获的 resource_generation 值
     pub agent_resource_generation: u64,
     pub agent_clients: Vec<AgentClient>,
     pub agent_children: Vec<Child>,
@@ -376,8 +369,7 @@ pub struct MaaState {
     pub log_buffer: Mutex<LogBuffer>,
     /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）
     pub screenshot_service: crate::screenshot_service::ScreenshotService,
-    /// per-instance agent 启动锁，防止并发 ensure_agents 双 spawn
-    /// tokio::sync::Mutex 可在 async 上下文跨 await 持有（std MutexGuard 是 !Send）
+    /// per-instance 启动锁，防止并发 ensure_agents 双 spawn
     pub agent_start_locks: Mutex<HashMap<String, Arc<TokioMutex<()>>>>,
 }
 

@@ -821,31 +821,27 @@ pub async fn start_tasks_impl(
     }
 
     // 确保 agent 存活并同步（幂等：存活且同步则直接复用）
+    // 统一处理 None / Some([]) / Some(non-empty) 三种情况：
+    // - 空配置 → ensure_agents 内部自动调用 stop_agent_impl 清理旧进程
+    // - 有配置 → 正常复用或重建
     debug!("[start_tasks] Checking agent configs...");
     let pi_envs = pi_envs.unwrap_or_default();
-    if let Some(configs) = agent_configs {
-        if !configs.is_empty() {
-            info!("[start_tasks] Ensuring {} agent(s)...", configs.len());
-            ensure_agents(
-                &app,
-                maa_state,
-                &instance_id,
-                &configs,
-                &tasker,
-                &resource,
-                &controller,
-                &cwd,
-                tcp_compat_mode,
-                &pi_envs,
-            )
-            .await?;
-            info!("[start_tasks] Agent(s) ensured successfully");
-        } else {
-            debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
-        }
-    } else {
-        debug!("[start_tasks] No agent configs, skipping agent setup");
-    }
+    let configs = agent_configs.unwrap_or_default();
+    info!("[start_tasks] Ensuring {} agent(s)...", configs.len());
+    ensure_agents(
+        &app,
+        maa_state,
+        &instance_id,
+        &configs,
+        &tasker,
+        &resource,
+        &controller,
+        &cwd,
+        tcp_compat_mode,
+        &pi_envs,
+    )
+    .await?;
+    info!("[start_tasks] Agent(s) ensured successfully");
 
     // 遥测：整批运行开始（仅首批；追加批次沿用已有 Transaction）
     // 必须在 post_task 之前，否则首个任务的开始回调会早于 Transaction 创建、丢掉它的 Span
@@ -1020,9 +1016,11 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
     // MXU 无法得知 agent 正在做什么（保存文件 / 落盘缓存 / 执行关键操作），
     // 强杀可能导致数据损坏。disconnect() 已发送 ShutDownRequest，
     // agent 会在完成收尾后自行退出；若长时间未退出说明它仍在工作中。
+    // 每个 child 最多等待 30 秒，超时后停止等待并记日志，不再强制 kill。
     // 进程残留由 agent 侧 parentwatch（MXU 退出时自尽）兜底。
     thread::spawn(move || {
         for (i, mut child) in children.into_iter().enumerate() {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
             loop {
                 match child.try_wait() {
                     Ok(Some(_)) => {
@@ -1030,6 +1028,14 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
                         break;
                     }
                     Ok(None) => {
+                        if std::time::Instant::now() > deadline {
+                            warn!(
+                                "Background: Agent #{} did not exit within 30s after disconnect, \
+                                 giving up wait (process will be cleaned up by parentwatch on MXU exit)",
+                                i
+                            );
+                            break;
+                        }
                         thread::sleep(std::time::Duration::from_millis(200));
                     }
                     Err(e) => {

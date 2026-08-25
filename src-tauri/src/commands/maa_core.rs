@@ -331,6 +331,7 @@ fn update_instance_controller(
         instance.controller = Some(controller);
         instance.controller_config = Some(new_config.clone());
         instance.tasker = None;
+        instance.tasker_generation += 1;
 
         old_config.filter(|old| {
             *old != new_config
@@ -1305,6 +1306,8 @@ pub fn maa_destroy_resource(
     // 销毁旧的资源
     instance.resource = None;
     instance.tasker = None;
+    instance.tasker_generation += 1;
+    instance.resource_generation += 1;
 
     Ok(())
 }
@@ -1376,6 +1379,7 @@ pub fn run_task_impl(
             .map_err(|e| e.to_string())?;
 
         instance.tasker = Some(tasker);
+        instance.tasker_generation += 1;
     }
 
     let tasker = instance.tasker.as_ref().unwrap();

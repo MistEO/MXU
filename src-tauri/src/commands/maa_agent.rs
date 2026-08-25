@@ -10,6 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use tokio::sync::Mutex as TokioMutex;
 
 use chrono::Local;
 use tauri::{Emitter, Manager, State};
@@ -512,6 +513,201 @@ async fn start_single_agent(
     }).await.map_err(|e| e.to_string())?
 }
 
+/// 确保 agent 进程存活且与 tasker 同步。
+/// 幂等：如果已有存活且同步的 agent，直接返回。
+/// 三态：复用（存活+同步）→ 重挂（存活+代际不符）→ 重建（有进程已退出/空）
+async fn ensure_agents(
+    app: &tauri::AppHandle,
+    maa_state: &Arc<MaaState>,
+    instance_id: &str,
+    agent_configs: &[AgentConfig],
+    tasker: &Tasker,
+    resource: &Resource,
+    controller: &Controller,
+    cwd: &str,
+    tcp_compat_mode: bool,
+    pi_envs: &HashMap<String, String>,
+) -> Result<(), String> {
+    info!(
+        "[ensure_agents] Checking agents for instance: {}",
+        instance_id
+    );
+
+    // per-instance 启动锁，防止并发 ensure_agents 双 spawn
+    let start_lock = {
+        let mut locks = maa_state
+            .agent_start_locks
+            .lock()
+            .map_err(|e| e.to_string())?;
+        locks
+            .entry(instance_id.to_string())
+            .or_insert_with(|| Arc::new(TokioMutex::new(())))
+            .clone()
+    };
+    let _guard = start_lock.lock().await;
+
+    let (all_alive, tasker_ok, resource_ok) = {
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
+
+        // 没有 agent_configs 或为空 → 停止旧 agent 并返回
+        if agent_configs.is_empty() {
+            drop(instances);
+            debug!("[ensure_agents] Agent configs is empty, stopping old agents");
+            stop_agent_impl(maa_state, instance_id)?;
+            return Ok(());
+        }
+
+        let alive = !instance.agent_clients.is_empty()
+            && instance.agent_clients.len() == agent_configs.len()
+            && instance.agent_children.len() == agent_configs.len()
+            && instance.agent_clients.iter().all(|c| c.connected())
+            && instance
+                .agent_children
+                .iter_mut()
+                .all(|c| match c.try_wait() {
+                    Ok(None) => true,
+                    _ => false,
+                });
+
+        let t_ok = instance.agent_tasker_generation == instance.tasker_generation;
+        let r_ok = instance.agent_resource_generation == instance.resource_generation;
+
+        (alive, t_ok, r_ok)
+    };
+
+    if all_alive && tasker_ok && resource_ok {
+        debug!("[ensure_agents] All agents alive and synchronized, reusing");
+        return Ok(());
+    }
+
+    // === Resource 变更：保留进程，只做 re-bind + re-connect + re-register ===
+    // AgentClient::bind(new_resource) 会先 clear_custom_registration() 再换 bound_res_，
+    // 然后 connect() 发送 StartUpRequest 让 AgentServer 重新上报 custom 列表，
+    // 最后 register_sinks() 迁移事件 sink。全程不调用 disconnect()，避免发送 ShutDownRequest。
+    if all_alive && !resource_ok {
+        info!("[ensure_agents] Resource changed, re-binding agents...");
+
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
+
+        for client in &mut instance.agent_clients {
+            client
+                .bind(resource.clone())
+                .map_err(|e| format!("Failed to re-bind resource: {}", e))?;
+            client
+                .connect()
+                .map_err(|e| format!("Failed to re-connect agent: {}", e))?;
+            client
+                .register_sinks(resource.clone(), controller.clone(), tasker.clone())
+                .map_err(|e| format!("Failed to re-register agent sinks: {}", e))?;
+        }
+
+        instance.agent_tasker_generation = instance.tasker_generation;
+        instance.agent_resource_generation = instance.resource_generation;
+
+        info!("[ensure_agents] Agents re-bound and re-connected successfully");
+        return Ok(());
+    }
+
+    // === 进程已退出 / 空 → 完整重建 ===
+    if !all_alive {
+        info!("[ensure_agents] Agents not fully alive, full rebuild...");
+        stop_agent_impl(maa_state, instance_id)?;
+
+        info!(
+            "[ensure_agents] Spawning {} new agent(s)...",
+            agent_configs.len()
+        );
+        let pi_envs = Arc::new(pi_envs.clone());
+
+        let mut new_clients = Vec::new();
+        let mut new_children = Vec::new();
+
+        for (idx, config) in agent_configs.iter().enumerate() {
+            let res_clone = resource.clone();
+            let ctrl_clone = controller.clone();
+            let tsk_clone = tasker.clone();
+            let app_handle = app.clone();
+            let inst_id = instance_id.to_string();
+            let cwd_clone = cwd.to_string();
+            let pi_envs_clone = Arc::clone(&pi_envs);
+
+            match start_single_agent(
+                app_handle,
+                config.clone(),
+                idx,
+                inst_id,
+                cwd_clone,
+                tcp_compat_mode,
+                res_clone,
+                ctrl_clone,
+                tsk_clone,
+                pi_envs_clone,
+            )
+            .await
+            {
+                Ok((client, child)) => {
+                    new_clients.push(client);
+                    new_children.push(child);
+                }
+                Err(e) => {
+                    error!(
+                        "[ensure_agents] Agent #{} failed to start: {}, cleaning up...",
+                        idx, e
+                    );
+                    for client in &new_clients {
+                        let _ = client.disconnect();
+                    }
+                    for mut child in new_children {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                    return Err(format!("Agent start failed: {}", e));
+                }
+            }
+        }
+
+        // 存回 instance
+        {
+            let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
+            if let Some(instance) = instances.get_mut(instance_id) {
+                instance.agent_clients = new_clients;
+                instance.agent_children = new_children;
+                instance.agent_tasker_generation = instance.tasker_generation;
+                instance.agent_resource_generation = instance.resource_generation;
+            }
+        }
+
+        info!(
+            "[ensure_agents] All {} agent(s) started successfully",
+            agent_configs.len()
+        );
+        return Ok(());
+    }
+
+    // === 仅 tasker 代际不符（resource 没变、进程存活）→ 只重挂 sink ===
+    // 注意：此时 resource_ok 为 true、all_alive 为 true，只有 tasker_ok 为 false
+    info!("[ensure_agents] Agents alive, tasker changed, re-registering sinks");
+
+    {
+        let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances.get_mut(instance_id).ok_or("Instance not found")?;
+
+        for client in &mut instance.agent_clients {
+            client
+                .register_sinks(resource.clone(), controller.clone(), tasker.clone())
+                .map_err(|e| format!("Failed to re-register agent sinks: {}", e))?;
+        }
+
+        instance.agent_tasker_generation = instance.tasker_generation;
+        // resource_generation 不变
+    }
+
+    info!("[ensure_agents] Agent sinks re-registered successfully");
+    Ok(())
+}
+
 /// 启动任务的核心实现（Tauri invoke 和 HTTP handler 共享）
 pub async fn start_tasks_impl(
     app: tauri::AppHandle,
@@ -607,6 +803,7 @@ pub async fn start_tasks_impl(
             debug!("[start_tasks] Resource and controller bound");
 
             instance.tasker = Some(t);
+            instance.tasker_generation += 1;
             debug!("[start_tasks] Tasker created and stored");
         } else {
             debug!("[start_tasks] Using existing initialized tasker");
@@ -623,82 +820,32 @@ pub async fn start_tasks_impl(
         return Err("Tasker not properly initialized".to_string());
     }
 
-    // 启动所有 Agent（如果配置了）
+    // 确保 agent 存活并同步（幂等：存活且同步则直接复用）
     debug!("[start_tasks] Checking agent configs...");
-    let pi_envs = Arc::new(pi_envs.unwrap_or_default());
+    let pi_envs = pi_envs.unwrap_or_default();
     if let Some(configs) = agent_configs {
-        if configs.is_empty() {
-            debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
+        if !configs.is_empty() {
+            info!("[start_tasks] Ensuring {} agent(s)...", configs.len());
+            ensure_agents(
+                &app,
+                maa_state,
+                &instance_id,
+                &configs,
+                &tasker,
+                &resource,
+                &controller,
+                &cwd,
+                tcp_compat_mode,
+                &pi_envs,
+            )
+            .await?;
+            info!("[start_tasks] Agent(s) ensured successfully");
         } else {
-            info!("[start_tasks] Starting {} agent(s)...", configs.len());
-
-            // 用于收集所有成功启动的 agent，失败时需要回滚清理
-            let mut new_clients = Vec::new();
-            let mut new_children = Vec::new();
-
-            for (idx, config) in configs.iter().enumerate() {
-                let res_clone = resource.clone();
-                let ctrl_clone = controller.clone();
-                let tasker_clone = tasker.clone();
-                let app_handle = app.clone();
-                let inst_id = instance_id.clone();
-                let cwd_clone = cwd.clone();
-                let pi_envs_clone = Arc::clone(&pi_envs);
-
-                match start_single_agent(
-                    app_handle,
-                    config.clone(),
-                    idx,
-                    inst_id,
-                    cwd_clone,
-                    tcp_compat_mode,
-                    res_clone,
-                    ctrl_clone,
-                    tasker_clone,
-                    pi_envs_clone,
-                )
-                .await
-                {
-                    Ok((client, child)) => {
-                        new_clients.push(client);
-                        new_children.push(child);
-                    }
-                    Err(e) => {
-                        error!(
-                            "[start_tasks] Agent #{} failed to start: {}, cleaning up previously started agents...",
-                            idx, e
-                        );
-
-                        // 回滚：清理已启动的 agent
-                        for client in &new_clients {
-                            let _ = client.disconnect();
-                        }
-                        for mut child in new_children {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                        }
-                        return Err(format!("Agent start failed: {}", e));
-                    }
-                }
-            }
-
-            // 保存所有 agent 状态到 instance
-            let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
-            if let Some(instance) = instances.get_mut(&instance_id) {
-                instance.agent_clients.extend(new_clients);
-                instance.agent_children.extend(new_children);
-            }
-
-            info!(
-                "[start_tasks] All {} agent(s) started successfully",
-                configs.len()
-            );
-
-            info!("[start_tasks] Tasks started with agent(s)");
+            debug!("[start_tasks] Agent configs list is empty, skipping agent setup");
         }
     } else {
         debug!("[start_tasks] No agent configs, skipping agent setup");
-    };
+    }
 
     // 遥测：整批运行开始（仅首批；追加批次沿用已有 Transaction）
     // 必须在 post_task 之前，否则首个任务的开始回调会早于 Transaction 创建、丢掉它的 Span
@@ -832,7 +979,13 @@ pub async fn maa_start_tasks(
     .await
 }
 
-/// 停止所有 Agent 的核心实现（Tauri invoke 和 HTTP handler 共享）
+/// 停止所有 Agent（Tauri invoke 和 HTTP handler 共享）。
+///
+/// 注意：disconnect() 必须在这里**同步**执行完毕再返回——
+/// AgentClient 在 drop 时会清理其注册的 custom action/recognition，
+/// 若把 disconnect 放到后台线程，旧 agent 的反注册可能晚于新 agent 的注册，
+/// 把新 agent 的同名 custom 条目删掉（insert_or_assign vs erase 竞态）。
+/// 子进程的宽限等待与强杀才放到后台线程。
 pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(), String> {
     info!("stop_agent_impl called for instance: {}", instance_id);
 
@@ -852,45 +1005,38 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
     }
 
     info!(
-        "[stop_agent] Stopping {} agent client(s) and {} child process(es) in background...",
+        "[stop_agent] Stopping {} agent client(s) and {} child process(es)...",
         clients.len(),
         children.len()
     );
 
+    // 同步断开所有 client：确保 custom 反注册发生在新 agent 注册之前
+    for client in &clients {
+        let _ = client.disconnect();
+    }
+    drop(clients); // Drop 在此同步执行 clear_custom_registration()
+
+    // 子进程收尾放到后台：等待其自然退出，绝不强制 kill。
+    // MXU 无法得知 agent 正在做什么（保存文件 / 落盘缓存 / 执行关键操作），
+    // 强杀可能导致数据损坏。disconnect() 已发送 ShutDownRequest，
+    // agent 会在完成收尾后自行退出；若长时间未退出说明它仍在工作中。
+    // 进程残留由 agent 侧 parentwatch（MXU 退出时自尽）兜底。
     thread::spawn(move || {
-        for client in clients {
-            let _ = client.disconnect();
-        }
-
         for (i, mut child) in children.into_iter().enumerate() {
-            debug!("Waiting for agent process #{} to exit...", i);
-
-            let start = std::time::Instant::now();
-            let timeout = std::time::Duration::from_secs(5);
-            let mut exited = false;
-
-            while start.elapsed() < timeout {
+            loop {
                 match child.try_wait() {
                     Ok(Some(_)) => {
-                        exited = true;
+                        info!("Background: Agent #{} child process exited", i);
                         break;
                     }
                     Ok(None) => {
-                        thread::sleep(std::time::Duration::from_millis(100));
+                        thread::sleep(std::time::Duration::from_millis(200));
                     }
                     Err(e) => {
-                        error!("Error waiting for agent #{}: {}", i, e);
+                        warn!("Background: Agent #{} wait failed: {}", i, e);
                         break;
                     }
                 }
-            }
-
-            if !exited {
-                warn!("Agent process #{} did not exit in time, killing it...", i);
-                let _ = child.kill();
-                let _ = child.wait();
-            } else {
-                info!("Background: Agent #{} child process exited", i);
             }
         }
     });

@@ -852,16 +852,20 @@ pub fn stop_agent_impl(maa_state: &Arc<MaaState>, instance_id: &str) -> Result<(
     }
 
     info!(
-        "[stop_agent] Stopping {} agent client(s) and {} child process(es) in background...",
+        "[stop_agent] Stopping {} agent client(s) and {} child process(es)...",
         clients.len(),
         children.len()
     );
 
-    thread::spawn(move || {
-        for client in clients {
-            let _ = client.disconnect();
-        }
+    // 同步断开所有 client：确保 custom 反注册在返回前完成，
+    // 避免旧 agent 的反注册晚于新 agent 的注册，误删新 agent 的同名 custom 条目。
+    for client in &clients {
+        let _ = client.disconnect();
+    }
+    drop(clients); // Drop 同步执行 clear_custom_registration()
 
+    // 子进程收尾放到后台：等待自然退出，超时强杀兜底，避免进程泄漏。
+    thread::spawn(move || {
         for (i, mut child) in children.into_iter().enumerate() {
             debug!("Waiting for agent process #{} to exit...", i);
 

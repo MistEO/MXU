@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/appStore';
 import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import { buildTaskOptionSummary } from '@/services/telemetryService';
+import { collectPasswordPlaintextsFromRunnableTasks } from '@/utils/passwordOptionValues';
 import clsx from 'clsx';
 import {
   loggers,
@@ -1283,6 +1284,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               type: projectInterface?.controller.find((c) => c.name === currentControllerName)
                 ?.type,
             },
+            collectPasswordPlaintextsFromRunnableTasks(
+              batchTasks,
+              useAppStore.getState().globalOptionValues,
+              projectInterface?.option ?? {},
+            ),
           );
 
           log.info(`实例 ${targetInstance.name}: ${batchName}任务已提交, task_ids:`, batchTaskIds);

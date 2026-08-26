@@ -16,6 +16,8 @@ import type {
   InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
+import { redactSecretsInText } from '@/utils/passwordOptionValues';
+import { redactSecretsInText } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
 import i18n from '@/i18n';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
@@ -646,10 +648,15 @@ export const maaService = {
     piEnvs?: Record<string, string>,
     resetState: boolean = true,
     controllerInfo?: ControllerTelemetryInfo,
+    logRedactSecrets?: string[],
   ): Promise<number[]> {
     log.info('启动任务, 实例:', instanceId, ', 任务数:', tasks.length, ', cwd:', cwd || '.');
     tasks.forEach((task, i) => {
-      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${task.pipeline_override}`);
+      const override =
+        logRedactSecrets && logRedactSecrets.length > 0
+          ? redactSecretsInText(task.pipeline_override, logRedactSecrets)
+          : task.pipeline_override;
+      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${override}`);
     });
     if (agentConfigs && agentConfigs.length > 0) {
       log.info(

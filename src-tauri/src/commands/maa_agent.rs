@@ -737,8 +737,9 @@ pub async fn start_tasks_impl(
             debug!("[start_tasks] Preparing task {}: entry={}", idx, task.entry);
 
             info!(
-                "[start_tasks] Calling post_task: entry={}, override={}",
-                task.entry, task.pipeline_override
+                "[start_tasks] Calling post_task: entry={}, override_len={}",
+                task.entry,
+                task.pipeline_override.len()
             );
             match tasker.post_task(&task.entry, &task.pipeline_override) {
                 Ok(job) => {

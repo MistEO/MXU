@@ -16,6 +16,7 @@ import type {
 } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { findSwitchCase } from '@/utils/optionHelpers';
+import { isPasswordInput } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
 
 const log = loggers.telemetry;
@@ -39,7 +40,9 @@ const summarizeInputValue = (
   value: string,
   pipelineType?: 'string' | 'int' | 'bool',
   inputType?: 'text' | 'file' | 'time',
+  password?: boolean,
 ): string => {
+  if (password) return value ? 'filled' : 'empty';
   const isSafeToReport =
     pipelineType === 'int' || pipelineType === 'bool' || (inputType === 'time' && !!value);
   if (isSafeToReport) return value;
@@ -100,7 +103,12 @@ const collectOptionSummary = (
           const raw = optionValue.values[inputDef.name] ?? inputDef.default ?? '';
           put(
             `${optionKey}.${inputDef.name}`,
-            summarizeInputValue(raw, inputDef.pipeline_type, inputDef.input_type),
+            summarizeInputValue(
+              raw,
+              inputDef.pipeline_type,
+              inputDef.input_type,
+              isPasswordInput(inputDef),
+            ),
           );
         }
       }

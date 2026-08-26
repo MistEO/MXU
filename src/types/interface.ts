@@ -258,6 +258,8 @@ export interface InputItem {
   input_type?: 'text' | 'file' | 'time';
   /** MXU 扩展：输入框占位提示文本（i18n key） */
   placeholder?: string;
+  /** MXU 扩展：密码字段；启用后 UI 掩码显示，配置加密存储，日志/遥测脱敏 */
+  password?: boolean;
 }
 
 export interface SelectOption {
@@ -355,6 +357,8 @@ export type OptionValue =
   | {
       type: 'input';
       values: Record<string, string>;
+      /** 密码字段密文（持久化用，XOR + Base64）；运行时 values 中为明文 */
+      encryptedValues?: Record<string, string>;
     }
   | {
       type: 'hotkey';

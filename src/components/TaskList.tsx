@@ -45,6 +45,7 @@ import {
   getImportErrorType,
 } from '@/utils/tabExportImport';
 import { generateId, initializeAllOptionValues, sanitizeOptionValues } from '@/stores/helpers';
+import { decryptPasswordOptionValues } from '@/utils/passwordOptionValues';
 import { isPretaskName } from '@/types/pretasks';
 import { loggers } from '@/utils/logger';
 import { toast } from 'sonner';
@@ -142,7 +143,11 @@ function useImportConfigActions(instanceId: string) {
               ? initializeAllOptionValues(taskDef.option, mergedOptions)
               : {};
           const cleanedValues = mergedOptions
-            ? sanitizeOptionValues(task.optionValues, mergedOptions)
+            ? decryptPasswordOptionValues(
+                sanitizeOptionValues(task.optionValues, mergedOptions),
+                mergedOptions,
+                projectName,
+              )
             : {};
 
           return {
@@ -361,6 +366,7 @@ export function TaskList() {
         ? t('preset.exportShareHint', { projectName, tabName: instance.name })
         : '';
       const exportFooter = projectName ? t('preset.exportShareFooter', { projectName }) : '';
+      const exportOptions = projectInterface?.option;
 
       const menuItems: MenuItem[] = [
         {
@@ -424,7 +430,7 @@ export function TaskList() {
                   exportWithToast(instance, projectName, exportHint, exportFooter, {
                     success: t('preset.exportSuccess'),
                     failed: t('preset.exportFailed'),
-                  });
+                  }, exportOptions);
                 }
               },
             },
@@ -437,7 +443,7 @@ export function TaskList() {
                   exportFileWithToast(instance, projectName, exportHint, exportFooter, {
                     success: t('preset.exportFileSuccess'),
                     failed: t('preset.exportFileFailed'),
-                  });
+                  }, exportOptions);
                 }
               },
             },

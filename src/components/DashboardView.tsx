@@ -26,6 +26,7 @@ import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { buildTaskOptionSummary } from '@/services/telemetryService';
+import { collectPasswordPlaintextsFromRunnableTasks } from '@/utils/passwordOptionValues';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
@@ -375,6 +376,11 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                 type: projectInterface?.controller.find((c) => c.name === currentControllerName)
                   ?.type,
               },
+              collectPasswordPlaintextsFromRunnableTasks(
+                batchTasks,
+                useAppStore.getState().globalOptionValues,
+                projectInterface?.option ?? {},
+              ),
             );
 
             batchTaskIds.forEach((maaTaskId, index) => {

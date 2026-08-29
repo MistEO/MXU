@@ -126,7 +126,7 @@ export default {
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
-      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルと on_error・vision 内のデバッグスクリーンショットを削除します',
+      'プロジェクトの起動時に実行ログとデバッグファイルを自動でクリアします',
   },
 
   // 特殊タスク

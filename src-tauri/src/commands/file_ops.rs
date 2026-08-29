@@ -20,6 +20,10 @@ const ZIP_CENTRAL_DIR_FIXED_BYTES: u64 = 46;
 const MAX_EXPORTS_TO_KEEP: usize = 10;
 /// 需要随日志一起清空的调试产物子目录（内容由 MaaFW 的 save_on_error / save_draw 写入）。
 const DEBUG_ARTIFACT_DIRS: [&str; 2] = ["on_error", "vision"];
+/// 日志目录名（位于应用数据目录下）。
+const DEBUG_DIR: &str = "debug";
+/// 日志导出产物目录名，与 `debug/` 同级，避免下次导出把上次的产物扫进去。
+const DEBUG_EXPORTS_DIR: &str = "debug_exports";
 
 #[derive(Clone)]
 struct ExportEntry {
@@ -296,10 +300,10 @@ pub fn get_data_dir() -> Result<String, String> {
     Ok(data_dir.to_string_lossy().to_string())
 }
 
-/// 清空调试产物目录内容，保留目录本身。返回成功删除的条目数。
+/// 清空目录内容，保留目录本身。返回成功删除的条目数（子目录整体计 1 条）。
 ///
-/// 保留目录本身是因为 MaaFW 的 save_on_error 直接往 `on_error/` 写文件，父目录缺失会写入失败。
-fn clear_debug_artifact_dir(dir: &Path) -> u64 {
+/// 保留根目录只是为了不改动既有目录结构；MaaFW 写调试产物前会自建父目录，缺失也不会写入失败。
+fn clear_dir_contents(dir: &Path) -> u64 {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) => {
@@ -326,26 +330,28 @@ fn clear_debug_artifact_dir(dir: &Path) -> u64 {
     deleted
 }
 
-/// 删除 debug 目录中的 .log 文件，并清空 on_error/、vision/ 内的调试产物（保留这两个目录本身）。
-/// 可选择排除一个当前正在使用的日志文件。返回删除的文件与调试产物总数。
-#[tauri::command]
-pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String> {
-    let debug_dir = get_app_data_dir()?.join("debug");
-
-    if !debug_dir.exists() {
-        return Ok(0);
-    }
+/// 递归删除 `dir` 及其所有子目录下的 .log 文件，返回删除数量。
+/// `exclude_file_name` 匹配的文件名会被跳过（当前会话正在写入的日志）。
+/// 只删文件不回收空目录，避免改动既有目录结构。
+fn remove_log_files_recursively(dir: &Path, exclude_file_name: Option<&str>) -> u64 {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            log::debug!("Failed to read log dir [{}]: {}", dir.display(), e);
+            return 0;
+        }
+    };
 
     let mut deleted = 0_u64;
-    let entries = std::fs::read_dir(&debug_dir)
-        .map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
-
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(_) => continue,
-        };
+    for entry in entries.flatten() {
         let path = entry.path();
+
+        if path.is_dir() {
+            deleted =
+                deleted.saturating_add(remove_log_files_recursively(&path, exclude_file_name));
+            continue;
+        }
+
         if !path.is_file() {
             continue;
         }
@@ -354,11 +360,7 @@ pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String>
             continue;
         };
 
-        if !name.ends_with(".log") {
-            continue;
-        }
-
-        if exclude_file_name.as_deref() == Some(name) {
+        if !name.ends_with(".log") || exclude_file_name == Some(name) {
             continue;
         }
 
@@ -368,15 +370,40 @@ pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String>
         }
     }
 
+    deleted
+}
+
+/// `clear_log_files` 的可测核心，接收具体目录而不依赖应用数据目录。
+fn clear_log_dirs(debug_dir: &Path, exports_dir: &Path, exclude_file_name: Option<&str>) -> u64 {
+    let mut deleted = remove_log_files_recursively(debug_dir, exclude_file_name);
+
     for dir_name in DEBUG_ARTIFACT_DIRS {
         let artifact_dir = debug_dir.join(dir_name);
         if !artifact_dir.is_dir() {
             continue;
         }
-        deleted = deleted.saturating_add(clear_debug_artifact_dir(&artifact_dir));
+        deleted = deleted.saturating_add(clear_dir_contents(&artifact_dir));
     }
 
-    Ok(deleted)
+    if exports_dir.is_dir() {
+        deleted = deleted.saturating_add(clear_dir_contents(exports_dir));
+    }
+
+    deleted
+}
+
+/// 递归删除 debug 目录（含所有子目录）中的 .log 文件，清空 on_error/、vision/ 内的调试产物
+/// 以及 debug_exports/ 下的日志导出产物（保留这几个目录本身）。
+/// 可选择排除一个当前正在使用的日志文件。返回删除的文件与产物总数。
+#[tauri::command]
+pub fn clear_log_files(exclude_file_name: Option<String>) -> Result<u64, String> {
+    let data_dir = get_app_data_dir()?;
+
+    Ok(clear_log_dirs(
+        &data_dir.join(DEBUG_DIR),
+        &data_dir.join(DEBUG_EXPORTS_DIR),
+        exclude_file_name.as_deref(),
+    ))
 }
 
 /// 获取当前工作目录
@@ -573,7 +600,7 @@ fn export_logs_blocking(
 
     // 日志在数据目录下（macOS: ~/Library/Application Support/MXU/debug）
     let data_dir = get_app_data_dir()?;
-    let debug_dir = data_dir.join("debug");
+    let debug_dir = data_dir.join(DEBUG_DIR);
 
     if !debug_dir.exists() {
         return Err("日志目录不存在".to_string());
@@ -589,7 +616,7 @@ fn export_logs_blocking(
         format!("{}-logs-{}-{}", name, version, date_str)
     };
     // 产物放在 debug_exports/ 下而不是 debug/，避免下次导出把上次的产物扫进去。
-    let exports_root = data_dir.join("debug_exports");
+    let exports_root = data_dir.join(DEBUG_EXPORTS_DIR);
     let out_dir = exports_root.join(&dir_name);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| format!("创建导出目录失败 [{}]: {}", out_dir.display(), e))?;

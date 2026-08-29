@@ -123,8 +123,7 @@ export default {
     resetWindowLayout: '重置窗口布局',
     resetWindowLayoutHint: '将窗口大小恢复为默认值，并居中显示',
     autoClearLogsOnLaunch: '自动清理运行日志',
-    autoClearLogsOnLaunchHint:
-      '每次启动项目时，自动清理运行日志，并删除旧的日志文件与 on_error、vision 目录下的调试截图',
+    autoClearLogsOnLaunchHint: '每次启动项目时，自动清理运行日志与调试文件',
   },
 
   // 特殊任务

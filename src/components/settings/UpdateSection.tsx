@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Download,
@@ -61,6 +61,7 @@ export function UpdateSection() {
   } = useAppStore();
 
   const [showCdk, setShowCdk] = useState(false);
+  const cdkInputRef = useRef<HTMLInputElement>(null);
   const [proxyInput, setProxyInput] = useState(proxySettings?.url || '');
   const [proxyError, setProxyError] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
@@ -268,6 +269,15 @@ export function UpdateSection() {
     setInstallStatus('installing');
   }, [setShowInstallConfirmModal, setInstallStatus]);
 
+  // 慢速下载引导：本身已在更新分区内，直接把 CDK 输入框滚进视野并聚焦
+  const handleFocusCdkInput = useCallback(() => {
+    const input = cdkInputRef.current;
+    if (!input) return;
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // preventScroll 避免 focus 的瞬时滚动与上面的平滑滚动打架
+    input.focus({ preventScroll: true });
+  }, []);
+
   // 获取错误码对应的翻译文本
   const errorText = useMemo(() => {
     if (!updateInfo?.errorCode) return null;
@@ -424,6 +434,7 @@ export function UpdateSection() {
               </div>
               <div className="relative">
                 <input
+                  ref={cdkInputRef}
                   type={showCdk ? 'text' : 'password'}
                   value={mirrorChyanSettings.cdk}
                   onChange={(e) => handleCdkChange(e.target.value)}
@@ -607,6 +618,7 @@ export function UpdateSection() {
                         startDownload();
                       }}
                       progressBgClass="bg-bg-secondary"
+                      onSlowDownloadHintClick={handleFocusCdkInput}
                     />
                   )}
 

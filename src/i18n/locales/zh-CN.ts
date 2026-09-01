@@ -666,6 +666,7 @@ export default {
       ' 是独立的第三方加速下载服务，需要付费使用，并非「{{projectName}}」收费。其运营成本由订阅收入支撑，部分收益将回馈项目开发者。欢迎订阅 CDK 享受高速下载，同时支持项目持续开发。未填写 CDK 时将自动通过 GitHub 下载，若失败请尝试配置网络代理。',
     getCdk: '没有CDK？立即订阅',
     cdkHint: '请检查您的 CDK 是否正确或已过期',
+    slowDownloadHint: '加速下载',
     checkUpdate: '检查更新',
     checking: '正在检查...',
     upToDate: '当前已是最新版本 ({{version}})',

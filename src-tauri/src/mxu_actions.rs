@@ -927,11 +927,9 @@ fn execute_power_set_mute(muted: bool) -> bool {
         use std::process::Command;
 
         let mute_value = if muted { "1" } else { "0" };
-        let amixer_value = if muted { "mute" } else { "unmute" };
-        let commands: [(&str, &[&str]); 3] = [
+        let commands: [(&str, &[&str]); 2] = [
             ("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", mute_value]),
             ("pactl", &["set-sink-mute", "@DEFAULT_SINK@", mute_value]),
-            ("amixer", &["set", "Master", amixer_value]),
         ];
 
         for (program, args) in commands {

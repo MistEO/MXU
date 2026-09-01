@@ -580,7 +580,7 @@ fn kill_process_by_name(name: &str) -> bool {
 const MXU_POWER_ACTION: &str = "MXU_POWER_ACTION";
 
 /// MXU_POWER custom action 回调函数
-/// 从 custom_action_param 中读取 power_action，执行关机/重启/息屏/睡眠/静音操作
+/// 从 custom_action_param 中读取 power_action，执行关机/重启/息屏/睡眠/静音/取消静音操作
 fn mxu_power_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,

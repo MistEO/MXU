@@ -199,6 +199,8 @@ export default {
       restart: '再起動',
       screenoff: '画面オフ',
       sleep: 'スリープ',
+      mute: 'ミュート',
+      unmute: 'ミュート解除',
     },
   },
 

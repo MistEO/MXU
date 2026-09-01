@@ -194,6 +194,8 @@ export default {
       restart: '重启',
       screenoff: '息屏',
       sleep: '睡眠',
+      mute: '静音',
+      unmute: '解除静音',
     },
   },
 

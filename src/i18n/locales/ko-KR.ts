@@ -197,6 +197,8 @@ export default {
       restart: '재시작',
       screenoff: '화면 끄기',
       sleep: '절전 모드',
+      mute: '음소거',
+      unmute: '음소거 해제',
     },
   },
 

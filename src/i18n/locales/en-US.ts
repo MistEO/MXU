@@ -201,6 +201,8 @@ export default {
       restart: 'Restart',
       screenoff: 'Turn Off Screen',
       sleep: 'Sleep',
+      mute: 'Mute',
+      unmute: 'Unmute',
     },
   },
 

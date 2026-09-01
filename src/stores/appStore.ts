@@ -2048,11 +2048,13 @@ export const useAppStore = create<AppState>()(
     slowDownloadSince: null,
     // 每次状态变化都重置慢速计时：'downloading' 表示新一轮下载开始，其余状态表示下载已结束
     setDownloadStatus: (status) => set({ downloadStatus: status, slowDownloadSince: null }),
+    // 要求 downloadedSize > 0 才起算：下载开始前先写入的那条 speed 为 0 的占位进度，
+    // 以及 Rust 建连/重定向期间（进度事件还没开始推送）都不应计入慢速时长
     setDownloadProgress: (progress) =>
       set((state) => ({
         downloadProgress: progress,
         slowDownloadSince:
-          progress && progress.speed < SLOW_DOWNLOAD_SPEED_BPS
+          progress && progress.downloadedSize > 0 && progress.speed < SLOW_DOWNLOAD_SPEED_BPS
             ? (state.slowDownloadSince ?? Date.now())
             : null,
       })),

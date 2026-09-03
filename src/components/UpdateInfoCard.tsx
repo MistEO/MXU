@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, RefreshCw, PackageCheck, Zap } from 'lucide-react';
+import { ChevronRight, RefreshCw, PackageCheck, Globe } from 'lucide-react';
 import {
   useAppStore,
   SLOW_DOWNLOAD_DURATION_MS,
@@ -181,7 +181,7 @@ function SlowDownloadHint({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-accent/10 text-accent text-xs hover:bg-accent/15 transition-colors"
     >
-      <Zap className="w-3.5 h-3.5 shrink-0" />
+      <Globe className="w-3.5 h-3.5 shrink-0" />
       <span className="flex-1 text-left">{t('mirrorChyan.slowDownloadHint')}</span>
       <ChevronRight className="w-3.5 h-3.5 shrink-0" />
     </button>

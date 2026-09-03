@@ -269,13 +269,9 @@ export function UpdateSection() {
     setInstallStatus('installing');
   }, [setShowInstallConfirmModal, setInstallStatus]);
 
-  // 慢速下载引导：本身已在更新分区内，直接把 CDK 输入框滚进视野并聚焦
-  const handleFocusCdkInput = useCallback(() => {
-    const input = cdkInputRef.current;
-    if (!input) return;
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // preventScroll 避免 focus 的瞬时滚动与上面的平滑滚动打架
-    input.focus({ preventScroll: true });
+  // 慢速下载引导：本身已在更新分区内，把 CDK 输入框滚进视野即可，不抢焦点
+  const handleScrollToCdkInput = useCallback(() => {
+    cdkInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
 
   // 获取错误码对应的翻译文本
@@ -618,7 +614,7 @@ export function UpdateSection() {
                         startDownload();
                       }}
                       progressBgClass="bg-bg-secondary"
-                      onSlowDownloadHintClick={handleFocusCdkInput}
+                      onSlowDownloadHintClick={handleScrollToCdkInput}
                     />
                   )}
 

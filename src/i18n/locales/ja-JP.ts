@@ -238,6 +238,9 @@ export default {
         'ウィンドウが未設定のため、「{{name}}」を自動的に選択しました。変更する場合は接続設定で手動選択してください。次回以降は選択内容が保存されます。',
       resourceFailed: 'リソースの読み込みに失敗しました',
       startFailed: 'タスクの開始に失敗しました',
+      alreadyRunning: 'タスクは既に実行中か、前処理を実行しています',
+      noRunnableTasks: '実行可能なタスクがありません。タスク定義とエントリ設定を確認してください',
+      primaryTasksIncomplete: '前段タスクが正常に終了しなかったため、後段タスクをスキップしました',
       workstationLocked:
         'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
       agentStartParams: 'Agent #{{index}} 起動パラメータ: {{cmd}}  (作業ディレクトリ: {{cwd}})',
@@ -520,7 +523,6 @@ export default {
       hotkeyActionStart: 'タスク開始',
       hotkeyActionStop: 'タスク停止',
       hotkeyStartSuccess: 'ショートカットキーでタスクを開始しました：',
-      hotkeyStartFailed: 'ショートカットキーでタスクを開始できませんでした',
       hotkeyStopSuccess: 'ショートカットキーでタスクを停止しました',
       hotkeyStopFailed: 'ショートカットキーでタスクを停止できませんでした',
     },

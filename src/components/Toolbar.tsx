@@ -327,17 +327,23 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const targetTasks = targetInstance.selectedTasks || [];
       lastStartCancelledRef.current = false;
 
+      const failStart = (reason: string): false => {
+        const message = `${t('taskList.autoConnect.startFailed')}: ${reason}`;
+        log.warn(`实例 ${targetInstance.name}: ${message}`);
+        addLog(targetId, { type: 'error', message });
+        onPhaseChange?.('idle');
+        return false;
+      };
+
       // 检查是否有启用的任务
       const enabledTasks = targetTasks.filter((t) => t.enabled);
       if (enabledTasks.length === 0) {
-        log.warn(`实例 ${targetInstance.name} 没有启用的任务`);
-        return false;
+        return failStart(t('dashboard.noEnabledTasks'));
       }
 
       // 检查是否正在运行
       if (targetInstance.isRunning || preActionControlledInstanceIdRef.current === targetId) {
-        log.warn(`实例 ${targetInstance.name} 正在运行中`);
-        return false;
+        return failStart(t('taskList.autoConnect.alreadyRunning'));
       }
 
       // 获取控制器和资源配置
@@ -392,13 +398,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
       // 如果所有启用的任务都被过滤掉了，则无法启动
       if (compatibleTasks.length === 0) {
-        log.warn(`实例 ${targetInstance.name}: ${t('taskList.noCompatibleTasks')}`);
-        // 向用户显示明确的错误信息
-        addLog(targetId, {
-          type: 'error',
-          message: t('taskList.noCompatibleTasks'),
-        });
-        return false;
+        return failStart(t('taskList.noCompatibleTasks'));
       }
 
       const controller = projectInterface?.controller.find((c) => c.name === controllerName);
@@ -422,11 +422,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           log.warn(
             `实例 ${targetInstance.name}: 找不到控制器配置${controllerName ? ` (${controllerName})` : ''}`,
           );
-          addLog(targetId, {
-            type: 'error',
-            message: t('errors.controllerNotFound'),
-          });
-          return false;
+          return failStart(t('errors.controllerNotFound'));
         }
 
         // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
@@ -436,11 +432,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           (await maaService.isWorkstationLocked())
         ) {
           log.warn(`实例 ${targetInstance.name}: 检测到电脑处于锁屏状态，取消启动`);
-          addLog(targetId, {
-            type: 'error',
-            message: t('taskList.autoConnect.workstationLocked'),
-          });
-          return false;
+          return failStart(t('taskList.autoConnect.workstationLocked'));
         }
       }
 
@@ -461,8 +453,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         (shouldUseDummyController && resource);
 
       if (!canStartTask) {
-        log.warn(`实例 ${targetInstance.name} 无法启动：未连接且没有可用的控制器或资源配置`);
-        return false;
+        return failStart(t('taskList.autoConnect.needConfig'));
       }
 
       try {
@@ -780,8 +771,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               const devices = await maaService.findAdbDevices();
               const matchedDevice = findMatchingAdbDevice(devices, savedDevice);
               if (!matchedDevice) {
-                log.warn(`实例 ${targetInstance.name}: 未找到设备 ${savedDevice.adbDeviceName}`);
-                return false;
+                return failStart(
+                  t('taskList.autoConnect.deviceNotFound', { name: savedDevice.adbDeviceName }),
+                );
               }
               config = {
                 type: 'Adb',
@@ -799,8 +791,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               const windows = await maaService.findWin32Windows(classRegex, titleRegex);
               const matchedWindow = windows.find((w) => w.window_name === savedDevice.windowName);
               if (!matchedWindow) {
-                log.warn(`实例 ${targetInstance.name}: 未找到窗口 ${savedDevice.windowName}`);
-                return false;
+                return failStart(
+                  t('taskList.autoConnect.windowNotFound', { name: savedDevice.windowName }),
+                );
               }
               config = buildDesktopWindowControllerConfig(controller, matchedWindow.handle);
               deviceName = matchedWindow.window_name || matchedWindow.class_name;
@@ -808,10 +801,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             } else if (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) {
               const sockets = await maaService.findWlrootsSockets();
               if (!sockets.includes(savedDevice.wlrSocketPath)) {
-                log.warn(
-                  `实例 ${targetInstance.name}: 未找到 WlRoots socket ${savedDevice.wlrSocketPath}`,
+                return failStart(
+                  t('taskList.autoConnect.deviceNotFound', { name: savedDevice.wlrSocketPath }),
                 );
-                return false;
               }
               config = {
                 type: 'WlRoots',
@@ -834,8 +826,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 linux: t('controller.linux'),
               });
               if (!found) {
-                log.warn(`实例 ${targetInstance.name}: 未找到 Linux 控制器所需设备`);
-                return false;
+                return failStart(t('taskList.autoConnect.noDeviceFound'));
               }
               config = found.config;
               deviceName = found.deviceName;
@@ -849,12 +840,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             if (controllerType === 'Adb') {
               const devices = await maaService.findAdbDevices();
               if (devices.length === 0) {
-                log.warn(`实例 ${targetInstance.name}: 未搜索到任何 ADB 设备`);
-                addLog(targetId, {
-                  type: 'error',
-                  message: t('taskList.autoConnect.noDeviceFound'),
-                });
-                return false;
+                return failStart(t('taskList.autoConnect.noDeviceFound'));
               }
               const firstDevice = devices[0];
               log.info(`实例 ${targetInstance.name}: 自动选择设备: ${firstDevice.name}`);
@@ -880,12 +866,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               const { classRegex, titleRegex } = getDesktopWindowFilters(controller);
               const windows = await maaService.findWin32Windows(classRegex, titleRegex);
               if (windows.length === 0) {
-                log.warn(`实例 ${targetInstance.name}: 未搜索到任何窗口`);
-                addLog(targetId, {
-                  type: 'error',
-                  message: t('taskList.autoConnect.noWindowFound'),
-                });
-                return false;
+                return failStart(t('taskList.autoConnect.noWindowFound'));
               }
               const firstWindow = windows[0];
               log.info(`实例 ${targetInstance.name}: 自动选择窗口: ${firstWindow.window_name}`);
@@ -902,12 +883,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             } else if (controllerType === 'WlRoots') {
               const sockets = await maaService.findWlrootsSockets();
               if (sockets.length === 0) {
-                log.warn(`实例 ${targetInstance.name}: 未搜索到任何 WlRoots socket`);
-                addLog(targetId, {
-                  type: 'error',
-                  message: t('taskList.autoConnect.noDeviceFound'),
-                });
-                return false;
+                return failStart(t('taskList.autoConnect.noDeviceFound'));
               }
               const firstSocket = sockets[0];
               log.info(`实例 ${targetInstance.name}: 自动选择 WlRoots socket: ${firstSocket}`);
@@ -926,24 +902,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               targetType = 'device';
             } else if (controllerType === 'PlayCover') {
               // PlayCover 没有搜索功能，无法自动连接
-              log.warn(`实例 ${targetInstance.name}: PlayCover 控制器需要手动配置地址`);
-              addLog(targetId, {
-                type: 'error',
-                message: t('taskList.autoConnect.needConfig'),
-              });
-              return false;
+              return failStart(t('taskList.autoConnect.needConfig'));
             } else if (controllerType === 'Linux') {
               const found = await discoverLinuxControllerConfig(controller, undefined, {
                 portal: t('controller.portal'),
                 linux: t('controller.linux'),
               });
               if (!found) {
-                log.warn(`实例 ${targetInstance.name}: 未搜索到 Linux 控制器所需设备`);
-                addLog(targetId, {
-                  type: 'error',
-                  message: t('taskList.autoConnect.noDeviceFound'),
-                });
-                return false;
+                return failStart(t('taskList.autoConnect.noDeviceFound'));
               }
               config = found.config;
               deviceName = found.deviceName;
@@ -959,8 +925,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           }
 
           if (!shouldUseDummyController && !config) {
-            log.warn(`实例 ${targetInstance.name}: 无法构建控制器配置`);
-            return false;
+            return failStart(t('taskList.autoConnect.needConfig'));
           }
 
           if (shouldUseDummyController) {
@@ -974,8 +939,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           }
 
           if (!config) {
-            log.warn(`实例 ${targetInstance.name}: 无法构建控制器配置`);
-            return false;
+            return failStart(t('taskList.autoConnect.needConfig'));
           }
 
           onPhaseChange?.('connecting');
@@ -1116,8 +1080,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           }
 
           if (!connectResult) {
-            log.warn(`实例 ${targetInstance.name}: 连接设备失败（已重试 ${maxRetries - 1} 次）`);
-            return false;
+            return failStart(t('taskList.autoConnect.connectFailed'));
           }
 
           if (shouldDelayAfterAdbConnected) {
@@ -1170,8 +1133,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           }
 
           if (!loadResult) {
-            log.warn(`实例 ${targetInstance.name}: 资源加载失败`);
-            return false;
+            return failStart(t('taskList.autoConnect.resourceFailed'));
           }
         }
 
@@ -1208,8 +1170,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         if (runnableTasks.length === 0) {
-          log.warn(`实例 ${targetInstance.name}: 没有可执行的任务`);
-          return false;
+          return failStart(t('taskList.autoConnect.noRunnableTasks'));
         }
 
         const { leading, middle, trailing } = splitTasksIntoThreeSegments(runnableTasks);
@@ -1352,8 +1313,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         if (hasTrailingBatch && primaryTaskIds.length > 0) {
           const primaryResult = await maaService.waitForTasks(targetId, primaryTaskIds);
           if (!primaryResult.allDone || primaryResult.stopped) {
-            log.warn(`实例 ${targetInstance.name}: 前段任务未正常结束，跳过收尾特殊任务`);
-            return false;
+            return failStart(t('taskList.autoConnect.primaryTasksIncomplete'));
           }
           const trailingTaskIds = await runTaskBatch(trailing, false, '收尾', true);
           startedTaskIds.push(...trailingTaskIds);
@@ -1612,6 +1572,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const detail = (evt as CustomEvent | undefined)?.detail as
         | { source?: string; combo?: string; onSettled?: (started: boolean) => void }
         | undefined;
+      const isHotkey = detail?.source === 'hotkey' || detail?.source === 'global-hotkey';
       let settled = false;
       const notifySettled = (started: boolean) => {
         if (settled) return;
@@ -1630,24 +1591,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       }
 
       const combo = detail?.combo || '';
-      addLog(currentInstance.id, {
-        type: 'info',
-        message: t('logs.messages.hotkeyDetected', {
-          combo,
-          action: t('logs.messages.hotkeyActionStart'),
-        }),
-      });
-
-      if (
-        currentInstance.isRunning ||
-        preActionControlledInstanceIdRef.current === currentInstance.id
-      ) {
+      if (isHotkey) {
         addLog(currentInstance.id, {
-          type: 'error',
-          message: t('logs.messages.hotkeyStartFailed'),
+          type: 'info',
+          message: t('logs.messages.hotkeyDetected', {
+            combo,
+            action: t('logs.messages.hotkeyActionStart'),
+          }),
         });
-        notifySettled(false);
-        return;
       }
 
       // 直接使用从 store 获取的最新 instance，避免闭包捕获旧的 selectedTasks
@@ -1656,12 +1607,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         const success = await startTasksForInstance(currentInstance, {
           onPhaseChange: setAutoConnectPhase,
         });
-        addLog(currentInstance.id, {
-          type: success ? 'success' : 'error',
-          message: success
-            ? t('logs.messages.hotkeyStartSuccess')
-            : t('logs.messages.hotkeyStartFailed'),
-        });
+        if (isHotkey && success) {
+          addLog(currentInstance.id, {
+            type: 'success',
+            message: t('logs.messages.hotkeyStartSuccess'),
+          });
+        }
         notifySettled(success);
       } finally {
         hotkeyStartingRef.current = false;

@@ -5,10 +5,19 @@ import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolve
 import type { OptionValue, CaseItem, InputItem, OptionDefinition } from '@/types/interface';
 import { findMxuOptionByKey } from '@/types/specialTasks';
 import clsx from 'clsx';
-import { Info, AlertCircle, Loader2, FileText, Link, ChevronDown, Check } from 'lucide-react';
+import {
+  Info,
+  AlertCircle,
+  Loader2,
+  FileText,
+  Link,
+  ChevronDown,
+  Check,
+  ChevronRight,
+} from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
-import { SwitchButton, TextInput, FileInput, TimeInput } from './FormControls';
+import { SwitchButton, TextInput, FileInput, TimeInput, HotkeyInput } from './FormControls';
 import { Tooltip } from './ui/Tooltip';
 
 /** 判断 switch 类型的选项是否有子选项 */
@@ -16,6 +25,43 @@ export function switchHasNestedOptions(optionDef: OptionDefinition): boolean {
   if (optionDef.type !== 'switch') return false;
   // SwitchOption 的 cases 是 [CaseItem, CaseItem]，始终有两个元素
   return optionDef.cases.some((c: CaseItem) => c.option && c.option.length > 0);
+}
+
+/** 子选项折叠箭头：复用任务标题的 ChevronRight 样式，位于开关/下拉框左侧 */
+function OptionCollapseArrow({
+  collapsed,
+  onToggle,
+  disabled = false,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // 所在行整体点击会切换开关/下拉框，必须阻止冒泡
+        e.stopPropagation();
+        onToggle();
+      }}
+      disabled={disabled}
+      aria-expanded={!collapsed}
+      aria-label={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
+      title={collapsed ? t('optionEditor.expandOptions') : t('optionEditor.collapseOptions')}
+      // ml-auto：吸收行内剩余空白（label 受 max-w-[60%] 限制无法全部吸收），
+      // 让箭头紧贴开关/下拉框，空隙只留在箭头左侧
+      className="p-1 rounded hover:bg-bg-hover flex-shrink-0 ml-auto disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <ChevronRight
+        className={clsx(
+          'w-4 h-4 text-text-secondary transition-transform duration-150 ease-out',
+          !collapsed && 'rotate-90',
+        )}
+      />
+    </button>
+  );
 }
 
 /** 异步加载图标组件 */
@@ -43,14 +89,17 @@ function AsyncIcon({
 }
 
 interface OptionEditorProps {
-  instanceId: string;
-  taskId: string;
+  /** 全局作用域下可省略（值读写 store.globalOptionValues） */
+  instanceId?: string;
+  taskId?: string;
   optionKey: string;
   value?: OptionValue;
   /** 嵌套层级，用于缩进显示 */
   depth?: number;
   /** 是否禁用编辑（只读模式） */
   disabled?: boolean;
+  /** 全局作用域：值读写 store.globalOptionValues，用于设置页全局设置编辑 */
+  globalScope?: boolean;
   /** 是否继承父级不兼容状态 */
   controllerIncompatible?: boolean;
   /** 父级不兼容原因（用于嵌套提示文案） */
@@ -198,6 +247,7 @@ function InputField({
   basePath,
   disabled,
   isMxuOption = false,
+  isHotkey = false,
   t,
 }: {
   input: InputItem;
@@ -208,6 +258,7 @@ function InputField({
   basePath: string;
   disabled?: boolean;
   isMxuOption?: boolean;
+  isHotkey?: boolean;
   t?: (key: string) => string;
 }) {
   // 对于 MXU 内置选项，使用 t() 翻译
@@ -250,8 +301,8 @@ function InputField({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 basis-[14rem]">
           {input.icon && (
             <AsyncIcon
               icon={input.icon}
@@ -266,20 +317,28 @@ function InputField({
             </Tooltip>
           )}
         </div>
-        {input.input_type === 'file' ? (
+        {isHotkey ? (
+          <HotkeyInput
+            value={value}
+            onChange={onChange}
+            placeholder={inputPlaceholder}
+            disabled={disabled}
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
+          />
+        ) : input.input_type === 'file' ? (
           <FileInput
             value={value}
             onChange={onChange}
             placeholder={inputPlaceholder}
             disabled={disabled}
-            className="w-[30%] flex-shrink-0"
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : input.input_type === 'time' ? (
           <TimeInput
             value={value}
             onChange={onChange}
             disabled={disabled}
-            className="w-[30%] flex-shrink-0"
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
           />
         ) : (
           <TextInput
@@ -288,8 +347,8 @@ function InputField({
             placeholder={inputPlaceholder}
             disabled={disabled}
             hasError={!!validationError}
-            className="w-[30%] flex-shrink-0"
-            type={input.pipeline_type === 'int' ? 'number' : 'text'}
+            className="min-w-[min(12rem,100%)] flex-1 basis-[30%]"
+            type={input.password ? 'password' : input.pipeline_type === 'int' ? 'number' : 'text'}
             inputMode={input.pipeline_type === 'int' ? 'numeric' : undefined}
             step={input.pipeline_type === 'int' ? 1 : undefined}
             integerOnly={input.pipeline_type === 'int'}
@@ -307,12 +366,13 @@ function InputField({
 }
 
 export function OptionEditor({
-  instanceId,
-  taskId,
+  instanceId = '',
+  taskId = '',
   optionKey,
   value,
   depth = 0,
   disabled = false,
+  globalScope = false,
   controllerIncompatible = false,
   parentIncompatibilityReason,
 }: OptionEditorProps) {
@@ -320,6 +380,8 @@ export function OptionEditor({
   const {
     projectInterface,
     setTaskOptionValue,
+    globalOptionValues,
+    setGlobalOptionValue,
     resolveI18nText,
     language,
     basePath,
@@ -333,18 +395,38 @@ export function OptionEditor({
   const mxuOptionDef = isMxuOption ? findMxuOptionByKey(optionKey) : null;
   const optionDef = isMxuOption ? mxuOptionDef : projectInterface?.option?.[optionKey];
 
-  // 获取当前任务的所有选项值（用于嵌套选项）
+  // 获取当前任务的所有选项值（用于嵌套选项）；全局作用域下取 globalOptionValues
   const allOptionValues = useMemo(() => {
+    if (globalScope) return globalOptionValues;
     const instance = instances.find((i) => i.id === instanceId);
     const task = instance?.selectedTasks.find((t) => t.id === taskId);
     return task?.optionValues || {};
-  }, [instances, instanceId, taskId]);
+  }, [globalScope, globalOptionValues, instances, instanceId, taskId]);
   const instance = useMemo(
     () => instances.find((item) => item.id === instanceId),
     [instances, instanceId],
   );
+  // 子选项折叠状态：任务作用域存 store（随配置持久化）；全局作用域用本地 state 兜底
+  const collapsedOptions = useMemo(() => {
+    if (globalScope) return undefined;
+    const instance = instances.find((i) => i.id === instanceId);
+    const task = instance?.selectedTasks.find((t) => t.id === taskId);
+    return task?.collapsedOptions;
+  }, [globalScope, instances, instanceId, taskId]);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
 
   if (!optionDef) return null;
+
+  // 全局作用域下顶层值取自 globalOptionValues；否则用传入的 value
+  const effectiveValue = globalScope ? (value ?? globalOptionValues[optionKey]) : value;
+  // 统一提交入口：全局作用域写 globalOptionValues，否则写任务实例
+  const commitOptionValue = (next: OptionValue) => {
+    if (globalScope) {
+      setGlobalOptionValue(optionKey, next);
+    } else {
+      setTaskOptionValue(instanceId, taskId, optionKey, next);
+    }
+  };
 
   const langKey = getInterfaceLangKey(language);
   // 对于 MXU 内置选项，使用 t() 翻译
@@ -384,13 +466,13 @@ export function OptionEditor({
   // 获取当前选中的 case（用于渲染嵌套选项）
   const getSelectedCase = (): CaseItem | undefined => {
     if (optionDef.type === 'switch') {
-      const isChecked = value?.type === 'switch' ? value.value : false;
+      const isChecked = effectiveValue?.type === 'switch' ? effectiveValue.value : false;
       return findSwitchCase(optionDef.cases, isChecked);
     }
     if (optionDef.type === 'select' || !optionDef.type) {
       const caseName =
-        value?.type === 'select'
-          ? value.caseName
+        effectiveValue?.type === 'select'
+          ? effectiveValue.caseName
           : optionDef.default_case || optionDef.cases?.[0]?.name;
       return optionDef.cases?.find((c) => c.name === caseName);
     }
@@ -400,12 +482,23 @@ export function OptionEditor({
   const selectedCase = getSelectedCase();
   const nestedOptionKeys = selectedCase?.option || [];
 
+  // 当前选项的子选项是否处于折叠状态（缺省展开）
+  const isCollapsed = globalScope ? localCollapsed : !!collapsedOptions?.[optionKey];
+  const handleToggleCollapsed = () => {
+    if (effectiveDisabled) return;
+    if (globalScope) {
+      setLocalCollapsed((prev) => !prev);
+    } else {
+      useAppStore.getState().toggleOptionCollapsed(instanceId, taskId, optionKey);
+    }
+  };
+
   // Switch 类型
   if (optionDef.type === 'switch') {
-    const isChecked = value?.type === 'switch' ? value.value : false;
+    const isChecked = effectiveValue?.type === 'switch' ? effectiveValue.value : false;
     const handleToggleSwitch = () => {
       if (effectiveDisabled) return;
-      setTaskOptionValue(instanceId, taskId, optionKey, {
+      commitOptionValue({
         type: 'switch',
         value: !isChecked,
       });
@@ -450,6 +543,13 @@ export function OptionEditor({
               translations={translations}
             />
           </div>
+          {nestedOptionKeys.length > 0 && (
+            <OptionCollapseArrow
+              collapsed={isCollapsed}
+              onToggle={handleToggleCollapsed}
+              disabled={effectiveDisabled}
+            />
+          )}
           <div className="pointer-events-none flex-shrink-0" aria-hidden="true">
             <SwitchButton
               value={isChecked}
@@ -459,22 +559,30 @@ export function OptionEditor({
             />
           </div>
         </div>
-        {/* 渲染嵌套选项 */}
+        {/* 渲染嵌套选项（可折叠，复用任务标题的 grid 展开动画） */}
         {nestedOptionKeys.length > 0 && (
-          <div className="space-y-3">
-            {nestedOptionKeys.map((nestedKey) => (
-              <OptionEditor
-                key={nestedKey}
-                instanceId={instanceId}
-                taskId={taskId}
-                optionKey={nestedKey}
-                value={allOptionValues[nestedKey]}
-                depth={depth + 1}
-                disabled={effectiveDisabled}
-                controllerIncompatible={isOptionIncompatible}
-                parentIncompatibilityReason={incompatibleReasonType}
-              />
-            ))}
+          <div
+            className="grid transition-[grid-template-rows] duration-150 ease-out"
+            style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+          >
+            <div className={clsx('min-h-0', isCollapsed ? 'overflow-hidden' : 'overflow-visible')}>
+              <div className="space-y-3">
+                {nestedOptionKeys.map((nestedKey) => (
+                  <OptionEditor
+                    key={nestedKey}
+                    instanceId={instanceId}
+                    taskId={taskId}
+                    optionKey={nestedKey}
+                    value={allOptionValues[nestedKey]}
+                    depth={depth + 1}
+                    disabled={effectiveDisabled}
+                    globalScope={globalScope}
+                    controllerIncompatible={isOptionIncompatible}
+                    parentIncompatibilityReason={incompatibleReasonType}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -484,7 +592,7 @@ export function OptionEditor({
   // Checkbox 类型 (多选)
   if (optionDef.type === 'checkbox') {
     const selectedCases =
-      value?.type === 'checkbox' ? value.caseNames : optionDef.default_case || [];
+      effectiveValue?.type === 'checkbox' ? effectiveValue.caseNames : optionDef.default_case || [];
 
     return (
       <div
@@ -520,7 +628,7 @@ export function OptionEditor({
                   const newCases = isChecked
                     ? selectedCases.filter((n) => n !== caseItem.name)
                     : [...selectedCases, caseItem.name];
-                  setTaskOptionValue(instanceId, taskId, optionKey, {
+                  commitOptionValue({
                     type: 'checkbox',
                     caseNames: newCases,
                   });
@@ -553,9 +661,13 @@ export function OptionEditor({
     );
   }
 
-  // Input 类型
-  if (optionDef.type === 'input') {
-    const inputValues = value?.type === 'input' ? value.values : {};
+  // Input / Hotkey 类型
+  if (optionDef.type === 'input' || optionDef.type === 'hotkey') {
+    const fields = optionDef.type === 'input' ? optionDef.inputs : optionDef.hotkeys;
+    const inputValues =
+      effectiveValue?.type === 'input' || effectiveValue?.type === 'hotkey'
+        ? effectiveValue.values
+        : {};
 
     return (
       <div
@@ -578,18 +690,20 @@ export function OptionEditor({
             translations={translations}
           />
         </div>
-        {optionDef.inputs.map((input) => {
+        {fields.map((input) => {
           const inputValue = inputValues[input.name] ?? input.default ?? '';
+          const isHotkey = optionDef.type === 'hotkey';
 
           return (
             <InputField
               key={input.name}
               input={input}
               value={inputValue}
+              isHotkey={isHotkey}
               onChange={(newVal) => {
                 if (effectiveDisabled) return;
-                setTaskOptionValue(instanceId, taskId, optionKey, {
-                  type: 'input',
+                commitOptionValue({
+                  type: isHotkey ? 'hotkey' : 'input',
                   values: { ...inputValues, [input.name]: newVal },
                 });
               }}
@@ -608,7 +722,9 @@ export function OptionEditor({
 
   // Select 类型 (默认)
   const selectedCaseName =
-    value?.type === 'select' ? value.caseName : optionDef.default_case || optionDef.cases[0]?.name;
+    effectiveValue?.type === 'select'
+      ? effectiveValue.caseName
+      : optionDef.default_case || optionDef.cases[0]?.name;
 
   // 选项超过 4 个时使用 ComboBox（带搜索功能）
   const useComboBox = optionDef.cases.length > 4;
@@ -636,8 +752,16 @@ export function OptionEditor({
             translations={translations}
           />
         </div>
+        {nestedOptionKeys.length > 0 && (
+          <OptionCollapseArrow
+            collapsed={isCollapsed}
+            onToggle={handleToggleCollapsed}
+            disabled={effectiveDisabled}
+          />
+        )}
         <SelectComponent
-          className="w-[30%] flex-shrink-0 ml-auto"
+          // 有子选项时由箭头承担 ml-auto 贴右；无子选项时下拉框自身贴右
+          className={clsx('w-[30%] flex-shrink-0', nestedOptionKeys.length === 0 && 'ml-auto')}
           value={selectedCaseName}
           disabled={effectiveDisabled}
           basePath={basePath}
@@ -653,29 +777,37 @@ export function OptionEditor({
           })}
           onChange={(next) => {
             if (effectiveDisabled) return;
-            setTaskOptionValue(instanceId, taskId, optionKey, {
+            commitOptionValue({
               type: 'select',
               caseName: next,
             });
           }}
         />
       </div>
-      {/* 渲染嵌套选项 */}
+      {/* 渲染嵌套选项（可折叠，复用任务标题的 grid 展开动画） */}
       {nestedOptionKeys.length > 0 && (
-        <div className="space-y-3">
-          {nestedOptionKeys.map((nestedKey) => (
-            <OptionEditor
-              key={nestedKey}
-              instanceId={instanceId}
-              taskId={taskId}
-              optionKey={nestedKey}
-              value={allOptionValues[nestedKey]}
-              depth={depth + 1}
-              disabled={effectiveDisabled}
-              controllerIncompatible={isOptionIncompatible}
-              parentIncompatibilityReason={incompatibleReasonType}
-            />
-          ))}
+        <div
+          className="grid transition-[grid-template-rows] duration-150 ease-out"
+          style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+        >
+          <div className={clsx('min-h-0', isCollapsed ? 'overflow-hidden' : 'overflow-visible')}>
+            <div className="space-y-3">
+              {nestedOptionKeys.map((nestedKey) => (
+                <OptionEditor
+                  key={nestedKey}
+                  instanceId={instanceId}
+                  taskId={taskId}
+                  optionKey={nestedKey}
+                  value={allOptionValues[nestedKey]}
+                  depth={depth + 1}
+                  disabled={effectiveDisabled}
+                  globalScope={globalScope}
+                  controllerIncompatible={isOptionIncompatible}
+                  parentIncompatibilityReason={incompatibleReasonType}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

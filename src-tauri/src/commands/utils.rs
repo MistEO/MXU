@@ -127,10 +127,28 @@ pub fn handle_task_callback(
         }
     }; // 锁在此处释放
 
+    // 遥测埋点（锁外调用，仅操作 telemetry 内部的 RUNS 锁）
+    if is_started {
+        super::telemetry::on_task_start(instance_id, task_id);
+    } else {
+        super::telemetry::on_task_finished(instance_id, task_id, is_succeeded);
+    }
+    if all_done {
+        super::telemetry::on_run_finished(instance_id);
+    }
+
     // 通知前端刷新状态
     emit_state_changed(app, instance_id, "task-progress");
     if all_done {
         emit_state_changed(app, instance_id, "tasks-completed");
+
+        // 实例内全部任务结束后清理旧 agent，避免 agent 进程跨轮累积
+        if let Err(e) = super::maa_agent::stop_agent_impl(maa_state, instance_id) {
+            log::warn!(
+                "[handle_task_callback] Failed to stop agents after tasks completed: {}",
+                e
+            );
+        }
     }
 }
 
@@ -240,8 +258,18 @@ pub fn build_user_agent() -> String {
 ///
 /// - 子进程的 stdout/stderr 设为 null，避免继承父进程的标准流。
 /// - 当 `use_cmd` 为 true 时（仅 Windows），通过 `cmd /c` 启动并设置
-///   `CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB` 标志，隐藏控制台窗口
-///   且使子进程脱离父进程 job 对象。
+///   `CREATE_NO_WINDOW` 标志隐藏控制台窗口。
+///
+/// 注意：曾经使用 `CREATE_BREAKAWAY_FROM_JOB` 使子进程脱离父进程 Job 对象，
+/// 但 Windows 计划任务创建的 Job 默认不允许 breakaway（未设置
+/// `JOB_OBJECT_LIMIT_BREAKAWAY_OK`），导致 `CreateProcessW` 返回
+/// `ERROR_ACCESS_DENIED (os error 5)`。
+///
+/// 手动启动 MXU 时，MXU 不在任何 Job Object 中，该标志没有 Job 可脱离，
+/// 被 Windows 静默忽略，因此不会报错——但这只是巧合，不代表该标志真正生效。
+/// 计划任务启动时，MXU 被关在限制性 Job 中，该标志才真正触发错误。
+///
+/// `cmd /c` 本身已改变了 PPID 链，进程树隔离目的已达成，因此移除该标志。
 pub fn build_launch_command(
     program: &str,
     args: &[String],
@@ -271,8 +299,7 @@ pub fn build_launch_command(
     if use_cmd {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB);
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
     cmd

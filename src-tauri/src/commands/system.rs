@@ -6,11 +6,13 @@ use super::types::MaaState;
 use super::types::SystemInfo;
 use super::types::WebView2DirInfo;
 use super::utils::get_maafw_dir;
+use clap::Parser;
 use log::info;
 #[cfg(windows)]
 use log::warn;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::State;
 use tokio::time::sleep;
@@ -24,6 +26,121 @@ static VCREDIST_MISSING: AtomicBool = AtomicBool::new(false);
 /// 设置 VC++ 运行库缺失标记 (供内部调用)
 pub fn set_vcredist_missing(missing: bool) {
     VCREDIST_MISSING.store(missing, Ordering::SeqCst);
+}
+
+static CLI: OnceLock<Cli> = OnceLock::new();
+
+#[derive(Parser)]
+#[command(
+    disable_help_flag = true,
+    disable_version_flag = true,
+    disable_help_subcommand = true,
+    ignore_errors = true
+)]
+pub struct Cli {
+    #[arg(long)]
+    pub autostart: bool,
+    #[arg(short = 'h', long)]
+    pub help: bool,
+    #[arg(short = 'i', long = "instance")]
+    pub instance: Option<String>,
+    #[arg(short = 'q', long = "quit-after-run")]
+    pub quit_after_run: bool,
+}
+
+pub fn init_cli() -> &'static Cli {
+    CLI.get_or_init(|| {
+        let cli = Cli::parse();
+        if cli.help {
+            #[cfg(windows)]
+            let attach = winsafe::AttachConsole(winsafe::PidParent::Parent);
+
+            print!("{}", get_cli_help_text());
+
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
+
+            #[cfg(windows)]
+            if attach.is_ok() {
+                let _ = winsafe::FreeConsole();
+            };
+
+            std::process::exit(0);
+        }
+        cli
+    })
+}
+
+fn get_cli_help_text() -> String {
+    let exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "mxu".to_string());
+
+    format!(
+        "\
+MXU 命令行参数
+
+用法:
+  {exe_name} [参数]
+
+参数:
+  -h, --help
+      显示本帮助并退出
+
+  --autostart
+      以开机自启动模式运行，并触发自动执行逻辑
+      通常由 MXU 创建的系统自启动任务自动传入
+
+  -i, --instance <实例名>
+      指定自动执行时使用的实例名
+      仅在 --autostart 模式下生效
+      也支持 -i=<实例名> 与 --instance=<实例名> 写法
+
+  -q, --quit-after-run
+      当本次启动实际触发自动执行后，在任务完成时自动退出
+
+示例:
+  {exe_name} --autostart --instance \"日常任务\"
+  {exe_name} --autostart -i \"日常任务\" --quit-after-run
+"
+    )
+}
+
+/// 获取宿主机架构（macOS 上优先识别真实硬件架构，避免 Rosetta 误判）
+fn detect_host_arch() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CString;
+        use std::ptr;
+
+        unsafe {
+            let name = CString::new("hw.optional.arm64").expect("valid sysctl name");
+            let mut value: libc::c_int = 0;
+            let mut size = std::mem::size_of::<libc::c_int>() as libc::size_t;
+
+            if libc::sysctlbyname(
+                name.as_ptr(),
+                &mut value as *mut _ as *mut libc::c_void,
+                &mut size,
+                ptr::null_mut(),
+                0,
+            ) == 0
+            {
+                return if value == 1 {
+                    "arm64".to_string()
+                } else {
+                    "x86_64".to_string()
+                };
+            }
+        }
+    }
+
+    std::env::consts::ARCH.to_string()
 }
 
 /// 检查当前进程是否以管理员权限运行
@@ -50,6 +167,29 @@ pub fn is_elevated() -> bool {
     {
         // 非 Windows 平台：检查是否为 root
         unsafe { libc::geteuid() == 0 }
+    }
+}
+
+/// 检查当前 Windows 工作站是否处于锁屏状态（仅 Windows 生效，其他平台恒为 false）
+///
+/// 原理：锁屏时输入桌面会切换到 Winlogon 安全桌面，普通用户进程无法打开该桌面，
+/// `OpenInputDesktop` 返回 Err；未锁屏时可正常打开 "Default" 输入桌面。
+#[tauri::command]
+pub fn is_workstation_locked() -> bool {
+    #[cfg(windows)]
+    {
+        use winsafe::co::DESKTOP_RIGHTS;
+        use winsafe::HDESK;
+
+        match HDESK::OpenInputDesktop(None, false, DESKTOP_RIGHTS::READOBJECTS) {
+            Ok(_) => false,
+            Err(_) => true,
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        false
     }
 }
 
@@ -184,7 +324,7 @@ pub fn check_process_running(program: &str) -> bool {
     let file_name = match resolved_path.file_name() {
         Some(name) => name.to_string_lossy().to_string(),
         None => {
-            log::warn!(
+            warn!(
                 "check_process_running: cannot extract filename from '{}'",
                 program
             );
@@ -492,6 +632,82 @@ pub async fn run_action(
     }
 }
 
+/// 执行 PI v2.7.0 pretask（预任务）外部程序，在连接 Controller 前调用。
+///
+/// 与 `run_action` 不同：`args` 直接以数组形式传入，不做 shell 分词，从而完整保留
+/// 由 option 序列化得到的单行紧凑 JSON 参数（含引号、花括号）。始终等待进程退出，
+/// 并复用 `pre_action_stop_requests` 支持前置阶段的取消。
+#[tauri::command]
+pub async fn run_pretask(
+    state: State<'_, Arc<MaaState>>,
+    instance_id: String,
+    program: String,
+    args: Vec<String>,
+    cwd: Option<String>,
+) -> Result<i32, String> {
+    info!(
+        "run_pretask: instance_id={}, program={}, args={:?}, cwd={:?}",
+        instance_id, program, args, cwd
+    );
+
+    // Windows 下相对可执行路径会相对“父进程当前目录”解析，而非下方设置的 `current_dir`，
+    // 因此必须先基于 cwd 把相对 exec（如 `agent/go-service`）拼成绝对路径，复用 Agent
+    // 启动时相同的解析逻辑，避免出现“系统找不到指定的路径 (os error 3)”。
+    let resolved_program = match cwd {
+        Some(ref dir) => super::maa_agent::resolve_child_exec_path(&program, dir)
+            .to_string_lossy()
+            .into_owned(),
+        None => program.clone(),
+    };
+
+    let mut cmd = super::utils::build_launch_command(&resolved_program, &args, false);
+
+    // 设置工作目录
+    if let Some(ref dir) = cwd {
+        cmd.current_dir(dir);
+    } else if let Some(parent) = std::path::Path::new(&program).parent() {
+        if parent.exists() {
+            cmd.current_dir(parent);
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to run pretask: {} - {}", program, e))?;
+
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|e| format!("Failed to wait pretask: {} - {}", program, e))?
+        {
+            let exit_code = status.code().unwrap_or(-1);
+            info!("run_pretask finished with exit code: {}", exit_code);
+            return Ok(exit_code);
+        }
+
+        let stop_requested = {
+            let requests = state
+                .pre_action_stop_requests
+                .lock()
+                .map_err(|e| e.to_string())?;
+            requests.contains(&instance_id)
+        };
+
+        if stop_requested {
+            info!(
+                "run_pretask wait cancelled by stop request: {}",
+                instance_id
+            );
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            return Err("MXU_PRE_ACTION_CANCELLED".to_string());
+        }
+
+        sleep(Duration::from_millis(100)).await;
+    }
+}
+
 /// 重新尝试加载 MaaFramework 库
 #[tauri::command]
 pub async fn retry_load_maa_library() -> Result<String, String> {
@@ -531,162 +747,49 @@ pub fn check_vcredist_missing() -> bool {
 /// 检查本次启动是否来自开机自启动（通过 --autostart 参数判断）
 #[tauri::command]
 pub fn is_autostart() -> bool {
-    std::env::args().any(|arg| arg == "--autostart")
-}
-
-/// 打印命令行帮助文本。
-pub fn print_cli_help_text() {
-    #[cfg(windows)]
-    let attached_console = attach_parent_console_for_cli();
-
-    print!("{}", get_cli_help_text());
-
-    use std::io::Write;
-    let _ = std::io::stdout().flush();
-
-    #[cfg(windows)]
-    if attached_console {
-        detach_parent_console_for_cli();
-    }
-}
-
-#[cfg(windows)]
-fn attach_parent_console_for_cli() -> bool {
-    extern "system" {
-        fn AttachConsole(dw_process_id: u32) -> i32;
-    }
-
-    const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
-
-    // GUI subsystem builds do not auto-attach to the invoking terminal.
-    // Ignore failure: redirected stdout or double-click launches should still fall through.
-    unsafe { AttachConsole(ATTACH_PARENT_PROCESS) != 0 }
-}
-
-#[cfg(windows)]
-fn detach_parent_console_for_cli() {
-    extern "system" {
-        fn FreeConsole() -> i32;
-    }
-
-    unsafe {
-        FreeConsole();
-    }
-}
-
-/// 检查命令行是否包含 -h/--help 参数
-pub fn has_help_flag() -> bool {
-    std::env::args()
-        .skip(1)
-        .any(|arg| arg == "-h" || arg == "--help")
-}
-
-/// 生成命令行帮助文本
-pub fn get_cli_help_text() -> String {
-    let exe_name = std::env::current_exe()
-        .ok()
-        .and_then(|path| {
-            path.file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-        })
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "mxu".to_string());
-
-    format!(
-        "\
-MXU 命令行参数
-
-用法:
-  {exe_name} [参数]
-
-参数:
-  -h, --help
-      显示本帮助并退出
-
-  --autostart
-      以开机自启动模式运行，并触发自动执行逻辑
-      通常由 MXU 创建的系统自启动任务自动传入
-
-  -i, --instance <实例名>
-      指定自动执行时使用的实例名
-      仅在 --autostart 模式下生效
-      也支持 -i=<实例名> 与 --instance=<实例名> 写法
-
-  -q, --quit-after-run
-      当本次启动实际触发自动执行后，在任务完成时自动退出
-
-示例:
-  {exe_name} --autostart --instance \"日常任务\"
-  {exe_name} --autostart -i \"日常任务\" --quit-after-run
-"
-    )
-}
-
-/// 从命令行参数中获取指定选项的值
-/// 支持 `-x value`、`--name value`、`-x=value`、`--name=value` 格式
-/// 返回第一个匹配的值；若值缺失或以 `-` 开头则视为无效并跳过
-fn get_cli_arg_value(short: &str, long: &str) -> Option<String> {
-    let short_eq = format!("{}=", short);
-    let long_eq = format!("{}=", long);
-    let args: Vec<String> = std::env::args().collect();
-    let mut iter = args.iter();
-    while let Some(arg) = iter.next() {
-        if arg == short || arg == long {
-            if let Some(value) = iter.next() {
-                if !value.starts_with('-') {
-                    return Some(value.clone());
-                }
-            }
-            return None;
-        }
-        if let Some(value) = arg.strip_prefix(&short_eq) {
-            return Some(value.to_string());
-        }
-        if let Some(value) = arg.strip_prefix(&long_eq) {
-            return Some(value.to_string());
-        }
-    }
-    None
+    init_cli().autostart
 }
 
 /// 获取命令行 -i/--instance 参数指定的启动实例名称
 #[tauri::command]
 pub fn get_start_instance() -> Option<String> {
-    get_cli_arg_value("-i", "--instance")
+    init_cli().instance.clone()
 }
 
 /// 检查命令行是否包含 -q/--quit-after-run 参数（任务完成后关闭自身）
 #[tauri::command]
 pub fn has_quit_after_run_flag() -> bool {
-    std::env::args().any(|arg| arg == "-q" || arg == "--quit-after-run")
+    init_cli().quit_after_run
 }
 
 /// 自动迁移旧版注册表自启动到任务计划程序
 #[cfg(windows)]
 pub fn migrate_legacy_autostart() {
-    if has_legacy_registry_autostart() {
-        if create_schtask_autostart().is_ok() {
-            remove_legacy_registry_autostart();
-        }
+    if has_legacy_registry_autostart() && create_schtask_autostart(None).is_ok() {
+        remove_legacy_registry_autostart();
     }
     // 兼容迁移：老版本已创建的计划任务可能缺少交互式运行或启动延迟，自动重建为新配置
     if schtask_autostart_needs_refresh() {
-        if let Err(err) = create_schtask_autostart() {
+        if let Err(err) = create_schtask_autostart(None) {
             warn!("重建自启动计划任务失败: {}", err);
         }
     }
 }
 
 #[cfg(windows)]
-fn create_schtask_autostart() -> Result<(), String> {
+fn create_schtask_autostart(suffix: Option<String>) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     let exe_path = std::env::current_exe().map_err(|e| format!("获取程序路径失败: {}", e))?;
     let exe = exe_path.to_string_lossy();
+    let task_name = match suffix {
+        Some(name) => &format!("MXU-{}", name),
+        None => "MXU",
+    };
     let output = std::process::Command::new("schtasks")
         .args([
             "/create",
             "/tn",
-            "MXU",
+            task_name,
             "/tr",
             &format!("\"{}\" --autostart", exe),
             "/sc",
@@ -790,10 +893,10 @@ fn has_legacy_registry_autostart() -> bool {
 
 /// 通过 Windows 任务计划程序启用开机自启动（以最高权限运行，避免 UAC 弹窗）
 #[tauri::command]
-pub fn autostart_enable() -> Result<(), String> {
+pub fn autostart_enable(suffix: Option<String>) -> Result<(), String> {
     #[cfg(windows)]
     {
-        create_schtask_autostart()?;
+        create_schtask_autostart(suffix)?;
         remove_legacy_registry_autostart();
         Ok(())
     }
@@ -805,14 +908,19 @@ pub fn autostart_enable() -> Result<(), String> {
 
 /// 通过 Windows 任务计划程序禁用开机自启动
 #[tauri::command]
-pub fn autostart_disable() -> Result<(), String> {
+pub fn autostart_disable(suffix: Option<String>) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        let task_name = match suffix {
+            Some(suffix) => &format!("MXU-{}", suffix),
+            None => "MXU",
+        };
         let _ = std::process::Command::new("schtasks")
-            .args(["/delete", "/tn", "MXU", "/f"])
+            .args(["/delete", "/tn", task_name, "/f"])
             .creation_flags(CREATE_NO_WINDOW)
-            .output();
+            .output()
+            .map_err(|e| format!("执行 schtasks 失败: {}", e))?;
         // 清理旧版注册表条目
         remove_legacy_registry_autostart();
         Ok(())
@@ -825,12 +933,16 @@ pub fn autostart_disable() -> Result<(), String> {
 
 /// 查询是否存在自启动（任务计划程序或旧版注册表）
 #[tauri::command]
-pub fn autostart_is_enabled() -> bool {
+pub fn autostart_is_enabled(suffix: Option<String>) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
+        let task_name = match suffix {
+            Some(suffix) => &format!("MXU-{}", suffix),
+            None => "MXU",
+        };
         let schtask = std::process::Command::new("schtasks")
-            .args(["/query", "/tn", "MXU"])
+            .args(["/query", "/tn", task_name])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map(|o| o.status.success())
@@ -846,7 +958,7 @@ pub fn autostart_is_enabled() -> bool {
 /// 获取系统架构
 #[tauri::command]
 pub fn get_arch() -> String {
-    std::env::consts::ARCH.to_string()
+    detect_host_arch()
 }
 
 /// 获取操作系统类型
@@ -866,7 +978,7 @@ pub fn get_system_info() -> SystemInfo {
     let os_version = format!("{} {}", info.os_type(), info.version());
 
     // 获取系统架构
-    let arch = std::env::consts::ARCH.to_string();
+    let arch = detect_host_arch();
 
     // 获取 Tauri 框架版本（来自 Tauri 常量）
     let tauri_version = tauri::VERSION.to_string();
@@ -881,15 +993,18 @@ pub fn get_system_info() -> SystemInfo {
 
 /// 获取 Web 服务器实际监听端口
 ///
-/// 若服务器尚未完成绑定，最多等待 5 秒后返回（0 表示超时未启动）。
+/// 若服务器尚未完成绑定，最多等待 5 秒后返回（0 表示超时未启动或用户手动禁用）。
 #[tauri::command]
 pub async fn get_web_server_port() -> u16 {
+    if !crate::web_server::is_web_server_enabled() {
+        return 0;
+    }
     let port = crate::web_server::get_actual_port();
     if port != 0 {
         return port;
     }
     for _ in 0..50 {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
         let port = crate::web_server::get_actual_port();
         if port != 0 {
             return port;

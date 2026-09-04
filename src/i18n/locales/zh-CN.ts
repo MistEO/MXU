@@ -32,6 +32,8 @@ export default {
     dragToReorder: '拖拽以重新排序',
     closeTabConfirmTitle: '关闭配置',
     closeTabConfirmMessage: '确定要关闭「{{name}}」吗？',
+    closeMultiTabConfirmTitle: '关闭多个配置',
+    closeMultiTabConfirmMessage: '确定要关闭 {{count}} 个配置吗？',
   },
 
   // 窗口控制按钮
@@ -48,6 +50,8 @@ export default {
     appearance: '外观',
     hotkeys: '快捷键',
     general: '通用',
+    taskSettings: '任务设置',
+    taskSettingsEmpty: '当前没有可显示的设置项',
     language: '语言',
     backgroundImage: '背景图片',
     backgroundOpacity: '背景不透明度',
@@ -93,6 +97,9 @@ export default {
     hotkeysGlobal: '全局快捷键',
     hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
+    hotkeysGlobalConflict:
+      '快捷键 {{combo}} 已被占用，全局快捷键当前未生效。请更换按键，或检查是否有其他程序 / 重复运行的实例占用该组合键。',
+    hotkeysGlobalRegisterFailed: '全局快捷键 {{combo}} 注册失败：{{error}}',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
     autoStart: '开机自启动',
@@ -107,12 +114,16 @@ export default {
       '每次手动打开程序时，也自动执行上方选定的配置（关闭则仅在开机自启动时触发）',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表等危险操作会先弹出确认对话框',
+    helpImproveSoftware: '帮助改进软件',
+    helpImproveSoftwareHint:
+      '匿名发送崩溃、任务统计及失败任务的相关日志与错误截图，帮助发现常见问题',
+    helpImproveSoftwareDisabledHint: '当前为调试 / 开发版本，已禁用匿名数据上报',
     maxLogsPerInstance: '每个实例保留的日志上限',
     maxLogsPerInstanceHint: '超过上限会自动丢弃最旧的日志（建议 500～2000）',
     resetWindowLayout: '重置窗口布局',
     resetWindowLayoutHint: '将窗口大小恢复为默认值，并居中显示',
     autoClearLogsOnLaunch: '自动清理运行日志',
-    autoClearLogsOnLaunchHint: '每次启动项目时，自动清理运行日志并删除旧的日志文件',
+    autoClearLogsOnLaunchHint: '每次启动项目时，自动清理运行日志与调试文件',
   },
 
   // 特殊任务
@@ -182,6 +193,8 @@ export default {
       restart: '重启',
       screenoff: '息屏',
       sleep: '睡眠',
+      mute: '静音',
+      unmute: '解除静音',
     },
   },
 
@@ -223,7 +236,11 @@ export default {
         '尚未手动选择过窗口，已自动匹配到「{{name}}」。如需更换，请在连接设置中手动选择，下次将记住您的选择。',
       resourceFailed: '资源加载失败',
       startFailed: '任务启动失败',
+      workstationLocked: '检测到电脑处于锁屏状态，请先解锁后再运行任务',
       agentStartParams: 'Agent #{{index}} 启动参数: {{cmd}}  (工作目录: {{cwd}})',
+      agentSpawnHintFileNotFound: '请先检查 Agent 是否被杀软拦截，确认无误后重新覆盖安装。',
+      agentSpawnHintAppControl:
+        '请在「Windows 安全中心 → 应用和浏览器控制 → 智能应用控制」中关闭该功能后重试。',
       needConfig: '请先连接设备并加载资源，或在连接面板保存设备配置',
     },
   },
@@ -308,6 +325,10 @@ export default {
     preActionCompletedNamed: '前置程序 {{name}} 执行完成',
     preActionFailed: '前置程序执行失败: {{error}}',
     preActionExitCode: '前置程序退出码: {{code}}',
+    pretaskStarting: '正在执行预任务: {{name}}',
+    pretaskCompleted: '预任务执行完成: {{name}}',
+    pretaskExitCode: '预任务退出码: {{code}}',
+    pretaskFailed: '预任务执行失败: {{error}}',
     preActionConnectDelay: '等待 {{seconds}} 秒后连接...',
     autoPreActionName: '▶️ 启动 {{name}}',
     autoPreActionAdded: '已自动添加前置程序: {{name}}（默认未启用）',
@@ -325,6 +346,10 @@ export default {
     noMatchingOptions: '无匹配选项',
     incompatibleController: '不支持当前控制器',
     incompatibleResource: '不支持当前资源包',
+    hotkeyPlaceholder: '点击录入快捷键',
+    hotkeyCapturing: '按下快捷键...',
+    expandOptions: '展开子选项',
+    collapseOptions: '收起子选项',
   },
 
   // 预设配置
@@ -334,6 +359,7 @@ export default {
     taskCount: '个任务',
     skipToManual: '跳过，手动添加任务',
     importConfig: '从剪贴板导入配置',
+    importConfigFromFile: '从文件导入配置',
     importSuccess: '配置导入成功',
     importFailed: '导入失败：格式无效',
     importProjectMismatch: '导入失败：项目不匹配',
@@ -341,6 +367,8 @@ export default {
       '导入失败：该配置由更高版本的 {{projectName}} 导出，请更新 {{projectName}} 后重试',
     exportSuccess: '配置已复制到剪贴板',
     exportFailed: '导出失败：无法写入剪贴板',
+    exportFileSuccess: '配置已导出为 txt 文件',
+    exportFileFailed: '导出失败：无法写入文件',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 配置，发给你啦~',
     exportShareFooter: '👆 复制这段文字，在 {{projectName}} 里新建标签页，点「导入配置」就能直接用',
   },
@@ -352,7 +380,19 @@ export default {
     adb: 'Android 设备',
     win32: 'Windows 窗口',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '宽 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 窗口',
+    macosPermissionsRequired:
+      '需要授予屏幕录制和辅助功能权限。请在 macOS“系统设置”的“隐私与安全性”中授权后重试。',
+    macosUnsupportedPlatform: 'macOS 原生窗口控制器仅可在 macOS 上使用。',
+    macosVersionRequired: 'macOS 原生窗口控制器需要 MaaFramework v5.10.0-beta.1 或更高版本。',
+    macosSystemVersionRequired: 'macOS 原生窗口控制器需要 macOS 14.0 或更高版本。',
+    macosSystemVersionDetectionFailed: '无法识别当前 macOS 系统版本，请查看日志了解详情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更高版本。',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',
@@ -443,6 +483,7 @@ export default {
       loadingResource: '正在加载资源: {{name}}',
       resourceLoaded: '资源加载成功: {{name}}',
       resourceFailed: '资源加载失败: {{name}}',
+      resourceFailedHint: '可删除该资源目录后重新覆盖安装再试。',
       // 任务消息
       taskStarting: '任务开始: {{name}}',
       taskSucceeded: '任务完成: {{name}}',
@@ -478,6 +519,7 @@ export default {
     noResults: '没有找到匹配的任务',
     alreadyAdded: '已添加',
     specialTasks: '特殊任务',
+    pretasks: '前置任务',
     allSpecialTasksAdded: '已全部添加',
     collapse: '收起面板',
     ungroupedTasks: '其他',
@@ -528,6 +570,8 @@ export default {
     saveDrawHint: '保存识别和操作的调试图像到日志目录（重启软件后自动关闭）',
     tcpCompatMode: '通信兼容模式',
     tcpCompatModeHint: '若启动任务后软件立即闪退，可尝试开启。仅限此情况使用，否则会影响运行效率',
+    webServerEnabled: '启用 Web 服务',
+    webServerEnabledHint: '关闭后内置 Web 服务器将不会启动（重启生效）',
     webServerPort: 'Web 服务端口',
     webServerPortHint: '自定义 Web 服务器监听端口（默认 12701，重启生效）',
     allowLanAccess: '允许局域网访问',
@@ -538,9 +582,16 @@ export default {
     webServerAddress: 'Web 服务地址',
   },
 
+  // 配置自愈提示
+  config: {
+    recoveredFromBackup: '配置文件已损坏，已自动恢复到 {{time}} 的备份',
+    recoveryFailed: '配置文件已损坏且没有可用备份，已重置为默认配置',
+  },
+
   // 欢迎弹窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看欢迎信息',
   },
 
   // 新用户引导
@@ -555,6 +606,7 @@ export default {
     next: '下一步',
     prev: '上一步',
     gotIt: '知道了',
+    skipDev: '跳过（DEV）',
   },
 
   // 实例
@@ -616,6 +668,7 @@ export default {
       ' 是独立的第三方加速下载服务，需要付费使用，并非「{{projectName}}」收费。其运营成本由订阅收入支撑，部分收益将回馈项目开发者。欢迎订阅 CDK 享受高速下载，同时支持项目持续开发。未填写 CDK 时将自动通过 GitHub 下载，若失败请尝试配置网络代理。',
     getCdk: '没有CDK？立即订阅',
     cdkHint: '请检查您的 CDK 是否正确或已过期',
+    slowDownloadHint: '其他渠道',
     checkUpdate: '检查更新',
     checking: '正在检查...',
     upToDate: '当前已是最新版本 ({{version}})',
@@ -706,13 +759,11 @@ export default {
     repeatDays: '重复日期',
     startTime: '开始时间',
     selectDays: '选择日期...',
-    selectHours: '选择时间...',
+    addTime: '添加时间',
     noWeekdays: '未选择日期',
-    noHours: '未选择时间',
+    noTimes: '未选择时间',
     everyday: '每天',
-    everyHour: '每小时',
-    all: '全部',
-    hoursSelected: '个时间点',
+    timesSelected: '个时间点',
     timeZoneHint: '使用本地时区',
     multiSelect: '可多选',
     enable: '启用策略',
@@ -753,6 +804,11 @@ export default {
     closeAllTabs: '关闭所有标签页',
     closeTabsToRight: '关闭右侧标签页',
     exportConfig: '导出配置',
+    exportToClipboard: '导出到剪贴板',
+    exportToTxt: '导出为 txt 文件',
+    importConfig: '导入配置',
+    importFromClipboard: '从剪贴板导入',
+    importFromTxt: '从 txt 文件导入',
 
     // 前置程序右键菜单
     duplicateAction: '复制',

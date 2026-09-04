@@ -1,4 +1,5 @@
 pub mod commands;
+mod dummy_controller;
 mod mxu_actions;
 pub mod screenshot_service;
 mod tray;
@@ -85,6 +86,9 @@ pub fn run() {
                 }
             }
 
+            // 尽早初始化遥测，使后续启动流程中的崩溃也能上报
+            commands::telemetry::init_at_startup(&app_config);
+
             // 先注册共享状态，再启动依赖这些状态的后台任务，避免启动竞态
             app.manage(ws_broadcast.clone());
             app.manage(app_config.clone());
@@ -102,6 +106,11 @@ pub fn run() {
                     .unwrap();
                 let settings_obj = settings.get("settings");
 
+                let web_server_enabled = settings_obj
+                    .and_then(|s| s.get("webServerEnabled"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+
                 let allow_lan_access = settings_obj
                     .and_then(|s| s.get("allowLanAccess"))
                     .and_then(|v| v.as_bool())
@@ -114,19 +123,23 @@ pub fn run() {
                     .filter(|&p| p > 0)
                     .unwrap_or(web_server::DEFAULT_PORT);
 
+                web_server::set_web_server_enabled(web_server_enabled);
+
                 drop(settings);
 
-                tauri::async_runtime::spawn(async move {
-                    web_server::start_web_server(
-                        cfg_clone,
-                        maa_clone,
-                        app_handle,
-                        ws_clone,
-                        web_port,
-                        allow_lan_access,
-                    )
-                    .await;
-                });
+                if web_server_enabled {
+                    tauri::async_runtime::spawn(async move {
+                        web_server::start_web_server(
+                            cfg_clone,
+                            maa_clone,
+                            app_handle,
+                            ws_clone,
+                            web_port,
+                            allow_lan_access,
+                        )
+                            .await;
+                    });
+                }
             }
 
             // Windows 下移除系统标题栏（使用自定义标题栏）
@@ -212,6 +225,7 @@ pub fn run() {
             commands::maa_core::maa_find_adb_devices,
             commands::maa_core::maa_find_win32_windows,
             commands::maa_core::maa_find_wlroots_sockets,
+            commands::maa_core::maa_find_gamescope_instances,
             commands::maa_core::maa_create_instance,
             commands::maa_core::maa_destroy_instance,
             commands::maa_core::maa_connect_controller,
@@ -250,6 +264,7 @@ pub fn run() {
             commands::state::maa_get_cached_adb_devices,
             commands::state::maa_get_cached_win32_windows,
             commands::state::maa_get_cached_wlroots_sockets,
+            commands::state::maa_get_cached_gamescope_instances,
             commands::state::log_to_stdout,
             commands::state::push_log,
             commands::state::get_all_logs,
@@ -269,6 +284,7 @@ pub fn run() {
             commands::download::cancel_download,
             // 系统相关命令
             commands::system::is_elevated,
+            commands::system::is_workstation_locked,
             commands::system::is_autostart,
             commands::system::get_start_instance,
             commands::system::has_quit_after_run_flag,
@@ -278,6 +294,7 @@ pub fn run() {
             commands::system::run_and_wait,
             commands::system::set_pre_action_stop,
             commands::system::run_action,
+            commands::system::run_pretask,
             commands::system::is_process_running,
             commands::system::get_process_path_from_hwnd,
             commands::system::retry_load_maa_library,
@@ -298,6 +315,10 @@ pub fn run() {
             commands::tray::update_tray_tooltip,
             // 配置同步命令（WebUI 实时同步）
             commands::app_config::notify_config_changed,
+            commands::app_config::take_config_recovery_notice,
+            // 匿名遥测命令
+            commands::telemetry::telemetry_init,
+            commands::telemetry::telemetry_set_enabled,
         ])
         .on_window_event(|window, event| {
             match event {
@@ -316,6 +337,12 @@ pub fn run() {
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            // 退出前收尾遥测（结束 Session 与悬挂 Transaction 并 flush）
+            if matches!(event, tauri::RunEvent::Exit) {
+                commands::telemetry::on_app_exit();
+            }
+        });
 }

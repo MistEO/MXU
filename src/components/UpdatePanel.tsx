@@ -18,7 +18,7 @@ import {
   savePendingUpdateInfo,
 } from '@/services/updateService';
 import { proxySettingsForUpdateDownload } from '@/services/proxyService';
-import { DownloadProgressBar } from './UpdateInfoCard';
+import { DownloadProgressBar, useOpenUpdateSettings } from './UpdateInfoCard';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
 
@@ -123,6 +123,13 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     // 设置一个标志让模态框自动开始安装
     useAppStore.getState().setInstallStatus('installing');
   }, [setShowInstallConfirmModal, onClose]);
+
+  // 跳转到设置页的更新分区去配置 CDK
+  const openUpdateSettings = useOpenUpdateSettings();
+  const handleOpenUpdateSettings = useCallback(() => {
+    openUpdateSettings();
+    onClose(); // 关闭气泡
+  }, [openUpdateSettings, onClose]);
 
   // 计算面板位置
   useEffect(() => {
@@ -351,6 +358,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
                 resetDownloadState();
                 startDownload();
               }}
+              onSlowDownloadHintClick={handleOpenUpdateSettings}
             />
           )}
 

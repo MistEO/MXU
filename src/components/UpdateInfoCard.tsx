@@ -1,6 +1,12 @@
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, RefreshCw, PackageCheck } from 'lucide-react';
-import type { DownloadProgress, DownloadStatus } from '@/stores/appStore';
+import { ChevronRight, RefreshCw, PackageCheck, Globe } from 'lucide-react';
+import {
+  useAppStore,
+  SLOW_DOWNLOAD_DURATION_MS,
+  type DownloadProgress,
+  type DownloadStatus,
+} from '@/stores/appStore';
 import { simpleMarkdownToHtml } from '@/services/contentResolver';
 import clsx from 'clsx';
 
@@ -137,6 +143,51 @@ export function ReleaseNotes({
   );
 }
 
+/**
+ * 跳转到设置页的更新分区。
+ * 调用方通常还需要自行关闭当前的气泡/弹窗，否则会盖住设置页。
+ */
+export function useOpenUpdateSettings() {
+  const setSettingsTargetSection = useAppStore((s) => s.setSettingsTargetSection);
+  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+
+  return useCallback(() => {
+    setSettingsTargetSection('update');
+    setCurrentPage('settings');
+  }, [setSettingsTargetSection, setCurrentPage]);
+}
+
+/**
+ * 慢速下载引导入口。仅在「下载中 + 未填 CDK + 速度持续偏低」时出现，
+ * 其余情况自行返回 null，因此调用方无需再做条件判断。
+ */
+function SlowDownloadHint({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  const mirrorChyanRid = useAppStore((s) => s.projectInterface?.mirrorchyan_rid);
+  const cdk = useAppStore((s) => s.mirrorChyanSettings.cdk);
+  const downloadStatus = useAppStore((s) => s.downloadStatus);
+  const slowDownloadSince = useAppStore((s) => s.slowDownloadSince);
+
+  const hasCdk = !!cdk && cdk.trim() !== '';
+
+  // 没有 mirrorchyan_rid 时设置页不存在更新分区，跳过去是空的
+  if (!mirrorChyanRid || downloadStatus !== 'downloading' || hasCdk) return null;
+  if (slowDownloadSince === null || Date.now() - slowDownloadSince < SLOW_DOWNLOAD_DURATION_MS) {
+    return null;
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-accent/10 text-accent text-xs hover:bg-accent/15 transition-colors"
+    >
+      <Globe className="w-3.5 h-3.5 shrink-0" />
+      <span className="flex-1 text-left">{t('mirrorChyan.slowDownloadHint')}</span>
+      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+    </button>
+  );
+}
+
 interface DownloadProgressBarProps {
   downloadStatus: DownloadStatus;
   downloadProgress: DownloadProgress | null;
@@ -150,6 +201,8 @@ interface DownloadProgressBarProps {
   showActions?: boolean;
   /** 进度条背景色类名 */
   progressBgClass?: string;
+  /** 慢速下载引导入口的点击行为；不传则不显示该入口 */
+  onSlowDownloadHintClick?: () => void;
 }
 
 /** 下载进度组件 */
@@ -162,6 +215,7 @@ export function DownloadProgressBar({
   onRetryClick,
   showActions = true,
   progressBgClass = 'bg-bg-tertiary',
+  onSlowDownloadHintClick,
 }: DownloadProgressBarProps) {
   const { t } = useTranslation();
 
@@ -231,6 +285,9 @@ export function DownloadProgressBar({
             : t('mirrorChyan.downloadFromMirrorChyan')}
         </div>
       )}
+
+      {/* 慢速下载引导 */}
+      {onSlowDownloadHintClick && <SlowDownloadHint onClick={onSlowDownloadHintClick} />}
     </div>
   );
 }

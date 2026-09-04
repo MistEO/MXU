@@ -25,14 +25,21 @@ import {
 import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
+import { buildTaskOptionSummary } from '@/services/telemetryService';
+import { collectPasswordPlaintextsFromRunnableTasks } from '@/utils/passwordOptionValues';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
+import type { PretaskItem } from '@/types/interface';
+import { getLinuxDeviceName } from '@/utils/controller';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
+import { isTaskCompatible } from '@/stores/helpers';
+import { isPretaskName, getPretaskItem, buildPretaskArgs, buildPretaskDef } from '@/types/pretasks';
+import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
@@ -71,6 +78,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     basePath,
     registerTaskIdName,
     registerEntryTaskName,
+    registerCtrlIdName,
     screenshotFrameRate,
     setShowAddTaskPanel,
     tcpCompatMode,
@@ -129,6 +137,16 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       deviceName = savedDevice.adbDeviceName;
     } else if (savedDevice?.windowName) {
       deviceName = savedDevice.windowName;
+    } else if (currentController?.type === 'Linux' && savedDevice) {
+      // Linux：按当前配置输出实际使用的设备（portal/uinput 等忽略残留的 gamescope-<n>）
+      deviceName = getLinuxDeviceName(
+        currentController,
+        {
+          wlrSocketPath: savedDevice.wlrSocketPath,
+          gamescopeDisplayNo: savedDevice.gamescopeDisplayNo,
+        },
+        { portal: t('controller.portal'), linux: t('controller.linux') },
+      );
     } else if (savedDevice?.wlrSocketPath) {
       deviceName = savedDevice.wlrSocketPath;
     } else if (savedDevice?.playcoverAddress) {
@@ -214,44 +232,97 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         setIsStarting(true);
 
         try {
-          log.info(`[${instanceName}] 开始执行任务, 数量:`, enabledTasks.length);
-
-          // 构建任务配置列表
-          const taskConfigs: TaskConfig[] = [];
-          for (const selectedTask of enabledTasks) {
-            // 先检查是否是 MXU 特殊任务
-            const specialTask = getMxuSpecialTask(selectedTask.taskName);
-            const taskDef =
-              specialTask?.taskDef ||
-              projectInterface?.task.find((t) => t.name === selectedTask.taskName);
-            if (!taskDef) continue;
-
-            taskConfigs.push({
-              entry: taskDef.entry,
-              pipeline_override: generateTaskPipelineOverride(
-                selectedTask,
-                projectInterface,
-                currentControllerName,
-                currentResourceName,
-              ),
-              // 传递 selectedTaskId，后端用于建立 maaTaskId -> selectedTaskId 映射
-              selected_task_id: selectedTask.id,
-            });
-            // MXU 特殊任务的 label 是 MXU i18n key，需要用 t() 翻译
-            const taskDisplayName =
-              selectedTask.customName ||
-              (specialTask && taskDef.label
-                ? t(taskDef.label)
-                : resolveI18nText(taskDef.label, translations)) ||
-              selectedTask.taskName;
-            registerEntryTaskName(taskDef.entry, taskDisplayName);
+          // v2.7.0: 连接 Controller 前执行 pretask（如游戏设置）
+          // pretask 以伪任务形式存在于任务列表中，此处从已启用任务中筛出。
+          const enabledPretasks = enabledTasks
+            .filter((task) => isPretaskName(task.taskName))
+            .map((task) => ({ task, item: getPretaskItem(projectInterface, task.taskName) }))
+            .filter((p): p is { task: (typeof enabledTasks)[0]; item: PretaskItem } => !!p.item)
+            .filter(({ item }) =>
+              isTaskCompatible(buildPretaskDef(item), currentControllerName, currentResourceName),
+            );
+          for (const { task, item } of enabledPretasks) {
+            const args = buildPretaskArgs(
+              item,
+              task.optionValues ?? {},
+              projectInterface,
+              currentControllerName,
+              currentResourceName,
+            );
+            log.info(`[${instanceName}] 执行预任务:`, item.exec, args);
+            try {
+              const exitCode = await maaService.runPretask(instanceId, item.exec, args, basePath);
+              if (exitCode !== 0) {
+                log.warn(`[${instanceName}] 预任务退出码非零: ${exitCode}`);
+              }
+            } catch (err) {
+              log.error(`[${instanceName}] 预任务执行失败:`, err);
+            }
           }
 
-          if (taskConfigs.length === 0) {
+          const runnableTasks = enabledTasks
+            .map((selectedTask) => {
+              // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
+              if (isPretaskName(selectedTask.taskName)) return null;
+              const specialTask = getMxuSpecialTask(selectedTask.taskName);
+              const taskDef =
+                specialTask?.taskDef ||
+                projectInterface?.task.find((t) => t.name === selectedTask.taskName);
+              if (!taskDef) return null;
+              return {
+                taskName: selectedTask.taskName,
+                selectedTask,
+                taskDef,
+                specialTask,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null);
+
+          const { leading, middle, trailing } = splitTasksIntoThreeSegments(runnableTasks);
+          const primaryBatch = [...leading, ...middle];
+          const hasTrailingBatch = trailing.length > 0;
+
+          log.info(
+            `[${instanceName}] 开始执行任务, 数量: ${runnableTasks.length}, 分段: ${[
+              `primary:${primaryBatch.length}`,
+              `trailing:${trailing.length}`,
+            ].join(', ')}`,
+          );
+
+          if (runnableTasks.length === 0) {
             log.warn(`[${instanceName}] 没有可执行的任务`);
             setIsStarting(false);
             return;
           }
+
+          const buildTaskConfigs = (batchTasks: typeof runnableTasks): TaskConfig[] =>
+            batchTasks.map(({ selectedTask, taskDef, specialTask }) => {
+              const taskDisplayName =
+                selectedTask.customName ||
+                (specialTask && taskDef.label
+                  ? t(taskDef.label)
+                  : resolveI18nText(taskDef.label, translations)) ||
+                selectedTask.taskName;
+              registerEntryTaskName(taskDef.entry, taskDisplayName);
+
+              return {
+                entry: taskDef.entry,
+                pipeline_override: generateTaskPipelineOverride(
+                  selectedTask,
+                  projectInterface,
+                  currentControllerName,
+                  currentResourceName,
+                  useAppStore.getState().globalOptionValues,
+                ),
+                selected_task_id: selectedTask.id,
+                task_name: taskDef.name,
+                options: buildTaskOptionSummary(
+                  selectedTask,
+                  taskDef.option,
+                  specialTask?.optionDefs ?? projectInterface?.option,
+                ),
+              };
+            });
 
           // 准备 Agent 配置（支持单个或多个 Agent）
           const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
@@ -275,35 +346,65 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
           await startGlobalCallbackListener();
 
-          // 启动任务
-          const taskIds = await maaService.startTasks(
-            instanceId,
-            taskConfigs,
-            agentConfigs,
-            basePath,
-            tcpCompatMode,
-            piEnvs,
-          );
-
-          log.info(`[${instanceName}] 任务已提交, task_ids:`, taskIds);
-
-          // 注册 task_id 与任务名的映射（用于日志显示），后端管理状态
-          taskIds.forEach((maaTaskId, index) => {
-            if (enabledTasks[index]) {
-              // MXU 特殊任务的 label 需要用 t() 翻译
-              const specialTask = getMxuSpecialTask(enabledTasks[index].taskName);
-              const taskDef =
-                specialTask?.taskDef ||
-                projectInterface?.task.find((t) => t.name === enabledTasks[index].taskName);
-              const taskDisplayName =
-                enabledTasks[index].customName ||
-                (specialTask && taskDef?.label
-                  ? t(taskDef.label)
-                  : resolveI18nText(taskDef?.label, translations)) ||
-                enabledTasks[index].taskName;
-              registerTaskIdName(maaTaskId, taskDisplayName);
+          const startedTaskIds: number[] = [];
+          const runBatch = async (
+            batchTasks: typeof runnableTasks,
+            resetState: boolean,
+            useDummyController: boolean,
+          ) => {
+            if (batchTasks.length === 0) return [] as number[];
+            if (useDummyController) {
+              log.info(`[${instanceName}] 收尾特殊任务切换为 Dummy Controller`);
+              const dummyCtrlId = await maaService.connectController(instanceId, {
+                type: 'Dummy',
+                display_short_side: undefined,
+              });
+              registerCtrlIdName(instanceId, dummyCtrlId, 'MXU Dummy Controller', 'device');
+              setInstanceConnectionStatus(instanceId, 'Connected');
             }
-          });
+
+            const batchTaskIds = await maaService.startTasks(
+              instanceId,
+              buildTaskConfigs(batchTasks),
+              agentConfigs,
+              basePath,
+              tcpCompatMode,
+              piEnvs,
+              resetState,
+              {
+                name: currentControllerName,
+                type: projectInterface?.controller.find((c) => c.name === currentControllerName)
+                  ?.type,
+              },
+              collectPasswordPlaintextsFromRunnableTasks(
+                batchTasks,
+                useAppStore.getState().globalOptionValues,
+                projectInterface?.option ?? {},
+              ),
+            );
+
+            batchTaskIds.forEach((maaTaskId, index) => {
+              const runnable = batchTasks[index];
+              if (!runnable) return;
+              const { selectedTask, taskDef, specialTask } = runnable;
+              const taskDisplayName =
+                selectedTask.customName ||
+                (specialTask && taskDef.label
+                  ? t(taskDef.label)
+                  : resolveI18nText(taskDef.label, translations)) ||
+                selectedTask.taskName;
+              registerTaskIdName(maaTaskId, taskDisplayName);
+            });
+
+            return batchTaskIds;
+          };
+
+          startedTaskIds.push(...(await runBatch(primaryBatch, true, false)));
+          if (hasTrailingBatch) {
+            startedTaskIds.push(...(await runBatch(trailing, false, true)));
+          }
+
+          log.info(`[${instanceName}] 任务已提交, task_ids:`, startedTaskIds);
 
           setIsStarting(false);
         } catch (err) {

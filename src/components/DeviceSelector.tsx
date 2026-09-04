@@ -19,7 +19,11 @@ import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import type { AdbDevice, Win32Window, ControllerConfig } from '@/types/maa';
 import type { ControllerItem } from '@/types/interface';
-import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
+import {
+  buildDesktopWindowControllerConfig,
+  getDesktopWindowFilters,
+  isDesktopWindowControllerType,
+} from '@/utils/controller';
 import { loggers } from '@/utils/logger';
 
 const log = loggers.device;
@@ -101,6 +105,9 @@ export function DeviceSelector({
   }, [showDropdown]);
 
   const controllerType = controllerDef.type;
+  const isDesktopWindowController = isDesktopWindowControllerType(controllerType);
+  const { classRegex: desktopWindowClassRegex, titleRegex: desktopWindowTitleRegex } =
+    getDesktopWindowFilters(controllerDef);
 
   // PlayCover 地址输入
   const [playcoverAddress, setPlaycoverAddress] = useState('127.0.0.1:1717');
@@ -140,10 +147,7 @@ export function DeviceSelector({
 
   // 判断是否需要搜索设备（PlayCover 不需要搜索）
   const needsDeviceSearch =
-    controllerType === 'Adb' ||
-    controllerType === 'Win32' ||
-    controllerType === 'WlRoots' ||
-    controllerType === 'Gamepad';
+    controllerType === 'Adb' || isDesktopWindowController || controllerType === 'WlRoots';
 
   // 初始化 MaaFramework（如果还没初始化）
   const ensureMaaInitialized = async () => {
@@ -180,11 +184,11 @@ export function DeviceSelector({
         if (devices.length > 0) {
           setShowDropdown(true);
         }
-      } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
-        const classRegex = controllerDef.win32?.class_regex || controllerDef.gamepad?.class_regex;
-        const windowRegex =
-          controllerDef.win32?.window_regex || controllerDef.gamepad?.window_regex;
-        const windows = await maaService.findWin32Windows(classRegex, windowRegex);
+      } else if (isDesktopWindowController) {
+        const windows = await maaService.findWin32Windows(
+          desktopWindowClassRegex,
+          desktopWindowTitleRegex,
+        );
         setCachedWin32Windows(windows);
         if (windows.length === 1) {
           setSelectedWindow(windows[0]);
@@ -237,15 +241,15 @@ export function DeviceSelector({
           config: selectedAdbDevice.config,
           display_short_side: controllerDef.display_short_side,
         };
-      } else if (controllerType === 'Win32' && selectedWindow) {
-        config = {
-          type: 'Win32',
-          handle: selectedWindow.handle,
-          screencap_method: parseWin32ScreencapMethod(controllerDef.win32?.screencap || ''),
-          mouse_method: parseWin32InputMethod(controllerDef.win32?.mouse || ''),
-          keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
-          display_short_side: controllerDef.display_short_side,
-        };
+      } else if (isDesktopWindowController && selectedWindow) {
+        const desktopConfig = buildDesktopWindowControllerConfig(
+          controllerDef,
+          selectedWindow.handle,
+        );
+        if (!desktopConfig) {
+          throw new Error(t('controller.selectWindow'));
+        }
+        config = desktopConfig;
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
         config = {
           type: 'WlRoots',
@@ -256,12 +260,6 @@ export function DeviceSelector({
         config = {
           type: 'PlayCover',
           address: playcoverAddress,
-          display_short_side: controllerDef.display_short_side,
-        };
-      } else if (controllerType === 'Gamepad' && selectedWindow) {
-        config = {
-          type: 'Gamepad',
-          handle: selectedWindow.handle,
           display_short_side: controllerDef.display_short_side,
         };
       } else {
@@ -276,7 +274,7 @@ export function DeviceSelector({
       if (controllerType === 'Adb' && selectedAdbDevice) {
         deviceName = selectedAdbDevice.name || selectedAdbDevice.address;
         targetType = 'device';
-      } else if ((controllerType === 'Win32' || controllerType === 'Gamepad') && selectedWindow) {
+      } else if (isDesktopWindowController && selectedWindow) {
         deviceName = selectedWindow.window_name || selectedWindow.class_name;
         targetType = 'window';
       } else if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
@@ -317,7 +315,7 @@ export function DeviceSelector({
     if (controllerType === 'Adb' && selectedAdbDevice) {
       return `${selectedAdbDevice.name} (${selectedAdbDevice.address})`;
     }
-    if ((controllerType === 'Win32' || controllerType === 'Gamepad') && selectedWindow) {
+    if (isDesktopWindowController && selectedWindow) {
       return selectedWindow.window_name || selectedWindow.class_name;
     }
     if (controllerType === 'WlRoots' && selectedWlrootsSocket) {
@@ -386,22 +384,9 @@ export function DeviceSelector({
 
       await maaService.createInstance(instanceId).catch(() => {});
 
-      let config: ControllerConfig;
-      if (controllerType === 'Win32') {
-        config = {
-          type: 'Win32',
-          handle: win.handle,
-          screencap_method: parseWin32ScreencapMethod(controllerDef.win32?.screencap || ''),
-          mouse_method: parseWin32InputMethod(controllerDef.win32?.mouse || ''),
-          keyboard_method: parseWin32InputMethod(controllerDef.win32?.keyboard || ''),
-          display_short_side: controllerDef.display_short_side,
-        };
-      } else {
-        config = {
-          type: 'Gamepad',
-          handle: win.handle,
-          display_short_side: controllerDef.display_short_side,
-        };
+      const config = buildDesktopWindowControllerConfig(controllerDef, win.handle);
+      if (!config) {
+        throw new Error(t('controller.selectWindow'));
       }
 
       const ctrlId = await maaService.connectController(instanceId, config);
@@ -470,7 +455,7 @@ export function DeviceSelector({
         onClick: () => handleSelectAdbDevice(device),
       }));
     }
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') {
+    if (isDesktopWindowController) {
       return cachedWin32Windows.map((window) => ({
         id: String(window.handle),
         name: window.window_name || '(无标题)',
@@ -494,7 +479,7 @@ export function DeviceSelector({
   // 判断是否可以连接
   const canConnect = () => {
     if (controllerType === 'Adb') return !!selectedAdbDevice;
-    if (controllerType === 'Win32' || controllerType === 'Gamepad') return !!selectedWindow;
+    if (isDesktopWindowController) return !!selectedWindow;
     if (controllerType === 'WlRoots') return !!selectedWlrootsSocket;
     if (controllerType === 'PlayCover') return playcoverAddress.trim().length > 0;
     return false;
@@ -510,6 +495,7 @@ export function DeviceSelector({
       case 'Win32':
       case 'WlRoots':
         return <Monitor className="w-4 h-4" />;
+      case 'MacOS':
       case 'PlayCover':
         return <Apple className="w-4 h-4" />;
       case 'Gamepad':
@@ -530,6 +516,8 @@ export function DeviceSelector({
         return t('controller.wlroots');
       case 'PlayCover':
         return t('controller.playcover');
+      case 'MacOS':
+        return t('controller.macos');
       case 'Gamepad':
         return t('controller.gamepad');
       default:
@@ -672,7 +660,7 @@ export function DeviceSelector({
                 : 'hover:bg-bg-hover hover:border-accent',
             )}
             title={
-              controllerType === 'Win32' || controllerType === 'Gamepad'
+              isDesktopWindowController
                 ? t('controller.refreshWindows')
                 : t('controller.refreshDevices')
             }

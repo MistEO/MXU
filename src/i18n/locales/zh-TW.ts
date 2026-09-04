@@ -31,6 +31,8 @@ export default {
     dragToReorder: '拖動以重新排序',
     closeTabConfirmTitle: '關閉配置',
     closeTabConfirmMessage: '確定要關閉「{{name}}」嗎？',
+    closeMultiTabConfirmTitle: '關閉多個配置',
+    closeMultiTabConfirmMessage: '確定要關閉 {{count}} 個配置嗎？',
   },
 
   // 視窗控制按钮
@@ -47,6 +49,8 @@ export default {
     appearance: '外觀',
     hotkeys: '快捷鍵',
     general: '一般',
+    taskSettings: '任務設定',
+    taskSettingsEmpty: '目前沒有可顯示的設定項',
     language: '語言',
     backgroundImage: '背景圖片',
     backgroundOpacity: '背景不透明度',
@@ -92,6 +96,9 @@ export default {
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
     hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
+    hotkeysGlobalConflict:
+      '快捷鍵 {{combo}} 已被佔用，全域快捷鍵目前未生效。請更換按鍵，或檢查是否有其他程式 / 重複執行的實例佔用該組合鍵。',
+    hotkeysGlobalRegisterFailed: '全域快捷鍵 {{combo}} 註冊失敗：{{error}}',
     minimizeToTray: '關閉時最小化到托盤',
     minimizeToTrayHint: '點選關閉按鈕時隱藏到系統托盤而非退出程式',
     autoStart: '開機自啟動',
@@ -106,12 +113,16 @@ export default {
       '每次手動開啟程式時，也自動執行上方選定的配置（關閉則僅在開機自啟動時觸發）',
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
+    helpImproveSoftware: '協助改進軟體',
+    helpImproveSoftwareHint:
+      '匿名傳送崩潰、任務統計及失敗任務的相關日誌與錯誤截圖，協助發現常見問題',
+    helpImproveSoftwareDisabledHint: '目前為除錯 / 開發版本，已停用匿名資料回報',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌並刪除舊的日誌檔案',
+    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌與除錯檔案',
   },
 
   // 特殊任務
@@ -182,6 +193,8 @@ export default {
       restart: '重新啟動',
       screenoff: '關閉螢幕',
       sleep: '睡眠',
+      mute: '靜音',
+      unmute: '取消靜音',
     },
   },
 
@@ -219,7 +232,11 @@ export default {
         '尚未手動選擇過視窗，已自動匹配到「{{name}}」。如需更換，請在連接設定中手動選擇，下次將記住您的選擇。',
       resourceFailed: '資源載入失敗',
       startFailed: '任務啟動失敗',
+      workstationLocked: '偵測到電腦處於鎖定畫面狀態，請先解鎖後再執行任務',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
+      agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
+      agentSpawnHintAppControl:
+        '請在「Windows 安全性 → 應用程式與瀏覽器控制 → 智能應用程式控制」中關閉該功能後重試。',
       needConfig: '請先連接裝置並載入資源，或在連接面板儲存裝置設定',
     },
   },
@@ -304,6 +321,10 @@ export default {
     preActionCompletedNamed: '前置程式 {{name}} 執行完成',
     preActionFailed: '前置程式執行失敗: {{error}}',
     preActionExitCode: '前置程式結束碼: {{code}}',
+    pretaskStarting: '正在執行預任務: {{name}}',
+    pretaskCompleted: '預任務執行完成: {{name}}',
+    pretaskExitCode: '預任務結束碼: {{code}}',
+    pretaskFailed: '預任務執行失敗: {{error}}',
     preActionConnectDelay: '等待 {{seconds}} 秒後連線...',
     autoPreActionName: '▶️ 啟動 {{name}}',
     autoPreActionAdded: '已自動新增前置程式: {{name}}（預設未啟用）',
@@ -321,6 +342,10 @@ export default {
     noMatchingOptions: '無匹配選項',
     incompatibleController: '不支援目前控制器',
     incompatibleResource: '不支援目前資源包',
+    hotkeyPlaceholder: '點擊錄入快捷鍵',
+    hotkeyCapturing: '按下快捷鍵...',
+    expandOptions: '展開子選項',
+    collapseOptions: '收起子選項',
   },
 
   // 預設設定
@@ -330,6 +355,7 @@ export default {
     taskCount: '個任務',
     skipToManual: '跳過，手動新增任務',
     importConfig: '從剪貼簿匯入設定',
+    importConfigFromFile: '從檔案匯入設定',
     importSuccess: '設定匯入成功',
     importFailed: '匯入失敗：格式無效',
     importProjectMismatch: '匯入失敗：專案不匹配',
@@ -337,6 +363,8 @@ export default {
       '匯入失敗：該設定由更高版本的 {{projectName}} 匯出，請更新 {{projectName}} 後重試',
     exportSuccess: '設定已複製到剪貼簿',
     exportFailed: '匯出失敗：無法寫入剪貼簿',
+    exportFileSuccess: '設定已匯出為 txt 檔案',
+    exportFileFailed: '匯出失敗：無法寫入檔案',
     exportShareHint: '「{{tabName}}」的 {{projectName}} 設定，分享給你囉~',
     exportShareFooter: '👆 複製這段文字，在 {{projectName}} 裡新建標籤頁，點「匯入設定」就能直接用',
   },
@@ -348,7 +376,19 @@ export default {
     adb: 'Android 裝置',
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '寬 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 視窗',
+    macosPermissionsRequired:
+      '需要授予螢幕錄製和輔助使用權限。請在 macOS「系統設定」的「隱私權與安全性」中授權後重試。',
+    macosUnsupportedPlatform: 'macOS 原生視窗控制器僅可在 macOS 上使用。',
+    macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
+    macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
+    macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更新版本。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',
@@ -439,6 +479,7 @@ export default {
       loadingResource: '正在載入資源: {{name}}',
       resourceLoaded: '資源載入成功: {{name}}',
       resourceFailed: '資源載入失敗: {{name}}',
+      resourceFailedHint: '可刪除該資源目錄後重新覆蓋安裝再試。',
       // 任務訊息
       taskStarting: '任務開始: {{name}}',
       taskSucceeded: '任務完成: {{name}}',
@@ -474,6 +515,7 @@ export default {
     noResults: '沒有找到符合的任務',
     alreadyAdded: '已新增',
     specialTasks: '特殊任務',
+    pretasks: '前置任務',
     allSpecialTasksAdded: '已全部新增',
     collapse: '收起面板',
     ungroupedTasks: '其他',
@@ -524,6 +566,8 @@ export default {
     saveDrawHint: '儲存識別和操作的除錯圖像到日誌目錄（重啟軟體後自動關閉）',
     tcpCompatMode: '通訊相容模式',
     tcpCompatModeHint: '若啟動任務後軟體立即閃退，可嘗試開啟。僅限此情況使用，否則會影響運行效率',
+    webServerEnabled: '啟用 Web 服務',
+    webServerEnabledHint: '關閉後內建 Web 伺服器將不會啟動（重啟生效）',
     webServerPort: 'Web 服務連接埠',
     webServerPortHint: '自訂 Web 伺服器監聽連接埠（預設 12701，重啟生效）',
     allowLanAccess: '允許區域網路存取',
@@ -534,9 +578,16 @@ export default {
     webServerAddress: 'Web 服務地址',
   },
 
+  // 設定自我修復提示
+  config: {
+    recoveredFromBackup: '設定檔已損壞，已自動還原到 {{time}} 的備份',
+    recoveryFailed: '設定檔已損壞且沒有可用的備份，已重設為預設設定',
+  },
+
   // 欢迎彈窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看歡迎資訊',
   },
 
   // 新用戶引導
@@ -551,6 +602,7 @@ export default {
     next: '下一步',
     prev: '上一步',
     gotIt: '知道了',
+    skipDev: '跳過（DEV）',
   },
 
   // 執行個體
@@ -612,6 +664,7 @@ export default {
       ' 是獨立的第三方加速下載服務，需要付費使用，並非「{{projectName}}」收費。其營運成本由訂閱收入支撐，部分收益將回饋專案開發者。歡迎訂閱 CDK 享受高速下載，同時支援專案持續開發。未填寫 CDK 時將自動透過 GitHub 下載，若失敗請嘗試設定網路代理。',
     getCdk: '沒有CDK？立即訂閱',
     cdkHint: '請檢查您的 CDK 是否正確或已過期',
+    slowDownloadHint: '其他管道',
     checkUpdate: '檢查更新',
     checking: '正在檢查...',
     upToDate: '目前已是最新版本 ({{version}})',
@@ -691,13 +744,11 @@ export default {
     repeatDays: '重複日期',
     startTime: '開始時間',
     selectDays: '選擇日期...',
-    selectHours: '選擇時間...',
+    addTime: '新增時間',
     noWeekdays: '未選擇日期',
-    noHours: '未選擇時間',
+    noTimes: '未選擇時間',
     everyday: '每天',
-    everyHour: '每小時',
-    all: '全部',
-    hoursSelected: '個時間点',
+    timesSelected: '個時間點',
     timeZoneHint: '使用本地時區',
     multiSelect: '可多選',
     enable: '啟用策略',
@@ -738,6 +789,11 @@ export default {
     closeAllTabs: '關閉所有標籤頁',
     closeTabsToRight: '關閉右側標籤頁',
     exportConfig: '匯出設定',
+    exportToClipboard: '匯出到剪貼簿',
+    exportToTxt: '匯出為 txt 檔案',
+    importConfig: '匯入設定',
+    importFromClipboard: '從剪貼簿匯入',
+    importFromTxt: '從 txt 檔案匯入',
 
     // 前置程式右鍵選單
     duplicateAction: '複製',

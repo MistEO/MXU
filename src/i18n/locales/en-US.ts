@@ -32,6 +32,8 @@ export default {
     dragToReorder: 'Drag to reorder',
     closeTabConfirmTitle: 'Close Tab',
     closeTabConfirmMessage: 'Are you sure you want to close "{{name}}"?',
+    closeMultiTabConfirmTitle: 'Close Tabs',
+    closeMultiTabConfirmMessage: 'Are you sure you want to close {{count}} tabs?',
   },
 
   // Window controls
@@ -48,6 +50,8 @@ export default {
     appearance: 'Appearance',
     hotkeys: 'Hotkeys',
     general: 'General',
+    taskSettings: 'Task Settings',
+    taskSettingsEmpty: 'No settings available to display',
     language: 'Language',
     backgroundImage: 'Background Image',
     backgroundOpacity: 'Background Opacity',
@@ -93,6 +97,9 @@ export default {
     hotkeysGlobal: 'Global hotkeys',
     hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     hotkeysGlobalOnlyStart: 'only start works in global mode',
+    hotkeysGlobalConflict:
+      'Hotkey {{combo}} is already taken, so global hotkeys are currently inactive. Please pick another key, or check whether another program or a duplicate instance is holding this combination.',
+    hotkeysGlobalRegisterFailed: 'Failed to register global hotkey {{combo}}: {{error}}',
     minimizeToTray: 'Minimize to tray on close',
     minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
     autoStart: 'Launch at startup',
@@ -109,6 +116,11 @@ export default {
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint:
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
+    helpImproveSoftware: 'Help Improve the Software',
+    helpImproveSoftwareHint:
+      'Anonymously send crash reports, task statistics, and relevant logs and error screenshots from failed tasks to help find common issues.',
+    helpImproveSoftwareDisabledHint:
+      'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
@@ -116,7 +128,7 @@ export default {
     resetWindowLayoutHint: 'Restore window size to default and center the window',
     autoClearLogsOnLaunch: 'Auto-clear Runtime Logs',
     autoClearLogsOnLaunchHint:
-      'Automatically clear runtime logs and delete old log files every time the project is launched',
+      'Automatically clear runtime logs and debug files every time the project is launched',
   },
 
   // Special tasks
@@ -189,6 +201,8 @@ export default {
       restart: 'Restart',
       screenoff: 'Turn Off Screen',
       sleep: 'Sleep',
+      mute: 'Mute',
+      unmute: 'Unmute',
     },
   },
 
@@ -230,7 +244,12 @@ export default {
         'No window was previously selected. Automatically matched "{{name}}". To change, select manually in Connection Settings — your choice will be remembered next time.',
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
+      workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
+      agentSpawnHintFileNotFound:
+        'Check whether antivirus blocked the Agent, then reinstall by overwriting the installation.',
+      agentSpawnHintAppControl:
+        'Turn off Smart App Control under Windows Security → App & browser control, then retry.',
       needConfig:
         'Please connect device and load resource first, or save device config in connection panel',
     },
@@ -317,6 +336,10 @@ export default {
     preActionCompletedNamed: 'Pre-program {{name}} completed',
     preActionFailed: 'Pre-program failed: {{error}}',
     preActionExitCode: 'Pre-program exit code: {{code}}',
+    pretaskStarting: 'Running pre-task: {{name}}',
+    pretaskCompleted: 'Pre-task completed: {{name}}',
+    pretaskExitCode: 'Pre-task exit code: {{code}}',
+    pretaskFailed: 'Pre-task failed: {{error}}',
     preActionConnectDelay: 'Waiting {{seconds}} seconds before connecting...',
     autoPreActionName: '▶️ Launch {{name}}',
     autoPreActionAdded: 'Auto-added pre-action: {{name}} (disabled by default)',
@@ -334,6 +357,10 @@ export default {
     noMatchingOptions: 'No matching options',
     incompatibleController: 'Not supported by current controller',
     incompatibleResource: 'Not supported by current resource',
+    hotkeyPlaceholder: 'Click to record shortcut',
+    hotkeyCapturing: 'Press keys...',
+    expandOptions: 'Expand sub-options',
+    collapseOptions: 'Collapse sub-options',
   },
 
   // Preset
@@ -343,6 +370,7 @@ export default {
     taskCount: 'tasks',
     skipToManual: 'Skip, add tasks manually',
     importConfig: 'Import config from clipboard',
+    importConfigFromFile: 'Import config from file',
     importSuccess: 'Config imported successfully',
     importFailed: 'Import failed: invalid format',
     importProjectMismatch: 'Import failed: project mismatch',
@@ -350,6 +378,8 @@ export default {
       'Import failed: this config was exported by a newer version of {{projectName}}, please update {{projectName}} and try again',
     exportSuccess: 'Config copied to clipboard',
     exportFailed: 'Export failed: unable to write to clipboard',
+    exportFileSuccess: 'Config exported as txt file',
+    exportFileFailed: 'Export failed: unable to write file',
     exportShareHint: 'Sharing my {{projectName}} config "{{tabName}}" with you~',
     exportShareFooter:
       '👆 Copy this message, open {{projectName}}, create a new tab, and tap "Import Config" to use it instantly',
@@ -362,7 +392,21 @@ export default {
     adb: 'Android Device',
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: 'Width (px)',
+    uinputHeight: 'Height (px)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS Window',
+    macosPermissionsRequired:
+      'Screen Recording and Accessibility permissions are required. Grant them in macOS System Settings under Privacy & Security, then try again.',
+    macosUnsupportedPlatform: 'The native macOS window controller is only available on macOS.',
+    macosVersionRequired:
+      'The native macOS window controller requires MaaFramework v5.10.0-beta.1 or later.',
+    macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
+    macosSystemVersionDetectionFailed:
+      'The current macOS version could not be detected. Check the logs for details.',
+    linuxVersionRequired: 'The Linux controller requires MaaFramework v5.13.0-beta.3 or later.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',
@@ -454,6 +498,8 @@ export default {
       loadingResource: 'Loading resource: {{name}}',
       resourceLoaded: 'Resource loaded: {{name}}',
       resourceFailed: 'Resource load failed: {{name}}',
+      resourceFailedHint:
+        'Try deleting the resource directory and reinstalling (overwrite) before retrying.',
       // Task messages
       taskStarting: 'Task started: {{name}}',
       taskSucceeded: 'Task completed: {{name}}',
@@ -491,6 +537,7 @@ export default {
     alreadyAdded: 'Already added',
     collapse: 'Collapse panel',
     specialTasks: 'Special Tasks',
+    pretasks: 'Pre-tasks',
     allSpecialTasksAdded: 'All added',
     ungroupedTasks: 'Others',
     resizeHandleAriaLabel: 'Resize add task panel height',
@@ -542,6 +589,9 @@ export default {
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
+    webServerEnabled: 'Enable Web Server',
+    webServerEnabledHint:
+      'When disabled, the built-in web server will not start (restart required)',
     webServerPort: 'Web Server Port',
     webServerPortHint: 'Custom Web server listening port (default 12701, restart required)',
     allowLanAccess: 'Allow LAN Access',
@@ -554,9 +604,18 @@ export default {
     webServerAddress: 'Web Server Address',
   },
 
+  // Config self-heal notices
+  config: {
+    recoveredFromBackup:
+      'The config file was corrupted and has been restored from the {{time}} backup',
+    recoveryFailed:
+      'The config file was corrupted and no usable backup was found, so it has been reset to defaults',
+  },
+
   // Welcome dialog
   welcome: {
     dismiss: 'Got it',
+    viewAgain: 'View welcome message',
   },
 
   // Onboarding
@@ -572,6 +631,7 @@ export default {
     next: 'Next',
     prev: 'Previous',
     gotIt: 'Got it',
+    skipDev: 'Skip (DEV)',
   },
 
   // Instance
@@ -633,6 +693,7 @@ export default {
       ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
     getCdk: 'No CDKey? Subscribe Now',
     cdkHint: 'Please check if your CDK is correct or has expired',
+    slowDownloadHint: 'Other channels',
     checkUpdate: 'Check for Updates',
     checking: 'Checking...',
     upToDate: 'You are up to date ({{version}})',
@@ -712,13 +773,11 @@ export default {
     repeatDays: 'Repeat Days',
     startTime: 'Start Time',
     selectDays: 'Select days...',
-    selectHours: 'Select hours...',
+    addTime: 'Add time',
     noWeekdays: 'No days selected',
-    noHours: 'No hours selected',
+    noTimes: 'No times selected',
     everyday: 'Every day',
-    everyHour: 'Every hour',
-    all: 'All',
-    hoursSelected: 'hours selected',
+    timesSelected: 'times selected',
     timeZoneHint: 'Using local timezone',
     multiSelect: 'multi-select',
     enable: 'Enable schedule',
@@ -759,6 +818,11 @@ export default {
     closeAllTabs: 'Close All Tabs',
     closeTabsToRight: 'Close Tabs to the Right',
     exportConfig: 'Export Config',
+    exportToClipboard: 'Export to Clipboard',
+    exportToTxt: 'Export as txt File',
+    importConfig: 'Import Config',
+    importFromClipboard: 'Import from Clipboard',
+    importFromTxt: 'Import from txt File',
 
     // Pre-action context menu
     duplicateAction: 'Duplicate',

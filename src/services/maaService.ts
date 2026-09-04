@@ -6,19 +6,46 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AdbDevice,
   Win32Window,
+  GamescopeInstance,
   ControllerConfig,
   ConnectionStatus,
   TaskStatus,
   AgentConfig,
   TaskConfig,
+  ControllerTelemetryInfo,
   InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
+import { redactSecretsInText } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
+import i18n from '@/i18n';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
 import * as wsService from '@/services/wsService';
 
 const log = loggers.maa;
+
+function localizeControllerError(error: unknown): unknown {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('MACOS_PERMISSIONS_REQUIRED')) {
+    return new Error(i18n.t('controller.macosPermissionsRequired'));
+  }
+  if (message.includes('MACOS_UNSUPPORTED_PLATFORM')) {
+    return new Error(i18n.t('controller.macosUnsupportedPlatform'));
+  }
+  if (message.includes('MACOS_MAAFW_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.macosVersionRequired'));
+  }
+  if (message.includes('MACOS_VERSION_DETECTION_FAILED')) {
+    return new Error(i18n.t('controller.macosSystemVersionDetectionFailed'));
+  }
+  if (message.includes('MACOS_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.macosSystemVersionRequired'));
+  }
+  if (message.includes('LINUX_MAAFW_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.linuxVersionRequired'));
+  }
+  return error;
+}
 
 /**
  * 从后端获取最新缓存截图，转换为 base64 data URL（浏览器专用）
@@ -181,37 +208,42 @@ export const maaService = {
   },
 
   /**
-   * 查找 Win32 窗口
-   * @param classRegex 窗口类名正则表达式（可选）
+   * 查找桌面窗口（Win32/macOS）
+   * @param classRegex 窗口类名正则表达式（仅 Win32/Gamepad，可选）
    * @param windowRegex 窗口标题正则表达式（可选）
    */
   async findWin32Windows(classRegex?: string, windowRegex?: string): Promise<Win32Window[]> {
-    log.info(
-      '搜索 Win32 窗口, classRegex:',
-      classRegex || '(无)',
-      ', windowRegex:',
-      windowRegex || '(无)',
-    );
-    let windows: Win32Window[];
-    if (isTauri()) {
-      windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
-        classRegex: classRegex || null,
-        windowRegex: windowRegex || null,
-      });
-    } else {
-      const params = new URLSearchParams();
-      if (classRegex) params.set('class_regex', classRegex);
-      if (windowRegex) params.set('window_regex', windowRegex);
-      const query = params.toString();
-      windows = await apiGet<Win32Window[]>(`/maa/windows${query ? `?${query}` : ''}`);
-    }
-    log.info('找到 Win32 窗口:', windows.length, '个');
-    windows.forEach((win, i) => {
-      log.debug(
-        `  窗口[${i}]: handle=${win.handle}, class=${win.class_name}, name=${win.window_name}`,
+    try {
+      log.info(
+        '搜索桌面窗口, classRegex:',
+        classRegex || '(无)',
+        ', windowRegex:',
+        windowRegex || '(无)',
       );
-    });
-    return windows;
+      let windows: Win32Window[];
+      if (isTauri()) {
+        windows = await invoke<Win32Window[]>('maa_find_win32_windows', {
+          classRegex: classRegex || null,
+          windowRegex: windowRegex || null,
+        });
+      } else {
+        const params = new URLSearchParams();
+        if (classRegex) params.set('class_regex', classRegex);
+        if (windowRegex) params.set('window_regex', windowRegex);
+        const query = params.toString();
+        windows = await apiGet<Win32Window[]>(`/maa/windows${query ? `?${query}` : ''}`);
+      }
+      log.info('找到桌面窗口:', windows.length, '个');
+      windows.forEach((win, i) => {
+        log.debug(
+          `  窗口[${i}]: handle=${win.handle}, class=${win.class_name}, name=${win.window_name}`,
+        );
+      });
+      return windows;
+    } catch (err) {
+      log.error('搜索桌面窗口失败:', err);
+      throw localizeControllerError(err);
+    }
   },
 
   /**
@@ -227,6 +259,23 @@ export const maaService = {
       log.debug(`  socket[${i}]: ${socket}`);
     });
     return sockets;
+  },
+
+  /**
+   * 查找 gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
+   */
+  async findGamescopeInstances(): Promise<GamescopeInstance[]> {
+    log.info('搜索 gamescope 实例...');
+    const instances = isTauri()
+      ? await invoke<GamescopeInstance[]>('maa_find_gamescope_instances')
+      : await apiGet<GamescopeInstance[]>('/maa/gamescope-instances');
+    log.info('找到 gamescope 实例:', instances.length, '个');
+    instances.forEach((inst, i) => {
+      log.debug(
+        `  实例[${i}]: display_no=${inst.display_no}, pipewire_node_id=${inst.pipewire_node_id}, eis_socket_path=${inst.eis_socket_path}`,
+      );
+    });
+    return instances;
   },
 
   /**
@@ -269,16 +318,16 @@ export const maaService = {
     log.info('连接控制器, 实例:', instanceId, '类型:', config.type);
     log.debug('控制器配置:', config);
 
-    if (!isTauri()) {
-      log.info('浏览器环境，调用 HTTP API 连接控制器');
-      const result = await apiPost<{ connId: number }>(
-        `/maa/instances/${instanceId}/connect`,
-        config,
-      );
-      return result.connId;
-    }
-
     try {
+      if (!isTauri()) {
+        log.info('浏览器环境，调用 HTTP API 连接控制器');
+        const result = await apiPost<{ connId: number }>(
+          `/maa/instances/${instanceId}/connect`,
+          config,
+        );
+        return result.connId;
+      }
+
       const ctrlId = await invoke<number>('maa_connect_controller', {
         instanceId,
         config,
@@ -287,7 +336,7 @@ export const maaService = {
       return ctrlId;
     } catch (err) {
       log.error('控制器连接请求失败:', err);
-      throw err;
+      throw localizeControllerError(err);
     }
   },
 
@@ -584,6 +633,9 @@ export const maaService = {
    * @param cwd 工作目录（Agent 子进程的 CWD）
    * @param tcpCompatMode 通信兼容模式（强制使用 TCP）
    * @param piEnvs PI v2.5.0 环境变量（Agent 子进程注入）
+   * @param resetState 是否重置后端任务运行状态（默认 true）。分段运行时，仅首段为 true，
+   *                   后续段传 false 以追加任务、保留已完成段的状态。
+   * @param controllerInfo 当前 controller 的名称与类型（仅用于遥测埋点）
    * @returns 任务 ID 列表
    */
   async startTasks(
@@ -593,10 +645,17 @@ export const maaService = {
     cwd?: string,
     tcpCompatMode?: boolean,
     piEnvs?: Record<string, string>,
+    resetState: boolean = true,
+    controllerInfo?: ControllerTelemetryInfo,
+    logRedactSecrets?: string[],
   ): Promise<number[]> {
     log.info('启动任务, 实例:', instanceId, ', 任务数:', tasks.length, ', cwd:', cwd || '.');
     tasks.forEach((task, i) => {
-      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${task.pipeline_override}`);
+      const override =
+        logRedactSecrets && logRedactSecrets.length > 0
+          ? redactSecretsInText(task.pipeline_override, logRedactSecrets)
+          : task.pipeline_override;
+      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${override}`);
     });
     if (agentConfigs && agentConfigs.length > 0) {
       log.info(
@@ -617,6 +676,8 @@ export const maaService = {
           cwd: cwd || null,
           tcp_compat_mode: tcpCompatMode || false,
           pi_envs: agentConfigs && agentConfigs.length > 0 && piEnvs ? piEnvs : null,
+          reset_state: resetState,
+          controller_info: controllerInfo ?? null,
         },
       );
       log.info('任务已提交 (HTTP), taskIds:', result.taskIds);
@@ -630,6 +691,8 @@ export const maaService = {
       cwd: cwd || '.',
       tcpCompatMode: tcpCompatMode || false,
       piEnvs: hasAgent && piEnvs ? piEnvs : null,
+      resetState,
+      controllerInfo: controllerInfo ?? null,
     });
     log.info('任务已提交, taskIds:', taskIds);
     return taskIds;
@@ -754,6 +817,106 @@ export const maaService = {
   },
 
   /**
+   * 等待一批 task_id 全部到达终态（成功/失败）。用于分段运行时串接各段。
+   *
+   * 双重判定：
+   * - 监听 `Tasker.Task.Succeeded` / `Tasker.Task.Failed` 匹配本批 task_id；
+   * - 轮询后端 `isRunning`，当该批提交后任务跑完（isRunning 变 false）时兜底完成，
+   *   避免漏掉早于监听器附加的回调。
+   *
+   * @param instanceId 实例 ID
+   * @param taskIds 本批任务 ID 列表
+   * @param options.shouldStop 返回 true 时中止等待（用于响应用户停止）
+   * @param options.timeoutMs 超时毫秒；<=0 表示不超时（默认不超时）
+   * @param options.pollIntervalMs 轮询间隔毫秒（默认 500）
+   * @returns allDone=是否全部完成；failed=失败的 task_id；stopped=是否因停止而中止
+   */
+  async waitForTasks(
+    instanceId: string,
+    taskIds: number[],
+    options?: {
+      shouldStop?: () => boolean | Promise<boolean>;
+      timeoutMs?: number;
+      pollIntervalMs?: number;
+    },
+  ): Promise<{ allDone: boolean; failed: number[]; stopped: boolean }> {
+    const failed: number[] = [];
+    if (taskIds.length === 0) {
+      return { allDone: true, failed, stopped: false };
+    }
+
+    const pending = new Set<number>(taskIds);
+    let resolved = false;
+    let settle!: (value: { allDone: boolean; failed: number[]; stopped: boolean }) => void;
+    const promise = new Promise<{ allDone: boolean; failed: number[]; stopped: boolean }>(
+      (resolve) => {
+        settle = resolve;
+      },
+    );
+    const finish = (result: { allDone: boolean; failed: number[]; stopped: boolean }) => {
+      if (!resolved) {
+        resolved = true;
+        settle(result);
+      }
+    };
+
+    const unlisten = await this.onCallback((message, details) => {
+      const tid = details.task_id;
+      if (typeof tid !== 'number' || !pending.has(tid)) return;
+      if (message === 'Tasker.Task.Succeeded') {
+        pending.delete(tid);
+      } else if (message === 'Tasker.Task.Failed') {
+        failed.push(tid);
+        pending.delete(tid);
+      } else {
+        return;
+      }
+      if (pending.size === 0) {
+        finish({ allDone: true, failed, stopped: false });
+      }
+    });
+
+    const pollMs = options?.pollIntervalMs ?? 500;
+    let tick = 0;
+    const poll = setInterval(() => {
+      void (async () => {
+        if (resolved) return;
+        tick += 1;
+        try {
+          if (options?.shouldStop && (await options.shouldStop())) {
+            finish({ allDone: false, failed, stopped: true });
+            return;
+          }
+          // 首个 tick 给后端一点时间把 isRunning 翻到 true，避免误判完成
+          if (tick >= 2) {
+            const state = await this.getInstanceState(instanceId);
+            if (state && !state.isRunning) {
+              finish({ allDone: pending.size === 0, failed, stopped: false });
+            }
+          }
+        } catch {
+          /* 忽略轮询错误，继续等待回调 */
+        }
+      })();
+    }, pollMs);
+
+    const timeoutMs = options?.timeoutMs ?? 0;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        log.warn(`等待任务批次超时, 剩余 ${pending.size} 个未完成`);
+        finish({ allDone: false, failed, stopped: false });
+      }, timeoutMs);
+    }
+
+    return promise.finally(() => {
+      clearInterval(poll);
+      if (timeoutId) clearTimeout(timeoutId);
+      unlisten();
+    });
+  },
+
+  /**
    * 获取单个实例的运行时状态（通过 Maa API 实时查询）
    * @param instanceId 实例 ID
    */
@@ -815,6 +978,7 @@ export const maaService = {
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
     cachedWlrootsSockets: string[];
+    cachedGamescopeInstances: GamescopeInstance[];
   } | null> {
     try {
       type RawTaskRunState = {
@@ -836,6 +1000,7 @@ export const maaService = {
         cached_adb_devices: AdbDevice[];
         cached_win32_windows: Win32Window[];
         cached_wlroots_sockets: string[];
+        cached_gamescope_instances: GamescopeInstance[];
       };
 
       // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
@@ -883,6 +1048,7 @@ export const maaService = {
         cachedAdbDevices: states.cached_adb_devices,
         cachedWin32Windows: states.cached_win32_windows,
         cachedWlrootsSockets: states.cached_wlroots_sockets,
+        cachedGamescopeInstances: states.cached_gamescope_instances,
       };
     } catch (err) {
       log.error('获取所有状态失败:', err);
@@ -937,6 +1103,22 @@ export const maaService = {
       const resp = await apiGet<{ elevated: boolean }>('/system/is-elevated');
       return resp.elevated;
     } catch {
+      return false;
+    }
+  },
+
+  /**
+   * 检查当前电脑是否处于锁屏状态（仅 Tauri + Windows 生效）
+   * 检测异常或非 Tauri 环境按未锁屏处理，避免误拦截任务启动
+   */
+  async isWorkstationLocked(): Promise<boolean> {
+    try {
+      if (isTauri()) {
+        return await invoke<boolean>('is_workstation_locked');
+      }
+      return false;
+    } catch (err) {
+      log.warn('检测锁屏状态失败，按未锁屏处理:', err);
       return false;
     }
   },
@@ -1011,6 +1193,30 @@ export const maaService = {
   async setPreActionStop(instanceId: string, stop: boolean): Promise<void> {
     if (!isTauri()) return;
     await invoke('set_pre_action_stop', { instanceId, stop });
+  },
+
+  /**
+   * 执行 PI v2.7.0 pretask 外部程序（连接 Controller 前调用）。
+   * args 以数组形式直传后端，保留 option 序列化生成的 JSON 参数。
+   */
+  async runPretask(
+    instanceId: string,
+    program: string,
+    args: string[],
+    cwd?: string,
+  ): Promise<number> {
+    if (!isTauri()) {
+      throw new Error('此功能仅在 Tauri 环境中可用');
+    }
+    log.info('执行预任务:', program, args);
+    const exitCode = await invoke<number>('run_pretask', {
+      instanceId,
+      program,
+      args,
+      cwd: cwd || null,
+    });
+    log.info('预任务执行完成, 退出码:', exitCode);
+    return exitCode;
   },
 
   /**

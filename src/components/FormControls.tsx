@@ -2,6 +2,7 @@
  * 通用表单控件组件
  * 可在 ActionItem、OptionEditor 等处复用
  */
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen } from 'lucide-react';
 import clsx from 'clsx';
@@ -73,11 +74,36 @@ interface TextInputProps {
   disabled?: boolean;
   hasError?: boolean;
   className?: string;
-  type?: 'text' | 'number';
+  type?: 'text' | 'number' | 'password';
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   step?: number;
   integerOnly?: boolean;
 }
+
+interface HotkeyInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+interface BuildHotkeyComboOptions {
+  /** 保留 Meta（Command/Windows）语义；默认仍归一为 Ctrl，以兼容应用全局快捷键。 */
+  preserveMeta?: boolean;
+  /** 将 KeyboardEvent.key 规范化为流水线热键表使用的键名。 */
+  normalizePipelineKey?: boolean;
+}
+
+const PIPELINE_HOTKEY_KEY_NAMES: Record<string, string> = {
+  ArrowLeft: 'Left',
+  ArrowRight: 'Right',
+  ArrowUp: 'Up',
+  ArrowDown: 'Down',
+  Escape: 'Esc',
+  ' ': 'Space',
+  Spacebar: 'Space',
+};
 
 export function TextInput({
   value,
@@ -94,6 +120,7 @@ export function TextInput({
   return (
     <input
       type={type}
+      autoComplete={type === 'password' ? 'off' : undefined}
       value={value}
       onChange={(e) => {
         if (!integerOnly) {
@@ -248,6 +275,81 @@ interface TimeInputProps {
   className?: string;
 }
 
+/**
+ * 从键盘事件生成统一的快捷键组合字符串（如 "Ctrl+Shift+A"）。
+ * 纯修饰键（Ctrl/Shift/Alt/Meta）单独按下时返回 null。
+ * 默认将 Meta 归一为 Ctrl，保持应用全局快捷键的 CommandOrControl 兼容语义；
+ * 流水线热键可保留 Command/Windows 键语义，并将浏览器键名规范化为协议映射表键名。
+ */
+export function buildHotkeyCombo(
+  e: React.KeyboardEvent,
+  { preserveMeta = false, normalizePipelineKey = false }: BuildHotkeyComboOptions = {},
+): string | null {
+  const parts: string[] = [];
+  if (e.ctrlKey || (e.metaKey && !preserveMeta)) parts.push('Ctrl');
+  if (e.metaKey && preserveMeta) parts.push('Meta');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+
+  let key = e.key as string;
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') {
+    return null;
+  }
+  if (normalizePipelineKey) {
+    key = PIPELINE_HOTKEY_KEY_NAMES[key] ?? key;
+  }
+  if (/^f\d+$/i.test(key) || key.length === 1) {
+    key = key.toUpperCase();
+  }
+
+  parts.push(key);
+  return parts.join('+');
+}
+
+export function HotkeyInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  className,
+}: HotkeyInputProps) {
+  const { t } = useTranslation();
+  const [capturing, setCapturing] = useState(false);
+
+  return (
+    <input
+      type="text"
+      readOnly
+      value={value}
+      placeholder={
+        capturing
+          ? t('optionEditor.hotkeyCapturing')
+          : placeholder || t('optionEditor.hotkeyPlaceholder')
+      }
+      disabled={disabled}
+      onFocus={() => !disabled && setCapturing(true)}
+      onBlur={() => setCapturing(false)}
+      onKeyDown={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        const combo = buildHotkeyCombo(e, {
+          preserveMeta: true,
+          normalizePipelineKey: true,
+        });
+        if (!combo) return;
+        onChange(combo);
+      }}
+      className={clsx(
+        'px-3 py-1.5 text-sm rounded-md border cursor-pointer',
+        'bg-bg-secondary text-text-primary',
+        'focus:outline-none focus:ring-1 focus:border-accent focus:ring-accent/20 border-border',
+        disabled && 'opacity-60 cursor-not-allowed',
+        className,
+      )}
+    />
+  );
+}
+
 export function TimeInput({ value, onChange, disabled, className }: TimeInputProps) {
   return (
     <input
@@ -312,13 +414,13 @@ export function FileInput({
   };
 
   return (
-    <div className={clsx('flex gap-2', className)}>
+    <div className={clsx('flex min-w-0 gap-2', className)}>
       <TextInput
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
-        className="flex-1"
+        className="min-w-0 flex-1"
       />
       {isTauri() && (
         <button

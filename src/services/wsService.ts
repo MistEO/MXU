@@ -91,12 +91,22 @@ export function setServerPort(port: number): void {
 
 function getWsUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  if (serverPort) {
-    const hostname = window.location.hostname;
+
+  // 已探测到后端端口：直连（tauri 生产模式下 tauri://localhost 相对路径不可用）
+  if (serverPort && serverPort > 0) {
+    const hostname = window.location.hostname || '127.0.0.1';
     return `${protocol}//${hostname}:${serverPort}/api/ws`;
   }
-  const host = window.location.host;
-  return `${protocol}//${host}/api/ws`;
+
+  // 正常情况：通过 Nginx 反向代理
+  if (window.location.host) {
+    return `${protocol}//${window.location.host}/api/ws`;
+  }
+
+  // Fallback：直连后端
+  const hostname = window.location.hostname || '127.0.0.1';
+  const port = serverPort || 12701;
+  return `${protocol}//${hostname}:${port}/api/ws`;
 }
 
 // ============================================================================

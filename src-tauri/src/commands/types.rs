@@ -2,7 +2,7 @@
 //!
 //! 包含 Tauri 命令使用的数据结构和枚举
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -60,6 +60,14 @@ pub struct Win32Window {
     pub window_name: String,
 }
 
+/// gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GamescopeInstance {
+    pub display_no: u32,
+    pub pipewire_node_id: u32,
+    pub eis_socket_path: String,
+}
+
 /// 控制器类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "type")]
@@ -78,6 +86,13 @@ pub enum ControllerConfig {
         screencap_method: u64,
         mouse_method: u64,
         keyboard_method: u64,
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
+    MacOS {
+        handle: u64,
+        screencap_method: u64,
+        input_method: u64,
         #[serde(default)]
         display_short_side: Option<i32>,
     },
@@ -104,6 +119,60 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
+    /// 空 controller：截图返回纯黑图、输入 no-op。
+    /// 用于在游戏未连接/已关闭时执行不依赖游戏画面的 MXU 特殊任务。
+    Dummy {
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
+    /// Linux 原生控制器（截图：Wlr/PipeWire，输入：Wlr/UInput/Libei）
+    Linux {
+        screencap_method: u64,
+        input_method: u64,
+        #[serde(default)]
+        pipewire_source: Option<String>,
+        #[serde(default)]
+        wlr_socket_path: Option<String>,
+        #[serde(default)]
+        pw_socket_fd: Option<i32>,
+        #[serde(default)]
+        pw_node_id: Option<u32>,
+        #[serde(default)]
+        uinput_path: Option<String>,
+        #[serde(default)]
+        uinput_screen_width: Option<i32>,
+        #[serde(default)]
+        uinput_screen_height: Option<i32>,
+        #[serde(default)]
+        eis_socket_path: Option<String>,
+        #[serde(default)]
+        use_win32_vk_code: Option<bool>,
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ControllerConfig;
+
+    #[test]
+    fn deserializes_macos_controller_config_with_default_display_short_side() {
+        let config: ControllerConfig = serde_json::from_str(
+            r#"{"type":"MacOS","handle":42,"screencap_method":1,"input_method":2}"#,
+        )
+        .expect("MacOS controller config should deserialize");
+
+        assert_eq!(
+            config,
+            ControllerConfig::MacOS {
+                handle: 42,
+                screencap_method: 1,
+                input_method: 2,
+                display_short_side: None,
+            }
+        );
+    }
 }
 
 /// 连接状态
@@ -161,6 +230,7 @@ pub struct AllInstanceStates {
     pub cached_adb_devices: Vec<AdbDevice>,
     pub cached_win32_windows: Vec<Win32Window>,
     pub cached_wlroots_sockets: Vec<String>,
+    pub cached_gamescope_instances: Vec<GamescopeInstance>,
 }
 
 /// 实例运行时状态（持有 MaaFramework 对象句柄）
@@ -286,6 +356,10 @@ pub struct MaaState {
     pub cached_win32_windows: Mutex<Vec<Win32Window>>,
     /// 缓存的 WlRoots socket 列表（全局共享）
     pub cached_wlroots_sockets: Mutex<Vec<String>>,
+    /// 缓存的 gamescope 实例列表（全局共享）
+    pub cached_gamescope_instances: Mutex<Vec<GamescopeInstance>>,
+    /// Portal ScreenCast 会话的 restore token（仅存内存，不落盘）
+    pub portal_restore_token: Mutex<Option<String>>,
     /// 运行日志缓冲区（前端推送，页面刷新后恢复）
     pub log_buffer: Mutex<LogBuffer>,
     /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）
@@ -346,6 +420,23 @@ pub struct TaskConfig {
     /// 对应的前端选中任务 ID（用于后端跟踪 per-task 状态）
     #[serde(default)]
     pub selected_task_id: Option<String>,
+    /// interface 任务名（如 `SwitchTeam`），仅用于遥测埋点
+    #[serde(default)]
+    pub task_name: Option<String>,
+    /// 任务选项摘要（已由前端脱敏），仅用于遥测埋点
+    #[serde(default)]
+    pub options: Option<BTreeMap<String, String>>,
+}
+
+/// 当前 controller 描述（前端传入，仅用于遥测埋点）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControllerInfo {
+    /// interface 中的 controller 名，如 `Win32-Front`
+    #[serde(default)]
+    pub name: Option<String>,
+    /// controller 类型，如 `Win32`/`Adb`
+    #[serde(default, rename = "type")]
+    pub type_name: Option<String>,
 }
 
 /// 版本检查结果

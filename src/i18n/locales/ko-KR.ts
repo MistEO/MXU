@@ -31,6 +31,8 @@ export default {
     dragToReorder: '드래그하여 순서 변경',
     closeTabConfirmTitle: '탭 닫기',
     closeTabConfirmMessage: '"{{name}}"을(를) 닫으시겠습니까?',
+    closeMultiTabConfirmTitle: '탭 여러 개 닫기',
+    closeMultiTabConfirmMessage: '{{count}}개의 탭을 닫으시겠습니까?',
   },
 
   // 창 컨트롤
@@ -47,6 +49,8 @@ export default {
     appearance: '외관',
     hotkeys: '단축키',
     general: '일반',
+    taskSettings: '작업 설정',
+    taskSettingsEmpty: '표시할 수 있는 설정 항목이 없습니다',
     language: '언어',
     backgroundImage: '배경 이미지',
     backgroundOpacity: '배경 불투명도',
@@ -92,6 +96,9 @@ export default {
     hotkeysGlobal: '전역 단축키',
     hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
+    hotkeysGlobalConflict:
+      '단축키 {{combo}}이(가) 이미 사용 중이어서 전역 단축키가 현재 작동하지 않습니다. 다른 키로 변경하거나, 다른 프로그램 또는 중복 실행된 인스턴스가 해당 조합을 사용하고 있는지 확인해 주세요.',
+    hotkeysGlobalRegisterFailed: '전역 단축키 {{combo}} 등록 실패: {{error}}',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     autoStart: '시작 시 자동 실행',
@@ -107,13 +114,16 @@ export default {
       '앱을 수동으로 열 때도 위에서 선택한 구성을 자동 실행합니다 (비활성화 시 시스템 시작 시에만 실행)',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint: '삭제/목록 비우기 등 위험한 작업 전에 확인 대화 상자를 표시합니다',
+    helpImproveSoftware: '소프트웨어 개선에 참여',
+    helpImproveSoftwareHint:
+      '충돌, 작업 통계, 실패한 작업의 관련 로그와 오류 스크린샷을 익명으로 전송하여 일반적인 문제를 찾는 데 도움을 줍니다.',
+    helpImproveSoftwareDisabledHint: '디버그 / 개발 버전에서는 익명 데이터 전송이 비활성화됩니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
     resetWindowLayout: '창 레이아웃 초기화',
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
     autoClearLogsOnLaunch: '로그 자동 지우기',
-    autoClearLogsOnLaunchHint:
-      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일을 삭제합니다',
+    autoClearLogsOnLaunchHint: '프로젝트를 시작할 때 런타임 로그와 디버그 파일을 자동으로 지웁니다',
   },
 
   // 특수 작업
@@ -186,6 +196,8 @@ export default {
       restart: '재시작',
       screenoff: '화면 끄기',
       sleep: '절전 모드',
+      mute: '음소거',
+      unmute: '음소거 해제',
     },
   },
 
@@ -223,7 +235,12 @@ export default {
         '창이 설정되지 않아 「{{name}}」을(를) 자동으로 선택했습니다. 변경하려면 연결 설정에서 수동으로 선택하세요. 다음 번에는 선택 내용이 저장됩니다.',
       resourceFailed: '리소스 로딩에 실패했습니다',
       startFailed: '작업 시작에 실패했습니다',
+      workstationLocked: '컴퓨터가 잠금 화면 상태입니다. 잠금을 해제한 후 작업을 실행하세요',
       agentStartParams: 'Agent #{{index}} 시작 파라미터: {{cmd}}  (작업 디렉토리: {{cwd}})',
+      agentSpawnHintFileNotFound:
+        'Agent가 백신에 의해 차단되지 않았는지 확인한 뒤, 문제가 없으면 덮어쓰기 재설치를 진행하세요.',
+      agentSpawnHintAppControl:
+        '「Windows 보안 → 앱 및 브라우저 제어 → 스마트 앱 컨트롤」에서 해당 기능을 끈 후 다시 시도하세요.',
       needConfig: '먼저 기기를 연결하고 리소스를 로드하거나 연결 패널에서 기기 설정을 저장하세요',
     },
   },
@@ -309,6 +326,10 @@ export default {
     preActionCompletedNamed: '전처리 프로그램 {{name}} 완료',
     preActionFailed: '전처리 프로그램 실패: {{error}}',
     preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
+    pretaskStarting: '사전 작업 실행 중: {{name}}',
+    pretaskCompleted: '사전 작업 완료: {{name}}',
+    pretaskExitCode: '사전 작업 종료 코드: {{code}}',
+    pretaskFailed: '사전 작업 실행 실패: {{error}}',
     preActionConnectDelay: '{{seconds}}초 후 연결합니다...',
     autoPreActionName: '▶️ {{name}} 실행',
     autoPreActionAdded: '전처리 프로그램 자동 추가: {{name}} (기본적으로 비활성화)',
@@ -326,6 +347,10 @@ export default {
     noMatchingOptions: '일치하는 옵션 없음',
     incompatibleController: '현재 컨트롤러에서 지원되지 않음',
     incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
+    hotkeyPlaceholder: '클릭하여 단축키 입력',
+    hotkeyCapturing: '키를 누르세요...',
+    expandOptions: '하위 옵션 펼치기',
+    collapseOptions: '하위 옵션 접기',
   },
 
   // 프리셋
@@ -335,6 +360,7 @@ export default {
     taskCount: '개 작업',
     skipToManual: '건너뛰고 수동으로 작업 추가',
     importConfig: '클립보드에서 설정 가져오기',
+    importConfigFromFile: '파일에서 설정 가져오기',
     importSuccess: '설정 가져오기 성공',
     importFailed: '가져오기 실패: 잘못된 형식',
     importProjectMismatch: '가져오기 실패: 프로젝트 불일치',
@@ -342,6 +368,8 @@ export default {
       '가져오기 실패: 이 설정은 더 새로운 버전의 {{projectName}}에서 내보낸 것입니다. {{projectName}}를 업데이트한 후 다시 시도해 주세요',
     exportSuccess: '설정이 클립보드에 복사되었습니다',
     exportFailed: '내보내기 실패: 클립보드에 쓸 수 없습니다',
+    exportFileSuccess: '설정을 txt 파일로 내보냈습니다',
+    exportFileFailed: '내보내기 실패: 파일에 쓸 수 없습니다',
     exportShareHint: '{{projectName}} 의 「{{tabName}}」 설정 공유해요~',
     exportShareFooter:
       '👆 이 메시지를 복사해서 {{projectName}} 에서 새 탭을 만들고 「설정 가져오기」를 누르면 바로 사용할 수 있어요',
@@ -354,7 +382,21 @@ export default {
     adb: 'Android 기기',
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '너비 (px)',
+    uinputHeight: '높이 (px)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 창',
+    macosPermissionsRequired:
+      '화면 기록 및 손쉬운 사용 권한이 필요합니다. macOS 시스템 설정의 개인정보 보호 및 보안에서 권한을 허용한 후 다시 시도하세요.',
+    macosUnsupportedPlatform: 'macOS 네이티브 창 컨트롤러는 macOS에서만 사용할 수 있습니다.',
+    macosVersionRequired:
+      'macOS 네이티브 창 컨트롤러에는 MaaFramework v5.10.0-beta.1 이상이 필요합니다.',
+    macosSystemVersionRequired: 'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
+    macosSystemVersionDetectionFailed:
+      '현재 macOS 버전을 확인할 수 없습니다. 자세한 내용은 로그를 확인하세요.',
+    linuxVersionRequired: 'Linux 컨트롤러에는 MaaFramework v5.13.0-beta.3 이상이 필요합니다.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',
@@ -447,6 +489,7 @@ export default {
       loadingResource: '리소스 로딩 중: {{name}}',
       resourceLoaded: '리소스 로드됨: {{name}}',
       resourceFailed: '리소스 로딩 실패: {{name}}',
+      resourceFailedHint: '해당 리소스 디렉터리를 삭제한 뒤 덮어쓰기 재설치 후 다시 시도해 보세요.',
       // 작업 메시지
       taskStarting: '작업 시작: {{name}}',
       taskSucceeded: '작업 완료: {{name}}',
@@ -483,6 +526,7 @@ export default {
     alreadyAdded: '추가됨',
     collapse: '패널 접기',
     specialTasks: '특수 작업',
+    pretasks: '사전 작업',
     allSpecialTasksAdded: '모두 추가됨',
     ungroupedTasks: '기타',
     resizeHandleAriaLabel: '작업 추가 패널 높이 조정',
@@ -534,6 +578,8 @@ export default {
     tcpCompatMode: '통신 호환 모드',
     tcpCompatModeHint:
       '작업 시작 후 앱이 즉시 충돌하면 활성화해 보세요. 이 경우에만 사용하세요, 성능에 영향을 줄 수 있습니다',
+    webServerEnabled: 'Web 서버 활성화',
+    webServerEnabledHint: '비활성화하면 내장 Web 서버가 시작되지 않습니다 (재시작 필요)',
     webServerPort: 'Web 서버 포트',
     webServerPortHint: 'Web 서버 수신 포트를 사용자 지정합니다 (기본값 12701, 재시작 필요)',
     allowLanAccess: 'LAN 접근 허용',
@@ -546,9 +592,17 @@ export default {
     webServerAddress: 'Web 서버 주소',
   },
 
+  // 설정 자동 복구 알림
+  config: {
+    recoveredFromBackup: '설정 파일이 손상되어 {{time}} 백업에서 자동으로 복원했습니다',
+    recoveryFailed:
+      '설정 파일이 손상되었고 사용할 수 있는 백업이 없어 기본 설정으로 초기화했습니다',
+  },
+
   // 환영 대화상자
   welcome: {
     dismiss: '확인했습니다',
+    viewAgain: '환영 메시지 보기',
   },
 
   // 신규 사용자 가이드
@@ -564,6 +618,7 @@ export default {
     next: '다음',
     prev: '이전',
     gotIt: '알겠습니다',
+    skipDev: '건너뛰기 (DEV)',
   },
 
   // 인스턴스
@@ -625,6 +680,7 @@ export default {
       '는 독립적인 서드파티 고속 다운로드 서비스이며 유료 구독이 필요합니다. 이것은 "{{projectName}}"의 요금이 아닙니다. 운영비는 구독 수익으로 충당되며 일부는 개발자에게 환원됩니다. CDK를 구독하여 고속 다운로드를 즐기세요. CDK가 없으면 GitHub에서 다운로드됩니다. 실패하면 네트워크 프록시를 설정하세요.',
     getCdk: 'CDK가 없으신가요? 지금 구독하세요',
     cdkHint: 'CDK가 올바른지 또는 만료되지 않았는지 확인하세요',
+    slowDownloadHint: '다른 채널',
     checkUpdate: '업데이트 확인',
     checking: '확인 중...',
     upToDate: '최신 버전입니다 ({{version}})',
@@ -704,13 +760,11 @@ export default {
     repeatDays: '반복 요일',
     startTime: '시작 시간',
     selectDays: '요일 선택...',
-    selectHours: '시간 선택...',
+    addTime: '시간 추가',
     noWeekdays: '요일이 선택되지 않았습니다',
-    noHours: '시간이 선택되지 않았습니다',
+    noTimes: '시간이 선택되지 않았습니다',
     everyday: '매일',
-    everyHour: '매시',
-    all: '전체',
-    hoursSelected: '개의 시간',
+    timesSelected: '개의 시간',
     timeZoneHint: '로컬 시간대 사용',
     multiSelect: '다중 선택',
     enable: '예약 활성화',
@@ -751,6 +805,11 @@ export default {
     closeAllTabs: '모든 탭 닫기',
     closeTabsToRight: '오른쪽 탭 닫기',
     exportConfig: '설정 내보내기',
+    exportToClipboard: '클립보드로 내보내기',
+    exportToTxt: 'txt 파일로 내보내기',
+    importConfig: '설정 가져오기',
+    importFromClipboard: '클립보드에서 가져오기',
+    importFromTxt: 'txt 파일에서 가져오기',
 
     // 전처리 프로그램 컨텍스트 메뉴
     duplicateAction: '복제',

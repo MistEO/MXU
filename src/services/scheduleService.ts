@@ -7,11 +7,11 @@ const log = loggers.task;
 const STORAGE_KEY_LAST_CHECK = 'mxu_schedule_lastCheckAt';
 const STORAGE_KEY_TRIGGERED = 'mxu_schedule_triggeredSlots';
 
-const CHECK_INTERVAL_MS = 60_000; // 每 60 秒轮询一次
+const CHECK_INTERVAL_MS = 30_000; // 每 30 秒轮询一次（分钟精度下降低到点延迟）
 const SLOT_TTL_MS = 48 * 60 * 60 * 1000; // 触发记录保留 48 小时
 const MAX_COMPENSATE_MS = 3 * 60 * 60 * 1000; // 最多补偿 3 小时内的遗漏
 const DEBOUNCE_MS = 2_000; // 事件触发后 2 秒内去重
-const CURRENT_SLOT_COMPENSATION_GRACE_MS = 5 * 60 * 1000; // 当前小时超过 5 分钟后补触发也记为补偿
+const CURRENT_SLOT_COMPENSATION_GRACE_MS = 30 * 1000; // 当前分钟超过 30 秒后补触发也记为补偿
 
 export type ScheduleTriggerCallback = (
   instance: Instance,
@@ -25,11 +25,18 @@ function formatSlotKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   const h = String(date.getHours()).padStart(2, '0');
-  return `${y}-${m}-${d}-${h}`;
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}-${h}-${mi}`;
 }
 
-function hourStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours());
+function minuteStart(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+  );
 }
 
 function buildTriggeredSlotKey(instanceId: string, slotStr: string): string {
@@ -43,7 +50,7 @@ function normalizeTriggeredSlotKey(key: string): string | null {
   }
 
   const slotStr = key.substring(lastColon + 1);
-  if (!/^\d{4}-\d{2}-\d{2}-\d{2}$/.test(slotStr)) {
+  if (!/^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}$/.test(slotStr)) {
     return null;
   }
 
@@ -56,19 +63,19 @@ function normalizeTriggeredSlotKey(key: string): string | null {
 
 function shouldMarkSlotAsCompensation(
   slotDate: Date,
-  currentHour: Date,
+  currentSlot: Date,
   nowTs: number,
   lastCheckAt: number,
   hadPreviousCheck: boolean,
 ): boolean {
   const slotTs = slotDate.getTime();
-  const currentHourTs = currentHour.getTime();
+  const currentSlotTs = currentSlot.getTime();
 
-  if (slotTs < currentHourTs) {
+  if (slotTs < currentSlotTs) {
     return true;
   }
 
-  if (slotTs !== currentHourTs) {
+  if (slotTs !== currentSlotTs) {
     return false;
   }
 
@@ -153,12 +160,11 @@ class ScheduleService {
     const cleaned = new Set<string>();
 
     for (const key of slots) {
-      // 当前格式: instanceId:YYYY-MM-DD-HH
-      // 兼容旧格式: instanceId:policyId:YYYY-MM-DD-HH
+      // 当前格式: instanceId:YYYY-MM-DD-HH-mm
       const lastColon = key.lastIndexOf(':');
       const slotStr = key.substring(lastColon + 1);
-      const [y, mo, d, h] = slotStr.split('-').map(Number);
-      const slotTs = new Date(y, mo - 1, d, h).getTime();
+      const [y, mo, d, h, mi] = slotStr.split('-').map(Number);
+      const slotTs = new Date(y, mo - 1, d, h, mi).getTime();
       if (slotTs >= cutoff) {
         cleaned.add(key);
       }
@@ -234,9 +240,9 @@ class ScheduleService {
       const hadPreviousCheck = storedLastCheckAt > 0;
       let lastCheckAt = storedLastCheckAt;
 
-      // 首次运行：以当前整点为起点
+      // 首次运行：以当前整分为起点
       if (lastCheckAt === 0) {
-        lastCheckAt = hourStart(now).getTime();
+        lastCheckAt = minuteStart(now).getTime();
         this.setLastCheckAt(lastCheckAt);
       }
 
@@ -250,15 +256,15 @@ class ScheduleService {
         lastCheckAt = minCheckTs;
       }
 
-      // 枚举 lastCheckAt 到当前时间之间的所有整点时间槽
-      const startHour = hourStart(new Date(lastCheckAt));
-      const currentHour = hourStart(now);
+      // 枚举 lastCheckAt 到当前时间之间的所有整分时间槽
+      const startSlot = minuteStart(new Date(lastCheckAt));
+      const currentSlot = minuteStart(now);
 
       const slotsToCheck: Date[] = [];
-      const cursor = new Date(startHour);
-      while (cursor <= currentHour) {
+      const cursor = new Date(startSlot);
+      while (cursor <= currentSlot) {
         slotsToCheck.push(new Date(cursor));
-        cursor.setTime(cursor.getTime() + 60 * 60 * 1000);
+        cursor.setTime(cursor.getTime() + 60 * 1000);
       }
 
       if (slotsToCheck.length > 1) {
@@ -274,11 +280,13 @@ class ScheduleService {
 
       for (const slotDate of slotsToCheck) {
         const weekday = slotDate.getDay();
-        const hour = slotDate.getHours();
+        const timeStr = `${String(slotDate.getHours()).padStart(2, '0')}:${String(
+          slotDate.getMinutes(),
+        ).padStart(2, '0')}`;
         const slotStr = formatSlotKey(slotDate);
         const isCompensation = shouldMarkSlotAsCompensation(
           slotDate,
-          currentHour,
+          currentSlot,
           nowTs,
           lastCheckAt,
           hadPreviousCheck,
@@ -292,7 +300,7 @@ class ScheduleService {
           for (const policy of policies) {
             if (!policy.enabled) continue;
             if (!policy.weekdays.includes(weekday)) continue;
-            if (!policy.hours.includes(hour)) continue;
+            if (!policy.times?.includes(timeStr)) continue;
 
             const slotKey = buildTriggeredSlotKey(inst.id, slotStr);
             if (triggeredSlots.has(slotKey)) break;
@@ -319,8 +327,7 @@ class ScheduleService {
             slotsModified = true;
 
             try {
-              const timeLabel = `${String(hour).padStart(2, '0')}:00`;
-              await this.triggerFn(freshInst, policy.name, timeLabel, isCompensation);
+              await this.triggerFn(freshInst, policy.name, timeStr, isCompensation);
             } catch (err) {
               log.error(`[调度器] 触发失败:`, err);
             }

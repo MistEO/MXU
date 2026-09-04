@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Settings2,
-  ListChecks,
-  AppWindowMac,
   AlertCircle,
-  Maximize2,
-  Power,
-  Play,
-  Rocket,
-  ChevronDown,
-  Check,
+  AppWindowMac,
   BrushCleaning,
+  Check,
+  ChevronDown,
+  HeartHandshake,
+  ListChecks,
+  Maximize2,
+  Play,
+  Power,
+  Rocket,
+  Settings2,
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
+import { isTelemetryBlockedByBuild } from '@/services/telemetryService';
 import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
 import { isTauri } from '@/utils/paths';
 import { SwitchButton } from '@/components/FormControls';
@@ -41,7 +43,13 @@ export function GeneralSection() {
     autoStartRemovedInstanceName,
     autoClearLogsOnLaunch,
     setAutoClearLogsOnLaunch,
+    helpImproveSoftware,
+    setHelpImproveSoftware,
+    projectInterface,
   } = useAppStore();
+
+  // 调试 / 开发版本禁用遥测开关（不可开启）
+  const telemetryBlocked = isTelemetryBlockedByBuild(projectInterface);
 
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
@@ -59,7 +67,7 @@ export function GeneralSection() {
         .then((os) => {
           isWindowsRef.current = os === 'windows';
           if (isWindowsRef.current) {
-            tauriInvoke<boolean>('autostart_is_enabled')
+            tauriInvoke<boolean>('autostart_is_enabled', { suffix: projectInterface?.name })
               .then(setAutoStartEnabled)
               .catch(() => {});
           } else {
@@ -92,7 +100,9 @@ export function GeneralSection() {
     try {
       if (isWindowsRef.current) {
         const { invoke } = await import('@tauri-apps/api/core');
-        await invoke(enabled ? 'autostart_enable' : 'autostart_disable');
+        await invoke(enabled ? 'autostart_enable' : 'autostart_disable', {
+          suffix: projectInterface?.name,
+        });
       } else {
         const { enable, disable } = await import('@tauri-apps/plugin-autostart');
         if (enabled) {
@@ -286,7 +296,7 @@ export function GeneralSection() {
         </div>
       </DesktopOnlyWrapper>
 
-      {/* ⑤ 显示选项预览 */}
+      {/* ⑥ 显示选项预览 */}
       <div className="bg-bg-secondary rounded-xl p-4 border border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -346,7 +356,31 @@ export function GeneralSection() {
         </div>
       </div>
 
-      {/* ⑧ 重置窗口布局 */}
+      {/* ⑧ 帮助改进软件（匿名遥测） */}
+      <div className="bg-bg-secondary rounded-xl p-4 border border-border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <HeartHandshake className="w-5 h-5 text-accent" />
+            <div>
+              <span className="font-medium text-text-primary">
+                {t('settings.helpImproveSoftware')}
+              </span>
+              <p className="text-xs text-text-muted mt-0.5">
+                {telemetryBlocked
+                  ? t('settings.helpImproveSoftwareDisabledHint')
+                  : t('settings.helpImproveSoftwareHint')}
+              </p>
+            </div>
+          </div>
+          <SwitchButton
+            value={telemetryBlocked ? false : helpImproveSoftware}
+            disabled={telemetryBlocked}
+            onChange={(v) => setHelpImproveSoftware(v)}
+          />
+        </div>
+      </div>
+
+      {/* ⑨ 重置窗口布局 */}
       {isTauri() && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-border">
           <div className="flex items-center justify-between">

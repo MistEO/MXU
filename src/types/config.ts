@@ -1,6 +1,6 @@
 // MXU 配置文件结构 (mxu.json)
 
-import type { OptionValue, ActionConfig } from './interface';
+import type { ActionConfig, OptionValue } from './interface';
 import type { AccentColor, CustomAccent } from '@/themes/types';
 
 export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
@@ -11,7 +11,7 @@ export interface SchedulePolicy {
   name: string; // 策略名称
   enabled: boolean; // 是否启用
   weekdays: number[]; // 重复日期 (0-6, 0=周日)
-  hours: number[]; // 开始时间 (0-23)
+  times: string[]; // 开始时间点 ("HH:mm"，已排序去重)
 }
 
 // 保存的任务配置
@@ -20,6 +20,8 @@ export interface SavedTask {
   taskName: string; // 对应 interface 中的 task.name
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 各控制器独立的勾选状态（旧配置中不存在时按 enabled 初始化） */
+  enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
 }
 
@@ -27,7 +29,9 @@ export interface SavedTask {
 export interface SavedDeviceInfo {
   // ADB 设备：保存设备名称
   adbDeviceName?: string;
-  // Win32/Gamepad：保存窗口名称
+  // ADB 设备：保存设备地址（新配置优先，旧配置仍可按名称匹配）
+  adbDeviceAddress?: string;
+  // Win32/MacOS/Gamepad：保存窗口名称
   windowName?: string;
   // WlRoots：保存 Wayland socket 路径
   wlrSocketPath?: string;
@@ -153,6 +157,7 @@ export interface AppSettings {
   onboardingCompleted?: boolean; // 新用户引导是否已完成
   hotkeys?: HotkeySettings; // 快捷键设置
   tcpCompatMode?: boolean; // 通信兼容模式，强制使用 TCP 而非 IPC
+  webServerEnabled?: boolean; // Web 服务器是否启用（默认 true，重启生效）
   allowLanAccess?: boolean; // Web UI 允许局域网访问（绑定 0.0.0.0，重启生效）
   webServerPort?: number; // Web 服务器监听端口（默认 12701，重启生效）
   minimizeToTray?: boolean; // 关闭时最小化到托盘（默认 false）
@@ -161,6 +166,8 @@ export interface AppSettings {
   autoStartRemovedInstanceName?: string; // 被删除的自动执行配置名称（用于提示用户）
   /** 前置动作轮询设备就绪后、连接前的额外延迟秒数（默认 5，仅通过编辑 mxu.json 修改） */
   preActionConnectDelaySec?: number;
+  /** 是否开启匿名遥测（帮助改进软件），默认 true；调试 / 开发版本强制关闭 */
+  helpImproveSoftware?: boolean;
 }
 
 // MXU 配置文件完整结构
@@ -168,6 +175,8 @@ export interface MxuConfig {
   version: string;
   instances: SavedInstance[];
   settings: AppSettings;
+  /** 全局任务设置值：用于 interface.global_option 对应的 option */
+  globalOptionValues?: Record<string, OptionValue>;
   recentlyClosed?: RecentlyClosedInstance[]; // 最近关闭的实例列表（最多30条）
   interfaceTaskSnapshot?: string[]; // 保存时 interface.json 中的任务名列表快照，用于检测新增任务
   newTaskNames?: string[]; // 用户尚未查看的新增任务名称列表
@@ -233,5 +242,26 @@ export const defaultConfig: MxuConfig = {
     autoClearLogsOnLaunch: true,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
+    helpImproveSoftware: true,
   },
 };
+
+/**
+ * 判断任意值是否是结构上可用的 MxuConfig。
+ *
+ * `parseJsonc` 解析失败时不抛异常而是返回 undefined，若不校验就会把 undefined
+ * 当成配置一路传下去，直到访问 `config.instances` 时才炸。所有读盘路径都必须先过这里。
+ */
+export function isValidMxuConfig(value: unknown): value is MxuConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Partial<MxuConfig>;
+  return (
+    typeof candidate.version === 'string' &&
+    Array.isArray(candidate.instances) &&
+    typeof candidate.settings === 'object' &&
+    candidate.settings !== null &&
+    !Array.isArray(candidate.settings)
+  );
+}

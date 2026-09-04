@@ -10,6 +10,11 @@ const log = loggers.app;
 export const MIN_WINDOW_WIDTH = 800;
 export const MIN_WINDOW_HEIGHT = 500;
 
+// 最大窗口尺寸（逻辑像素）
+// 多屏/DPI 异常时可能出现离谱的尺寸回传，需在持久化与恢复前拦截
+export const MAX_WINDOW_WIDTH = 16384;
+export const MAX_WINDOW_HEIGHT = 16384;
+
 // 左侧面板最小宽度（确保工具栏按钮文字不换行）
 export const MIN_LEFT_PANEL_WIDTH = 530;
 
@@ -17,7 +22,14 @@ export const MIN_LEFT_PANEL_WIDTH = 530;
  * 验证窗口尺寸是否有效
  */
 export function isValidWindowSize(width: number, height: number): boolean {
-  return width >= MIN_WINDOW_WIDTH && height >= MIN_WINDOW_HEIGHT;
+  return (
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width >= MIN_WINDOW_WIDTH &&
+    height >= MIN_WINDOW_HEIGHT &&
+    width <= MAX_WINDOW_WIDTH &&
+    height <= MAX_WINDOW_HEIGHT
+  );
 }
 
 /**

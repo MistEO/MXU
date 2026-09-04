@@ -31,6 +31,8 @@ export default {
     dragToReorder: 'ドラッグして並べ替え',
     closeTabConfirmTitle: '設定を閉じる',
     closeTabConfirmMessage: '「{{name}}」を閉じてもよろしいですか？',
+    closeMultiTabConfirmTitle: '設定を複数閉じる',
+    closeMultiTabConfirmMessage: '{{count}} 個の設定を閉じてもよろしいですか？',
   },
 
   // ウィンドウコントロール
@@ -47,6 +49,8 @@ export default {
     appearance: '外観',
     hotkeys: 'ショートカットキー',
     general: '一般',
+    taskSettings: 'タスク設定',
+    taskSettingsEmpty: '表示できる設定項目がありません',
     language: '言語',
     backgroundImage: '背景画像',
     backgroundOpacity: '背景の不透明度',
@@ -93,6 +97,10 @@ export default {
     hotkeysGlobal: 'グローバルショートカット',
     hotkeysGlobalHint: 'ウィンドウ非アクティブ時もショートカットを有効にする',
     hotkeysGlobalOnlyStart: 'グローバルモードでは開始のみ有効',
+    hotkeysGlobalConflict:
+      'ショートカット {{combo}} は既に使用されているため、グローバルショートカットは現在無効です。別のキーに変更するか、他のプログラムや重複起動したインスタンスが占有していないか確認してください。',
+    hotkeysGlobalRegisterFailed:
+      'グローバルショートカット {{combo}} の登録に失敗しました：{{error}}',
     minimizeToTray: '閉じる時にトレイに最小化',
     minimizeToTrayHint: '閉じるボタンをクリックすると、終了せずにシステムトレイに隠れます',
     autoStart: 'スタートアップ時に起動',
@@ -108,13 +116,17 @@ export default {
       '手動でアプリを開く際も、上で選択した設定を自動実行します（無効な場合はシステム起動時のみ実行）',
     confirmBeforeDelete: '削除操作の前に確認する',
     confirmBeforeDeleteHint: '削除/一覧クリア等の危険な操作の前に確認ダイアログを表示します',
+    helpImproveSoftware: 'ソフトウェアの改善に協力',
+    helpImproveSoftwareHint:
+      'クラッシュ、タスク統計、失敗したタスクの関連ログとエラースクリーンショットを匿名で送信し、よくある問題の発見に役立てます。',
+    helpImproveSoftwareDisabledHint: 'デバッグ / 開発版のため、匿名データ送信は無効になっています',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
     maxLogsPerInstanceHint: '上限を超えると古いログから自動的に破棄します（推奨 500～2000）',
     resetWindowLayout: 'ウィンドウレイアウトをリセット',
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
-      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルを削除します',
+      'プロジェクトの起動時に実行ログとデバッグファイルを自動でクリアします',
   },
 
   // 特殊タスク
@@ -187,6 +199,8 @@ export default {
       restart: '再起動',
       screenoff: '画面オフ',
       sleep: 'スリープ',
+      mute: 'ミュート',
+      unmute: 'ミュート解除',
     },
   },
 
@@ -224,7 +238,13 @@ export default {
         'ウィンドウが未設定のため、「{{name}}」を自動的に選択しました。変更する場合は接続設定で手動選択してください。次回以降は選択内容が保存されます。',
       resourceFailed: 'リソースの読み込みに失敗しました',
       startFailed: 'タスクの開始に失敗しました',
+      workstationLocked:
+        'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
       agentStartParams: 'Agent #{{index}} 起動パラメータ: {{cmd}}  (作業ディレクトリ: {{cwd}})',
+      agentSpawnHintFileNotFound:
+        'Agent がセキュリティソフトにブロックされていないか確認し、問題なければ上書き再インストールしてください。',
+      agentSpawnHintAppControl:
+        '「Windows セキュリティ → アプリとブラウザー制御 → スマート アプリ コントロール」でこの機能をオフにしてから再試行してください。',
       needConfig:
         'まずデバイスを接続してリソースを読み込むか、接続パネルでデバイス設定を保存してください',
     },
@@ -311,6 +331,10 @@ export default {
     preActionCompletedNamed: '前処理プログラム {{name}} 完了',
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
+    pretaskStarting: '事前タスクを実行中: {{name}}',
+    pretaskCompleted: '事前タスクが完了しました: {{name}}',
+    pretaskExitCode: '事前タスク終了コード: {{code}}',
+    pretaskFailed: '事前タスクの実行に失敗しました: {{error}}',
     preActionConnectDelay: '{{seconds}} 秒後に接続します...',
     autoPreActionName: '▶️ {{name}} を起動',
     autoPreActionAdded: '前処理プログラムを自動追加しました: {{name}}（デフォルトでは無効）',
@@ -328,6 +352,10 @@ export default {
     noMatchingOptions: '一致するオプションがありません',
     incompatibleController: '現在のコントローラーに対応していません',
     incompatibleResource: '現在のリソースパックに対応していません',
+    hotkeyPlaceholder: 'クリックしてショートカットを記録',
+    hotkeyCapturing: 'キーを押してください...',
+    expandOptions: '子オプションを展開',
+    collapseOptions: '子オプションを折りたたむ',
   },
 
   // プリセット
@@ -337,6 +365,7 @@ export default {
     taskCount: 'タスク',
     skipToManual: 'スキップして手動でタスクを追加',
     importConfig: 'クリップボードから設定をインポート',
+    importConfigFromFile: 'ファイルから設定をインポート',
     importSuccess: '設定のインポートに成功しました',
     importFailed: 'インポート失敗：無効な形式',
     importProjectMismatch: 'インポート失敗：プロジェクトが一致しません',
@@ -344,6 +373,8 @@ export default {
       'インポート失敗：この設定はより新しいバージョンの{{projectName}}でエクスポートされました。{{projectName}}を更新してから再試行してください',
     exportSuccess: '設定をクリップボードにコピーしました',
     exportFailed: 'エクスポート失敗：クリップボードに書き込めません',
+    exportFileSuccess: '設定を txt ファイルとしてエクスポートしました',
+    exportFileFailed: 'エクスポート失敗：ファイルに書き込めません',
     exportShareHint: '{{projectName}} の「{{tabName}}」設定をシェアするよ～',
     exportShareFooter:
       '👆 このメッセージをコピーして、{{projectName}} で新しいタブを開き「設定をインポート」を押すだけでOK',
@@ -356,7 +387,23 @@ export default {
     adb: 'Android デバイス',
     win32: 'Windows ウィンドウ',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '幅 (px)',
+    uinputHeight: '高さ (px)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS ウィンドウ',
+    macosPermissionsRequired:
+      '画面収録とアクセシビリティの権限が必要です。macOSの「システム設定」>「プライバシーとセキュリティ」で許可してから、もう一度お試しください。',
+    macosUnsupportedPlatform:
+      'macOS ネイティブウィンドウコントローラーは macOS でのみ使用できます。',
+    macosVersionRequired:
+      'macOS ネイティブウィンドウコントローラーには MaaFramework v5.10.0-beta.1 以降が必要です。',
+    macosSystemVersionRequired:
+      'macOS ネイティブウィンドウコントローラーには macOS 14.0 以降が必要です。',
+    macosSystemVersionDetectionFailed:
+      '現在の macOS バージョンを判定できませんでした。詳細はログを確認してください。',
+    linuxVersionRequired: 'Linux コントローラーには MaaFramework v5.13.0-beta.3 以降が必要です。',
     gamepad: 'ゲームパッド',
     connecting: '接続中...',
     connected: '接続済み',
@@ -450,6 +497,8 @@ export default {
       loadingResource: 'リソースを読み込み中: {{name}}',
       resourceLoaded: 'リソースを読み込みました: {{name}}',
       resourceFailed: 'リソースの読み込みに失敗しました: {{name}}',
+      resourceFailedHint:
+        '該当リソースのディレクトリを削除してから上書き再インストールをお試しください。',
       // タスクメッセージ
       taskStarting: 'タスクを開始: {{name}}',
       taskSucceeded: 'タスクが完了しました: {{name}}',
@@ -485,6 +534,7 @@ export default {
     noResults: '一致するタスクが見つかりません',
     alreadyAdded: '追加済み',
     specialTasks: '特殊タスク',
+    pretasks: '事前タスク',
     allSpecialTasksAdded: 'すべて追加済み',
     collapse: 'パネルを閉じる',
     ungroupedTasks: 'その他',
@@ -537,6 +587,8 @@ export default {
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
+    webServerEnabled: 'Web サーバーを有効化',
+    webServerEnabledHint: '無効にすると内蔵 Web サーバーは起動しません（再起動後に反映）',
     webServerPort: 'Web サーバーポート',
     webServerPortHint:
       'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
@@ -550,9 +602,18 @@ export default {
     webServerAddress: 'Web サーバーアドレス',
   },
 
+  // 設定の自動修復通知
+  config: {
+    recoveredFromBackup:
+      '設定ファイルが破損していたため、{{time}} のバックアップから自動的に復元しました',
+    recoveryFailed:
+      '設定ファイルが破損しており、利用可能なバックアップもないため、既定の設定にリセットしました',
+  },
+
   // ウェルカムダイアログ
   welcome: {
     dismiss: '了解しました',
+    viewAgain: 'ウェルカムメッセージを表示',
   },
 
   // 新規ユーザーガイド
@@ -569,6 +630,7 @@ export default {
     next: '次へ',
     prev: '前へ',
     gotIt: '了解しました',
+    skipDev: 'スキップ (DEV)',
   },
 
   // インスタンス
@@ -630,6 +692,7 @@ export default {
       ' は独立したサードパーティの高速ダウンロードサービスで、有料サブスクリプションが必要です。これは「{{projectName}}」の料金ではありません。運営費はサブスクリプション収入で賄われ、一部は開発者に還元されます。CDK を購読して高速ダウンロードをお楽しみください。CDK を入力しない場合、GitHub からダウンロードします。失敗した場合は、ネットワークプロキシを設定してください。',
     getCdk: 'CDKをお持ちでない方はこちら',
     cdkHint: 'CDK が正しいか、または有効期限が切れていないか確認してください',
+    slowDownloadHint: '他の入手先',
     checkUpdate: '更新を確認',
     checking: '確認中...',
     upToDate: '最新バージョンです ({{version}})',
@@ -711,13 +774,11 @@ export default {
     repeatDays: '繰り返し日',
     startTime: '開始時刻',
     selectDays: '日を選択...',
-    selectHours: '時刻を選択...',
+    addTime: '時刻を追加',
     noWeekdays: '日が選択されていません',
-    noHours: '時刻が選択されていません',
+    noTimes: '時刻が選択されていません',
     everyday: '毎日',
-    everyHour: '毎時',
-    all: 'すべて',
-    hoursSelected: '件の時刻',
+    timesSelected: '件の時刻',
     timeZoneHint: 'ローカルタイムゾーンを使用',
     multiSelect: '複数選択可',
     enable: 'スケジュールを有効化',
@@ -758,6 +819,11 @@ export default {
     closeAllTabs: 'すべてのタブを閉じる',
     closeTabsToRight: '右側のタブを閉じる',
     exportConfig: '設定をエクスポート',
+    exportToClipboard: 'クリップボードへエクスポート',
+    exportToTxt: 'txt ファイルとしてエクスポート',
+    importConfig: '設定をインポート',
+    importFromClipboard: 'クリップボードからインポート',
+    importFromTxt: 'txt ファイルからインポート',
 
     // 前処理プログラムのコンテキストメニュー
     duplicateAction: '複製',

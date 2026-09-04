@@ -1,35 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { Key, Play, StopCircle, AlertCircle, Globe } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
-import { SwitchButton } from '@/components/FormControls';
+import { SwitchButton, buildHotkeyCombo } from '@/components/FormControls';
 import { DesktopOnlyWrapper } from '@/components/ui/DesktopOnlyWrapper';
 
 export function HotkeySection() {
   const { t } = useTranslation();
   const { hotkeys, setHotkeys } = useAppStore();
-
-  // 生成统一的快捷键组合字符串
-  const buildCombo = (e: React.KeyboardEvent): string | null => {
-    const parts: string[] = [];
-    if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
-    if (e.altKey) parts.push('Alt');
-    if (e.shiftKey) parts.push('Shift');
-
-    let key = e.key as string;
-    // 忽略纯修饰键
-    if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') {
-      return null;
-    }
-
-    if (/^f\d+$/i.test(key)) {
-      key = key.toUpperCase();
-    } else if (key.length === 1) {
-      key = key.toUpperCase();
-    }
-
-    parts.push(key);
-    return parts.join('+');
-  };
+  const globalHotkeyError = useAppStore((state) => state.globalHotkeyError);
 
   return (
     <section id="section-hotkeys" className="space-y-4 scroll-mt-4">
@@ -56,7 +34,7 @@ export function HotkeySection() {
                 placeholder="F10"
                 onKeyDown={(e) => {
                   e.preventDefault();
-                  const combo = buildCombo(e);
+                  const combo = buildHotkeyCombo(e);
                   if (!combo) return;
                   setHotkeys({
                     ...hotkeys,
@@ -80,7 +58,7 @@ export function HotkeySection() {
                 placeholder="F11"
                 onKeyDown={(e) => {
                   e.preventDefault();
-                  const combo = buildCombo(e);
+                  const combo = buildHotkeyCombo(e);
                   if (!combo) return;
                   setHotkeys({
                     ...hotkeys,
@@ -98,6 +76,21 @@ export function HotkeySection() {
               <span>
                 {t('settings.hotkeysConflict')}
                 {hotkeys.globalEnabled && ` (${t('settings.hotkeysGlobalOnlyStart')})`}
+              </span>
+            </div>
+          )}
+
+          {/* 全局快捷键注册失败提示 */}
+          {globalHotkeyError && (
+            <div className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                {globalHotkeyError.conflict
+                  ? t('settings.hotkeysGlobalConflict', { combo: globalHotkeyError.combo })
+                  : t('settings.hotkeysGlobalRegisterFailed', {
+                      combo: globalHotkeyError.combo,
+                      error: globalHotkeyError.message,
+                    })}
               </span>
             </div>
           )}

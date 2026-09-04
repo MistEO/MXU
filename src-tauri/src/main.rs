@@ -5,10 +5,7 @@
 mod webview2;
 
 fn main() {
-    if mxu_lib::commands::system::has_help_flag() {
-        mxu_lib::commands::system::print_cli_help_text();
-        std::process::exit(0);
-    }
+    let _cli = mxu_lib::commands::system::init_cli();
 
     #[cfg(target_os = "windows")]
     {

@@ -15,6 +15,14 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
     return { type: 'input', values };
   }
 
+  if (optionDef.type === 'hotkey') {
+    const values: Record<string, string> = {};
+    optionDef.hotkeys.forEach((input) => {
+      values[input.name] = input.default || '';
+    });
+    return { type: 'hotkey', values };
+  }
+
   if (optionDef.type === 'switch') {
     const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || 'Yes';
     const isYes = ['Yes', 'yes', 'Y', 'y'].includes(defaultCase);
@@ -29,6 +37,92 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
   // select type (default)
   const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || '';
   return { type: 'select', caseName: defaultCase };
+};
+
+export type OptionValueSanitizeLogger = (message: string) => void;
+
+/**
+ * 校验保存的选项值是否仍符合当前 Project Interface 定义。
+ * 返回 null 表示应丢弃保存值并回退到当前默认值。
+ */
+export const sanitizeOptionValue = (
+  optionKey: string,
+  value: OptionValue,
+  allOptions: Record<string, OptionDefinition>,
+  warn?: OptionValueSanitizeLogger,
+): OptionValue | null => {
+  const optionDef = allOptions[optionKey];
+  if (!optionDef) {
+    warn?.(`选项 "${optionKey}" 已不存在，已丢弃保存值`);
+    return null;
+  }
+
+  const expectedType = optionDef.type || 'select';
+  if (value.type !== expectedType) {
+    warn?.(
+      `选项 "${optionKey}" 的类型已从 "${value.type}" 变更为 "${expectedType}"，已重置为默认值`,
+    );
+    return null;
+  }
+
+  if ((!optionDef.type || optionDef.type === 'select') && value.type === 'select') {
+    const caseExists = optionDef.cases.some((caseDef) => caseDef.name === value.caseName);
+    if (!caseExists) {
+      warn?.(`选项 "${optionKey}" 的 case "${value.caseName}" 已不存在，已重置为默认值`);
+      return null;
+    }
+    return value;
+  }
+
+  if (optionDef.type === 'checkbox' && value.type === 'checkbox') {
+    const validNames = new Set(optionDef.cases.map((caseDef) => caseDef.name));
+    const caseNames = value.caseNames.filter((caseName) => validNames.has(caseName));
+    if (caseNames.length !== value.caseNames.length) {
+      const removedNames = value.caseNames.filter((caseName) => !validNames.has(caseName));
+      warn?.(`选项 "${optionKey}" 包含已不存在的 case "${removedNames.join(', ')}"，已过滤`);
+    }
+    if (value.caseNames.length > 0 && caseNames.length === 0) {
+      warn?.(`选项 "${optionKey}" 保存的 case 已全部失效，已重置为默认值`);
+      return null;
+    }
+    return { type: 'checkbox', caseNames };
+  }
+
+  if (optionDef.type === 'input' && value.type === 'input') {
+    const validNames = new Set(optionDef.inputs.map((input) => input.name));
+    const values: Record<string, string> = {};
+    for (const [name, val] of Object.entries(value.values)) {
+      if (validNames.has(name)) values[name] = val;
+    }
+    const encryptedValues: Record<string, string> = {};
+    if (value.encryptedValues) {
+      for (const [name, val] of Object.entries(value.encryptedValues)) {
+        if (validNames.has(name)) encryptedValues[name] = val;
+      }
+    }
+    return {
+      type: 'input',
+      values,
+      ...(Object.keys(encryptedValues).length > 0 ? { encryptedValues } : {}),
+    };
+  }
+
+  return value;
+};
+
+export const sanitizeOptionValues = (
+  optionValues: Record<string, OptionValue>,
+  allOptions: Record<string, OptionDefinition>,
+  warn?: OptionValueSanitizeLogger,
+): Record<string, OptionValue> => {
+  const cleaned: Record<string, OptionValue> = {};
+  for (const [optionKey, value] of Object.entries(optionValues)) {
+    const sanitized = sanitizeOptionValue(optionKey, value, allOptions, warn);
+    if (sanitized) {
+      cleaned[optionKey] = sanitized;
+    }
+  }
+  return cleaned;
 };
 
 /**
@@ -100,6 +194,10 @@ export const convertPresetOptionValue = (
 
   if (optDef.type === 'input' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {
     return { type: 'input', values: presetValue as Record<string, string> };
+  }
+
+  if (optDef.type === 'hotkey' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {
+    return { type: 'hotkey', values: presetValue as Record<string, string> };
   }
 
   if ((!optDef.type || optDef.type === 'select') && typeof presetValue === 'string') {

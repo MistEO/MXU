@@ -16,7 +16,13 @@ import type {
   ScreenshotFrameRate,
   HotkeySettings,
 } from '@/types/config';
-import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
+import type {
+  ConnectionStatus,
+  TaskStatus,
+  AdbDevice,
+  Win32Window,
+  GamescopeInstance,
+} from '@/types/maa';
 import type { AccentColor, CustomAccent } from '@/themes';
 
 /** 单个任务的运行状态 */
@@ -83,6 +89,16 @@ export interface JustUpdatedInfo {
   channel?: string;
 }
 
+// 全局快捷键注册失败信息
+export interface GlobalHotkeyError {
+  /** 注册失败的快捷键组合（如 Ctrl+F12） */
+  combo: string;
+  /** 是否为按键被其他程序占用导致的冲突 */
+  conflict: boolean;
+  /** 原始错误信息 */
+  message: string;
+}
+
 export interface AppState {
   // 配置持久化保护（防止启动早期空状态覆盖用户配置）
   configPersistenceReady: boolean;
@@ -99,6 +115,8 @@ export interface AppState {
   /** 每个实例最多保留的日志条数（超出自动丢弃最旧的） */
   maxLogsPerInstance: number;
   autoClearLogsOnLaunch: boolean;
+  /** 是否开启匿名遥测（帮助改进软件），默认 true；调试 / 开发版本强制关闭 */
+  helpImproveSoftware: boolean;
   customAccents: CustomAccent[];
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
@@ -108,6 +126,7 @@ export interface AppState {
   setConfirmBeforeDelete: (enabled: boolean) => void;
   setMaxLogsPerInstance: (value: number) => void;
   setAutoClearLogsOnLaunch: (enabled: boolean) => void;
+  setHelpImproveSoftware: (enabled: boolean) => void;
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
@@ -116,6 +135,10 @@ export interface AppState {
   // 当前页面
   currentPage: PageView;
   setCurrentPage: (page: PageView) => void;
+
+  /** 进入设置页后需要自动滚动到的分区 id（如 'update'），由 SettingsPage 消费后清空 */
+  settingsTargetSection: string | null;
+  setSettingsTargetSection: (section: string | null) => void;
 
   // 调试选项（不落盘，每次启动默认关闭）
   saveDraw: boolean;
@@ -149,6 +172,7 @@ export interface AppState {
   addTaskToInstance: (
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
+    options?: { prepend?: boolean },
   ) => void;
   /** v2.3.0: 应用预设配置到实例 */
   applyPreset: (instanceId: string, presetName: string) => void;
@@ -180,12 +204,16 @@ export interface AppState {
   setTaskRunOnce: (instanceId: string, taskId: string, runOnce: boolean) => void;
   clearAllTaskRunOnce: (instanceId: string) => void;
   toggleTaskExpanded: (instanceId: string, taskId: string) => void;
+  toggleOptionCollapsed: (instanceId: string, taskId: string, optionKey: string) => void;
   setTaskOptionValue: (
     instanceId: string,
     taskId: string,
     optionKey: string,
     value: OptionValue,
   ) => void;
+  /** 全局任务设置值（对应 interface.global_option），跨实例/配置共享 */
+  globalOptionValues: Record<string, OptionValue>;
+  setGlobalOptionValue: (optionKey: string, value: OptionValue) => void;
   selectAllTasks: (instanceId: string, enabled: boolean) => void;
   collapseAllTasks: (instanceId: string, expanded: boolean) => void;
   renameTask: (instanceId: string, taskId: string, newName: string) => void;
@@ -270,9 +298,11 @@ export interface AppState {
   cachedAdbDevices: AdbDevice[];
   cachedWin32Windows: Win32Window[];
   cachedWlrootsSockets: string[];
+  cachedGamescopeInstances: GamescopeInstance[];
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
   setCachedWlrootsSockets: (sockets: string[]) => void;
+  setCachedGamescopeInstances: (instances: GamescopeInstance[]) => void;
 
   // 从后端恢复 MAA 运行时状态
   restoreBackendStates: (
@@ -296,6 +326,7 @@ export interface AppState {
       cachedAdbDevices: AdbDevice[];
       cachedWin32Windows: Win32Window[];
       cachedWlrootsSockets: string[];
+      cachedGamescopeInstances: GamescopeInstance[];
     },
     options?: { skipRunningState?: boolean },
   ) => void;
@@ -351,6 +382,10 @@ export interface AppState {
   hotkeys: HotkeySettings;
   setHotkeys: (hotkeys: HotkeySettings) => void;
 
+  // 全局快捷键注册失败信息（不落盘，仅本次运行）
+  globalHotkeyError: GlobalHotkeyError | null;
+  setGlobalHotkeyError: (err: GlobalHotkeyError | null) => void;
+
   // 任务选项预览显示设置
   showOptionPreview: boolean;
   setShowOptionPreview: (show: boolean) => void;
@@ -371,6 +406,10 @@ export interface AppState {
   tcpCompatMode: boolean;
   setTcpCompatMode: (enabled: boolean) => void;
 
+  /** Web 服务器是否启用（默认 true，重启生效） */
+  webServerEnabled: boolean;
+  setWebServerEnabled: (enabled: boolean) => void;
+
   /** Web UI 允许局域网访问（绑定 0.0.0.0，重启生效） */
   allowLanAccess: boolean;
   setAllowLanAccess: (enabled: boolean) => void;
@@ -378,6 +417,11 @@ export interface AppState {
   /** Web 服务器监听端口（默认 12701，重启生效） */
   webServerPort: number;
   setWebServerPort: (port: number) => void;
+
+  /** 后端真实 OS（运行时从后端获取，'' = 未知；用于控制器平台过滤、更新资产匹配等，不持久化） */
+  backendOS: string;
+  backendArch: string;
+  setBackendOS: (os: string, arch: string) => void;
 
   // 托盘设置
   minimizeToTray: boolean;
@@ -418,6 +462,8 @@ export interface AppState {
   downloadStatus: DownloadStatus;
   downloadProgress: DownloadProgress | null;
   downloadSavePath: string | null;
+  /** 下载速度持续低于阈值的起始时间戳，速度回升或下载结束时置为 null */
+  slowDownloadSince: number | null;
   setDownloadStatus: (status: DownloadStatus) => void;
   setDownloadProgress: (progress: DownloadProgress | null) => void;
   setDownloadSavePath: (path: string | null) => void;

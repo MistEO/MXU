@@ -18,8 +18,8 @@ import { ConfirmDialog } from './ConfirmDialog';
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-// 小时选项 (0-23)
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+// 校验 "HH:mm" 格式
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 interface SchedulePanelProps {
   instanceId: string;
@@ -43,6 +43,7 @@ function PolicyCard({
   const { t } = useTranslation();
   const { confirmBeforeDelete } = useAppStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [timeDraft, setTimeDraft] = useState('08:00');
 
   const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
 
@@ -53,11 +54,15 @@ function PolicyCard({
     onUpdate({ weekdays: newWeekdays });
   };
 
-  const handleToggleHour = (hour: number) => {
-    const newHours = policy.hours.includes(hour)
-      ? policy.hours.filter((h) => h !== hour)
-      : [...policy.hours, hour].sort((a, b) => a - b);
-    onUpdate({ hours: newHours });
+  const handleAddTime = () => {
+    if (!TIME_PATTERN.test(timeDraft)) return;
+    if (policy.times.includes(timeDraft)) return;
+    const newTimes = [...policy.times, timeDraft].sort((a, b) => a.localeCompare(b));
+    onUpdate({ times: newTimes });
+  };
+
+  const handleRemoveTime = (time: string) => {
+    onUpdate({ times: policy.times.filter((t) => t !== time) });
   };
 
   const handleSelectAllWeekdays = () => {
@@ -69,15 +74,6 @@ function PolicyCard({
     }
   };
 
-  const handleSelectAllHours = () => {
-    // 已全选时取消全选，否则全选
-    if (policy.hours.length === 24) {
-      onUpdate({ hours: [] });
-    } else {
-      onUpdate({ hours: HOURS });
-    }
-  };
-
   // 格式化显示已选周几
   const formatWeekdays = () => {
     if (policy.weekdays.length === 0) return t('schedule.noWeekdays');
@@ -86,13 +82,12 @@ function PolicyCard({
   };
 
   // 格式化显示已选时间
-  const formatHours = () => {
-    if (policy.hours.length === 0) return t('schedule.noHours');
-    if (policy.hours.length === 24) return t('schedule.everyHour');
-    if (policy.hours.length <= 3) {
-      return policy.hours.map((h) => `${h.toString().padStart(2, '0')}:00`).join(', ');
+  const formatTimes = () => {
+    if (policy.times.length === 0) return t('schedule.noTimes');
+    if (policy.times.length <= 3) {
+      return policy.times.join(', ');
     }
-    return `${policy.hours.length} ${t('schedule.hoursSelected')}`;
+    return `${policy.times.length} ${t('schedule.timesSelected')}`;
   };
 
   return (
@@ -217,34 +212,61 @@ function PolicyCard({
                 ({t('schedule.multiSelect')})
               </span>
             </label>
-            {/* 时间网格 */}
-            <div className="grid grid-cols-7 gap-1">
-              <button
-                onClick={handleSelectAllHours}
+            {/* 时间点添加 */}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="time"
+                value={timeDraft}
+                onChange={(e) => setTimeDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddTime();
+                  }
+                }}
                 className={clsx(
-                  'px-1 py-1.5 text-xs rounded border transition-colors',
-                  policy.hours.length === 24
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
+                  'flex-1 px-2 py-1.5 text-sm rounded border',
+                  'bg-bg-primary text-text-primary border-border',
+                  'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
                 )}
+              />
+              <button
+                onClick={handleAddTime}
+                disabled={!TIME_PATTERN.test(timeDraft) || policy.times.includes(timeDraft)}
+                className={clsx(
+                  'flex items-center gap-1 px-2 py-1.5 text-xs rounded border transition-colors',
+                  'border-border text-text-secondary',
+                  'hover:border-accent hover:text-accent',
+                  'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-text-secondary',
+                )}
+                title={t('schedule.addTime')}
               >
-                {t('schedule.all')}
+                <Plus className="w-3.5 h-3.5" />
+                <span>{t('schedule.addTime')}</span>
               </button>
-              {HOURS.map((hour) => (
-                <button
-                  key={hour}
-                  onClick={() => handleToggleHour(hour)}
-                  className={clsx(
-                    'px-1 py-1.5 text-xs rounded border transition-colors',
-                    policy.hours.includes(hour)
-                      ? 'bg-accent text-white border-accent'
-                      : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
-                  )}
-                >
-                  {hour.toString().padStart(2, '0')}
-                </button>
-              ))}
             </div>
+            {/* 已选时间点 */}
+            {policy.times.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {policy.times.map((time) => (
+                  <span
+                    key={time}
+                    className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded border border-accent bg-accent/10 text-accent"
+                  >
+                    {time}
+                    <button
+                      onClick={() => handleRemoveTime(time)}
+                      className="p-0.5 rounded hover:bg-accent/20"
+                      title={t('common.delete')}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted">{t('schedule.noTimes')}</p>
+            )}
             <p className="text-xs text-text-muted">
               {t('schedule.timeZoneHint')} (
               {(() => {
@@ -258,7 +280,7 @@ function PolicyCard({
           {/* 摘要显示 */}
           <div className="pt-2 border-t border-border">
             <p className="text-xs text-text-secondary">
-              {formatWeekdays()} · {formatHours()}
+              {formatWeekdays()} · {formatTimes()}
             </p>
           </div>
         </div>
@@ -268,7 +290,7 @@ function PolicyCard({
       {!isExpanded && (
         <div className="px-3 pb-2">
           <p className="text-xs text-text-muted truncate">
-            {formatWeekdays()} · {formatHours()}
+            {formatWeekdays()} · {formatTimes()}
           </p>
         </div>
       )}
@@ -318,7 +340,7 @@ export function SchedulePanel({ instanceId, onClose }: SchedulePanelProps) {
       name: `${t('schedule.defaultPolicyName')} ${policies.length + 1}`,
       enabled: true,
       weekdays: [1, 2, 3, 4, 5], // 默认工作日
-      hours: [8], // 默认早上8点
+      times: ['08:00'], // 默认早上 8 点
     };
     updateInstance(instanceId, {
       schedulePolicies: [...policies, newPolicy],

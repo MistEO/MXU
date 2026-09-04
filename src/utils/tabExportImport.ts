@@ -1,5 +1,8 @@
 import type { SavedTask } from '@/types/config';
-import type { ActionConfig, Instance, OptionValue } from '@/types/interface';
+import type { ActionConfig, Instance, OptionDefinition, OptionValue } from '@/types/interface';
+import { encryptPasswordOptionValues } from '@/utils/passwordOptionValues';
+import { isTauri } from '@/utils/paths';
+import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
 import { toast } from 'sonner';
 
 const PROTOCOL_SEGMENT = 'tab-sharing';
@@ -26,13 +29,15 @@ type WireOptionValue =
   | { t: 's'; c: string } // select:   caseName
   | { t: 'cb'; c: string[] } // checkbox: caseNames
   | { t: 'sw'; v: boolean } // switch:   value
-  | { t: 'in'; v: Record<string, string> }; // input: values
+  | { t: 'in'; v: Record<string, string>; ev?: Record<string, string> } // input: values + encryptedValues
+  | { t: 'hk'; v: Record<string, string> };
 
 interface WireTask {
   i: string; // id
   tn: string; // taskName
   cn?: string; // customName
   e: boolean; // enabled
+  ec?: Record<string, boolean>; // enabledByController
   ov: Record<string, WireOptionValue>; // optionValues
 }
 
@@ -64,8 +69,17 @@ function encodeOptionValue(v: OptionValue): WireOptionValue {
       return { t: 'cb', c: v.caseNames };
     case 'switch':
       return { t: 'sw', v: v.value };
-    case 'input':
-      return { t: 'in', v: v.values };
+    case 'input': {
+      const wire: Extract<WireOptionValue, { t: 'in' }> = { t: 'in', v: v.values };
+      if (v.encryptedValues && Object.keys(v.encryptedValues).length > 0) {
+        wire.ev = v.encryptedValues;
+      }
+      return wire;
+    }
+    case 'hotkey':
+      return { t: 'hk', v: v.values };
+    default:
+      throw new Error('invalid_format');
   }
 }
 
@@ -79,6 +93,7 @@ function encodeTask(task: SavedTask): WireTask {
     ),
   };
   if (task.customName !== undefined) wire.cn = task.customName;
+  if (task.enabledByController !== undefined) wire.ec = task.enabledByController;
   return wire;
 }
 
@@ -117,7 +132,13 @@ function decodeOptionValue(w: WireOptionValue): OptionValue {
     case 'sw':
       return { type: 'switch', value: w.v };
     case 'in':
-      return { type: 'input', values: w.v };
+      return {
+        type: 'input',
+        values: w.v,
+        ...(w.ev && Object.keys(w.ev).length > 0 ? { encryptedValues: w.ev } : {}),
+      };
+    case 'hk':
+      return { type: 'hotkey', values: w.v };
     default:
       throw new Error('invalid_format');
   }
@@ -129,6 +150,7 @@ function decodeTask(w: WireTask): SavedTask {
     taskName: w.tn,
     customName: w.cn,
     enabled: w.e,
+    enabledByController: w.ec,
     optionValues: Object.fromEntries(
       Object.entries(w.ov).map(([k, v]) => [k, decodeOptionValue(v)]),
     ),
@@ -234,12 +256,13 @@ function fromBase64Url(str: string): Uint8Array {
  *   {projectName}://tab-sharing/v1/{tabName}/{base64url(deflate(JSON))}
  *   {footer}        ← 结尾签名（调用方传入，本地化）
  */
-export async function exportTabConfig(
+export async function buildTabConfigExportText(
   instance: Instance,
   projectName: string,
   hint?: string,
   footer?: string,
-): Promise<void> {
+  allOptions?: Record<string, OptionDefinition>,
+): Promise<string> {
   const payload: TabExportPayload = {
     controllerName: instance.controllerName,
     resourceName: instance.resourceName,
@@ -248,7 +271,14 @@ export async function exportTabConfig(
       taskName: t.taskName,
       customName: t.customName,
       enabled: t.enabled,
-      optionValues: t.optionValues,
+      enabledByController: cacheTaskEnabledForController(
+        t.enabledByController,
+        instance.controllerName,
+        t.enabled,
+      ),
+      optionValues: allOptions
+        ? encryptPasswordOptionValues(t.optionValues, allOptions, projectName)
+        : t.optionValues,
     })),
     preActions: instance.preActions,
   };
@@ -261,21 +291,80 @@ export async function exportTabConfig(
 
   const dataLine = `${projectName}://${PROTOCOL_SEGMENT}/${CURRENT_VERSION}/${tabNameEncoded}/${base64}`;
   const hintLine = hint ?? `[MXU] ${projectName} · ${instance.name}`;
-  const lines = footer ? `${hintLine}\n${dataLine}\n${footer}` : `${hintLine}\n${dataLine}`;
+  return footer ? `${hintLine}\n${dataLine}\n${footer}` : `${hintLine}\n${dataLine}`;
+}
+
+export async function exportTabConfig(
+  instance: Instance,
+  projectName: string,
+  hint?: string,
+  footer?: string,
+  allOptions?: Record<string, OptionDefinition>,
+): Promise<void> {
+  const lines = await buildTabConfigExportText(instance, projectName, hint, footer, allOptions);
   await navigator.clipboard.writeText(lines);
+}
+
+function sanitizeFileName(name: string): string {
+  return (
+    name
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim() || 'config'
+  );
+}
+
+function downloadTextFile(fileName: string, content: string): void {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportTabConfigToFile(
+  instance: Instance,
+  projectName: string,
+  hint: string,
+  footer: string,
+  allOptions?: Record<string, OptionDefinition>,
+): Promise<boolean> {
+  const content = await buildTabConfigExportText(instance, projectName, hint, footer, allOptions);
+  const fileName = `${sanitizeFileName(projectName)}-${sanitizeFileName(instance.name)}.txt`;
+
+  if (isTauri()) {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const selected = await save({
+      defaultPath: fileName,
+      filters: [{ name: 'Text', extensions: ['txt'] }],
+    });
+    if (!selected) return false;
+
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile(selected, content);
+    return true;
+  }
+
+  downloadTextFile(fileName, content);
+  return true;
 }
 
 /**
  * 从剪贴板读取并解析 Tab 配置导入数据。
  * 返回解析后的 tabName + payload，或抛出带有 ImportError 类型的错误。
  */
-export async function importTabConfigFromClipboard(projectName: string): Promise<TabImportResult> {
-  const rawText = (await navigator.clipboard.readText()).trim();
+export async function importTabConfigFromText(
+  projectName: string,
+  rawText: string,
+): Promise<TabImportResult> {
+  const raw = rawText.trim();
 
   const escapedSegment = PROTOCOL_SEGMENT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const dataLineRegex = new RegExp(`(.+://${escapedSegment}/.+)`, 'm');
-  const dataLineMatch = rawText.match(dataLineRegex);
-  const text = dataLineMatch ? dataLineMatch[1].trim() : rawText;
+  const dataLineMatch = raw.match(dataLineRegex);
+  const text = dataLineMatch ? dataLineMatch[1].trim() : raw;
 
   const protocolPrefix = `${projectName}://${PROTOCOL_SEGMENT}/`;
   if (!text.startsWith(protocolPrefix)) {
@@ -318,6 +407,51 @@ export async function importTabConfigFromClipboard(projectName: string): Promise
   return { tabName, payload };
 }
 
+export async function importTabConfigFromClipboard(projectName: string): Promise<TabImportResult> {
+  const rawText = await navigator.clipboard.readText();
+  return importTabConfigFromText(projectName, rawText);
+}
+
+function readTextFileFromBrowser(): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,text/plain';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      file.text().then(resolve, reject);
+    };
+    input.click();
+  });
+}
+
+export async function importTabConfigFromFile(
+  projectName: string,
+): Promise<TabImportResult | null> {
+  let content: string | null = null;
+
+  if (isTauri()) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Text', extensions: ['txt'] }],
+    });
+    if (!selected || Array.isArray(selected)) return null;
+
+    const { readTextFile } = await import('@tauri-apps/plugin-fs');
+    content = await readTextFile(selected);
+  } else {
+    content = await readTextFileFromBrowser();
+  }
+
+  if (content === null) return null;
+  return importTabConfigFromText(projectName, content);
+}
+
 function createImportError(type: ImportError): Error {
   const err = new Error(type);
   (err as Error & { importErrorType: ImportError }).importErrorType = type;
@@ -337,9 +471,26 @@ export function exportWithToast(
   hint: string,
   footer: string,
   messages: { success: string; failed: string },
+  allOptions?: Record<string, OptionDefinition>,
 ): void {
-  exportTabConfig(instance, projectName, hint, footer).then(
+  exportTabConfig(instance, projectName, hint, footer, allOptions).then(
     () => toast.success(messages.success),
+    () => toast.error(messages.failed),
+  );
+}
+
+export function exportFileWithToast(
+  instance: Instance,
+  projectName: string,
+  hint: string,
+  footer: string,
+  messages: { success: string; failed: string },
+  allOptions?: Record<string, OptionDefinition>,
+): void {
+  exportTabConfigToFile(instance, projectName, hint, footer, allOptions).then(
+    (saved) => {
+      if (saved) toast.success(messages.success);
+    },
     () => toast.error(messages.failed),
   );
 }

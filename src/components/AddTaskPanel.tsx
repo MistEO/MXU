@@ -23,13 +23,15 @@ import {
   addTaskPanelResizeStep,
 } from '@/types/config';
 import { Tooltip } from './ui/Tooltip';
-import type { TaskItem, ActionConfig, GroupItem } from '@/types/interface';
+import type { TaskItem, ActionConfig, GroupItem, PretaskItem } from '@/types/interface';
 import type { MxuSpecialTaskDefinition } from '@/types/specialTasks';
 import {
   getAllMxuSpecialTasks,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
+  MXU_WEBHOOK_TASK_NAME,
 } from '@/types/specialTasks';
+import { getPretaskItems, pretaskName, pretaskItemId, buildPretaskDef } from '@/types/pretasks';
 import { generateId } from '@/stores/helpers';
 import { getProcessNameFromPath } from '@/utils/paths';
 import clsx from 'clsx';
@@ -182,8 +184,13 @@ export function AddTaskPanel() {
     setAddTaskPanelHeight,
   } = useAppStore();
 
-  // 获取所有注册的特殊任务
-  const specialTasks = useMemo(() => getAllMxuSpecialTasks(), []);
+  // Webhook 保留在注册表中以兼容已有任务，但不再提供新增入口。
+  const specialTasks = useMemo(
+    () => getAllMxuSpecialTasks().filter((task) => task.taskName !== MXU_WEBHOOK_TASK_NAME),
+    [],
+  );
+
+  const pretasks = useMemo(() => getPretaskItems(projectInterface), [projectInterface]);
 
   const instance = getActiveInstance();
   const langKey = getInterfaceLangKey(language);
@@ -297,6 +304,7 @@ export function AddTaskPanel() {
           projectInterface,
           selectedControllerName,
           selectedResourceName,
+          useAppStore.getState().globalOptionValues,
         );
 
         log.info(`运行中追加特殊任务 ${specialTask.entry}, pipelineOverride:`, pipelineOverride);
@@ -360,6 +368,7 @@ export function AddTaskPanel() {
           projectInterface,
           selectedControllerName,
           selectedResourceName,
+          useAppStore.getState().globalOptionValues,
         );
 
         log.info('运行中追加任务:', task.entry, ', pipelineOverride:', pipelineOverride);
@@ -384,6 +393,24 @@ export function AddTaskPanel() {
     }
   };
 
+  // v2.7.0: 添加前置任务（pretask）伪任务。pretask 固定置于列表顶部，
+  // 在连接 Controller 之前执行，因此不支持运行中追加。
+  const handleAddPretask = (item: PretaskItem) => {
+    if (!instance || !projectInterface) return;
+
+    setShowAddTaskPanel(false);
+
+    addTaskToInstance(
+      instance.id,
+      {
+        name: pretaskName(item),
+        option: item.option,
+        description: item.description,
+      },
+      { prepend: true },
+    );
+  };
+
   // v2.4.0: 按 group 分组任务
   const groups = projectInterface?.group;
   const hasGroups = (groups?.length ?? 0) > 0;
@@ -402,6 +429,7 @@ export function AddTaskPanel() {
   });
   const [ungroupedExpanded, setUngroupedExpanded] = useState(true);
   const [specialExpanded, setSpecialExpanded] = useState(true);
+  const [pretaskExpanded, setPretaskExpanded] = useState(true);
 
   // 当分组定义变化时，移除已失效 key，并为新分组注入 default_expand 默认值
   useEffect(() => {
@@ -484,6 +512,38 @@ export function AddTaskPanel() {
               incompatibleReason={reason}
               supportedControllerHint={supportedControllerHint}
               onClick={() => handleAddTask(task.name)}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
+  /** 渲染 pretask 前置任务网格（与普通任务同款 TaskButton） */
+  const renderPretaskGrid = (items: PretaskItem[]) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+        {items.map((item) => {
+          const taskDef = buildPretaskDef(item);
+          const taskName = pretaskName(item);
+          const count = taskCounts[taskName] || 0;
+          const label = resolveI18nText(item.label, langKey) || item.name || item.exec;
+          const { isIncompatible, reason, supportedControllerHint } = getTaskCompatibility(taskDef);
+
+          return (
+            <TaskButton
+              key={pretaskItemId(item)}
+              task={taskDef}
+              count={count}
+              isNew={false}
+              label={label}
+              langKey={langKey}
+              basePath={basePath}
+              disabled={isIncompatible}
+              incompatibleReason={reason}
+              supportedControllerHint={supportedControllerHint}
+              onClick={() => handleAddPretask(item)}
             />
           );
         })}
@@ -635,6 +695,7 @@ export function AddTaskPanel() {
 
   const ungroupedContentId = 'add-task-panel-section-ungrouped';
   const specialContentId = 'add-task-panel-section-special';
+  const pretaskContentId = 'add-task-panel-section-pretask';
 
   if (!projectInterface) {
     return null;
@@ -722,6 +783,24 @@ export function AddTaskPanel() {
             ) : (
               /* 无分组：保持原有平铺网格 */
               filteredTasks.length > 0 && renderTaskGrid(filteredTasks)
+            )}
+
+            {/* 前置任务（pretask），由项目在 interface.json 中声明，连接控制器前自动执行 */}
+            {instance && pretasks.length > 0 && (
+              <div>
+                {renderSectionHeader(
+                  t('addTaskPanel.pretasks'),
+                  pretaskExpanded,
+                  () => setPretaskExpanded((prev) => !prev),
+                  pretasks.length,
+                  pretaskContentId,
+                )}
+                {pretaskExpanded && (
+                  <div id={pretaskContentId} className="mt-1">
+                    {renderPretaskGrid(pretasks)}
+                  </div>
+                )}
+              </div>
             )}
 
             {instance && (

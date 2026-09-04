@@ -20,7 +20,7 @@ export { Toolbar } from './Toolbar';
 export { ScreenshotPanel } from './ScreenshotPanel';
 export { LogsPanel } from './LogsPanel';
 export { SettingsPage } from './SettingsPage';
-export { WelcomeDialog } from './WelcomeDialog';
+export { AutoWelcomeDialog, ManualWelcomeDialog } from './WelcomeDialog';
 export { DeviceSelector } from './DeviceSelector';
 export { ResourceSelector } from './ResourceSelector';
 export { ConnectionPanel } from './ConnectionPanel';

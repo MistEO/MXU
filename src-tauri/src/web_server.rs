@@ -3,7 +3,7 @@
 //! 基于 axum 提供 HTTP API，供浏览器客户端（本机/局域网/公网）访问。
 //! 与 Tauri invoke IPC 并列，实现同一套后端状态的双通道访问。
 
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use axum::{
@@ -18,7 +18,6 @@ use axum::{
 };
 #[cfg(not(debug_assertions))]
 use rust_embed::RustEmbed;
-#[cfg(debug_assertions)]
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
 
@@ -27,11 +26,11 @@ use crate::commands::{
     maa_agent::{start_tasks_impl, stop_agent_impl},
     maa_core::{
         connect_controller_impl, destroy_instance_impl, find_adb_devices_impl,
-        find_win32_windows_impl, find_wlroots_sockets_impl, get_cached_image_impl,
-        load_resource_impl, override_pipeline_impl, post_click_impl, post_screencap_impl,
-        run_task_impl, stop_task_impl,
+        find_gamescope_instances_impl, find_win32_windows_impl, find_wlroots_sockets_impl,
+        get_cached_image_impl, load_resource_impl, override_pipeline_impl, post_click_impl,
+        post_screencap_impl, run_task_impl, stop_task_impl,
     },
-    types::{AgentConfig, ControllerConfig, MaaState, TaskConfig},
+    types::{AgentConfig, ControllerConfig, ControllerInfo, MaaState, TaskConfig},
     utils::{emit_callback_event, emit_config_changed, emit_state_changed},
 };
 use crate::ws_broadcast::WsBroadcast;
@@ -41,8 +40,21 @@ pub const DEFAULT_PORT: u16 = 12701;
 /// 端口搜索范围上限
 const MAX_PORT_ATTEMPTS: u16 = 10;
 
+/// 全局存储 Web 服务器是否已启用（由配置控制）
+static WEB_SERVER_ENABLED: AtomicBool = AtomicBool::new(true);
+
 /// 全局存储 Web 服务器实际监听端口（供前端查询）
 static ACTUAL_PORT: AtomicU16 = AtomicU16::new(0);
+
+/// 获取 Web 服务器是否已启用
+pub fn is_web_server_enabled() -> bool {
+    WEB_SERVER_ENABLED.load(Ordering::Relaxed)
+}
+
+/// 设置 Web 服务器启用状态
+pub fn set_web_server_enabled(value: bool) {
+    WEB_SERVER_ENABLED.store(value, Ordering::Relaxed);
+}
 
 /// 获取 Web 服务器实际监听端口（0 表示尚未启动或启动失败）
 pub fn get_actual_port() -> u16 {
@@ -211,6 +223,10 @@ pub async fn start_web_server(
         .route("/maa/devices", get(handle_get_adb_devices))
         .route("/maa/windows", get(handle_get_win32_windows))
         .route("/maa/wlroots-sockets", get(handle_get_wlroots_sockets))
+        .route(
+            "/maa/gamescope-instances",
+            get(handle_get_gamescope_instances),
+        )
         // Maa 实例管理
         .route(
             "/maa/instances/:id",
@@ -324,9 +340,13 @@ pub async fn start_web_server(
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any);
 
+    // 生产模式：前端从 tauri://localhost 加载（嵌入资源），fetch http://127.0.0.1:12701/api/* 是跨域。
+    // 必须允许任意 Origin，否则浏览器拦截所有 API 调用（表现为 "Could not connect to localhost"）。
     #[cfg(not(debug_assertions))]
-    let cors =
-        CorsLayer::new().allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE]);
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
 
     let app = app.layer(cors);
 
@@ -545,6 +565,8 @@ async fn handle_get_interface(State(state): State<WebState>) -> impl IntoRespons
             "basePath": base_path,
             "dataPath": data_path,
             "webServerPort": get_actual_port(),
+            "backendOS": std::env::consts::OS,
+            "backendArch": std::env::consts::ARCH,
         }))
         .into_response(),
         None => (
@@ -600,9 +622,16 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
     let adb_result = state.maa_state.cached_adb_devices.lock();
     let win32_result = state.maa_state.cached_win32_windows.lock();
     let wlroots_result = state.maa_state.cached_wlroots_sockets.lock();
+    let gamescope_instances_result = state.maa_state.cached_gamescope_instances.lock();
 
-    match (instances_result, adb_result, win32_result, wlroots_result) {
-        (Ok(mut instances), Ok(adb), Ok(win32), Ok(wlroots)) => {
+    match (
+        instances_result,
+        adb_result,
+        win32_result,
+        wlroots_result,
+        gamescope_instances_result,
+    ) {
+        (Ok(mut instances), Ok(adb), Ok(win32), Ok(wlroots), Ok(gamescope_instances)) => {
             let mut instance_states: HashMap<String, serde_json::Value> = HashMap::new();
 
             for (id, runtime) in instances.iter_mut() {
@@ -633,6 +662,7 @@ async fn handle_get_maa_state(State(state): State<WebState>) -> impl IntoRespons
                 "cached_adb_devices": serde_json::to_value(&*adb).unwrap_or(serde_json::Value::Array(vec![])),
                 "cached_win32_windows": serde_json::to_value(&*win32).unwrap_or(serde_json::Value::Array(vec![])),
                 "cached_wlroots_sockets": serde_json::to_value(&*wlroots).unwrap_or(serde_json::Value::Array(vec![])),
+                "cached_gamescope_instances": serde_json::to_value(&*gamescope_instances).unwrap_or(serde_json::Value::Array(vec![])),
             }))
             .into_response()
         }
@@ -722,6 +752,19 @@ async fn handle_get_win32_windows(
 async fn handle_get_wlroots_sockets(State(state): State<WebState>) -> impl IntoResponse {
     match find_wlroots_sockets_impl(state.maa_state).await {
         Ok(sockets) => Json(serde_json::to_value(&sockets).unwrap_or_default()).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e })),
+        )
+            .into_response(),
+    }
+}
+
+/// GET /api/maa/gamescope-instances
+/// 扫描并返回 gamescope 实例列表（会更新 MaaState 缓存）
+async fn handle_get_gamescope_instances(State(state): State<WebState>) -> impl IntoResponse {
+    match find_gamescope_instances_impl(state.maa_state).await {
+        Ok(instances) => Json(serde_json::to_value(&instances).unwrap_or_default()).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),
@@ -889,6 +932,11 @@ struct StartTasksRequest {
     tcp_compat_mode: Option<bool>,
     #[serde(default)]
     pi_envs: Option<std::collections::HashMap<String, String>>,
+    #[serde(default)]
+    reset_state: Option<bool>,
+    /// 当前 controller 描述，仅用于遥测埋点
+    #[serde(default)]
+    controller_info: Option<ControllerInfo>,
 }
 
 /// POST /api/maa/instances/:id/tasks/start
@@ -923,6 +971,8 @@ async fn handle_start_tasks(
         cwd,
         body.tcp_compat_mode.unwrap_or(false),
         body.pi_envs,
+        body.reset_state.unwrap_or(true),
+        body.controller_info,
     )
     .await
     {

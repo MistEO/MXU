@@ -22,6 +22,7 @@ import {
   loadConfig,
   loadConfigFromStorage,
   consumeSelfSave,
+  consumeConfigRecoveryNotice,
   markSelfSave,
   resolveI18nText,
   checkAndPrepareDownload,
@@ -29,6 +30,7 @@ import {
   proxySettingsForUpdateDownload,
   stopInstanceTasksAndExitApp,
 } from '@/services';
+import type { ConfigRecoveryNotice } from '@/services';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import * as wsService from '@/services/wsService';
 import {
@@ -40,6 +42,7 @@ import {
   clearPendingUpdateInfo,
   isDebugVersion,
 } from '@/services/updateService';
+import { initTelemetry, isTelemetryBlockedByBuild } from '@/services/telemetryService';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
@@ -58,7 +61,7 @@ import { getAllLogsFromBackend } from '@/utils/logStdout';
 import { useMaaCallbackLogger, useMaaAgentLogger } from '@/utils/useMaaCallbackLogger';
 import { getInterfaceLangKey } from '@/i18n';
 import { applyTheme, resolveThemeMode, registerCustomAccent, clearCustomAccents } from '@/themes';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { loadWebUIAppearance, loadWebUILayout } from '@/services/appearanceStorage';
 import {
   clearPersistedRuntimeLogs,
@@ -85,6 +88,7 @@ import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ScrollText } from 'lucide-react';
+import { defaultConfig, defaultWindowSize, isValidMxuConfig } from '@/types/config';
 
 const log = loggers.app;
 
@@ -98,9 +102,9 @@ const LazySettingsPage = lazy(async () => {
   return { default: module.SettingsPage };
 });
 
-const LazyWelcomeDialog = lazy(async () => {
+const LazyAutoWelcomeDialog = lazy(async () => {
   const module = await import('@/components/WelcomeDialog');
-  return { default: module.WelcomeDialog };
+  return { default: module.AutoWelcomeDialog };
 });
 
 const LazyDashboardView = lazy(async () => {
@@ -167,6 +171,7 @@ function App() {
     setInterfaceTranslations,
     setBasePath,
     setDataPath,
+    setBackendOS,
     setConfigPersistenceReady,
     basePath,
     importConfig,
@@ -208,6 +213,7 @@ function App() {
       setInterfaceTranslations: state.setInterfaceTranslations,
       setBasePath: state.setBasePath,
       setDataPath: state.setDataPath,
+      setBackendOS: state.setBackendOS,
       setConfigPersistenceReady: state.setConfigPersistenceReady,
       basePath: state.basePath,
       importConfig: state.importConfig,
@@ -401,12 +407,16 @@ function App() {
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
   const pendingAutoTasksRef = useRef(false);
+  // 自动任务已分发但尚未完成启动时，也要阻止下载完成触发自动安装。
+  // 否则小体积更新可能在 500ms 的任务分发延迟或连接准备期间先完成下载。
+  const autoTaskLaunchPendingRef = useRef(false);
   // 尝试自动安装更新（无任务运行中时触发）
   const tryAutoInstallUpdate = useCallback(() => {
     const state = useAppStore.getState();
     if (state.downloadStatus !== 'completed') return;
     if (state.installStatus !== 'idle') return;
     if (state.autoInstallPending) return;
+    if (autoTaskLaunchPendingRef.current) return;
     if (state.instances.some((i) => i.isRunning)) return;
 
     log.info('自动安装更新：条件满足，弹出安装');
@@ -586,6 +596,8 @@ function App() {
       setProjectInterface(result.interface);
       setBasePath(result.basePath);
       setDataPath(result.dataPath);
+      // 缓存后端真实 OS/架构，供控制器过滤、更新资产匹配、useCmd 开关等消费
+      if (result.backendOS) setBackendOS(result.backendOS, result.backendArch ?? '');
 
       // 设置翻译
       for (const [lang, trans] of Object.entries(result.translations)) {
@@ -595,6 +607,32 @@ function App() {
       // 加载用户配置（mxu-{项目名}.json）- 从数据目录加载
       const projectName = result.interface.name;
       let config = await loadConfig(result.dataPath, projectName);
+
+      // loadConfig 已保证返回结构有效，这里再兜一层，避免任何路径把非法值传到下游
+      if (!isValidMxuConfig(config)) {
+        log.error('配置结构异常，回退到默认配置');
+        config = defaultConfig;
+      }
+
+      // 配置损坏自愈提示。Rust 侧在启动早期就会先尝试修复磁盘上的文件，
+      // 前端读盘时也可能自行触发，两侧的通知都取走后只提示一次。
+      const tsRecovery = consumeConfigRecoveryNotice();
+      let backendRecovery: ConfigRecoveryNotice | null = null;
+      if (isTauri()) {
+        try {
+          backendRecovery = await invoke<ConfigRecoveryNotice | null>(
+            'take_config_recovery_notice',
+          );
+        } catch (err) {
+          log.debug('获取后端配置自愈通知失败:', err);
+        }
+      }
+      const recovery = tsRecovery ?? backendRecovery;
+      if (recovery?.kind === 'restored') {
+        toast.warning(t('config.recoveredFromBackup', { time: recovery.backupTime ?? '' }));
+      } else if (recovery?.kind === 'reset') {
+        toast.error(t('config.recoveryFailed'));
+      }
 
       // 浏览器环境下，如果没有从 public 目录加载到配置，尝试从 localStorage 加载
       if (config.instances.length === 0) {
@@ -609,9 +647,38 @@ function App() {
         importConfig(config);
       }
 
+      // 初始化匿名遥测（仅当 interface 声明了 telemetry.sentry.dsn 且非调试 / 开发版本）
+      // 即便用户当前关闭，也传入配置以便后端缓存，用户在设置中开启时无需重启
+      const sentryCfg = result.interface.telemetry?.sentry;
+      if (sentryCfg?.dsn && !isTelemetryBlockedByBuild(result.interface)) {
+        const mxuVersion = typeof __MXU_VERSION__ !== 'undefined' ? __MXU_VERSION__ : '0.0.0';
+        const appName = result.interface.name;
+        const appVersion = result.interface.version ?? '0.0.0';
+        const channel = config.settings.mirrorChyan?.channel ?? 'production';
+        void initTelemetry({
+          dsn: sentryCfg.dsn,
+          enabled: config.settings.helpImproveSoftware ?? true,
+          release: `MXU@${mxuVersion}+${appName}@${appVersion}`,
+          environment: sentryCfg.environment ?? channel,
+          tracing: sentryCfg.tracing ?? true,
+          tracesSampleRate: sentryCfg.traces_sample_rate ?? 1.0,
+          failureAttachmentsSampleRate: sentryCfg.failure_attachments_sample_rate ?? 1.0,
+          appName,
+          appVersion,
+          mxuVersion,
+        });
+      }
+
       // 应用保存的窗口大小和位置
       if (config.settings.windowSize) {
-        await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
+        const { width, height } = config.settings.windowSize;
+        if (isValidWindowSize(width, height)) {
+          await setWindowSize(width, height);
+        } else {
+          log.warn('保存的窗口大小无效，已回退默认值:', { width, height });
+          setWindowSizeStore(defaultWindowSize);
+          await setWindowSize(defaultWindowSize.width, defaultWindowSize.height);
+        }
       }
       if (config.settings.windowPosition && isTauri()) {
         const { x, y } = config.settings.windowPosition;
@@ -645,8 +712,30 @@ function App() {
         }
       }
 
-      // 主题已应用、窗口已定位，显示窗口
-      showWindow();
+      // 主题已应用、窗口已定位，检查是否为自启动；自启动时默认保持隐藏
+      let isAutoStart = false;
+      if (isTauri()) {
+        try {
+          isAutoStart = await invoke<boolean>('is_autostart');
+          if (isAutoStart) {
+            useAppStore.getState().setIsAutoStartMode(true);
+          }
+        } catch (err) {
+          log.warn('检查开机自启动状态失败:', err);
+        }
+      }
+
+      if (!isAutoStart) {
+        showWindow();
+      } else if (isTauri()) {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().hide();
+          log.info('自启动模式：启动时保持主窗口隐藏');
+        } catch (err) {
+          log.warn('自启动时隐藏主窗口失败:', err);
+        }
+      }
 
       // 从后端恢复 MAA 运行时状态（连接状态、资源加载状态、设备缓存等）
       try {
@@ -680,7 +769,7 @@ function App() {
               const deleted = await invoke<number>('clear_log_files', {
                 excludeFileName: getCurrentLogFileName(),
               });
-              log.info('Auto-cleared log files on launch:', deleted);
+              log.info('Auto-cleared log files and debug artifacts on launch:', deleted);
             } catch {
               // ignore cleanup errors
             }
@@ -780,7 +869,8 @@ function App() {
 
       // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
       // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
-      // 任务分发延迟到更新检查之后（有更新时先更新再跑任务）
+      // 任务分发延迟到更新检查之后；仅检测到已下载待安装包时阻塞任务执行。
+      // 新版本下载在后台进行，不影响本次任务启动。
       let autoStartTasksPending = false;
       let isAutoRunOnLaunchMode = false;
       if (isTauri()) {
@@ -853,9 +943,20 @@ function App() {
       const dispatchPendingAutoStartTasks = () => {
         if (!autoStartTasksPending) return;
         autoStartTasksPending = false;
+        autoTaskLaunchPendingRef.current = true;
         setTimeout(() => {
           document.dispatchEvent(
-            new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+            new CustomEvent('mxu-start-tasks', {
+              detail: {
+                source: 'autostart',
+                onSettled: () => {
+                  autoTaskLaunchPendingRef.current = false;
+                  // 启动失败时任务不会产生 running -> idle 状态变化，需要在这里补一次安装检查；
+                  // 启动成功时仍处于运行态，本次检查会直接返回，并在任务结束后再次触发。
+                  tryAutoInstallUpdate();
+                },
+              },
+            }),
           );
         }, 500);
       };
@@ -977,12 +1078,6 @@ function App() {
                 useAppStore.getState().setShowUpdateDialog(true);
                 if (updateResult.downloadUrl) {
                   startAutoDownload(updateResult);
-                  // 下载→安装→重启后任务在新版本上执行，挂起本次任务分发
-                  // 下载失败/取消时通过 pendingAutoTasksRef 恢复分发
-                  if (autoStartTasksPending) {
-                    autoStartTasksPending = false;
-                    pendingAutoTasksRef.current = true;
-                  }
                 }
               } else if (updateResult.errorCode) {
                 log.warn(`更新检查返回错误: code=${updateResult.errorCode}`);
@@ -995,7 +1090,8 @@ function App() {
         }
       }
 
-      // 更新检查完毕，分发挂起的自动任务（有下载时已转移到 pendingAutoTasksRef）
+      // 更新检查完毕，分发挂起的自动任务。
+      // 自动下载在后台进行，不阻塞本次任务；仅上面的待安装包分支会保留挂起状态。
       dispatchPendingAutoStartTasks();
     } catch (err) {
       log.error('加载 interface.json 失败:', err);
@@ -1057,7 +1153,7 @@ function App() {
             log.warn('检测到程序路径问题:', pathIssue);
             setBadPathType(pathIssue as BadPathType);
             setShowBadPathModal(true);
-            // 路径有问题就不继续加载了，但仍需显示窗口
+            // 路径有问题就不继续加载了，但仍需显示窗口以呈现错误界面
             showWindow();
             return;
           }
@@ -1548,7 +1644,11 @@ function App() {
   // 全局快捷键（窗口失焦时也生效）
   const hotkeys = useAppStore((state) => state.hotkeys);
   useEffect(() => {
-    if (!hotkeys?.globalEnabled) return;
+    const { setGlobalHotkeyError } = useAppStore.getState();
+    if (!hotkeys?.globalEnabled) {
+      setGlobalHotkeyError(null);
+      return;
+    }
     if (!isTauri()) return; // 浏览器环境不支持全局快捷键
 
     const startKey = hotkeys.startTasks || 'F10';
@@ -1560,6 +1660,8 @@ function App() {
     const GLOBAL_HOTKEY_THROTTLE_MS = 1000;
     let lastStartTime = 0;
     const registerKeys = async () => {
+      // 记录正在注册的按键，失败时用于告知用户具体是哪个组合键
+      let registeringKey = startKey;
       try {
         const { register } = await getGlobalShortcut();
         await register(toTauriKey(startKey), () => {
@@ -1572,6 +1674,7 @@ function App() {
             }),
           );
         });
+        registeringKey = stopKey;
         // 避免重复注册相同的键
         if (stopKey !== startKey) {
           await register(toTauriKey(stopKey), () => {
@@ -1583,8 +1686,19 @@ function App() {
           });
         }
         log.info('全局快捷键已注册:', startKey, stopKey);
+        setGlobalHotkeyError(null);
       } catch (err) {
         log.error('注册全局快捷键失败:', err);
+
+        const message = err instanceof Error ? err.message : String(err);
+        let conflict = /already registered/i.test(message);
+        if (!conflict) {
+          conflict = await getGlobalShortcut()
+            .then(({ isRegistered }) => isRegistered(toTauriKey(registeringKey)))
+            .catch(() => false);
+        }
+
+        setGlobalHotkeyError({ combo: registeringKey, conflict, message });
       }
     };
 
@@ -1775,8 +1889,10 @@ function App() {
 
         {/* 欢迎弹窗 */}
         {projectInterface.welcome && (
-          <Suspense fallback={null}>
-            <LazyWelcomeDialog />
+          <Suspense
+            fallback={<div className="fixed inset-0 z-50 pointer-events-none" aria-hidden />}
+          >
+            <LazyAutoWelcomeDialog />
           </Suspense>
         )}
 

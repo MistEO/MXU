@@ -92,9 +92,21 @@ export function getIcon(name: string): LucideIcon | undefined {
 }
 
 // 单个菜单项组件
-function MenuItemComponent({ item, onClose }: { item: MenuItem; onClose: () => void }) {
+function MenuItemComponent({
+  item,
+  onClose,
+  submenuDirection,
+  depth = 0,
+}: {
+  item: MenuItem;
+  onClose: () => void;
+  submenuDirection: 'left' | 'right';
+  depth?: number;
+}) {
+  const hasChildren = !!item.children?.length;
+
   const handleClick = () => {
-    if (item.disabled || item.children) return;
+    if (item.disabled || hasChildren) return;
     item.onClick?.();
     onClose();
   };
@@ -106,44 +118,72 @@ function MenuItemComponent({ item, onClose }: { item: MenuItem; onClose: () => v
   const Icon = item.icon;
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={item.disabled}
-      className={clsx(
-        'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-colors',
-        item.disabled
-          ? 'text-text-muted cursor-not-allowed'
-          : item.danger
-            ? 'text-error hover:bg-error/10'
-            : 'text-text-primary hover:bg-bg-hover',
-        item.checked !== undefined && 'pl-2',
+    <div className="relative group/menu-item">
+      <button
+        onClick={handleClick}
+        disabled={item.disabled}
+        aria-haspopup={hasChildren ? 'menu' : undefined}
+        className={clsx(
+          'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-colors',
+          item.disabled
+            ? 'text-text-muted cursor-not-allowed'
+            : item.danger
+              ? 'text-error hover:bg-error/10'
+              : 'text-text-primary hover:bg-bg-hover',
+          item.checked !== undefined && 'pl-2',
+        )}
+      >
+        {/* 选中状态图标 */}
+        {item.checked !== undefined && (
+          <span className="w-4 h-4 flex items-center justify-center">
+            {item.checked && <Check className="w-3.5 h-3.5 text-accent" />}
+          </span>
+        )}
+
+        {/* 图标 */}
+        {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+
+        {/* 标签 */}
+        <span className="flex-1">{item.label}</span>
+
+        {/* 快捷键 */}
+        {item.shortcut && <span className="text-xs text-text-muted ml-4">{item.shortcut}</span>}
+
+        {/* 子菜单箭头 */}
+        {hasChildren && <ChevronRight className="w-4 h-4 text-text-muted" />}
+      </button>
+
+      {hasChildren && !item.disabled && (
+        <div
+          role="menu"
+          className={clsx(
+            'hidden group-hover/menu-item:block group-focus-within/menu-item:block',
+            'absolute top-0 min-w-[180px] max-w-[280px]',
+            'bg-bg-secondary border border-border rounded-lg shadow-lg',
+            'py-1 px-1',
+            submenuDirection === 'left' ? 'right-full mr-1' : 'left-full ml-1',
+            depth > 0 && 'z-[10000]',
+          )}
+        >
+          {item.children!.map((child, index) => (
+            <MenuItemComponent
+              key={child.divider ? `divider-${index}` : child.id}
+              item={child}
+              onClose={onClose}
+              submenuDirection={submenuDirection}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
       )}
-    >
-      {/* 选中状态图标 */}
-      {item.checked !== undefined && (
-        <span className="w-4 h-4 flex items-center justify-center">
-          {item.checked && <Check className="w-3.5 h-3.5 text-accent" />}
-        </span>
-      )}
-
-      {/* 图标 */}
-      {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-
-      {/* 标签 */}
-      <span className="flex-1">{item.label}</span>
-
-      {/* 快捷键 */}
-      {item.shortcut && <span className="text-xs text-text-muted ml-4">{item.shortcut}</span>}
-
-      {/* 子菜单箭头 */}
-      {item.children && <ChevronRight className="w-4 h-4 text-text-muted" />}
-    </button>
+    </div>
   );
 }
 
 // 右键菜单组件
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [submenuDirection, setSubmenuDirection] = useState<'left' | 'right'>('right');
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -196,6 +236,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
     // 确保不小于 0
     x = Math.max(8, x);
     y = Math.max(8, y);
+    setSubmenuDirection(x + rect.width + 188 > viewportWidth ? 'left' : 'right');
 
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
@@ -218,6 +259,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
           key={item.divider ? `divider-${index}` : item.id}
           item={item}
           onClose={onClose}
+          submenuDirection={submenuDirection}
         />
       ))}
     </div>,
@@ -229,24 +271,31 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
 export function useContextMenu() {
   const [state, setState] = useContextMenuState();
 
-  const show = useCallback(
-    (e: React.MouseEvent, items: MenuItem[]) => {
-      e.preventDefault();
-      e.stopPropagation();
+  const showAt = useCallback(
+    (position: MenuPosition, items: MenuItem[]) => {
       setState({
         isOpen: true,
-        position: { x: e.clientX, y: e.clientY },
+        position,
         items,
       });
     },
     [setState],
   );
 
+  const show = useCallback(
+    (e: React.MouseEvent, items: MenuItem[]) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showAt({ x: e.clientX, y: e.clientY }, items);
+    },
+    [showAt],
+  );
+
   const hide = useCallback(() => {
     setState((prev) => ({ ...prev, isOpen: false }));
   }, [setState]);
 
-  return { state, show, hide };
+  return { state, show, showAt, hide };
 }
 
 // 使用 React state 管理菜单状态

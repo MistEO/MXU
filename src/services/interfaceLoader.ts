@@ -6,7 +6,10 @@ import type {
   ControllerType,
   PresetItem,
   GroupItem,
+  InterfaceSettingSection,
+  PretaskItem,
 } from '@/types/interface';
+import { normalizePretaskConfigs } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 import { parseJsonc } from '@/utils/jsonc';
 import { isTauri } from '@/utils/paths';
@@ -15,15 +18,21 @@ import { setBackendPort } from '@/utils/backendApi';
 const log = loggers.app;
 
 /**
- * 可导入的 PI 文件结构（支持 task、option、preset 和 group 字段）
+ * 可导入的 PI 文件结构（支持 task、option、global_option、preset、group、setting 和 pretask 字段）
  */
 interface ImportableInterface {
   task?: TaskItem[];
   option?: Record<string, OptionDefinition>;
+  /** v2.3.0: 支持导入 global_option */
+  global_option?: string[];
   /** v2.3.0: 支持导入 preset */
   preset?: PresetItem[];
   /** v2.4.0: 支持导入 group */
   group?: GroupItem[];
+  /** MXU 扩展：支持导入 setting */
+  setting?: InterfaceSettingSection[];
+  /** v2.7.0: 支持导入 pretask */
+  pretask?: PretaskItem | PretaskItem[];
 }
 
 export interface LoadResult {
@@ -32,6 +41,8 @@ export interface LoadResult {
   basePath: string;
   dataPath: string; // 数据目录（macOS: ~/Library/Application Support/MXU/，其他平台同 basePath）
   webServerPort?: number; // 后端 Web 服务器实际监听端口（浏览器模式下用于 WS 直连）
+  backendOS?: string; // 后端真实 OS（用于控制器过滤、更新匹配等；Tauri/HTTP 路径填充，dev 预览为空）
+  backendArch?: string; // 后端真实架构
 }
 
 /**
@@ -82,6 +93,7 @@ async function loadInterfaceFromLocal(interfacePath: string): Promise<ProjectInt
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
   }
 
+  pi.task ??= [];
   return pi;
 }
 
@@ -143,6 +155,7 @@ async function loadInterfaceFromHttp(path: string): Promise<ProjectInterface> {
     throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
   }
 
+  pi.task ??= [];
   return pi;
 }
 
@@ -210,21 +223,43 @@ async function loadImportFromHttp(importPath: string): Promise<ImportableInterfa
 }
 
 /**
- * 合并导入的 task 和 option 到主 interface
+ * 合并导入的 task、option、setting、pretask 等到主 interface
  * @param pi 主 ProjectInterface
  * @param imported 导入的内容
  */
 function mergeImported(pi: ProjectInterface, imported: ImportableInterface): void {
   // 合并 task 数组（追加到末尾）
   if (imported.task && imported.task.length > 0) {
-    pi.task = [...pi.task, ...imported.task];
+    pi.task = [...(pi.task || []), ...imported.task];
     log.info(`合并了 ${imported.task.length} 个导入的 task`);
+  }
+
+  // 合并 global_option（按导入顺序追加并去重）
+  if (imported.global_option && imported.global_option.length > 0) {
+    const existingGlobalOptions = pi.global_option || [];
+    const seen = new Set(existingGlobalOptions);
+    const dedupedImported = imported.global_option.filter((optionKey) => {
+      if (seen.has(optionKey)) return false;
+      seen.add(optionKey);
+      return true;
+    });
+
+    if (dedupedImported.length > 0) {
+      pi.global_option = [...existingGlobalOptions, ...dedupedImported];
+      log.info(`合并了 ${dedupedImported.length} 个导入的 global_option`);
+    }
   }
 
   // 合并 option 对象（后导入的覆盖先导入的）
   if (imported.option && Object.keys(imported.option).length > 0) {
     pi.option = { ...pi.option, ...imported.option };
     log.info(`合并了 ${Object.keys(imported.option).length} 个导入的 option`);
+  }
+
+  // MXU 扩展：合并 setting 数组（追加到末尾，保持导入顺序）
+  if (imported.setting && imported.setting.length > 0) {
+    pi.setting = [...(pi.setting || []), ...imported.setting];
+    log.info(`合并了 ${imported.setting.length} 个导入的 setting`);
   }
 
   // v2.3.0: 合并 preset 数组（追加到末尾）
@@ -262,6 +297,14 @@ function mergeImported(pi: ProjectInterface, imported: ImportableInterface): voi
       );
     }
   }
+
+  // v2.7.0: 合并 pretask（单对象视为一项，按导入顺序追加为有序列表）
+  const importedPretasks = normalizePretaskConfigs(imported.pretask);
+  if (importedPretasks && importedPretasks.length > 0) {
+    const existing = normalizePretaskConfigs(pi.pretask) || [];
+    pi.pretask = [...existing, ...importedPretasks];
+    log.info(`合并了 ${importedPretasks.length} 个导入的 pretask`);
+  }
 }
 
 /**
@@ -297,38 +340,61 @@ async function processImports(
 // 平台过滤
 // ============================================================================
 
-// 检测当前操作系统
-const isWindows = navigator.platform.toLowerCase().includes('win');
-const isMacOS = navigator.platform.toLowerCase().includes('mac');
-const isLinux = navigator.platform.toLowerCase().includes('linux');
+/**
+ * 根据 OS 字符串计算平台标志
+ * @param os 后端真实 OS（如 "windows"/"macos"/"linux"）；空串时回退到浏览器 navigator.platform（仅纯前端 dev 预览，无后端）
+ *
+ * 注意：控制器过滤必须以后端 OS 为准（WebUI 可被异构 OS 的浏览器远程访问），
+ * 不得直接使用 navigator.platform，否则会导致远程浏览器与后端 OS 不一致时过滤错误。
+ */
+function getPlatformFlags(os: string) {
+  const platform = os ? os.toLowerCase() : navigator.platform.toLowerCase();
+  return {
+    isWindows: platform.includes('win'),
+    isMacOS: platform === 'macos' || platform.includes('mac'),
+    isLinux: platform.includes('linux'),
+  };
+}
 
 /**
- * 获取当前平台不支持的控制器类型集合
+ * 获取指定平台不支持的控制器类型集合
+ * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
-function getUnsupportedControllerTypes(): Set<ControllerType> {
+function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
+  const { isWindows, isMacOS, isLinux } = getPlatformFlags(os);
   const unsupported = new Set<ControllerType>();
   // 非 Windows 系统不支持 Win32 和 Gamepad
   if (!isWindows) {
     unsupported.add('Win32');
     unsupported.add('Gamepad');
   }
-  // 非 macOS 系统不支持 PlayCover
+  // 非 macOS 系统不支持原生 macOS 控制器和 PlayCover
   if (!isMacOS) {
+    unsupported.add('MacOS');
     unsupported.add('PlayCover');
   }
-  // 非 Linux 系统不支持 WlRoots
+  // 非 Linux 系统不支持 WlRoots 和 Linux 控制器
   if (!isLinux) {
     unsupported.add('WlRoots');
+    unsupported.add('Linux');
   }
   return unsupported;
 }
 
 /**
- * 过滤掉当前平台不支持的控制器
+ * 过滤掉指定平台不支持的控制器
  * 在解析阶段直接移除，使后续所有消费 controller 的地方都只看到兼容的控制器
+ * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
-function filterControllersByPlatform(pi: ProjectInterface): void {
-  const unsupported = getUnsupportedControllerTypes();
+function filterControllersByPlatform(pi: ProjectInterface, os: string): void {
+  // WlRoots 已废弃：仍保留兼容（类型合法），但打印 deprecated 提示
+  for (const c of pi.controller) {
+    if (c.type === 'WlRoots') {
+      log.warn(`[interface] 控制器 "${c.name}" 使用了已废弃的 WlRoots 类型，请迁移到 Linux 控制器`);
+    }
+  }
+
+  const unsupported = getUnsupportedControllerTypes(os);
   if (unsupported.size === 0) return;
 
   const originalCount = pi.controller.length;
@@ -388,11 +454,29 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     // 处理 import 字段
     await processImports(pi, relativeBasePath, true);
 
-    // 过滤掉当前平台不支持的控制器
-    filterControllersByPlatform(pi);
+    // 获取后端真实 OS/架构（Tauri 环境），用于平台过滤与下游消费
+    const [backendOS, backendArch] = await Promise.all([
+      invoke<string>('get_os'),
+      invoke<string>('get_arch'),
+    ]);
+
+    // 过滤掉当前平台不支持的控制器（以后端 OS 为准，而非浏览器 OS）
+    filterControllersByPlatform(pi, backendOS);
 
     const translations = await loadTranslationsFromLocal(pi, relativeBasePath);
-    return { interface: pi, translations, basePath, dataPath };
+
+    // tauri 环境下后端 HTTP API（/api/*）走内置 axum web server（默认 12701），
+    // 但 getApiBase() 依赖 backendPort 才能返回绝对 URL（tauri://localhost 下相对 /api 不可达）。
+    // 这里显式设置端口（web server 未就绪时 get_web_server_port 返回 0，也回退默认端口），
+    // 确保后续 fetch(getApiBase()/...) 直连后端。
+    try {
+      const port = await invoke<number>('get_web_server_port');
+      setBackendPort(port > 0 ? port : 12701);
+    } catch {
+      setBackendPort(12701);
+    }
+
+    return { interface: pi, translations, basePath, dataPath, backendOS, backendArch };
   }
 
   // 浏览器环境：尝试后端 HTTP API（先走 Vite proxy，失败则探测端口直连）
@@ -403,6 +487,8 @@ export async function autoLoadInterface(): Promise<LoadResult> {
       basePath: string;
       dataPath: string;
       webServerPort?: number;
+      backendOS?: string;
+      backendArch?: string;
     };
 
     const tryFetchInterface = async (
@@ -453,13 +539,16 @@ export async function autoLoadInterface(): Promise<LoadResult> {
 
     if (apiResult) {
       log.info('从后端 HTTP API 加载 interface.json');
-      filterControllersByPlatform(apiResult.interface);
+      // 以后端返回的 OS 为准过滤（远程浏览器 OS 可能与后端不同）
+      filterControllersByPlatform(apiResult.interface, apiResult.backendOS ?? '');
       return {
         interface: apiResult.interface,
         translations: apiResult.translations ?? {},
         basePath: apiResult.basePath ?? '',
         dataPath: apiResult.dataPath ?? '',
         webServerPort: apiResult.webServerPort,
+        backendOS: apiResult.backendOS,
+        backendArch: apiResult.backendArch,
       };
     }
     log.info('后端 HTTP API 不可用，回退到静态文件加载');
@@ -474,8 +563,8 @@ export async function autoLoadInterface(): Promise<LoadResult> {
     const httpBasePath = relativeBasePath ? `/${relativeBasePath}` : '';
     await processImports(pi, httpBasePath, false);
 
-    // 过滤掉当前平台不支持的控制器
-    filterControllersByPlatform(pi);
+    // 过滤掉当前平台不支持的控制器（纯前端 dev 预览无后端，回退到浏览器平台）
+    filterControllersByPlatform(pi, '');
 
     const translations = await loadTranslationsFromHttp(pi, httpBasePath);
     // 浏览器环境下 dataPath 与 basePath 相同

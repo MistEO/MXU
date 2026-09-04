@@ -2,7 +2,17 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle, Play, CircleDot } from 'lucide-react';
+import {
+  GripVertical,
+  ChevronRight,
+  X,
+  Loader2,
+  FileText,
+  Link,
+  AlertCircle,
+  Play,
+  CircleDot,
+} from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -12,17 +22,16 @@ import { ContextMenu, useContextMenu } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
-import {
-  TriStateCheckbox,
-  getTaskCheckboxState,
-} from './ui/TriStateCheckbox';
+import { TriStateCheckbox, getTaskCheckboxState } from './ui/TriStateCheckbox';
 import { taskStartService } from '@/services/taskStartService';
 import type { MenuItem } from './ContextMenu';
-import type { SelectedTask } from '@/types/interface';
+import type { SelectedTask, CaseItem } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
+import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
+import { isPasswordInput } from '@/utils/passwordOptionValues';
 
 /** 选项预览标签组件 */
 function OptionPreviewTag({
@@ -340,12 +349,18 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
 
-  // 获取任务定义 - 支持 MXU 内置特殊任务
+  // 获取任务定义 - 支持 MXU 内置特殊任务与 pretask 前置任务
   const isMxuTask = isMxuSpecialTask(task.taskName);
+  const isPretask = isPretaskName(task.taskName);
   const mxuSpecialTask = isMxuTask ? getMxuSpecialTask(task.taskName) : null;
+  const pretaskItem = isPretask ? getPretaskItem(projectInterface, task.taskName) : undefined;
   const taskDef = isMxuTask
     ? mxuSpecialTask?.taskDef
-    : projectInterface?.task.find((t) => t.name === task.taskName);
+    : isPretask
+      ? pretaskItem
+        ? buildPretaskDef(pretaskItem)
+        : undefined
+      : projectInterface?.task.find((t) => t.name === task.taskName);
 
   // 检查任务是否与当前控制器/资源兼容
   // 未选择时，使用第一个控制器/资源作为默认值判断兼容性
@@ -451,6 +466,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       projectInterface,
       currentControllerName,
       currentResourceName,
+      useAppStore.getState().globalOptionValues,
     );
     maaService.overridePipeline(instanceId, maaTaskId, pipelineOverride).catch((err) => {
       loggers.task.error('Failed to override pipeline:', err);
@@ -580,7 +596,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             previews.push({
               key: optionKey,
               label: optionLabel,
-              value: inputValue,
+              value: isPasswordInput(firstInput) ? '••••' : inputValue,
               type: 'input',
             });
           }
@@ -594,14 +610,15 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           value: `${caseNames.length}/${optionDef.cases.length}`,
           type: 'checkbox',
         });
-      } else {
-        // select 类型（默认）
+      } else if (optionDef.type === 'select' || optionDef.type === undefined) {
         const caseName =
           optionValue?.type === 'select'
             ? optionValue.caseName
             : optionDef.default_case || optionDef.cases?.[0]?.name || '';
-        const selectedCase = optionDef.cases?.find((c) => c.name === caseName);
-        // MXU 特殊任务的 case label 也需要用 t() 翻译
+        const selectedCase =
+          optionDef.cases?.find((c: CaseItem) => c.name === caseName) ||
+          optionDef.cases?.find((c: CaseItem) => c.name === optionDef.default_case) ||
+          optionDef.cases?.[0];
         const caseLabel = selectedCase
           ? isMxuOption
             ? t(selectedCase.label || selectedCase.name)
@@ -659,7 +676,16 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
       showMenu(e, menuItems);
     },
-    [t, task.runOnce, instanceId, task.id, isInstanceRunning, isIncompatible, setTaskRunOnce, showMenu],
+    [
+      t,
+      task.runOnce,
+      instanceId,
+      task.id,
+      isInstanceRunning,
+      isIncompatible,
+      setTaskRunOnce,
+      showMenu,
+    ],
   );
 
   const handleRunFromHere = useCallback(async () => {

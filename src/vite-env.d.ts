@@ -10,6 +10,18 @@ declare module 'driver.js' {
     moveNext: () => void;
   }
 
+  export interface PopoverDOM {
+    wrapper: HTMLElement;
+    arrow: HTMLElement;
+    title: HTMLElement;
+    description: HTMLElement;
+    footer: HTMLElement;
+    footerButtons: HTMLElement;
+    previousButton: HTMLButtonElement;
+    nextButton: HTMLButtonElement;
+    closeButton: HTMLButtonElement;
+  }
+
   export interface DriverStep {
     element: string;
     popover: {
@@ -17,7 +29,7 @@ declare module 'driver.js' {
       description: string;
       side: 'left' | 'right' | 'top' | 'bottom';
       align: 'start' | 'center' | 'end';
-      showButtons: Array<'next' | 'close'>;
+      showButtons: Array<'next' | 'previous' | 'close'>;
       nextBtnText?: string;
       doneBtnText?: string;
       onNextClick?: (
@@ -39,6 +51,7 @@ declare module 'driver.js' {
     stageRadius: number;
     allowClose: boolean;
     popoverClass: string;
+    onPopoverRender?: (popover: PopoverDOM) => void;
     onDestroyed: () => void;
   }
 

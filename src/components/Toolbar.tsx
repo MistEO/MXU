@@ -1569,14 +1569,27 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   // 监听来自 App 的全局快捷键事件：F10 开始任务，F11 结束任务
   useEffect(() => {
     const handleStartTasks = async (evt: Event) => {
-      if (hotkeyStartingRef.current) return;
-      const currentInstance = useAppStore.getState().getActiveInstance();
-      if (!currentInstance) return;
-
       const detail = (evt as CustomEvent | undefined)?.detail as
-        | { source?: string; combo?: string }
+        | { source?: string; combo?: string; onSettled?: (started: boolean) => void }
         | undefined;
       const isHotkey = detail?.source === 'hotkey' || detail?.source === 'global-hotkey';
+      let settled = false;
+      const notifySettled = (started: boolean) => {
+        if (settled) return;
+        settled = true;
+        detail?.onSettled?.(started);
+      };
+
+      if (hotkeyStartingRef.current) {
+        notifySettled(false);
+        return;
+      }
+      const currentInstance = useAppStore.getState().getActiveInstance();
+      if (!currentInstance) {
+        notifySettled(false);
+        return;
+      }
+
       const combo = detail?.combo || '';
       if (isHotkey) {
         addLog(currentInstance.id, {
@@ -1600,8 +1613,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             message: t('logs.messages.hotkeyStartSuccess'),
           });
         }
+        notifySettled(success);
       } finally {
         hotkeyStartingRef.current = false;
+        notifySettled(false);
       }
     };
 

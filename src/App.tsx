@@ -407,12 +407,16 @@ function App() {
   const initialized = useRef(false);
   const downloadStartedRef = useRef(false);
   const pendingAutoTasksRef = useRef(false);
+  // 自动任务已分发但尚未完成启动时，也要阻止下载完成触发自动安装。
+  // 否则小体积更新可能在 500ms 的任务分发延迟或连接准备期间先完成下载。
+  const autoTaskLaunchPendingRef = useRef(false);
   // 尝试自动安装更新（无任务运行中时触发）
   const tryAutoInstallUpdate = useCallback(() => {
     const state = useAppStore.getState();
     if (state.downloadStatus !== 'completed') return;
     if (state.installStatus !== 'idle') return;
     if (state.autoInstallPending) return;
+    if (autoTaskLaunchPendingRef.current) return;
     if (state.instances.some((i) => i.isRunning)) return;
 
     log.info('自动安装更新：条件满足，弹出安装');
@@ -865,7 +869,8 @@ function App() {
 
       // 检查是否为开机自启动，若配置了自动执行的实例则激活并启动任务
       // 或者手动启动时，如果勾选了"手动启动时也自动执行"，也自动执行
-      // 任务分发延迟到更新检查之后（有更新时先更新再跑任务）
+      // 任务分发延迟到更新检查之后；仅检测到已下载待安装包时阻塞任务执行。
+      // 新版本下载在后台进行，不影响本次任务启动。
       let autoStartTasksPending = false;
       let isAutoRunOnLaunchMode = false;
       if (isTauri()) {
@@ -938,9 +943,20 @@ function App() {
       const dispatchPendingAutoStartTasks = () => {
         if (!autoStartTasksPending) return;
         autoStartTasksPending = false;
+        autoTaskLaunchPendingRef.current = true;
         setTimeout(() => {
           document.dispatchEvent(
-            new CustomEvent('mxu-start-tasks', { detail: { source: 'autostart' } }),
+            new CustomEvent('mxu-start-tasks', {
+              detail: {
+                source: 'autostart',
+                onSettled: () => {
+                  autoTaskLaunchPendingRef.current = false;
+                  // 启动失败时任务不会产生 running -> idle 状态变化，需要在这里补一次安装检查；
+                  // 启动成功时仍处于运行态，本次检查会直接返回，并在任务结束后再次触发。
+                  tryAutoInstallUpdate();
+                },
+              },
+            }),
           );
         }, 500);
       };
@@ -1062,12 +1078,6 @@ function App() {
                 useAppStore.getState().setShowUpdateDialog(true);
                 if (updateResult.downloadUrl) {
                   startAutoDownload(updateResult);
-                  // 下载→安装→重启后任务在新版本上执行，挂起本次任务分发
-                  // 下载失败/取消时通过 pendingAutoTasksRef 恢复分发
-                  if (autoStartTasksPending) {
-                    autoStartTasksPending = false;
-                    pendingAutoTasksRef.current = true;
-                  }
                 }
               } else if (updateResult.errorCode) {
                 log.warn(`更新检查返回错误: code=${updateResult.errorCode}`);
@@ -1080,7 +1090,8 @@ function App() {
         }
       }
 
-      // 更新检查完毕，分发挂起的自动任务（有下载时已转移到 pendingAutoTasksRef）
+      // 更新检查完毕，分发挂起的自动任务。
+      // 自动下载在后台进行，不阻塞本次任务；仅上面的待安装包分支会保留挂起状态。
       dispatchPendingAutoStartTasks();
     } catch (err) {
       log.error('加载 interface.json 失败:', err);

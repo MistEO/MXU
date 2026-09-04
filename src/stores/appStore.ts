@@ -79,6 +79,12 @@ import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
+/** 低于该速度（字节/秒）视为慢速下载 */
+const SLOW_DOWNLOAD_SPEED_BPS = 1024 * 1024;
+
+/** 慢速需要持续这么久才认定为「确实慢」，避免下载刚开始时误报 */
+export const SLOW_DOWNLOAD_DURATION_MS = 5000;
+
 /**
  * 规范化定时策略：仅保留 times（分钟精度）字段，丢弃旧版整点 hours 字段。
  * 不做新旧数据迁移——旧配置中基于 hours 的时间点不会被转换为 times，加载后时间点为空，需用户重新配置。
@@ -350,6 +356,9 @@ export const useAppStore = create<AppState>()(
     // 当前页面
     currentPage: 'main',
     setCurrentPage: (page) => set({ currentPage: page }),
+
+    settingsTargetSection: null,
+    setSettingsTargetSection: (section) => set({ settingsTargetSection: section }),
 
     // 调试选项（不落盘，每次启动默认关闭）
     saveDraw: false,
@@ -2036,14 +2045,26 @@ export const useAppStore = create<AppState>()(
     downloadStatus: 'idle',
     downloadProgress: null,
     downloadSavePath: null,
-    setDownloadStatus: (status) => set({ downloadStatus: status }),
-    setDownloadProgress: (progress) => set({ downloadProgress: progress }),
+    slowDownloadSince: null,
+    // 每次状态变化都重置慢速计时：'downloading' 表示新一轮下载开始，其余状态表示下载已结束
+    setDownloadStatus: (status) => set({ downloadStatus: status, slowDownloadSince: null }),
+    // 要求 downloadedSize > 0 才起算：下载开始前先写入的那条 speed 为 0 的占位进度，
+    // 以及 Rust 建连/重定向期间（进度事件还没开始推送）都不应计入慢速时长
+    setDownloadProgress: (progress) =>
+      set((state) => ({
+        downloadProgress: progress,
+        slowDownloadSince:
+          progress && progress.downloadedSize > 0 && progress.speed < SLOW_DOWNLOAD_SPEED_BPS
+            ? (state.slowDownloadSince ?? Date.now())
+            : null,
+      })),
     setDownloadSavePath: (path) => set({ downloadSavePath: path }),
     resetDownloadState: () =>
       set({
         downloadStatus: 'idle',
         downloadProgress: null,
         downloadSavePath: null,
+        slowDownloadSince: null,
       }),
 
     // 安装状态

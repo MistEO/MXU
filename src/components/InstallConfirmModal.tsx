@@ -18,7 +18,7 @@ import {
   FallbackUpdateError,
   isExecutableInstaller,
 } from '@/services/updateService';
-import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
+import { ReleaseNotes, DownloadProgressBar, useOpenUpdateSettings } from './UpdateInfoCard';
 import { loggers } from '@/utils/logger';
 
 export function InstallConfirmModal() {
@@ -133,6 +133,13 @@ export function InstallConfirmModal() {
     justUpdatedInfo,
     setJustUpdatedInfo,
   ]);
+
+  // 跳转到设置页的更新分区去配置 CDK
+  const openUpdateSettings = useOpenUpdateSettings();
+  const handleOpenUpdateSettings = useCallback(() => {
+    openUpdateSettings();
+    setShowInstallConfirmModal(false); // 否则弹窗会盖住设置页
+  }, [openUpdateSettings, setShowInstallConfirmModal]);
 
   // 用于追踪是否已触发自动安装，避免重复执行
   const autoInstallTriggered = useRef(false);
@@ -398,6 +405,7 @@ export function InstallConfirmModal() {
                       fileSize={updateInfo.fileSize}
                       downloadSource={updateInfo.downloadSource}
                       showActions={false}
+                      onSlowDownloadHintClick={handleOpenUpdateSettings}
                     />
                   </div>
                 )}

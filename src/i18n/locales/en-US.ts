@@ -128,7 +128,7 @@ export default {
     resetWindowLayoutHint: 'Restore window size to default and center the window',
     autoClearLogsOnLaunch: 'Auto-clear Runtime Logs',
     autoClearLogsOnLaunchHint:
-      'Automatically clear runtime logs and delete old log files along with debug screenshots in on_error and vision every time the project is launched',
+      'Automatically clear runtime logs and debug files every time the project is launched',
   },
 
   // Special tasks
@@ -201,6 +201,8 @@ export default {
       restart: 'Restart',
       screenoff: 'Turn Off Screen',
       sleep: 'Sleep',
+      mute: 'Mute',
+      unmute: 'Unmute',
     },
   },
 
@@ -692,6 +694,7 @@ export default {
       ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
     getCdk: 'No CDKey? Subscribe Now',
     cdkHint: 'Please check if your CDK is correct or has expired',
+    slowDownloadHint: 'Other channels',
     checkUpdate: 'Check for Updates',
     checking: 'Checking...',
     upToDate: 'You are up to date ({{version}})',

@@ -733,9 +733,14 @@ interface DownloadUpdateOptions {
 // 当前下载的保存路径，用于取消时清理临时文件
 let currentDownloadPath: string | null = null;
 
-// 进度事件数据（包含 session_id 用于区分不同下载任务）
-interface DownloadProgressEventPayload extends DownloadProgress {
+// 进度事件数据。Rust 侧 DownloadProgressEvent 走 serde 默认命名，
+// 字段是 snake_case，不能直接套用前端 camelCase 的 DownloadProgress
+interface DownloadProgressEventPayload {
   session_id: number;
+  downloaded_size: number;
+  total_size: number;
+  speed: number;
+  progress: number;
 }
 
 /**
@@ -809,8 +814,8 @@ export async function downloadUpdate(
         // 如果已被取消，忽略进度更新
         if (downloadCancelled) return;
         onProgress({
-          downloadedSize: event.payload.downloadedSize,
-          totalSize: event.payload.totalSize,
+          downloadedSize: event.payload.downloaded_size,
+          totalSize: event.payload.total_size,
           speed: event.payload.speed,
           progress: event.payload.progress,
         });

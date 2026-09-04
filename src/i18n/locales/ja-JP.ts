@@ -126,7 +126,7 @@ export default {
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
-      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルと on_error・vision 内のデバッグスクリーンショットを削除します',
+      'プロジェクトの起動時に実行ログとデバッグファイルを自動でクリアします',
   },
 
   // 特殊タスク
@@ -199,6 +199,8 @@ export default {
       restart: '再起動',
       screenoff: '画面オフ',
       sleep: 'スリープ',
+      mute: 'ミュート',
+      unmute: 'ミュート解除',
     },
   },
 
@@ -691,6 +693,7 @@ export default {
       ' は独立したサードパーティの高速ダウンロードサービスで、有料サブスクリプションが必要です。これは「{{projectName}}」の料金ではありません。運営費はサブスクリプション収入で賄われ、一部は開発者に還元されます。CDK を購読して高速ダウンロードをお楽しみください。CDK を入力しない場合、GitHub からダウンロードします。失敗した場合は、ネットワークプロキシを設定してください。',
     getCdk: 'CDKをお持ちでない方はこちら',
     cdkHint: 'CDK が正しいか、または有効期限が切れていないか確認してください',
+    slowDownloadHint: '他の入手先',
     checkUpdate: '更新を確認',
     checking: '確認中...',
     upToDate: '最新バージョンです ({{version}})',

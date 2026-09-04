@@ -136,6 +136,10 @@ export interface AppState {
   currentPage: PageView;
   setCurrentPage: (page: PageView) => void;
 
+  /** 进入设置页后需要自动滚动到的分区 id（如 'update'），由 SettingsPage 消费后清空 */
+  settingsTargetSection: string | null;
+  setSettingsTargetSection: (section: string | null) => void;
+
   // 调试选项（不落盘，每次启动默认关闭）
   saveDraw: boolean;
   setSaveDraw: (enabled: boolean) => void;
@@ -456,6 +460,8 @@ export interface AppState {
   downloadStatus: DownloadStatus;
   downloadProgress: DownloadProgress | null;
   downloadSavePath: string | null;
+  /** 下载速度持续低于阈值的起始时间戳，速度回升或下载结束时置为 null */
+  slowDownloadSince: number | null;
   setDownloadStatus: (status: DownloadStatus) => void;
   setDownloadProgress: (progress: DownloadProgress | null) => void;
   setDownloadSavePath: (path: string | null) => void;

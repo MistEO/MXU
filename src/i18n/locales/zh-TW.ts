@@ -122,8 +122,7 @@ export default {
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint:
-      '每次啟動項目時，自動清理運行日誌，並刪除舊的日誌檔案與 on_error、vision 目錄下的除錯截圖',
+    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌與除錯檔案',
   },
 
   // 特殊任務
@@ -194,6 +193,8 @@ export default {
       restart: '重新啟動',
       screenoff: '關閉螢幕',
       sleep: '睡眠',
+      mute: '靜音',
+      unmute: '取消靜音',
     },
   },
 
@@ -664,6 +665,7 @@ export default {
       ' 是獨立的第三方加速下載服務，需要付費使用，並非「{{projectName}}」收費。其營運成本由訂閱收入支撐，部分收益將回饋專案開發者。歡迎訂閱 CDK 享受高速下載，同時支援專案持續開發。未填寫 CDK 時將自動透過 GitHub 下載，若失敗請嘗試設定網路代理。',
     getCdk: '沒有CDK？立即訂閱',
     cdkHint: '請檢查您的 CDK 是否正確或已過期',
+    slowDownloadHint: '其他管道',
     checkUpdate: '檢查更新',
     checking: '正在檢查...',
     upToDate: '目前已是最新版本 ({{version}})',

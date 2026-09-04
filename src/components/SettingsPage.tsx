@@ -155,6 +155,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     confirmBeforeDelete,
     interfaceTranslations,
     language,
+    settingsTargetSection,
+    setSettingsTargetSection,
   } = useAppStore();
 
   // 自定义强调色编辑状态
@@ -298,6 +300,21 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     }
     setDrawerOpen(false);
   }, []);
+
+  // 由外部（如更新气泡里的加速下载入口）指定的目标分区，进入设置页后自动滚过去
+  useEffect(() => {
+    if (!settingsTargetSection) return;
+
+    const target = settingsTargetSection;
+    setActiveSection(target);
+    // 等一帧让页面切换后的布局稳定，否则 offsetTop 可能还没到位。
+    // 清空必须放在回调里：若提前清空，依赖变化会让 cleanup 在这一帧结束前取消掉 rAF。
+    const raf = requestAnimationFrame(() => {
+      scrollToSection(target);
+      setSettingsTargetSection(null);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [settingsTargetSection, setSettingsTargetSection, scrollToSection]);
 
   // 监听滚动，更新当前高亮的 section
   useEffect(() => {

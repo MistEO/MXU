@@ -123,8 +123,7 @@ export default {
     resetWindowLayout: '창 레이아웃 초기화',
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
     autoClearLogsOnLaunch: '로그 자동 지우기',
-    autoClearLogsOnLaunchHint:
-      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일과 on_error, vision 폴더의 디버그 스크린샷을 삭제합니다',
+    autoClearLogsOnLaunchHint: '프로젝트를 시작할 때 런타임 로그와 디버그 파일을 자동으로 지웁니다',
   },
 
   // 특수 작업
@@ -197,6 +196,8 @@ export default {
       restart: '재시작',
       screenoff: '화면 끄기',
       sleep: '절전 모드',
+      mute: '음소거',
+      unmute: '음소거 해제',
     },
   },
 
@@ -680,6 +681,7 @@ export default {
       '는 독립적인 서드파티 고속 다운로드 서비스이며 유료 구독이 필요합니다. 이것은 "{{projectName}}"의 요금이 아닙니다. 운영비는 구독 수익으로 충당되며 일부는 개발자에게 환원됩니다. CDK를 구독하여 고속 다운로드를 즐기세요. CDK가 없으면 GitHub에서 다운로드됩니다. 실패하면 네트워크 프록시를 설정하세요.',
     getCdk: 'CDK가 없으신가요? 지금 구독하세요',
     cdkHint: 'CDK가 올바른지 또는 만료되지 않았는지 확인하세요',
+    slowDownloadHint: '다른 채널',
     checkUpdate: '업데이트 확인',
     checking: '확인 중...',
     upToDate: '최신 버전입니다 ({{version}})',

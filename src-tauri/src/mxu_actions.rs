@@ -580,7 +580,7 @@ fn kill_process_by_name(name: &str) -> bool {
 const MXU_POWER_ACTION: &str = "MXU_POWER_ACTION";
 
 /// MXU_POWER custom action 回调函数
-/// 从 custom_action_param 中读取 power_action，执行关机/重启/息屏/睡眠操作
+/// 从 custom_action_param 中读取 power_action，执行关机/重启/息屏/睡眠/静音/取消静音操作
 fn mxu_power_action_fn(
     _ctx: &maa_framework::context::Context,
     args: &maa_framework::custom::ActionArgs,
@@ -608,6 +608,8 @@ fn mxu_power_action_fn(
         "restart" => execute_power_restart(),
         "screenoff" => execute_power_screenoff(),
         "sleep" => execute_power_sleep(),
+        "mute" => execute_power_set_mute(true),
+        "unmute" => execute_power_set_mute(false),
         _ => {
             warn!("[MXU_POWER] Unknown power action: {}", action);
             false
@@ -830,6 +832,139 @@ fn execute_power_sleep() -> bool {
                 false
             }
         }
+    }
+}
+
+fn execute_power_set_mute(muted: bool) -> bool {
+    #[cfg(windows)]
+    {
+        use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
+        use windows::Win32::Media::Audio::{
+            eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
+        };
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+        };
+
+        struct ComUninitializeGuard(bool);
+
+        impl Drop for ComUninitializeGuard {
+            fn drop(&mut self) {
+                if self.0 {
+                    unsafe { CoUninitialize() };
+                }
+            }
+        }
+
+        let _com_guard =
+            ComUninitializeGuard(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).is_ok() });
+        let result: windows::core::Result<()> = (|| unsafe {
+            let enumerator: IMMDeviceEnumerator =
+                CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+            let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
+            let endpoint_volume: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
+            endpoint_volume.SetMute(muted, std::ptr::null())?;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                info!(
+                    "[MXU_POWER] Audio {} (Windows)",
+                    if muted { "muted" } else { "unmuted" }
+                );
+                true
+            }
+            Err(e) => {
+                log::error!(
+                    "[MXU_POWER] Failed to {} audio (Windows): {}",
+                    if muted { "mute" } else { "unmute" },
+                    e
+                );
+                false
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let script = if muted {
+            "set volume with output muted"
+        } else {
+            "set volume without output muted"
+        };
+        match Command::new("osascript").args(["-e", script]).status() {
+            Ok(status) if status.success() => {
+                info!(
+                    "[MXU_POWER] Audio {} (macOS)",
+                    if muted { "muted" } else { "unmuted" }
+                );
+                true
+            }
+            Ok(status) => {
+                log::error!(
+                    "[MXU_POWER] Failed to {} audio (macOS), exit status: {}",
+                    if muted { "mute" } else { "unmute" },
+                    status
+                );
+                false
+            }
+            Err(e) => {
+                log::error!(
+                    "[MXU_POWER] Failed to {} audio (macOS): {}",
+                    if muted { "mute" } else { "unmute" },
+                    e
+                );
+                false
+            }
+        }
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        use std::process::Command;
+
+        let mute_value = if muted { "1" } else { "0" };
+        let commands: [(&str, &[&str]); 2] = [
+            ("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", mute_value]),
+            ("pactl", &["set-sink-mute", "@DEFAULT_SINK@", mute_value]),
+        ];
+
+        for (program, args) in commands {
+            match Command::new(program).args(args).status() {
+                Ok(status) if status.success() => {
+                    info!(
+                        "[MXU_POWER] Audio {} (Linux, {})",
+                        if muted { "muted" } else { "unmuted" },
+                        program
+                    );
+                    return true;
+                }
+                Ok(status) => warn!(
+                    "[MXU_POWER] {} failed to {} audio, exit status: {}",
+                    program,
+                    if muted { "mute" } else { "unmute" },
+                    status
+                ),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    info!("[MXU_POWER] {} is unavailable, trying fallback", program)
+                }
+                Err(e) => warn!(
+                    "[MXU_POWER] Failed to run {} while trying to {} audio: {}",
+                    program,
+                    if muted { "mute" } else { "unmute" },
+                    e
+                ),
+            }
+        }
+
+        log::error!(
+            "[MXU_POWER] Failed to {} audio: no supported Linux audio control succeeded",
+            if muted { "mute" } else { "unmute" }
+        );
+        false
     }
 }
 

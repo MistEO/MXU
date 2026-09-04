@@ -658,6 +658,7 @@ function App() {
           environment: sentryCfg.environment ?? channel,
           tracing: sentryCfg.tracing ?? true,
           tracesSampleRate: sentryCfg.traces_sample_rate ?? 1.0,
+          failureAttachmentsSampleRate: sentryCfg.failure_attachments_sample_rate ?? 1.0,
           appName,
           appVersion,
           mxuVersion,

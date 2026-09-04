@@ -1,5 +1,6 @@
 import type { SavedTask } from '@/types/config';
-import type { ActionConfig, Instance, OptionValue } from '@/types/interface';
+import type { ActionConfig, Instance, OptionDefinition, OptionValue } from '@/types/interface';
+import { encryptPasswordOptionValues } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
 import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
 import { toast } from 'sonner';
@@ -28,7 +29,7 @@ type WireOptionValue =
   | { t: 's'; c: string } // select:   caseName
   | { t: 'cb'; c: string[] } // checkbox: caseNames
   | { t: 'sw'; v: boolean } // switch:   value
-  | { t: 'in'; v: Record<string, string> } // input: values
+  | { t: 'in'; v: Record<string, string>; ev?: Record<string, string> } // input: values + encryptedValues
   | { t: 'hk'; v: Record<string, string> };
 
 interface WireTask {
@@ -68,8 +69,13 @@ function encodeOptionValue(v: OptionValue): WireOptionValue {
       return { t: 'cb', c: v.caseNames };
     case 'switch':
       return { t: 'sw', v: v.value };
-    case 'input':
-      return { t: 'in', v: v.values };
+    case 'input': {
+      const wire: Extract<WireOptionValue, { t: 'in' }> = { t: 'in', v: v.values };
+      if (v.encryptedValues && Object.keys(v.encryptedValues).length > 0) {
+        wire.ev = v.encryptedValues;
+      }
+      return wire;
+    }
     case 'hotkey':
       return { t: 'hk', v: v.values };
     default:
@@ -126,7 +132,11 @@ function decodeOptionValue(w: WireOptionValue): OptionValue {
     case 'sw':
       return { type: 'switch', value: w.v };
     case 'in':
-      return { type: 'input', values: w.v };
+      return {
+        type: 'input',
+        values: w.v,
+        ...(w.ev && Object.keys(w.ev).length > 0 ? { encryptedValues: w.ev } : {}),
+      };
     case 'hk':
       return { type: 'hotkey', values: w.v };
     default:
@@ -251,6 +261,7 @@ export async function buildTabConfigExportText(
   projectName: string,
   hint?: string,
   footer?: string,
+  allOptions?: Record<string, OptionDefinition>,
 ): Promise<string> {
   const payload: TabExportPayload = {
     controllerName: instance.controllerName,
@@ -265,7 +276,9 @@ export async function buildTabConfigExportText(
         instance.controllerName,
         t.enabled,
       ),
-      optionValues: t.optionValues,
+      optionValues: allOptions
+        ? encryptPasswordOptionValues(t.optionValues, allOptions, projectName)
+        : t.optionValues,
     })),
     preActions: instance.preActions,
   };
@@ -286,8 +299,9 @@ export async function exportTabConfig(
   projectName: string,
   hint?: string,
   footer?: string,
+  allOptions?: Record<string, OptionDefinition>,
 ): Promise<void> {
-  const lines = await buildTabConfigExportText(instance, projectName, hint, footer);
+  const lines = await buildTabConfigExportText(instance, projectName, hint, footer, allOptions);
   await navigator.clipboard.writeText(lines);
 }
 
@@ -315,8 +329,9 @@ export async function exportTabConfigToFile(
   projectName: string,
   hint: string,
   footer: string,
+  allOptions?: Record<string, OptionDefinition>,
 ): Promise<boolean> {
-  const content = await buildTabConfigExportText(instance, projectName, hint, footer);
+  const content = await buildTabConfigExportText(instance, projectName, hint, footer, allOptions);
   const fileName = `${sanitizeFileName(projectName)}-${sanitizeFileName(instance.name)}.txt`;
 
   if (isTauri()) {
@@ -456,8 +471,9 @@ export function exportWithToast(
   hint: string,
   footer: string,
   messages: { success: string; failed: string },
+  allOptions?: Record<string, OptionDefinition>,
 ): void {
-  exportTabConfig(instance, projectName, hint, footer).then(
+  exportTabConfig(instance, projectName, hint, footer, allOptions).then(
     () => toast.success(messages.success),
     () => toast.error(messages.failed),
   );
@@ -469,8 +485,9 @@ export function exportFileWithToast(
   hint: string,
   footer: string,
   messages: { success: string; failed: string },
+  allOptions?: Record<string, OptionDefinition>,
 ): void {
-  exportTabConfigToFile(instance, projectName, hint, footer).then(
+  exportTabConfigToFile(instance, projectName, hint, footer, allOptions).then(
     (saved) => {
       if (saved) toast.success(messages.success);
     },

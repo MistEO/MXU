@@ -26,6 +26,7 @@ import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { buildTaskOptionSummary } from '@/services/telemetryService';
+import { collectPasswordPlaintextsFromRunnableTasks } from '@/utils/passwordOptionValues';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
@@ -33,6 +34,7 @@ import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import type { PretaskItem } from '@/types/interface';
+import { getLinuxDeviceName } from '@/utils/controller';
 import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { isTaskCompatible } from '@/stores/helpers';
@@ -135,6 +137,16 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       deviceName = savedDevice.adbDeviceName;
     } else if (savedDevice?.windowName) {
       deviceName = savedDevice.windowName;
+    } else if (currentController?.type === 'Linux' && savedDevice) {
+      // Linux：按当前配置输出实际使用的设备（portal/uinput 等忽略残留的 gamescope-<n>）
+      deviceName = getLinuxDeviceName(
+        currentController,
+        {
+          wlrSocketPath: savedDevice.wlrSocketPath,
+          gamescopeDisplayNo: savedDevice.gamescopeDisplayNo,
+        },
+        { portal: t('controller.portal'), linux: t('controller.linux') },
+      );
     } else if (savedDevice?.wlrSocketPath) {
       deviceName = savedDevice.wlrSocketPath;
     } else if (savedDevice?.playcoverAddress) {
@@ -364,6 +376,11 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                 type: projectInterface?.controller.find((c) => c.name === currentControllerName)
                   ?.type,
               },
+              collectPasswordPlaintextsFromRunnableTasks(
+                batchTasks,
+                useAppStore.getState().globalOptionValues,
+                projectInterface?.option ?? {},
+              ),
             );
 
             batchTaskIds.forEach((maaTaskId, index) => {

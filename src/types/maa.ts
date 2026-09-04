@@ -1,5 +1,7 @@
 // MaaFramework 类型定义
 
+import { loggers } from '@/utils/logger';
+
 /** ADB 设备信息 */
 export interface AdbDevice {
   name: string;
@@ -15,6 +17,13 @@ export interface Win32Window {
   handle: number;
   class_name: string;
   window_name: string;
+}
+
+/** gamescope 实例（同一 display 上的截图节点 + libei 输入 socket） */
+export interface GamescopeInstance {
+  display_no: number;
+  pipewire_node_id: number;
+  eis_socket_path: string;
 }
 
 /** ADB 控制器配置 */
@@ -54,6 +63,23 @@ export interface WlRootsControllerConfig {
   use_win32_vk_code?: boolean;
 }
 
+/** Linux 原生控制器配置（截图：Wlr/PipeWire，输入：Wlr/UInput/Libei） */
+export interface LinuxControllerConfig {
+  type: 'Linux';
+  screencap_method: number;
+  input_method: number;
+  pipewire_source?: 'Gamescope' | 'Portal';
+  wlr_socket_path?: string;
+  pw_socket_fd?: number;
+  pw_node_id?: number;
+  uinput_path?: string;
+  uinput_screen_width?: number;
+  uinput_screen_height?: number;
+  eis_socket_path?: string;
+  use_win32_vk_code?: boolean;
+  display_short_side?: number;
+}
+
 /** PlayCover 控制器配置 (macOS) */
 export interface PlayCoverControllerConfig {
   type: 'PlayCover';
@@ -84,6 +110,7 @@ export type ControllerConfig =
   | Win32ControllerConfig
   | MacOSControllerConfig
   | WlRootsControllerConfig
+  | LinuxControllerConfig
   | PlayCoverControllerConfig
   | GamepadControllerConfig
   | DummyControllerConfig;
@@ -134,6 +161,7 @@ export const Win32InputMethod = {
   PostMessageWithCursorPos: 1n << 6n,
   SendMessageWithWindowPos: 1n << 7n,
   PostMessageWithWindowPos: 1n << 8n,
+  Interception: 1n << 9n,
 } as const;
 
 /** Win32 截图方法名称映射 */
@@ -159,6 +187,7 @@ export const Win32InputMethodNames: Record<string, bigint> = {
   PostMessageWithCursorPos: Win32InputMethod.PostMessageWithCursorPos,
   SendMessageWithWindowPos: Win32InputMethod.SendMessageWithWindowPos,
   PostMessageWithWindowPos: Win32InputMethod.PostMessageWithWindowPos,
+  Interception: Win32InputMethod.Interception,
 };
 
 /** macOS 截图方法 */
@@ -208,7 +237,11 @@ export function parseWin32InputMethod(name: string): number {
   if (method !== undefined) {
     return Number(method);
   }
-  // 默认使用 Seize
+  // 默认使用 Seize；遇到非合规值时记录警告
+  loggers.config.warn('遇到非合规的 Win32 输入方法名称，已回退到默认值 Seize。', {
+    name,
+    fallback: 'Seize',
+  });
   return Number(Win32InputMethod.Seize);
 }
 
@@ -222,6 +255,46 @@ export function parseMacOSScreencapMethod(name: string): number {
 export function parseMacOSInputMethod(name: string): number {
   const method = MacOSInputMethodNames[name];
   return Number(method ?? MacOSInputMethod.GlobalEvent);
+}
+
+/** Linux 截图方法 */
+export const LinuxScreencapMethod = {
+  None: 0,
+  Wlr: 1,
+  PipeWire: 4,
+} as const;
+
+/** Linux 输入方法 */
+export const LinuxInputMethod = {
+  None: 0,
+  Wlr: 1,
+  UInput: 2,
+  Libei: 4,
+} as const;
+
+/** Linux 截图方法名称映射 */
+export const LinuxScreencapMethodNames: Record<string, number> = {
+  Wlr: LinuxScreencapMethod.Wlr,
+  PipeWire: LinuxScreencapMethod.PipeWire,
+};
+
+/** Linux 输入方法名称映射 */
+export const LinuxInputMethodNames: Record<string, number> = {
+  Wlr: LinuxInputMethod.Wlr,
+  UInput: LinuxInputMethod.UInput,
+  Libei: LinuxInputMethod.Libei,
+};
+
+/** 解析 Linux 截图方法名称；协议未提供默认值时使用 PipeWire */
+export function parseLinuxScreencapMethod(name: string | undefined): number {
+  if (!name) return LinuxScreencapMethod.PipeWire;
+  return LinuxScreencapMethodNames[name] ?? LinuxScreencapMethod.PipeWire;
+}
+
+/** 解析 Linux 输入方法名称；协议未提供默认值时使用 Libei */
+export function parseLinuxInputMethod(name: string | undefined): number {
+  if (!name) return LinuxInputMethod.Libei;
+  return LinuxInputMethodNames[name] ?? LinuxInputMethod.Libei;
 }
 
 /** Agent 配置（用于启动子进程） */

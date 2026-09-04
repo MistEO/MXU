@@ -6,6 +6,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AdbDevice,
   Win32Window,
+  GamescopeInstance,
   ControllerConfig,
   ConnectionStatus,
   TaskStatus,
@@ -15,6 +16,7 @@ import type {
   InstanceRuntimeInfo,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
+import { redactSecretsInText } from '@/utils/passwordOptionValues';
 import { isTauri } from '@/utils/paths';
 import i18n from '@/i18n';
 import { apiDelete, apiGet, apiPost, apiPut, getApiBase } from '@/utils/backendApi';
@@ -38,6 +40,9 @@ function localizeControllerError(error: unknown): unknown {
   }
   if (message.includes('MACOS_VERSION_REQUIRED')) {
     return new Error(i18n.t('controller.macosSystemVersionRequired'));
+  }
+  if (message.includes('LINUX_MAAFW_VERSION_REQUIRED')) {
+    return new Error(i18n.t('controller.linuxVersionRequired'));
   }
   return error;
 }
@@ -254,6 +259,23 @@ export const maaService = {
       log.debug(`  socket[${i}]: ${socket}`);
     });
     return sockets;
+  },
+
+  /**
+   * 查找 gamescope 实例（同一 display 上的截图节点 + libei 输入 socket）
+   */
+  async findGamescopeInstances(): Promise<GamescopeInstance[]> {
+    log.info('搜索 gamescope 实例...');
+    const instances = isTauri()
+      ? await invoke<GamescopeInstance[]>('maa_find_gamescope_instances')
+      : await apiGet<GamescopeInstance[]>('/maa/gamescope-instances');
+    log.info('找到 gamescope 实例:', instances.length, '个');
+    instances.forEach((inst, i) => {
+      log.debug(
+        `  实例[${i}]: display_no=${inst.display_no}, pipewire_node_id=${inst.pipewire_node_id}, eis_socket_path=${inst.eis_socket_path}`,
+      );
+    });
+    return instances;
   },
 
   /**
@@ -625,10 +647,15 @@ export const maaService = {
     piEnvs?: Record<string, string>,
     resetState: boolean = true,
     controllerInfo?: ControllerTelemetryInfo,
+    logRedactSecrets?: string[],
   ): Promise<number[]> {
     log.info('启动任务, 实例:', instanceId, ', 任务数:', tasks.length, ', cwd:', cwd || '.');
     tasks.forEach((task, i) => {
-      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${task.pipeline_override}`);
+      const override =
+        logRedactSecrets && logRedactSecrets.length > 0
+          ? redactSecretsInText(task.pipeline_override, logRedactSecrets)
+          : task.pipeline_override;
+      log.debug(`  任务[${i}]: entry=${task.entry}, pipelineOverride=${override}`);
     });
     if (agentConfigs && agentConfigs.length > 0) {
       log.info(
@@ -951,6 +978,7 @@ export const maaService = {
     cachedAdbDevices: AdbDevice[];
     cachedWin32Windows: Win32Window[];
     cachedWlrootsSockets: string[];
+    cachedGamescopeInstances: GamescopeInstance[];
   } | null> {
     try {
       type RawTaskRunState = {
@@ -972,6 +1000,7 @@ export const maaService = {
         cached_adb_devices: AdbDevice[];
         cached_win32_windows: Win32Window[];
         cached_wlroots_sockets: string[];
+        cached_gamescope_instances: GamescopeInstance[];
       };
 
       // Tauri 环境：直接 invoke；浏览器环境：通过后端 HTTP API
@@ -1019,6 +1048,7 @@ export const maaService = {
         cachedAdbDevices: states.cached_adb_devices,
         cachedWin32Windows: states.cached_win32_windows,
         cachedWlrootsSockets: states.cached_wlroots_sockets,
+        cachedGamescopeInstances: states.cached_gamescope_instances,
       };
     } catch (err) {
       log.error('获取所有状态失败:', err);

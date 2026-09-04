@@ -18,6 +18,7 @@ import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
+import { isPasswordInput } from '@/utils/passwordOptionValues';
 
 /** 选项预览标签组件 */
 function OptionPreviewTag({
@@ -581,7 +582,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             previews.push({
               key: optionKey,
               label: optionLabel,
-              value: inputValue,
+              value: isPasswordInput(firstInput) ? '••••' : inputValue,
               type: 'input',
             });
           }

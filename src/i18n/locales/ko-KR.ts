@@ -116,7 +116,7 @@ export default {
     confirmBeforeDeleteHint: '삭제/목록 비우기 등 위험한 작업 전에 확인 대화 상자를 표시합니다',
     helpImproveSoftware: '소프트웨어 개선에 참여',
     helpImproveSoftwareHint:
-      '충돌 및 작업 통계를 익명으로 전송하여 일반적인 문제를 찾는 데 도움을 줍니다.',
+      '충돌, 작업 통계, 실패한 작업의 관련 로그와 오류 스크린샷을 익명으로 전송하여 일반적인 문제를 찾는 데 도움을 줍니다.',
     helpImproveSoftwareDisabledHint: '디버그 / 개발 버전에서는 익명 데이터 전송이 비활성화됩니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
@@ -383,6 +383,10 @@ export default {
     adb: 'Android 기기',
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '너비 (px)',
+    uinputHeight: '높이 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 창',
     macosPermissionsRequired:
@@ -393,6 +397,7 @@ export default {
     macosSystemVersionRequired: 'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
     macosSystemVersionDetectionFailed:
       '현재 macOS 버전을 확인할 수 없습니다. 자세한 내용은 로그를 확인하세요.',
+    linuxVersionRequired: 'Linux 컨트롤러에는 MaaFramework v5.13.0-beta.3 이상이 필요합니다.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',

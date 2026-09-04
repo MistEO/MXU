@@ -88,6 +88,25 @@ export const sanitizeOptionValue = (
     return { type: 'checkbox', caseNames };
   }
 
+  if (optionDef.type === 'input' && value.type === 'input') {
+    const validNames = new Set(optionDef.inputs.map((input) => input.name));
+    const values: Record<string, string> = {};
+    for (const [name, val] of Object.entries(value.values)) {
+      if (validNames.has(name)) values[name] = val;
+    }
+    const encryptedValues: Record<string, string> = {};
+    if (value.encryptedValues) {
+      for (const [name, val] of Object.entries(value.encryptedValues)) {
+        if (validNames.has(name)) encryptedValues[name] = val;
+      }
+    }
+    return {
+      type: 'input',
+      values,
+      ...(Object.keys(encryptedValues).length > 0 ? { encryptedValues } : {}),
+    };
+  }
+
   return value;
 };
 

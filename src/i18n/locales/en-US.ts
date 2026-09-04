@@ -118,7 +118,7 @@ export default {
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
     helpImproveSoftware: 'Help Improve the Software',
     helpImproveSoftwareHint:
-      'Anonymously send crash reports and task statistics to help find common issues.',
+      'Anonymously send crash reports, task statistics, and relevant logs and error screenshots from failed tasks to help find common issues.',
     helpImproveSoftwareDisabledHint:
       'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
@@ -392,6 +392,10 @@ export default {
     adb: 'Android Device',
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: 'Width (px)',
+    uinputHeight: 'Height (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS Window',
     macosPermissionsRequired:
@@ -402,6 +406,7 @@ export default {
     macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
     macosSystemVersionDetectionFailed:
       'The current macOS version could not be detected. Check the logs for details.',
+    linuxVersionRequired: 'The Linux controller requires MaaFramework v5.13.0-beta.3 or later.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',

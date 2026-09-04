@@ -114,7 +114,8 @@ export default {
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
     helpImproveSoftware: '協助改進軟體',
-    helpImproveSoftwareHint: '匿名傳送崩潰與任務統計，協助發現常見問題',
+    helpImproveSoftwareHint:
+      '匿名傳送崩潰、任務統計及失敗任務的相關日誌與錯誤截圖，協助發現常見問題',
     helpImproveSoftwareDisabledHint: '目前為除錯 / 開發版本，已停用匿名資料回報',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
@@ -376,6 +377,10 @@ export default {
     adb: 'Android 裝置',
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '寬 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 視窗',
     macosPermissionsRequired:
@@ -384,6 +389,7 @@ export default {
     macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
     macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
     macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更新版本。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',

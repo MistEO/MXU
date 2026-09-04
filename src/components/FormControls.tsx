@@ -74,7 +74,7 @@ interface TextInputProps {
   disabled?: boolean;
   hasError?: boolean;
   className?: string;
-  type?: 'text' | 'number';
+  type?: 'text' | 'number' | 'password';
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   step?: number;
   integerOnly?: boolean;
@@ -120,6 +120,7 @@ export function TextInput({
   return (
     <input
       type={type}
+      autoComplete={type === 'password' ? 'off' : undefined}
       value={value}
       onChange={(e) => {
         if (!integerOnly) {

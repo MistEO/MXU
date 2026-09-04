@@ -56,6 +56,8 @@ export interface SentryTelemetryConfig {
   tracing?: boolean;
   /** 事务采样率，取值 0~1。可选，默认 1.0。 */
   traces_sample_rate?: number;
+  /** 失败附件独立采样率，取值 0~1。Error Event 本身不受影响。可选，默认 1.0。 */
+  failure_attachments_sample_rate?: number;
   /** 环境标签（如 production、beta）。可选，缺省由 Client 决定。 */
   environment?: string;
 }
@@ -134,7 +136,14 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'MacOS' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType =
+  | 'Adb'
+  | 'Win32'
+  | 'MacOS'
+  | 'WlRoots'
+  | 'Linux'
+  | 'PlayCover'
+  | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -154,6 +163,7 @@ export interface ControllerItem {
   win32?: Win32Config;
   macos?: MacOSConfig;
   wlroots?: WlRootsConfig;
+  linux?: LinuxConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
 }
@@ -175,6 +185,13 @@ export interface MacOSConfig {
 export interface WlRootsConfig {
   wlr_socket_path?: string;
   use_win32_vk_code?: boolean;
+}
+
+export interface LinuxConfig {
+  screencap?: string;
+  input?: string;
+  use_win32_vk_code?: boolean;
+  pipewire_source?: 'Gamescope' | 'Portal';
 }
 
 export interface PlayCoverConfig {
@@ -241,6 +258,8 @@ export interface InputItem {
   input_type?: 'text' | 'file' | 'time';
   /** MXU 扩展：输入框占位提示文本（i18n key） */
   placeholder?: string;
+  /** MXU 扩展：密码字段；启用后 UI 掩码显示，配置加密存储，日志/遥测脱敏 */
+  password?: boolean;
 }
 
 export interface SelectOption {
@@ -338,6 +357,8 @@ export type OptionValue =
   | {
       type: 'input';
       values: Record<string, string>;
+      /** 密码字段密文（持久化用，XOR + Base64）；运行时 values 中为明文 */
+      encryptedValues?: Record<string, string>;
     }
   | {
       type: 'hotkey';
@@ -347,9 +368,16 @@ export type OptionValue =
 // 保存的设备信息（运行时使用）
 export interface SavedDeviceInfo {
   adbDeviceName?: string;
+  /** ADB 设备地址，用于优先恢复连接；旧配置仍可按名称匹配 */
+  adbDeviceAddress?: string;
   windowName?: string;
   wlrSocketPath?: string;
   playcoverAddress?: string;
+  /** Linux 控制器：gamescope display 号（gamescope-<n> 的 n，节点 id 会随会话变化，故存 display 号） */
+  gamescopeDisplayNo?: number;
+  /** Linux 控制器：uinput 输入的物理屏幕分辨率（宽/高） */
+  uinputScreenWidth?: number;
+  uinputScreenHeight?: number;
   /** Win32 连接窗口对应的进程可执行文件路径 */
   connectedProgramPath?: string;
 }

@@ -141,6 +141,14 @@ pub fn handle_task_callback(
     emit_state_changed(app, instance_id, "task-progress");
     if all_done {
         emit_state_changed(app, instance_id, "tasks-completed");
+
+        // 实例内全部任务结束后清理旧 agent，避免 agent 进程跨轮累积
+        if let Err(e) = super::maa_agent::stop_agent_impl(maa_state, instance_id) {
+            log::warn!(
+                "[handle_task_callback] Failed to stop agents after tasks completed: {}",
+                e
+            );
+        }
     }
 }
 

@@ -373,9 +373,10 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
     unsupported.add('MacOS');
     unsupported.add('PlayCover');
   }
-  // 非 Linux 系统不支持 WlRoots
+  // 非 Linux 系统不支持 WlRoots 和 Linux 控制器
   if (!isLinux) {
     unsupported.add('WlRoots');
+    unsupported.add('Linux');
   }
   return unsupported;
 }
@@ -386,6 +387,13 @@ function getUnsupportedControllerTypes(os: string): Set<ControllerType> {
  * @param os 后端真实 OS；空串时回退到浏览器平台（dev 预览）
  */
 function filterControllersByPlatform(pi: ProjectInterface, os: string): void {
+  // WlRoots 已废弃：仍保留兼容（类型合法），但打印 deprecated 提示
+  for (const c of pi.controller) {
+    if (c.type === 'WlRoots') {
+      log.warn(`[interface] 控制器 "${c.name}" 使用了已废弃的 WlRoots 类型，请迁移到 Linux 控制器`);
+    }
+  }
+
   const unsupported = getUnsupportedControllerTypes(os);
   if (unsupported.size === 0) return;
 

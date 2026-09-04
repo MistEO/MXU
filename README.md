@@ -12,7 +12,7 @@
 
 - 📋 **任务管理** - 可视化配置任务列表，支持拖拽排序
 - 🔧 **多实例支持** - 同时管理多个独立运行的实例（标签页多开）
-- 🎮 **多控制器类型** - 支持 Adb、Win32、MacOS、WlRoots、PlayCover、Gamepad
+- 🎮 **多控制器类型** - 支持 Adb、Win32、MacOS、Linux、PlayCover、Gamepad
 - 🌍 **国际化** - 界面内置多种语言，自动加载 `interface.json` 中的翻译
 - 🎨 **明暗主题** - 支持 Light/Dark 主题切换
 - 📱 **实时截图** - 显示设备实时画面，可自定义帧率
@@ -27,7 +27,7 @@
 
 [MXU Releases](https://github.com/MistEO/MXU/releases) 中提供了单可执行文件（Windows 为 `mxu.exe`，Linux/macOS 为 `mxu`），您需要配置以下依赖：
 
-- [MaaFramework](https://github.com/MaaXYZ/MaaFramework/releases) 运行库 ( >= `v5.5.0-beta.1` ) ，将压缩包中的 `bin` 文件夹内容解压到 `maafw` 文件夹中
+- [MaaFramework](https://github.com/MaaXYZ/MaaFramework/releases) 运行库 ( >= `v5.12.1` ) ，将压缩包中的 `bin` 文件夹内容解压到 `maafw` 文件夹中
 - [interface.json](https://github.com/MaaXYZ/MaaFramework/blob/main/sample/interface.json) 及相关资源文件，请参考 [PI 协议文档](https://github.com/MaaXYZ/MaaFramework/blob/main/docs/zh_cn/3.3-ProjectInterfaceV2%E5%8D%8F%E8%AE%AE.md) 编写
 
 目录结构如下

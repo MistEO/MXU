@@ -215,6 +215,12 @@ export default {
     stopTasks: '실행 중지',
     startingTasks: '시작 중...',
     stoppingTasks: '중지 중...',
+    checkboxTaskScope: '작업 「{{task}}」',
+    checkboxGlobalScope: '전역 설정',
+    checkboxMinimumNotMet:
+      '{{scope}}의 옵션 「{{option}}」은(는) 최소 {{min}}개가 필요합니다 (현재 {{count}}개)',
+    checkboxMaximumExceeded:
+      '{{scope}}의 옵션 「{{option}}」은(는) 최대 {{max}}개까지 가능합니다 (현재 {{count}}개)',
     // 자동 연결 관련
     autoConnect: {
       searching: '기기 검색 중...',
@@ -351,6 +357,12 @@ export default {
     hotkeyCapturing: '키를 누르세요...',
     expandOptions: '하위 옵션 펼치기',
     collapseOptions: '하위 옵션 접기',
+    checkboxCountRange: '최소 {{min}}개, 최대 {{max}}개',
+    checkboxCountMinimum: '최소 {{min}}개',
+    checkboxCountMaximum: '최대 {{max}}개',
+    checkboxSelectedCount: '{{count}}개 선택됨 ({{constraint}})',
+    checkboxMinimumRequired: '최소 {{min}}개를 선택하세요 (현재 {{count}}개)',
+    checkboxMaximumReached: '최대 {{max}}개까지 선택할 수 있습니다',
   },
 
   // 프리셋

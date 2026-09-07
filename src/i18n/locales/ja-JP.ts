@@ -218,6 +218,12 @@ export default {
     stopTasks: '実行停止',
     startingTasks: '開始中...',
     stoppingTasks: '停止中...',
+    checkboxTaskScope: 'タスク「{{task}}」',
+    checkboxGlobalScope: 'グローバル設定',
+    checkboxMinimumNotMet:
+      '{{scope}}のオプション「{{option}}」は少なくとも {{min}} 個必要です（現在 {{count}} 個）',
+    checkboxMaximumExceeded:
+      '{{scope}}のオプション「{{option}}」は最大 {{max}} 個までです（現在 {{count}} 個）',
     // 自動接続関連
     autoConnect: {
       searching: 'デバイスを検索中...',
@@ -356,6 +362,12 @@ export default {
     hotkeyCapturing: 'キーを押してください...',
     expandOptions: '子オプションを展開',
     collapseOptions: '子オプションを折りたたむ',
+    checkboxCountRange: '{{min}} 個以上、{{max}} 個以下',
+    checkboxCountMinimum: '{{min}} 個以上',
+    checkboxCountMaximum: '{{max}} 個以下',
+    checkboxSelectedCount: '{{count}} 個選択中（{{constraint}}）',
+    checkboxMinimumRequired: '少なくとも {{min}} 個選択してください（現在 {{count}} 個）',
+    checkboxMaximumReached: '選択できるのは最大 {{max}} 個です',
   },
 
   // プリセット

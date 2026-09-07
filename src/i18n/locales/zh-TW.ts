@@ -212,6 +212,12 @@ export default {
     stopTasks: '停止任務',
     startingTasks: '啟動中...',
     stoppingTasks: '停止中...',
+    checkboxTaskScope: '任務「{{task}}」',
+    checkboxGlobalScope: '全域設定',
+    checkboxMinimumNotMet:
+      '{{scope}}的選項「{{option}}」至少需要選擇 {{min}} 項，目前選擇了 {{count}} 項',
+    checkboxMaximumExceeded:
+      '{{scope}}的選項「{{option}}」最多只能選擇 {{max}} 項，目前選擇了 {{count}} 項',
     // 自動連接相关
     autoConnect: {
       searching: '搜尋裝置...',
@@ -346,6 +352,12 @@ export default {
     hotkeyCapturing: '按下快捷鍵...',
     expandOptions: '展開子選項',
     collapseOptions: '收起子選項',
+    checkboxCountRange: '至少 {{min}} 項，最多 {{max}} 項',
+    checkboxCountMinimum: '至少 {{min}} 項',
+    checkboxCountMaximum: '最多 {{max}} 項',
+    checkboxSelectedCount: '已選擇 {{count}} 項（{{constraint}}）',
+    checkboxMinimumRequired: '至少選擇 {{min}} 項（目前 {{count}} 項）',
+    checkboxMaximumReached: '最多只能選擇 {{max}} 項',
   },
 
   // 預設設定

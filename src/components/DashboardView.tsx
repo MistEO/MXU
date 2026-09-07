@@ -43,6 +43,10 @@ import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
+import {
+  formatCheckboxCountViolation,
+  validateInstanceCheckboxCounts,
+} from '@/utils/checkboxOptionValidation';
 
 const log = loggers.ui;
 
@@ -81,6 +85,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     registerCtrlIdName,
     screenshotFrameRate,
     setShowAddTaskPanel,
+    addLog,
     tcpCompatMode,
     maaVersion,
   } = useAppStore();
@@ -232,6 +237,40 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
         setIsStarting(true);
 
         try {
+          const compatibleEnabledTasks = enabledTasks.filter((task) => {
+            const specialTask = getMxuSpecialTask(task.taskName);
+            const pretask = isPretaskName(task.taskName)
+              ? getPretaskItem(projectInterface, task.taskName)
+              : undefined;
+            const taskDef =
+              specialTask?.taskDef ||
+              (pretask ? buildPretaskDef(pretask) : undefined) ||
+              projectInterface?.task.find((item) => item.name === task.taskName);
+            return isTaskCompatible(taskDef, currentControllerName, currentResourceName);
+          });
+          const checkboxViolations = validateInstanceCheckboxCounts(
+            compatibleEnabledTasks,
+            projectInterface,
+            currentControllerName,
+            currentResourceName,
+            useAppStore.getState().globalOptionValues,
+          );
+          if (checkboxViolations.length > 0) {
+            for (const violation of checkboxViolations) {
+              const message = formatCheckboxCountViolation(
+                violation,
+                compatibleEnabledTasks,
+                projectInterface,
+                translations,
+                t,
+              );
+              log.warn(`[${instanceName}] ${message}`);
+              addLog(instanceId, { type: 'error', message });
+            }
+            setIsStarting(false);
+            return;
+          }
+
           // v2.7.0: 连接 Controller 前执行 pretask（如游戏设置）
           // pretask 以伪任务形式存在于任务列表中，此处从已启用任务中筛出。
           const enabledPretasks = enabledTasks
@@ -441,6 +480,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
       registerTaskIdName,
       registerEntryTaskName,
       setShowAddTaskPanel,
+      addLog,
       translations,
       tcpCompatMode,
     ],

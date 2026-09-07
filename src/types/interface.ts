@@ -284,6 +284,10 @@ export interface CheckboxOption {
   resource?: string[];
   cases: CaseItem[];
   default_case?: string[];
+  /** v2.10.1: 最少选择数量，默认 0 */
+  min_count?: number;
+  /** v2.10.1: 最大选择数量，缺省表示不限制 */
+  max_count?: number;
 }
 
 export interface SwitchOption {

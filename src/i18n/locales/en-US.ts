@@ -224,6 +224,12 @@ export default {
     taskSkippedController: 'Task "{{taskName}}" does not support current controller',
     taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
     noCompatibleTasks: 'No tasks compatible with current controller and resource',
+    checkboxTaskScope: 'task "{{task}}"',
+    checkboxGlobalScope: 'global settings',
+    checkboxMinimumNotMet:
+      'Option "{{option}}" in {{scope}} requires at least {{min}} selections; currently {{count}}',
+    checkboxMaximumExceeded:
+      'Option "{{option}}" in {{scope}} allows at most {{max}} selections; currently {{count}}',
     // Auto connect
     autoConnect: {
       searching: 'Searching devices...',
@@ -361,6 +367,12 @@ export default {
     hotkeyCapturing: 'Press keys...',
     expandOptions: 'Expand sub-options',
     collapseOptions: 'Collapse sub-options',
+    checkboxCountRange: 'at least {{min}}, at most {{max}}',
+    checkboxCountMinimum: 'at least {{min}}',
+    checkboxCountMaximum: 'at most {{max}}',
+    checkboxSelectedCount: '{{count}} selected ({{constraint}})',
+    checkboxMinimumRequired: 'Select at least {{min}} (currently {{count}})',
+    checkboxMaximumReached: 'You can select at most {{max}}',
   },
 
   // Preset

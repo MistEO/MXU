@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
+import { getCheckboxMaxCount, getCheckboxMinCount } from '@/utils/checkboxOptionValidation';
 import { SwitchButton, TextInput, FileInput, TimeInput, HotkeyInput } from './FormControls';
 import { Tooltip } from './ui/Tooltip';
 
@@ -593,6 +594,19 @@ export function OptionEditor({
   if (optionDef.type === 'checkbox') {
     const selectedCases =
       effectiveValue?.type === 'checkbox' ? effectiveValue.caseNames : optionDef.default_case || [];
+    const selectedCount = new Set(selectedCases).size;
+    const minCount = getCheckboxMinCount(optionDef);
+    const maxCount = getCheckboxMaxCount(optionDef);
+    const isBelowMinimum = selectedCount < minCount;
+    const isAtMaximum = maxCount !== undefined && selectedCount >= maxCount;
+    const countConstraint =
+      minCount > 0 && maxCount !== undefined
+        ? t('optionEditor.checkboxCountRange', { min: minCount, max: maxCount })
+        : minCount > 0
+          ? t('optionEditor.checkboxCountMinimum', { min: minCount })
+          : maxCount !== undefined
+            ? t('optionEditor.checkboxCountMaximum', { max: maxCount })
+            : null;
 
     return (
       <div
@@ -619,12 +633,13 @@ export function OptionEditor({
               ? t(caseItem.label || caseItem.name)
               : resolveI18nText(caseItem.label, langKey) || caseItem.name;
             const isChecked = selectedCases.includes(caseItem.name);
+            const isCaseDisabled = effectiveDisabled || (!isChecked && isAtMaximum);
             return (
               <button
                 key={caseItem.name}
                 type="button"
                 onClick={() => {
-                  if (effectiveDisabled) return;
+                  if (isCaseDisabled) return;
                   const newCases = isChecked
                     ? selectedCases.filter((n) => n !== caseItem.name)
                     : [...selectedCases, caseItem.name];
@@ -633,15 +648,20 @@ export function OptionEditor({
                     caseNames: newCases,
                   });
                 }}
-                disabled={effectiveDisabled}
+                disabled={isCaseDisabled}
                 className={clsx(
                   'px-2 py-1.5 text-xs rounded border transition-colors min-w-0',
                   isChecked
                     ? 'bg-accent text-white border-accent'
                     : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
-                  effectiveDisabled && 'opacity-60 cursor-not-allowed',
+                  isCaseDisabled && 'opacity-60 cursor-not-allowed',
                 )}
-                title={caseLabel}
+                title={
+                  !isChecked && isAtMaximum
+                    ? `${caseLabel} — ${t('optionEditor.checkboxMaximumReached', { max: maxCount })}`
+                    : caseLabel
+                }
+                aria-pressed={isChecked}
               >
                 <span className="flex items-center gap-1.5 min-w-0">
                   {caseItem.icon && (
@@ -657,6 +677,27 @@ export function OptionEditor({
             );
           })}
         </div>
+        {countConstraint && (
+          <div
+            className={clsx(
+              'flex items-center gap-1 text-xs',
+              isBelowMinimum ? 'text-error' : 'text-text-muted',
+            )}
+          >
+            {isBelowMinimum && <AlertCircle className="w-3 h-3 flex-shrink-0" />}
+            <span>
+              {isBelowMinimum
+                ? t('optionEditor.checkboxMinimumRequired', {
+                    min: minCount,
+                    count: selectedCount,
+                  })
+                : t('optionEditor.checkboxSelectedCount', {
+                    count: selectedCount,
+                    constraint: countConstraint,
+                  })}
+            </span>
+          </div>
+        )}
       </div>
     );
   }

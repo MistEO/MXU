@@ -216,6 +216,12 @@ export default {
     taskSkippedController: '任务 "{{taskName}}" 不支持当前控制器',
     taskSkippedResource: '任务 "{{taskName}}" 不支持当前资源',
     noCompatibleTasks: '没有兼容当前控制器和资源的任务',
+    checkboxTaskScope: '任务「{{task}}」',
+    checkboxGlobalScope: '全局设置',
+    checkboxMinimumNotMet:
+      '{{scope}}的选项「{{option}}」至少需要选择 {{min}} 项，当前选择了 {{count}} 项',
+    checkboxMaximumExceeded:
+      '{{scope}}的选项「{{option}}」最多只能选择 {{max}} 项，当前选择了 {{count}} 项',
     // 自动连接相关
     autoConnect: {
       searching: '搜索设备...',
@@ -350,6 +356,12 @@ export default {
     hotkeyCapturing: '按下快捷键...',
     expandOptions: '展开子选项',
     collapseOptions: '收起子选项',
+    checkboxCountRange: '至少 {{min}} 项，最多 {{max}} 项',
+    checkboxCountMinimum: '至少 {{min}} 项',
+    checkboxCountMaximum: '最多 {{max}} 项',
+    checkboxSelectedCount: '已选择 {{count}} 项（{{constraint}}）',
+    checkboxMinimumRequired: '至少选择 {{min}} 项（当前 {{count}} 项）',
+    checkboxMaximumReached: '最多只能选择 {{max}} 项',
   },
 
   // 预设配置

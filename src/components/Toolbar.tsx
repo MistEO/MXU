@@ -64,6 +64,10 @@ import { isTaskSelectedForRun, filterTasksForRun } from '@/utils/taskRunFilter';
 import { isTauri } from '@/utils/paths';
 import { onStateChanged } from '@/services/wsService';
 import { buildPiEnvVars } from '@/utils/piEnv';
+import {
+  formatCheckboxCountViolation,
+  validateInstanceCheckboxCounts,
+} from '@/utils/checkboxOptionValidation';
 
 const log = loggers.task;
 const PRE_ACTION_CANCELLED_ERROR = 'MXU_PRE_ACTION_CANCELLED';
@@ -391,6 +395,28 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           type: 'error',
           message: t('taskList.noCompatibleTasks'),
         });
+        return false;
+      }
+
+      const checkboxViolations = validateInstanceCheckboxCounts(
+        compatibleTasks,
+        projectInterface,
+        controllerName,
+        resourceName,
+        useAppStore.getState().globalOptionValues,
+      );
+      if (checkboxViolations.length > 0) {
+        for (const violation of checkboxViolations) {
+          const message = formatCheckboxCountViolation(
+            violation,
+            compatibleTasks,
+            projectInterface,
+            translations,
+            t,
+          );
+          log.warn(`实例 ${targetInstance.name}: ${message}`);
+          addLog(targetId, { type: 'error', message });
+        }
         return false;
       }
 

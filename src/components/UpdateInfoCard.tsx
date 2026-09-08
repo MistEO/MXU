@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, RefreshCw, PackageCheck, Globe } from 'lucide-react';
+import { ChevronRight, RefreshCw, PackageCheck, Globe, Zap } from 'lucide-react';
 import {
   useAppStore,
   SLOW_DOWNLOAD_DURATION_MS,
@@ -255,7 +255,16 @@ export function DownloadProgressBar({
               : ''}
         </span>
         {downloadStatus === 'downloading' && downloadProgress && downloadProgress.speed > 0 && (
-          <span>{formatSpeed(downloadProgress.speed)}</span>
+          <span
+            className={clsx(
+              'flex items-center gap-1',
+              downloadSource === 'mirrorchyan' &&
+                'text-[#D6782B] [.dark_&]:text-[#FFC061] font-medium',
+            )}
+          >
+            {downloadSource === 'mirrorchyan' && <Zap className="w-3 h-3 shrink-0 fill-current" />}
+            {formatSpeed(downloadProgress.speed)}
+          </span>
         )}
         {showActions && downloadStatus === 'completed' && onInstallClick && (
           <button

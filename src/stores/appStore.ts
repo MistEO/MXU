@@ -509,6 +509,8 @@ export const useAppStore = create<AppState>()(
                 t.enabled,
               ),
               optionValues: t.optionValues,
+              expanded: t.expanded,
+              collapsedOptions: t.collapsedOptions,
             })),
             schedulePolicies: instanceToClose.schedulePolicies,
             preActions: instanceToClose.preActions,
@@ -1244,14 +1246,17 @@ export const useAppStore = create<AppState>()(
     importConfig: (config) => {
       const pi = get().projectInterface;
 
-      // 保留当前各实例/任务的运行时状态（纯 UI 状态，不随配置同步）
-      // 这样当其他客户端修改配置触发 importConfig 时，不会意外重置运行状态或折叠任务
+      // 折叠状态本地优先：其他客户端修改配置触发 importConfig 时沿用内存中的值，
+      // 只有冷启动（内存为空）才回落到配置里持久化的值，避免别的端把当前正在看的面板收起来。
+      // 运行状态则纯属本地，不随配置同步。
       const prevRunningByInstance = new Map<string, boolean>();
       const prevExpandedByTask = new Map<string, boolean>();
+      const prevCollapsedByTask = new Map<string, Record<string, boolean> | undefined>();
       for (const inst of get().instances) {
         prevRunningByInstance.set(inst.id, inst.isRunning);
         for (const t of inst.selectedTasks) {
           prevExpandedByTask.set(t.id, t.expanded);
+          prevCollapsedByTask.set(t.id, t.collapsedOptions);
         }
       }
 
@@ -1302,7 +1307,8 @@ export const useAppStore = create<AppState>()(
                 enabled: t.enabled,
                 enabledByController: t.enabledByController,
                 optionValues: t.optionValues,
-                expanded: prevExpandedByTask.get(t.id) ?? false,
+                expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+                collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
               };
             }
 
@@ -1329,7 +1335,8 @@ export const useAppStore = create<AppState>()(
                 enabled: t.enabled,
                 enabledByController: t.enabledByController,
                 optionValues: mergedValues,
-                expanded: prevExpandedByTask.get(t.id) ?? false,
+                expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+                collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
               };
             }
 
@@ -1356,7 +1363,8 @@ export const useAppStore = create<AppState>()(
               enabled: t.enabled,
               enabledByController: t.enabledByController,
               optionValues: mergedValues,
-              expanded: prevExpandedByTask.get(t.id) ?? false,
+              expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+              collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
             };
           });
 
@@ -2153,7 +2161,8 @@ export const useAppStore = create<AppState>()(
           enabled: t.enabled,
           enabledByController: t.enabledByController ? { ...t.enabledByController } : undefined,
           optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
-          expanded: false,
+          expanded: t.expanded ?? false,
+          collapsedOptions: t.collapsedOptions ? { ...t.collapsedOptions } : undefined,
         })),
         isRunning: false,
         schedulePolicies: normalizeSchedulePolicies(closedInstance),
@@ -2429,6 +2438,8 @@ function generateConfig(): MxuConfig {
             t.enabled,
           ),
           optionValues: t.optionValues,
+          expanded: t.expanded,
+          collapsedOptions: t.collapsedOptions,
         })),
       ),
       schedulePolicies: inst.schedulePolicies,

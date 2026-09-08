@@ -23,6 +23,10 @@ export interface SavedTask {
   /** 各控制器独立的勾选状态（旧配置中不存在时按 enabled 初始化） */
   enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
+  /** 任务卡片是否展开；缺省 = 收起，向后兼容 */
+  expanded?: boolean;
+  /** 各选项的子选项折叠状态（optionKey → 是否折叠）；缺省 = 展开，向后兼容 */
+  collapsedOptions?: Record<string, boolean>;
 }
 
 // 保存的设备信息

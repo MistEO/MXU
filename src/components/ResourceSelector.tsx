@@ -320,7 +320,7 @@ export function ResourceSelector({
         {showDropdown && dropdownPos && (
           <div
             ref={menuRef}
-            className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+            className="mxu-dropdown-surface fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,

@@ -212,7 +212,7 @@ function FrameRateDropdown({ value, onChange }: FrameRateDropdownProps) {
         <div
           id={listboxId}
           ref={listboxRef}
-          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
+          className="mxu-dropdown-surface absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
           role="listbox"
           aria-labelledby={triggerId}
           tabIndex={-1}

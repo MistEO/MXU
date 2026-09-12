@@ -213,7 +213,7 @@ export function GeneralSection() {
 
               {instanceDropdownOpen && (
                 <div
-                  className="absolute right-0 z-20 mt-1 w-full min-w-[160px] max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg"
+                  className="mxu-dropdown-surface absolute right-0 z-20 mt-1 w-full min-w-[160px] max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg"
                   role="listbox"
                 >
                   {dropdownOptions.map((opt) => {

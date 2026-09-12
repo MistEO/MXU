@@ -496,18 +496,35 @@ body {
 }
 
 /* 背景图片模式下让UI元素背景半透明 */
+.has-background-image {
+  --mxu-bg-primary: color-mix(in srgb, var(--color-bg-primary) 45%, transparent);
+  --mxu-bg-secondary: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent);
+  --mxu-bg-tertiary: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent);
+  --mxu-bg-hover: color-mix(in srgb, var(--color-bg-hover) 40%, transparent);
+}
+
+/* 下拉弹出层：比页面面板更实并叠加毛玻璃，避免壁纸透过来干扰读字。
+   借变量继承让弹出层内部选项的 hover 态跟随同一不透明度。 */
+.has-background-image .mxu-dropdown-surface {
+  --mxu-bg-primary: color-mix(in srgb, var(--color-bg-primary) 88%, transparent);
+  --mxu-bg-secondary: color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
+  --mxu-bg-tertiary: color-mix(in srgb, var(--color-bg-tertiary) 88%, transparent);
+  --mxu-bg-hover: color-mix(in srgb, var(--color-bg-hover) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
 .has-background-image .bg-bg-secondary {
-  background-color: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent) !important;
+  background-color: var(--mxu-bg-secondary) !important;
 }
 
 .has-background-image .bg-bg-tertiary {
-  background-color: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent) !important;
+  background-color: var(--mxu-bg-tertiary) !important;
 }
 
 .has-background-image .bg-bg-hover:hover {
-  background-color: color-mix(in srgb, var(--color-bg-hover) 40%, transparent) !important;
+  background-color: var(--mxu-bg-hover) !important;
 }
 
 .has-background-image .bg-bg-primary {
-  background-color: color-mix(in srgb, var(--color-bg-primary) 45%, transparent) !important;
+  background-color: var(--mxu-bg-primary) !important;
 }

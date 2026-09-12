@@ -1749,7 +1749,7 @@ export function ConnectionPanel() {
                   {showDeviceDropdown && deviceDropdownPos && (
                     <div
                       ref={deviceMenuRef}
-                      className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                      className="mxu-dropdown-surface fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
                       style={{
                         top: deviceDropdownPos.top,
                         left: deviceDropdownPos.left,
@@ -1914,7 +1914,7 @@ export function ConnectionPanel() {
               {showResourceDropdown && resourceDropdownPos && (
                 <div
                   ref={resourceMenuRef}
-                  className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                  className="mxu-dropdown-surface fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
                   style={{
                     bottom: window.innerHeight - resourceDropdownPos.top + 4,
                     left: resourceDropdownPos.left,

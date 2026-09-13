@@ -378,6 +378,7 @@ export function SchedulePanel({ instanceId, onClose }: SchedulePanelProps) {
     <div
       ref={panelRef}
       className={clsx(
+        'mxu-overlay-surface',
         'absolute bottom-full right-0 mb-2 w-80',
         'bg-bg-primary border border-border rounded-lg shadow-lg',
         'z-50',

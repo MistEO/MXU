@@ -653,7 +653,7 @@ export function ScreenshotPanel() {
         >
           {/* 卡片容器 */}
           <div
-            className="relative bg-bg-secondary rounded-xl border border-border shadow-2xl max-w-[90vw] max-h-[90vh] flex flex-col overflow-hidden"
+            className="mxu-overlay-surface relative bg-bg-secondary rounded-xl border border-border shadow-2xl max-w-[90vw] max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onContextMenu={handleContextMenu}
           >

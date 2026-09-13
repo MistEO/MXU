@@ -287,7 +287,7 @@ export function InstallConfirmModal() {
       onClick={handleClose}
     >
       <div
-        className={`w-[50vw] min-w-[500px] bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col ${showReleaseNotes ? 'h-[80vh]' : 'max-h-[80vh]'}`}
+        className={`mxu-overlay-surface w-[50vw] min-w-[500px] bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col ${showReleaseNotes ? 'h-[80vh]' : 'max-h-[80vh]'}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}

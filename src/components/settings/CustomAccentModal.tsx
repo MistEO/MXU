@@ -185,7 +185,7 @@ export function CustomAccentModal({
         role="dialog"
         aria-modal="true"
         aria-label={editingAccent ? t('settings.editCustomAccent') : t('settings.addCustomAccent')}
-        className="w-full max-w-lg max-h-[85vh] bg-bg-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col"
+        className="mxu-overlay-surface w-full max-w-lg max-h-[85vh] bg-bg-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col"
         onMouseDown={(event) => event.stopPropagation()}
       >
         {/* 标题栏 */}

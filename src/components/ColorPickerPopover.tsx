@@ -118,7 +118,7 @@ export function ColorPickerPopover({
       {open && (
         <div
           id={`color-popover-${id}`}
-          className="absolute z-50 mt-2 w-64 rounded-xl border border-border bg-bg-secondary shadow-2xl p-3"
+          className="mxu-overlay-surface absolute z-50 mt-2 w-64 rounded-xl border border-border bg-bg-secondary shadow-2xl p-3"
         >
           {label && <div className="text-xs font-medium text-text-secondary mb-2">{label}</div>}
           <div className="space-y-3">

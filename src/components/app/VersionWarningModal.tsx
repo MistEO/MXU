@@ -20,7 +20,7 @@ export function VersionWarningModal({ current, minimum, onClose }: VersionWarnin
         tabIndex={0}
         aria-label="Close"
       />
-      <div className="relative bg-bg-secondary rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="mxu-overlay-surface relative bg-bg-secondary rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
           <AlertCircle className="w-6 h-6 text-amber-500" />
           <h2 className="text-lg font-semibold text-text-primary">{t('versionWarning.title')}</h2>

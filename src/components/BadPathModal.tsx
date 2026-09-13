@@ -22,7 +22,7 @@ export function BadPathModal({ show, type }: BadPathModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md mx-4 bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="mxu-overlay-surface w-full max-w-md mx-4 bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
         {/* 标题栏 */}
         <div className="flex items-center px-4 py-3 bg-bg-tertiary border-b border-border">
           <div className="flex items-center gap-2">

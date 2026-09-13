@@ -503,9 +503,9 @@ body {
   --mxu-bg-hover: color-mix(in srgb, var(--color-bg-hover) 40%, transparent);
 }
 
-/* 下拉弹出层：比页面面板更实并叠加毛玻璃，避免壁纸透过来干扰读字。
-   借变量继承让弹出层内部选项的 hover 态跟随同一不透明度。 */
-.has-background-image .mxu-dropdown-surface {
+/* 悬浮层（下拉、弹出面板、抽屉、模态框）：比页面面板更实并叠加毛玻璃，
+   避免壁纸透过来干扰读字。借变量继承让浮层内部的 hover 态跟随同一不透明度。 */
+.has-background-image .mxu-overlay-surface {
   --mxu-bg-primary: color-mix(in srgb, var(--color-bg-primary) 55%, transparent);
   --mxu-bg-secondary: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent);
   --mxu-bg-tertiary: color-mix(in srgb, var(--color-bg-tertiary) 50%, transparent);

@@ -45,7 +45,7 @@ export function ExportLogsModal({
       onClick={canClose ? onClose : undefined}
     >
       <div
-        className="w-full max-w-sm mx-4 bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200"
+        className="mxu-overlay-surface w-full max-w-sm mx-4 bg-bg-secondary rounded-xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}

@@ -215,7 +215,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
     return (
       <div
         ref={panelRef}
-        className="fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
+        className="mxu-overlay-surface fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
         style={{
           top: position.top,
           right: position.right,
@@ -264,7 +264,7 @@ export function UpdatePanel({ onClose, anchorRef }: UpdatePanelProps) {
   return (
     <div
       ref={panelRef}
-      className="fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
+      className="mxu-overlay-surface fixed z-50 w-80 bg-bg-secondary rounded-xl shadow-lg border border-border overflow-hidden animate-in"
       style={{
         top: position.top,
         right: position.right,

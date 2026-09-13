@@ -412,7 +412,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             {/* 滑入面板 */}
             <nav
               className={clsx(
-                'absolute left-0 top-0 bottom-0 z-50 w-48 bg-bg-secondary border-r border-border p-4 space-y-1',
+                'mxu-overlay-surface absolute left-0 top-0 bottom-0 z-50 w-48 bg-bg-secondary border-r border-border p-4 space-y-1',
                 'transform transition-transform duration-200 ease-out',
                 drawerOpen ? 'translate-x-0' : '-translate-x-full',
               )}
@@ -528,7 +528,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       {/* Undo 删除提示 */}
       {undoDeletedAccent && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-bg-secondary shadow-2xl">
+          <div className="mxu-overlay-surface flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-bg-secondary shadow-2xl">
             <span className="text-sm text-text-secondary">
               {t('settings.customAccentDeleted', { name: undoDeletedAccent.name })}
             </span>

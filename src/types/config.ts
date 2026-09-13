@@ -243,7 +243,7 @@ export const defaultConfig: MxuConfig = {
     language: 'system',
     confirmBeforeDelete: false,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
-    autoClearLogsOnLaunch: true,
+    autoClearLogsOnLaunch: false,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
     helpImproveSoftware: true,

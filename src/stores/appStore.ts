@@ -235,7 +235,7 @@ export const useAppStore = create<AppState>()(
     backgroundOpacity: 50,
     confirmBeforeDelete: false,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
-    autoClearLogsOnLaunch: true,
+    autoClearLogsOnLaunch: false,
     helpImproveSoftware: true,
     customAccents: [],
     setTheme: (theme) => {
@@ -1469,7 +1469,7 @@ export const useAppStore = create<AppState>()(
         backgroundOpacity: effectiveBgOpacity,
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
-        autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? true,
+        autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? false,
         // 默认开启；调试 / 开发版本强制关闭
         helpImproveSoftware: isTelemetryBlockedByBuild(get().projectInterface)
           ? false

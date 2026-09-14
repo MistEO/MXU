@@ -538,6 +538,8 @@ export default {
       hotkeyActionStop: 'タスク停止',
       hotkeyStartSuccess: 'ショートカットキーでタスクを開始しました：',
       hotkeyStopSuccess: 'ショートカットキーでタスクを停止しました',
+      hotkeyStopPending:
+        '停止リクエストは送信されましたが、タスクは現在の操作が終了するのを待っています。',
       hotkeyStopFailed: 'ショートカットキーでタスクを停止できませんでした',
     },
   },

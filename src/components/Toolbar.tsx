@@ -1517,8 +1517,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
    * 停止任务的统一流程：复用公共 stop helper，保持各入口行为一致
    * handleStartStop 和 handleStopTasks 共用此逻辑以保持行为一致。
    */
-  const performStop = async (targetInstanceId: string) => {
-    if (isStopping) return;
+  const performStop = async (targetInstanceId: string): Promise<boolean> => {
+    if (isStopping) return false;
     setIsStopping(true);
     let keepStoppingForPreAction = false;
     try {
@@ -1532,12 +1532,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           log.error('发送前置程序停止请求失败:', err);
           throw err;
         }
-        return;
+        // 前置程序仅收到停止请求，尚未完成整个任务的停止。
+        return false;
       }
       const stopped = await stopInstanceTasks(targetInstanceId);
       if (!stopped) {
         log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
       }
+      return stopped;
     } finally {
       if (!keepStoppingForPreAction) {
         setIsStopping(false);
@@ -1670,12 +1672,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       });
 
       try {
-        await performStop(runningInstance.id);
+        const stopped = await performStop(runningInstance.id);
 
-        addLog(runningInstance.id, {
-          type: 'success',
-          message: t('logs.messages.hotkeyStopSuccess'),
-        });
+        if (stopped) {
+          addLog(runningInstance.id, {
+            type: 'success',
+            message: t('logs.messages.hotkeyStopSuccess'),
+          });
+        } else {
+          addLog(runningInstance.id, {
+            type: 'warning',
+            message: t('logs.messages.hotkeyStopPending'),
+          });
+        }
       } catch (err) {
         log.error('停止任务失败:', err);
         addLog(runningInstance.id, {

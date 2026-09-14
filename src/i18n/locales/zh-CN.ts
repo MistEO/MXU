@@ -523,6 +523,7 @@ export default {
       hotkeyActionStop: '停止任务',
       hotkeyStartSuccess: '已通过快捷键开始任务：',
       hotkeyStopSuccess: '已通过快捷键停止任务',
+      hotkeyStopPending: '停止请求已发送，但任务仍在等待当前操作退出。',
       hotkeyStopFailed: '未能通过快捷键停止任务',
     },
   },

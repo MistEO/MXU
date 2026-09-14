@@ -529,6 +529,8 @@ export default {
       hotkeyActionStop: '작업 중지',
       hotkeyStartSuccess: '단축키로 작업을 시작했습니다:',
       hotkeyStopSuccess: '단축키로 작업을 중지했습니다',
+      hotkeyStopPending:
+        '중지 요청을 보냈지만 작업은 아직 현재 작업이 종료되기를 기다리고 있습니다.',
       hotkeyStopFailed: '단축키로 작업을 중지하지 못했습니다',
     },
   },

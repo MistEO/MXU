@@ -519,6 +519,7 @@ export default {
       hotkeyActionStop: '停止任務',
       hotkeyStartSuccess: '透過快捷鍵開始任務：',
       hotkeyStopSuccess: '透過快捷鍵停止任務',
+      hotkeyStopPending: '已傳送停止請求，但任務仍在等待目前操作結束。',
       hotkeyStopFailed: '無法透過快捷鍵停止任務',
     },
   },

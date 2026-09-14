@@ -205,6 +205,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   const preActionControlledInstanceIdRef = useRef<string | null>(null);
   const preActionStopRequestedRef = useRef(false);
   const lastStartCancelledRef = useRef(false);
+  const startingRef = useRef(false);
 
   const instance = getActiveInstance();
   const tasks = instance?.selectedTasks || [];
@@ -1562,9 +1563,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return;
       }
 
+      // isStarting 是 state，disabled 要等重新渲染才生效，挡不住同一 tick 内的连点
+      if (startingRef.current) return;
+      startingRef.current = true;
+
       // 检查是否需要管理员权限
       const needsElevation = await checkPermissionRequired();
       if (needsElevation) {
+        startingRef.current = false;
         setShowPermissionModal(true);
         return;
       }
@@ -1587,6 +1593,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         setAutoConnectPhase('idle');
       } finally {
         setIsStarting(false);
+        startingRef.current = false;
       }
     }
   };

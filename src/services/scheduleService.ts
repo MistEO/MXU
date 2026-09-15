@@ -4,20 +4,16 @@ import type { Instance } from '@/types/interface';
 
 const log = loggers.task;
 
-const STORAGE_KEY_LAST_CHECK = 'mxu_schedule_lastCheckAt';
 const STORAGE_KEY_TRIGGERED = 'mxu_schedule_triggeredSlots';
 
 const CHECK_INTERVAL_MS = 30_000; // 每 30 秒轮询一次（分钟精度下降低到点延迟）
 const SLOT_TTL_MS = 48 * 60 * 60 * 1000; // 触发记录保留 48 小时
-const MAX_COMPENSATE_MS = 3 * 60 * 60 * 1000; // 最多补偿 3 小时内的遗漏
 const DEBOUNCE_MS = 2_000; // 事件触发后 2 秒内去重
-const CURRENT_SLOT_COMPENSATION_GRACE_MS = 30 * 1000; // 当前分钟超过 30 秒后补触发也记为补偿
 
 export type ScheduleTriggerCallback = (
   instance: Instance,
   policyName: string,
   slotLabel: string,
-  isCompensation: boolean,
 ) => Promise<boolean>;
 
 function formatSlotKey(date: Date): string {
@@ -61,49 +57,11 @@ function normalizeTriggeredSlotKey(key: string): string | null {
   return instanceId ? buildTriggeredSlotKey(instanceId, slotStr) : null;
 }
 
-function shouldMarkSlotAsCompensation(
-  slotDate: Date,
-  currentSlot: Date,
-  nowTs: number,
-  lastCheckAt: number,
-  hadPreviousCheck: boolean,
-): boolean {
-  const slotTs = slotDate.getTime();
-  const currentSlotTs = currentSlot.getTime();
-
-  if (slotTs < currentSlotTs) {
-    return true;
-  }
-
-  if (slotTs !== currentSlotTs) {
-    return false;
-  }
-
-  if (!hadPreviousCheck) {
-    return false;
-  }
-
-  if (nowTs - slotTs <= CURRENT_SLOT_COMPENSATION_GRACE_MS) {
-    return false;
-  }
-
-  return lastCheckAt < slotTs;
-}
-
 class ScheduleService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private checking = false;
   private triggerFn: ScheduleTriggerCallback | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  private getLastCheckAt(): number {
-    const val = localStorage.getItem(STORAGE_KEY_LAST_CHECK);
-    return val ? parseInt(val, 10) : 0;
-  }
-
-  private setLastCheckAt(ts: number) {
-    localStorage.setItem(STORAGE_KEY_LAST_CHECK, String(ts));
-  }
 
   private getTriggeredSlots(): Set<string> {
     try {
@@ -209,13 +167,13 @@ class ScheduleService {
 
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      log.info('[调度器] 窗口可见，触发补偿检查');
+      log.info('[调度器] 窗口可见，触发检查');
       this.debouncedCheck();
     }
   };
 
   private handleFocus = () => {
-    log.info('[调度器] 窗口获得焦点，触发补偿检查');
+    log.info('[调度器] 窗口获得焦点，触发检查');
     this.debouncedCheck();
   };
 
@@ -235,114 +193,63 @@ class ScheduleService {
 
     try {
       const now = new Date();
-      const nowTs = now.getTime();
-      const storedLastCheckAt = this.getLastCheckAt();
-      const hadPreviousCheck = storedLastCheckAt > 0;
-      let lastCheckAt = storedLastCheckAt;
-
-      // 首次运行：以当前整分为起点
-      if (lastCheckAt === 0) {
-        lastCheckAt = minuteStart(now).getTime();
-        this.setLastCheckAt(lastCheckAt);
-      }
-
-      // 限制补偿窗口
-      const minCheckTs = nowTs - MAX_COMPENSATE_MS;
-      if (lastCheckAt < minCheckTs) {
-        log.info(
-          `[调度器] lastCheckAt 过旧(${new Date(lastCheckAt).toLocaleString()})，` +
-            `截断到 ${new Date(minCheckTs).toLocaleString()}`,
-        );
-        lastCheckAt = minCheckTs;
-      }
-
-      // 枚举 lastCheckAt 到当前时间之间的所有整分时间槽
-      const startSlot = minuteStart(new Date(lastCheckAt));
       const currentSlot = minuteStart(now);
-
-      const slotsToCheck: Date[] = [];
-      const cursor = new Date(startSlot);
-      while (cursor <= currentSlot) {
-        slotsToCheck.push(new Date(cursor));
-        cursor.setTime(cursor.getTime() + 60 * 1000);
-      }
-
-      if (slotsToCheck.length > 1) {
-        log.info(
-          `[调度器] 扫描 ${slotsToCheck.length} 个时间槽: ` +
-            `${formatSlotKey(slotsToCheck[0])} → ${formatSlotKey(slotsToCheck[slotsToCheck.length - 1])}`,
-        );
-      }
+      const weekday = currentSlot.getDay();
+      const timeStr = `${String(currentSlot.getHours()).padStart(2, '0')}:${String(
+        currentSlot.getMinutes(),
+      ).padStart(2, '0')}`;
+      const slotStr = formatSlotKey(currentSlot);
 
       this.cleanupOldSlots();
       const triggeredSlots = this.getTriggeredSlots();
       let slotsModified = false;
 
-      for (const slotDate of slotsToCheck) {
-        const weekday = slotDate.getDay();
-        const timeStr = `${String(slotDate.getHours()).padStart(2, '0')}:${String(
-          slotDate.getMinutes(),
-        ).padStart(2, '0')}`;
-        const slotStr = formatSlotKey(slotDate);
-        const isCompensation = shouldMarkSlotAsCompensation(
-          slotDate,
-          currentSlot,
-          nowTs,
-          lastCheckAt,
-          hadPreviousCheck,
-        );
+      const { instances } = useAppStore.getState();
 
-        const { instances } = useAppStore.getState();
+      for (const inst of instances) {
+        const policies = inst.schedulePolicies || [];
 
-        for (const inst of instances) {
-          const policies = inst.schedulePolicies || [];
+        for (const policy of policies) {
+          if (!policy.enabled) continue;
+          if (!policy.weekdays.includes(weekday)) continue;
+          if (!policy.times?.includes(timeStr)) continue;
 
-          for (const policy of policies) {
-            if (!policy.enabled) continue;
-            if (!policy.weekdays.includes(weekday)) continue;
-            if (!policy.times?.includes(timeStr)) continue;
+          const slotKey = buildTriggeredSlotKey(inst.id, slotStr);
+          if (triggeredSlots.has(slotKey)) break;
 
-            const slotKey = buildTriggeredSlotKey(inst.id, slotStr);
-            if (triggeredSlots.has(slotKey)) break;
+          const freshInst = useAppStore.getState().instances.find((i) => i.id === inst.id);
+          if (!freshInst) continue;
 
-            // 读取最新实例状态
-            const freshInst = useAppStore.getState().instances.find((i) => i.id === inst.id);
-            if (!freshInst) continue;
-
-            if (freshInst.isRunning) {
-              log.info(
-                `[调度器] 实例 "${inst.name}" 正在运行，跳过时间槽 ${slotStr} 策略 "${policy.name}"`,
-              );
-              triggeredSlots.add(slotKey);
-              slotsModified = true;
-              break;
-            }
-
+          if (freshInst.isRunning) {
             log.info(
-              `[调度器] ${isCompensation ? '补偿触发' : '准时触发'}: ` +
-                `时间槽 ${slotStr}, 实例 "${inst.name}", 策略 "${policy.name}"`,
+              `[调度器] 实例 "${inst.name}" 正在运行，跳过时间槽 ${slotStr} 策略 "${policy.name}"`,
             );
-
             triggeredSlots.add(slotKey);
             slotsModified = true;
-
-            try {
-              await this.triggerFn(freshInst, policy.name, timeStr, isCompensation);
-            } catch (err) {
-              log.error(`[调度器] 触发失败:`, err);
-            }
-
-            // 每个实例每个时间槽只执行第一个匹配策略
             break;
           }
+
+          log.info(
+            `[调度器] 准时触发: 时间槽 ${slotStr}, 实例 "${inst.name}", 策略 "${policy.name}"`,
+          );
+
+          triggeredSlots.add(slotKey);
+          slotsModified = true;
+
+          try {
+            await this.triggerFn(freshInst, policy.name, timeStr);
+          } catch (err) {
+            log.error(`[调度器] 触发失败:`, err);
+          }
+
+          // 每个实例每个时间槽只执行第一个匹配策略
+          break;
         }
       }
 
       if (slotsModified) {
         this.setTriggeredSlots(triggeredSlots);
       }
-
-      this.setLastCheckAt(nowTs);
     } finally {
       this.checking = false;
     }

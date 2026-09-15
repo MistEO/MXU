@@ -1444,17 +1444,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   useEffect(() => {
     if (!isTauri()) return;
 
-    scheduleService.setTriggerCallback(async (inst, policyName, slotLabel, isCompensation) => {
+    scheduleService.setTriggerCallback(async (inst, policyName, slotLabel) => {
       const currentT = tRef.current;
       const currentAddLog = addLogRef.current;
 
-      const msgKey = isCompensation
-        ? 'logs.messages.scheduleCompensating'
-        : 'logs.messages.scheduleStarting';
-
       currentAddLog(inst.id, {
         type: 'info',
-        message: currentT(msgKey, { policy: policyName, time: slotLabel }),
+        message: currentT('logs.messages.scheduleStarting', {
+          policy: policyName,
+          time: slotLabel,
+        }),
       });
 
       const started = await scheduleTriggerRef.current(inst, {

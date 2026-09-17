@@ -873,7 +873,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       style={style}
       onContextMenu={handleContextMenu}
       className={clsx(
-        'group bg-bg-secondary rounded-lg border border-border transition-shadow relative',
+        'group bg-bg-secondary rounded-lg border border-border transition-shadow relative overflow-hidden',
         isDragging && 'shadow-lg opacity-50',
         taskRunStatus === 'running' && 'task-item-running',
         isAnimating && 'animate-task-slide-in',
@@ -883,7 +883,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       {taskRunStatus !== 'idle' && (
         <div
           className={clsx(
-            'absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg transition-colors',
+            'absolute left-0 top-0 bottom-0 w-1.5 transition-colors',
             getStatusIndicatorClass(),
           )}
           title={t(`taskItem.status.${taskRunStatus}`)}

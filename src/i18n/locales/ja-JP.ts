@@ -247,7 +247,6 @@ export default {
       alreadyRunning: 'タスクは既に実行中か、前処理を実行しています',
       taskNotFound: '指定されたタスクが存在しないか、削除されています',
       noRunnableTasks: '実行可能なタスクがありません。タスク定義とエントリ設定を確認してください',
-      primaryTasksIncomplete: '前段タスクが正常に終了しなかったため、後段タスクをスキップしました',
       workstationLocked:
         'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
       agentStartParams: 'Agent #{{index}} 起動パラメータ: {{cmd}}  (作業ディレクトリ: {{cwd}})',

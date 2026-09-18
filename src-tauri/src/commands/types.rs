@@ -119,12 +119,6 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
-    /// 空 controller：截图返回纯黑图、输入 no-op。
-    /// 用于在游戏未连接/已关闭时执行不依赖游戏画面的 MXU 特殊任务。
-    Dummy {
-        #[serde(default)]
-        display_short_side: Option<i32>,
-    },
     /// Linux 原生控制器（截图：Wlr/PipeWire，输入：Wlr/UInput/Libei）
     Linux {
         screencap_method: u64,

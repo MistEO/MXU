@@ -245,7 +245,6 @@ export default {
       alreadyRunning: '任务已在运行或正在执行前置动作',
       taskNotFound: '指定的任务不存在或已被删除',
       noRunnableTasks: '没有可执行的任务，请检查任务定义和入口配置',
-      primaryTasksIncomplete: '前段任务未正常结束，已跳过收尾特殊任务',
       workstationLocked: '检测到电脑处于锁屏状态，请先解锁后再运行任务',
       agentStartParams: 'Agent #{{index}} 启动参数: {{cmd}}  (工作目录: {{cwd}})',
       agentSpawnHintFileNotFound: '请先检查 Agent 是否被杀软拦截，确认无误后重新覆盖安装。',

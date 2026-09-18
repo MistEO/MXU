@@ -241,7 +241,6 @@ export default {
       alreadyRunning: '任務已在執行或正在執行前置動作',
       taskNotFound: '指定的任務不存在或已被刪除',
       noRunnableTasks: '沒有可執行的任務，請檢查任務定義與入口設定',
-      primaryTasksIncomplete: '前段任務未正常結束，已略過收尾特殊任務',
       workstationLocked: '偵測到電腦處於鎖定畫面狀態，請先解鎖後再執行任務',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
       agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',

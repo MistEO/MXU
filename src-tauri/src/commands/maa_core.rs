@@ -931,13 +931,6 @@ pub async fn connect_controller_impl(
                 let uuid_str = uuid.as_deref().unwrap_or("");
                 Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
             }
-            ControllerConfig::Dummy {
-                display_short_side, ..
-            } => {
-                let short = display_short_side.unwrap_or(720);
-                Controller::new_custom(crate::dummy_controller::DummyController::new(short))
-                    .map_err(|e| e.to_string())?
-            }
             ControllerConfig::Gamepad {
                 handle,
                 gamepad_type,
@@ -1048,9 +1041,6 @@ pub async fn connect_controller_impl(
                 display_short_side, ..
             }
             | ControllerConfig::PlayCover {
-                display_short_side, ..
-            }
-            | ControllerConfig::Dummy {
                 display_short_side, ..
             }
             | ControllerConfig::Linux {

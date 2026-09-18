@@ -29,7 +29,6 @@ import {
   buildPretaskArgs,
   resolveCompatTaskDef,
 } from '@/types/pretasks';
-import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig, GamescopeInstance } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import {
@@ -436,30 +435,17 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           savedDevice.wlrSocketPath ||
           savedDevice.playcoverAddress),
       );
-      const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipScreenshot(task.taskName));
-      const shouldUseDummyController = !hasVisualTasks;
-
-      if (!shouldUseDummyController) {
-        // 视觉任务必须有明确的控制器配置，避免状态异常时绕过按类型执行的安全检查。
-        if (!controller) {
-          return failStart(t('errors.controllerNotFound'));
-        }
-
-        // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
-        // ADB、Linux 和 PlayCover 均可在锁屏时运行。
-        if (
-          requiresUnlockedWorkstation(controller.type) &&
-          (await maaService.isWorkstationLocked())
-        ) {
-          return failStart(t('taskList.autoConnect.workstationLocked'));
-        }
+      if (!controller) {
+        return failStart(t('errors.controllerNotFound'));
       }
 
-      if (shouldUseDummyController) {
-        log.info(`实例 ${targetInstance.name}: 仅包含非视觉特殊任务，跳过截图/识别流程`);
+      // 只有依赖 Windows 交互式桌面的实际控制器才受锁屏限制。
+      // ADB、Linux 和 PlayCover 均可在锁屏时运行。
+      if (requiresUnlockedWorkstation(controller.type) && (await maaService.isWorkstationLocked())) {
+        return failStart(t('taskList.autoConnect.workstationLocked'));
       }
 
-      const canUseSavedDevice = hasSavedDevice && savedDevice && !shouldUseDummyController;
+      const canUseSavedDevice = hasSavedDevice && savedDevice;
 
       let isTargetConnected = instanceConnectionStatus[targetId] === 'Connected';
       const isTargetResourceLoaded = instanceResourceLoaded[targetId] || false;
@@ -468,8 +454,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const canStartTask =
         (isTargetConnected && isTargetResourceLoaded) ||
         (hasSavedDevice && resource) ||
-        (controller && resource) ||
-        (shouldUseDummyController && resource);
+        (controller && resource);
 
       if (!canStartTask) {
         return failStart(t('taskList.autoConnect.needConfig'));
@@ -757,7 +742,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 查询后端真实连接状态，纠正前端可能过时的缓存
-        if (isTargetConnected && !needsReconnect && !shouldUseDummyController) {
+        if (isTargetConnected && !needsReconnect) {
           const backendState = await maaService.getInstanceState(targetId);
           if (!backendState || backendState.connectionStatus !== 'Connected') {
             log.warn(
@@ -769,7 +754,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 如果未连接（或需要重连），尝试自动连接
-        if (!isTargetConnected || needsReconnect || shouldUseDummyController) {
+        if (!isTargetConnected || needsReconnect) {
           const controllerType = controller?.type;
 
           await ensureMaaInitialized();
@@ -851,7 +836,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               deviceName = found.deviceName;
               targetType = 'device';
             }
-          } else if (!shouldUseDummyController && controllerType) {
+          } else if (controllerType) {
             // 没有保存的设备配置，自动搜索并连接第一个结果
             log.info(`实例 ${targetInstance.name}: 自动搜索设备并连接...`);
             onPhaseChange?.('searching');
@@ -941,20 +926,6 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 }),
               });
             }
-          }
-
-          if (!shouldUseDummyController && !config) {
-            return failStart(t('taskList.autoConnect.needConfig'));
-          }
-
-          if (shouldUseDummyController) {
-            config = {
-              type: 'Dummy',
-              display_short_side: controller?.display_short_side,
-            };
-            deviceName = 'MXU Dummy Controller';
-            targetType = 'device';
-            log.info(`实例 ${targetInstance.name}: 使用 Dummy Controller 执行非视觉任务`);
           }
 
           if (!config) {
@@ -1192,19 +1163,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           return failStart(t('taskList.autoConnect.noRunnableTasks'));
         }
 
-        const { leading, middle, trailing } = splitTasksIntoThreeSegments(runnableTasks);
-        const primaryBatch = [...leading, ...middle];
-        const hasTrailingBatch = trailing.length > 0;
+        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量: ${runnableTasks.length}`);
 
-        log.info(
-          `实例 ${targetInstance.name}: 开始执行任务, 数量: ${runnableTasks.length}, 分段: ${[
-            `primary:${primaryBatch.length}`,
-            `trailing:${trailing.length}`,
-          ].join(', ')}`,
-        );
-
-        const buildTaskConfigs = (batchTasks: RunnableTask[]): TaskConfig[] =>
-          batchTasks.map(({ selectedTask, taskDef, specialTask }) => {
+        const taskConfigs: TaskConfig[] = runnableTasks.map(
+          ({ selectedTask, taskDef, specialTask }) => {
             const taskDisplayName =
               selectedTask.customName ||
               (specialTask && taskDef.label
@@ -1230,65 +1192,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 specialTask?.optionDefs ?? projectInterface?.option,
               ),
             };
-          });
-
-        const runTaskBatch = async (
-          batchTasks: RunnableTask[],
-          resetState: boolean,
-          batchName: string,
-          connectDummyController: boolean = false,
-        ) => {
-          if (batchTasks.length === 0) {
-            return [] as number[];
-          }
-
-          if (connectDummyController) {
-            log.info(`实例 ${targetInstance.name}: ${batchName}段切换为 Dummy Controller`);
-            const dummyCtrlId = await maaService.connectController(targetId, {
-              type: 'Dummy',
-              display_short_side: undefined,
-            });
-            registerCtrlIdName(targetId, dummyCtrlId, 'MXU Dummy Controller', 'device');
-          }
-
-          const batchTaskIds = await maaService.startTasks(
-            targetId,
-            buildTaskConfigs(batchTasks),
-            agentConfigs,
-            basePath,
-            tcpCompatMode,
-            piEnvs,
-            resetState,
-            {
-              name: currentControllerName,
-              type: projectInterface?.controller.find((c) => c.name === currentControllerName)
-                ?.type,
-            },
-            collectPasswordPlaintextsFromRunnableTasks(
-              batchTasks,
-              useAppStore.getState().globalOptionValues,
-              projectInterface?.option ?? {},
-            ),
-          );
-
-          log.info(`实例 ${targetInstance.name}: ${batchName}任务已提交, task_ids:`, batchTaskIds);
-
-          batchTaskIds.forEach((maaTaskId, index) => {
-            const runnable = batchTasks[index];
-            if (runnable) {
-              const { selectedTask, taskDef, specialTask } = runnable;
-              const taskDisplayName =
-                selectedTask.customName ||
-                (specialTask && taskDef.label
-                  ? t(taskDef.label)
-                  : resolveI18nText(taskDef.label, translations)) ||
-                selectedTask.taskName;
-              registerTaskIdName(maaTaskId, taskDisplayName);
-            }
-          });
-
-          return batchTaskIds;
-        };
+          },
+        );
 
         // 准备 Agent 配置（支持单个或多个 Agent）
         const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
@@ -1320,27 +1225,38 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
         await startGlobalCallbackListener();
 
-        const startedTaskIds: number[] = [];
-
-        const primaryTaskIds = await runTaskBatch(
-          primaryBatch,
-          true,
-          hasTrailingBatch ? '前段' : '任务',
+        const startedTaskIds = await maaService.startTasks(
+          targetId,
+          taskConfigs,
+          agentConfigs,
+          basePath,
+          tcpCompatMode,
+          piEnvs,
+          {
+            name: currentControllerName,
+            type: projectInterface?.controller.find((c) => c.name === currentControllerName)?.type,
+          },
+          collectPasswordPlaintextsFromRunnableTasks(
+            runnableTasks,
+            useAppStore.getState().globalOptionValues,
+            projectInterface?.option ?? {},
+          ),
         );
-        startedTaskIds.push(...primaryTaskIds);
 
-        if (hasTrailingBatch && primaryTaskIds.length > 0) {
-          const primaryResult = await maaService.waitForTasks(targetId, primaryTaskIds);
-          if (!primaryResult.allDone || primaryResult.stopped) {
-            const message = t('taskList.autoConnect.primaryTasksIncomplete');
-            log.warn(`实例 ${targetInstance.name}: ${message}`);
-            addLog(targetId, { type: 'warning', message });
-            onPhaseChange?.('idle');
-            return true;
+        startedTaskIds.forEach((maaTaskId, index) => {
+          const runnable = runnableTasks[index];
+          if (!runnable) {
+            return;
           }
-          const trailingTaskIds = await runTaskBatch(trailing, false, '收尾', true);
-          startedTaskIds.push(...trailingTaskIds);
-        }
+          const { selectedTask, taskDef, specialTask } = runnable;
+          const taskDisplayName =
+            selectedTask.customName ||
+            (specialTask && taskDef.label
+              ? t(taskDef.label)
+              : resolveI18nText(taskDef.label, translations)) ||
+            selectedTask.taskName;
+          registerTaskIdName(maaTaskId, taskDisplayName);
+        });
 
         log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, startedTaskIds);
 

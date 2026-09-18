@@ -244,7 +244,6 @@ export default {
       alreadyRunning: '작업이 이미 실행 중이거나 사전 작업을 실행하고 있습니다',
       taskNotFound: '지정한 작업이 없거나 삭제되었습니다',
       noRunnableTasks: '실행 가능한 작업이 없습니다. 작업 정의와 진입점 설정을 확인하세요',
-      primaryTasksIncomplete: '앞쪽 작업이 정상 종료되지 않아 마무리 작업을 건너뛰었습니다',
       workstationLocked: '컴퓨터가 잠금 화면 상태입니다. 잠금을 해제한 후 작업을 실행하세요',
       agentStartParams: 'Agent #{{index}} 시작 파라미터: {{cmd}}  (작업 디렉토리: {{cwd}})',
       agentSpawnHintFileNotFound:

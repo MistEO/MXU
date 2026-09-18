@@ -95,15 +95,6 @@ export interface GamepadControllerConfig {
   display_short_side?: number;
 }
 
-/**
- * 空控制器配置：截图返回纯黑图、输入 no-op。
- * 用于在游戏未连接/已关闭时执行不依赖游戏画面的 MXU 特殊任务。
- */
-export interface DummyControllerConfig {
-  type: 'Dummy';
-  display_short_side?: number;
-}
-
 /** 控制器配置 */
 export type ControllerConfig =
   | AdbControllerConfig
@@ -112,8 +103,7 @@ export type ControllerConfig =
   | WlRootsControllerConfig
   | LinuxControllerConfig
   | PlayCoverControllerConfig
-  | GamepadControllerConfig
-  | DummyControllerConfig;
+  | GamepadControllerConfig;
 
 /** 连接状态 */
 export type ConnectionStatus = 'Disconnected' | 'Connecting' | 'Connected' | { Failed: string };

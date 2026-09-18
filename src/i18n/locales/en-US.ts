@@ -253,7 +253,6 @@ export default {
       alreadyRunning: 'Tasks are already running or a pre-action is still in progress',
       taskNotFound: 'The specified task does not exist or has been deleted',
       noRunnableTasks: 'No runnable tasks; check the task definitions and entry configuration',
-      primaryTasksIncomplete: 'Primary tasks did not finish normally; trailing tasks were skipped',
       workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
       agentSpawnHintFileNotFound:

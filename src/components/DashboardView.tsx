@@ -39,7 +39,6 @@ import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { isTaskCompatible } from '@/stores/helpers';
 import { isPretaskName, getPretaskItem, buildPretaskArgs, buildPretaskDef } from '@/types/pretasks';
-import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
@@ -82,7 +81,6 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     basePath,
     registerTaskIdName,
     registerEntryTaskName,
-    registerCtrlIdName,
     screenshotFrameRate,
     setShowAddTaskPanel,
     addLog,
@@ -317,16 +315,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             })
             .filter((item): item is NonNullable<typeof item> => item !== null);
 
-          const { leading, middle, trailing } = splitTasksIntoThreeSegments(runnableTasks);
-          const primaryBatch = [...leading, ...middle];
-          const hasTrailingBatch = trailing.length > 0;
-
-          log.info(
-            `[${instanceName}] 开始执行任务, 数量: ${runnableTasks.length}, 分段: ${[
-              `primary:${primaryBatch.length}`,
-              `trailing:${trailing.length}`,
-            ].join(', ')}`,
-          );
+          log.info(`[${instanceName}] 开始执行任务, 数量: ${runnableTasks.length}`);
 
           if (runnableTasks.length === 0) {
             log.warn(`[${instanceName}] 没有可执行的任务`);
@@ -334,8 +323,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             return;
           }
 
-          const buildTaskConfigs = (batchTasks: typeof runnableTasks): TaskConfig[] =>
-            batchTasks.map(({ selectedTask, taskDef, specialTask }) => {
+          const taskConfigs: TaskConfig[] = runnableTasks.map(
+            ({ selectedTask, taskDef, specialTask }) => {
               const taskDisplayName =
                 selectedTask.customName ||
                 (specialTask && taskDef.label
@@ -361,7 +350,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
                   specialTask?.optionDefs ?? projectInterface?.option,
                 ),
               };
-            });
+            },
+          );
 
           // 准备 Agent 配置（支持单个或多个 Agent）
           const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
@@ -385,63 +375,36 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
           // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
           await startGlobalCallbackListener();
 
-          const startedTaskIds: number[] = [];
-          const runBatch = async (
-            batchTasks: typeof runnableTasks,
-            resetState: boolean,
-            useDummyController: boolean,
-          ) => {
-            if (batchTasks.length === 0) return [] as number[];
-            if (useDummyController) {
-              log.info(`[${instanceName}] 收尾特殊任务切换为 Dummy Controller`);
-              const dummyCtrlId = await maaService.connectController(instanceId, {
-                type: 'Dummy',
-                display_short_side: undefined,
-              });
-              registerCtrlIdName(instanceId, dummyCtrlId, 'MXU Dummy Controller', 'device');
-              setInstanceConnectionStatus(instanceId, 'Connected');
-            }
+          const startedTaskIds = await maaService.startTasks(
+            instanceId,
+            taskConfigs,
+            agentConfigs,
+            basePath,
+            tcpCompatMode,
+            piEnvs,
+            {
+              name: currentControllerName,
+              type: projectInterface?.controller.find((c) => c.name === currentControllerName)?.type,
+            },
+            collectPasswordPlaintextsFromRunnableTasks(
+              runnableTasks,
+              useAppStore.getState().globalOptionValues,
+              projectInterface?.option ?? {},
+            ),
+          );
 
-            const batchTaskIds = await maaService.startTasks(
-              instanceId,
-              buildTaskConfigs(batchTasks),
-              agentConfigs,
-              basePath,
-              tcpCompatMode,
-              piEnvs,
-              resetState,
-              {
-                name: currentControllerName,
-                type: projectInterface?.controller.find((c) => c.name === currentControllerName)
-                  ?.type,
-              },
-              collectPasswordPlaintextsFromRunnableTasks(
-                batchTasks,
-                useAppStore.getState().globalOptionValues,
-                projectInterface?.option ?? {},
-              ),
-            );
-
-            batchTaskIds.forEach((maaTaskId, index) => {
-              const runnable = batchTasks[index];
-              if (!runnable) return;
-              const { selectedTask, taskDef, specialTask } = runnable;
-              const taskDisplayName =
-                selectedTask.customName ||
-                (specialTask && taskDef.label
-                  ? t(taskDef.label)
-                  : resolveI18nText(taskDef.label, translations)) ||
-                selectedTask.taskName;
-              registerTaskIdName(maaTaskId, taskDisplayName);
-            });
-
-            return batchTaskIds;
-          };
-
-          startedTaskIds.push(...(await runBatch(primaryBatch, true, false)));
-          if (hasTrailingBatch) {
-            startedTaskIds.push(...(await runBatch(trailing, false, true)));
-          }
+          startedTaskIds.forEach((maaTaskId, index) => {
+            const runnable = runnableTasks[index];
+            if (!runnable) return;
+            const { selectedTask, taskDef, specialTask } = runnable;
+            const taskDisplayName =
+              selectedTask.customName ||
+              (specialTask && taskDef.label
+                ? t(taskDef.label)
+                : resolveI18nText(taskDef.label, translations)) ||
+              selectedTask.taskName;
+            registerTaskIdName(maaTaskId, taskDisplayName);
+          });
 
           log.info(`[${instanceName}] 任务已提交, task_ids:`, startedTaskIds);
 

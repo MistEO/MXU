@@ -1,4 +1,14 @@
-import { useState, useMemo, useEffect, useRef, useId, type KeyboardEvent } from 'react';
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  useId,
+  type KeyboardEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
 import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolver';
@@ -857,6 +867,136 @@ export function OptionEditor({
   );
 }
 
+interface DropdownPosition {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+  placement: 'top' | 'bottom';
+}
+
+/** 下拉框浮层定位 Hook：通过 Portal 脱离父级容器 overflow 裁切，支持智能翻转与视口避让 */
+function useDropdownPosition({
+  open,
+  triggerRef,
+  menuRef,
+  onClose,
+  minWidth = 220,
+}: {
+  open: boolean;
+  triggerRef: React.RefObject<HTMLElement | null>;
+  menuRef: React.RefObject<HTMLElement | null>;
+  onClose: () => void;
+  minWidth?: number;
+}) {
+  const [position, setPosition] = useState<DropdownPosition | null>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+
+    // 如果 trigger 已经离开可视区域（例如在可滚动面板中被滚出屏幕），则自动关闭
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      onClose();
+      return;
+    }
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const targetWidth = Math.min(Math.max(rect.width, minWidth), viewportWidth - 16);
+
+    // 水平对齐：优先右对齐（向左展开），如果左边缘越界则靠左
+    let left = rect.right - targetWidth;
+    if (left < 8) {
+      left = Math.max(8, rect.left);
+    }
+    if (left + targetWidth > viewportWidth - 8) {
+      left = Math.max(8, viewportWidth - targetWidth - 8);
+    }
+
+    const offset = 4;
+    const margin = 8;
+    const spaceBelow = viewportHeight - rect.bottom - offset - margin;
+    const spaceAbove = rect.top - offset - margin;
+
+    // 当下方剩余空间不足 200px 且上方空间大于下方空间时向上弹出
+    const shouldFlip = spaceBelow < 200 && spaceAbove > spaceBelow;
+
+    if (shouldFlip) {
+      const maxHeight = Math.min(260, Math.max(120, spaceAbove));
+      setPosition({
+        bottom: viewportHeight - rect.top + offset,
+        left,
+        width: targetWidth,
+        maxHeight,
+        placement: 'top',
+      });
+    } else {
+      const maxHeight = Math.min(260, Math.max(120, spaceBelow));
+      setPosition({
+        top: rect.bottom + offset,
+        left,
+        width: targetWidth,
+        maxHeight,
+        placement: 'bottom',
+      });
+    }
+  }, [triggerRef, minWidth, onClose]);
+
+  // 打开时使用 useLayoutEffect 立即计算位置，避免闪烁
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+    updatePosition();
+  }, [open, updatePosition]);
+
+  // 监听 resize、scroll（捕获阶段）以及点击外部
+  useEffect(() => {
+    if (!open) return;
+
+    const handleScroll = (event: Event) => {
+      const target = event.target;
+      // 菜单内部滚动不影响展开状态；祖先面板滚动时关闭，避免浮层脱离任务。
+      if (target instanceof Node && menuRef.current?.contains(target)) return;
+      if (target instanceof Node && triggerRef.current && target.contains(triggerRef.current)) {
+        onClose();
+      }
+    };
+
+    const handleResize = () => {
+      updatePosition();
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(target) &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
+      ) {
+        onClose();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll, true);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open, updatePosition, triggerRef, menuRef, onClose]);
+
+  return position;
+}
+
 interface OptionSelectDropdownProps {
   value: string;
   options: { value: string; label: string; icon?: string }[];
@@ -889,18 +1029,22 @@ function OptionSelectDropdown({
 
   const selectedOption = options.find((opt) => opt.value === value) ?? options[0];
 
-  // 点击外部关闭
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  const closeAndFocusTrigger = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const dropdownPos = useDropdownPosition({
+    open,
+    triggerRef,
+    menuRef: listboxRef,
+    onClose: closeDropdown,
+    minWidth: 220,
+  });
 
   // 打开时初始化活动项并将焦点移动到列表
   useEffect(() => {
@@ -916,10 +1060,14 @@ function OptionSelectDropdown({
     }
   }, [open, disabled, options, value]);
 
-  const closeAndFocusTrigger = () => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  };
+  // 滚动活动项到视图中
+  useEffect(() => {
+    if (!open || !listboxRef.current) return;
+    const activeElement = listboxRef.current.querySelector(`[data-index="${activeIndex}"]`);
+    if (activeElement) {
+      activeElement.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex, open]);
 
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
@@ -932,12 +1080,19 @@ function OptionSelectDropdown({
     } else if (event.key === 'Escape') {
       if (open) {
         event.preventDefault();
-        setOpen(false);
+        closeAndFocusTrigger();
       }
     }
   };
 
   const handleListboxKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab') {
+      // 在默认 Tab 导航前回到原 DOM 位置，兼容 Shift+Tab。
+      closeAndFocusTrigger();
+      return;
+    }
+    if (options.length === 0) return;
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveIndex((prev) => Math.min(options.length - 1, prev + 1));
@@ -1005,56 +1160,70 @@ function OptionSelectDropdown({
         />
       </button>
 
-      {open && !isDisabled && (
-        <div
-          id={listboxId}
-          ref={listboxRef}
-          className="mxu-overlay-surface absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
-          role="listbox"
-          aria-labelledby={triggerId}
-          tabIndex={-1}
-          onKeyDown={handleListboxKeyDown}
-        >
-          {options.map((opt, index) => {
-            const isSelected = opt.value === value;
-            const isActive = index === activeIndex;
-            const optionId = `${listboxId}-option-${opt.value}`;
-            return (
-              <button
-                key={optionId}
-                id={optionId}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  closeAndFocusTrigger();
-                }}
-                className={clsx(
-                  'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
-                  isActive
-                    ? 'bg-bg-active text-text-primary'
-                    : isSelected
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-text-primary hover:bg-bg-hover',
-                )}
-                role="option"
-                aria-selected={isSelected}
-              >
-                <span className="flex items-center gap-1.5 truncate">
-                  {opt.icon && (
-                    <AsyncIcon
-                      icon={opt.icon}
-                      basePath={basePath}
-                      className="w-4 h-4 object-contain flex-shrink-0"
-                    />
+      {open &&
+        !isDisabled &&
+        dropdownPos &&
+        createPortal(
+          <div
+            id={listboxId}
+            ref={listboxRef}
+            className="mxu-overlay-surface fixed z-[9999] overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-xl outline-none animate-in fade-in zoom-in-95 duration-100"
+            style={{
+              top: dropdownPos.top,
+              bottom: dropdownPos.bottom,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              maxHeight: dropdownPos.maxHeight,
+            }}
+            role="listbox"
+            aria-labelledby={triggerId}
+            tabIndex={-1}
+            onKeyDown={handleListboxKeyDown}
+          >
+            {options.map((opt, index) => {
+              const isSelected = opt.value === value;
+              const isActive = index === activeIndex;
+              const optionId = `${listboxId}-option-${opt.value}`;
+              return (
+                <button
+                  key={optionId}
+                  id={optionId}
+                  type="button"
+                  data-index={index}
+                  onClick={() => {
+                    onChange(opt.value);
+                    closeAndFocusTrigger();
+                  }}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={clsx(
+                    'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
+                    isActive
+                      ? 'bg-bg-active text-text-primary'
+                      : isSelected
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-text-primary hover:bg-bg-hover',
                   )}
-                  <RichLabel text={opt.label} />
-                </span>
-                {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  role="option"
+                  aria-selected={isSelected}
+                  title={stripInlineRichText(opt.label)}
+                >
+                  <span className="flex items-center gap-1.5 truncate">
+                    {opt.icon && (
+                      <AsyncIcon
+                        icon={opt.icon}
+                        basePath={basePath}
+                        className="w-4 h-4 object-contain flex-shrink-0"
+                      />
+                    )}
+                    <RichLabel text={opt.label} />
+                  </span>
+                  {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -1075,6 +1244,7 @@ function OptionSelectComboBox({
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listboxRef = useRef<HTMLDivElement | null>(null);
 
@@ -1093,28 +1263,43 @@ function OptionSelectComboBox({
 
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // 点击外部关闭
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        setSearchQuery('');
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+    setSearchQuery('');
+  }, []);
 
-  // 打开时聚焦输入框并重置搜索
+  const closeAndFocusTrigger = useCallback(() => {
+    setOpen(false);
+    setSearchQuery('');
+    triggerRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const dropdownPos = useDropdownPosition({
+    open,
+    triggerRef,
+    menuRef,
+    onClose: closeDropdown,
+    minWidth: 220,
+  });
+
+  const openDropdown = () => {
+    setSearchQuery('');
+    setActiveIndex(
+      Math.max(
+        0,
+        options.findIndex((opt) => opt.value === value),
+      ),
+    );
+    setOpen(true);
+  };
+
+  // 搜索初始化在打开动作中进行，避免父组件重渲染时清空输入。
   useEffect(() => {
     if (open && !disabled) {
-      setSearchQuery('');
-      setActiveIndex(0);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         inputRef.current?.focus();
       }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [open, disabled]);
 
@@ -1123,30 +1308,36 @@ function OptionSelectComboBox({
     setActiveIndex(0);
   }, [filteredOptions.length]);
 
-  const closeAndFocusTrigger = () => {
-    setOpen(false);
-    setSearchQuery('');
-    triggerRef.current?.focus();
-  };
-
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      setOpen((prev) => !prev);
+      if (open) closeDropdown();
+      else openDropdown();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setOpen(true);
+      if (!open) openDropdown();
     } else if (event.key === 'Escape') {
       if (open) {
         event.preventDefault();
-        setOpen(false);
-        setSearchQuery('');
+        closeAndFocusTrigger();
       }
     }
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Tab') {
+      closeAndFocusTrigger();
+      return;
+    }
+    if (filteredOptions.length === 0) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAndFocusTrigger();
+      }
+      return;
+    }
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveIndex((prev) => Math.min(filteredOptions.length - 1, prev + 1));
@@ -1200,7 +1391,8 @@ function OptionSelectComboBox({
         )}
         onClick={() => {
           if (isDisabled) return;
-          setOpen((prev) => !prev);
+          if (open) closeDropdown();
+          else openDropdown();
         }}
         onKeyDown={handleTriggerKeyDown}
         role="combobox"
@@ -1223,83 +1415,98 @@ function OptionSelectComboBox({
         />
       </button>
 
-      {open && !isDisabled && (
-        <div className="mxu-overlay-surface absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-primary shadow-lg overflow-hidden">
-          {/* 搜索输入框 */}
-          <div className="p-2 border-b border-border">
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleInputKeyDown}
-              placeholder={t('optionEditor.searchPlaceholder')}
-              className={clsx(
-                'w-full px-2.5 py-1.5 text-sm rounded-md border',
-                'bg-bg-secondary text-text-primary border-border',
-                'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
-                'placeholder:text-text-muted',
-              )}
-            />
-          </div>
-
-          {/* 选项列表 */}
+      {open &&
+        !isDisabled &&
+        dropdownPos &&
+        createPortal(
           <div
-            id={listboxId}
-            ref={listboxRef}
-            className="max-h-52 overflow-y-auto outline-none"
-            role="listbox"
-            aria-labelledby={triggerId}
+            ref={menuRef}
+            className="mxu-overlay-surface fixed z-[9999] rounded-lg border border-border bg-bg-primary shadow-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
+            style={{
+              top: dropdownPos.top,
+              bottom: dropdownPos.bottom,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              maxHeight: dropdownPos.maxHeight,
+            }}
           >
-            {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-text-muted text-center">
-                {t('optionEditor.noMatchingOptions')}
-              </div>
-            ) : (
-              filteredOptions.map((opt, index) => {
-                const isSelected = opt.value === value;
-                const isActive = index === activeIndex;
-                const optionId = `${listboxId}-option-${opt.value}`;
-                return (
-                  <button
-                    key={optionId}
-                    id={optionId}
-                    type="button"
-                    data-index={index}
-                    onClick={() => {
-                      onChange(opt.value);
-                      closeAndFocusTrigger();
-                    }}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    className={clsx(
-                      'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
-                      isActive
-                        ? 'bg-bg-active text-text-primary'
-                        : isSelected
-                          ? 'bg-accent/10 text-accent'
-                          : 'text-text-primary hover:bg-bg-hover',
-                    )}
-                    role="option"
-                    aria-selected={isSelected}
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      {opt.icon && (
-                        <AsyncIcon
-                          icon={opt.icon}
-                          basePath={basePath}
-                          className="w-4 h-4 object-contain flex-shrink-0"
-                        />
+            {/* 搜索输入框 */}
+            <div className="p-2 border-b border-border flex-shrink-0">
+              <input
+                ref={inputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                placeholder={t('optionEditor.searchPlaceholder')}
+                className={clsx(
+                  'w-full px-2.5 py-1.5 text-sm rounded-md border',
+                  'bg-bg-secondary text-text-primary border-border',
+                  'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
+                  'placeholder:text-text-muted',
+                )}
+              />
+            </div>
+
+            {/* 选项列表 */}
+            <div
+              id={listboxId}
+              ref={listboxRef}
+              className="overflow-y-auto outline-none flex-1 min-h-0"
+              role="listbox"
+              aria-labelledby={triggerId}
+            >
+              {filteredOptions.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-text-muted text-center">
+                  {t('optionEditor.noMatchingOptions')}
+                </div>
+              ) : (
+                filteredOptions.map((opt, index) => {
+                  const isSelected = opt.value === value;
+                  const isActive = index === activeIndex;
+                  const optionId = `${listboxId}-option-${opt.value}`;
+                  return (
+                    <button
+                      key={optionId}
+                      id={optionId}
+                      type="button"
+                      data-index={index}
+                      onClick={() => {
+                        onChange(opt.value);
+                        closeAndFocusTrigger();
+                      }}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      className={clsx(
+                        'w-full px-3 py-2 text-left text-sm flex items-center justify-between gap-2',
+                        isActive
+                          ? 'bg-bg-active text-text-primary'
+                          : isSelected
+                            ? 'bg-accent/10 text-accent'
+                            : 'text-text-primary hover:bg-bg-hover',
                       )}
-                      <RichLabel text={opt.label} />
-                    </span>
-                    {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
+                      role="option"
+                      aria-selected={isSelected}
+                      title={stripInlineRichText(opt.label)}
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        {opt.icon && (
+                          <AsyncIcon
+                            icon={opt.icon}
+                            basePath={basePath}
+                            className="w-4 h-4 object-contain flex-shrink-0"
+                          />
+                        )}
+                        <RichLabel text={opt.label} />
+                      </span>
+                      {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

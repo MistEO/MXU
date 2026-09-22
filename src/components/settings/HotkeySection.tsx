@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Key, Play, StopCircle, AlertCircle, Globe } from 'lucide-react';
+import { Keyboard, Play, StopCircle, AlertCircle, Globe } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { SwitchButton, buildHotkeyCombo } from '@/components/FormControls';
 import { DesktopOnlyWrapper } from '@/components/ui/DesktopOnlyWrapper';
@@ -12,7 +12,7 @@ export function HotkeySection() {
   return (
     <section id="section-hotkeys" className="space-y-4 scroll-mt-4">
       <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
-        <Key className="w-4 h-4" />
+        <Keyboard className="w-4 h-4" />
         {t('settings.hotkeys')}
       </h2>
 

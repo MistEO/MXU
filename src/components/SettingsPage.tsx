@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   Paintbrush,
-  Key,
+  Keyboard,
   Settings2,
   Download,
   Bug,
@@ -12,6 +12,7 @@ import {
   X,
   LayoutGrid,
   ChevronRight,
+  Globe,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -32,6 +33,7 @@ import {
   AboutSection,
   CustomAccentModal,
 } from './settings';
+import { WebServerSection } from '@/components/WebServerSection.tsx';
 
 interface SettingsPageProps {
   onClose?: () => void;
@@ -266,7 +268,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       items.push({ id: 'task-settings', icon: LayoutGrid, labelKey: 'settings.taskSettings' });
     }
     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
-    items.push({ id: 'hotkeys', icon: Key, labelKey: 'settings.hotkeys' });
+    items.push({ id: 'hotkeys', icon: Keyboard, labelKey: 'settings.hotkeys' });
+    items.push({ id: 'webserver', icon: Globe, labelKey: 'webserver.title'});
     if (projectInterface?.mirrorchyan_rid) {
       items.push({ id: 'update', icon: Download, labelKey: 'mirrorChyan.title' });
     }
@@ -489,6 +492,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
             {/* 快捷键设置 */}
             <HotkeySection />
+
+            {/* Web 服务设置 */}
+            <WebServerSection />
 
             {/* MirrorChyan 更新设置 */}
             <UpdateSection />

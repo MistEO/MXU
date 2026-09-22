@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isTauri, loggers } from '@/utils';
 import { useAppStore } from '@/stores/appStore.ts';
 import { SwitchButton } from '@/components/FormControls';
+import clsx from 'clsx';
 
 export function WebServerSection() {
   const { t } = useTranslation();
@@ -19,6 +20,10 @@ export function WebServerSection() {
   const [portInput, setPortInput] = useState(String(configuredPort));
   const [webServerPort, setWebServerPort] = useState<number>(0);
   const [lanIp, setLanIp] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPortInput(String(configuredPort));
+  }, [configuredPort]);
 
   useEffect(() => {
     const loadWebServerInfo = async () => {
@@ -37,10 +42,9 @@ export function WebServerSection() {
         const port = parseInt(window.location.port, 10);
         if (port) setWebServerPort(port);
       }
-      setPortInput(String(configuredPort));
-    }
+    };
     loadWebServerInfo();
-  }, [configuredPort]);
+  }, []);
 
   const webServerAddress = (() => {
     if (window.location.host && !isTauri()) {
@@ -113,10 +117,9 @@ export function WebServerSection() {
         <Globe className="w-4 h-4" />
         {t('webserver.title')}
       </h2>
-
       <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
-        <div className="text-sm text-text-secondary space-y-1">
-          {webServerAddress && (
+        {webServerAddress && (
+          <div className="text-sm text-text-secondary space-y-1">
             <p>
               {t('webserver.address')}:{' '}
               <button
@@ -127,11 +130,15 @@ export function WebServerSection() {
                 <ExternalLink className="w-3 h-3" />
               </button>
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 启用 Web 服务器 */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
+        <div
+          className={clsx('flex items-center justify-between', {
+            'pt-4 border-t border-border': webServerAddress,
+          })}
+        >
           <div className="flex items-center gap-3">
             <Server className="w-5 h-5 text-accent" />
             <div>

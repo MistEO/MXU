@@ -6,3 +6,4 @@ export { UpdateSection } from './UpdateSection';
 export { DebugSection } from './DebugSection';
 export { AboutSection } from './AboutSection';
 export { CustomAccentModal } from './CustomAccentModal';
+export { WebServerSection } from './WebServerSection';

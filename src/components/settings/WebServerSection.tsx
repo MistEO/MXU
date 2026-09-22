@@ -3,7 +3,7 @@ import { Globe, Server, EthernetPort, ExternalLink } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { isTauri, loggers } from '@/utils';
 import { useAppStore } from '@/stores/appStore.ts';
-import { SwitchButton } from '@/components/FormControls';
+import { SwitchButton } from '@/components/FormControls.tsx';
 import clsx from 'clsx';
 
 export function WebServerSection() {
@@ -94,7 +94,7 @@ export function WebServerSection() {
 
   const handleRestart = useCallback(async () => {
     try {
-      const { restartApp } = await import('@/services/updateService');
+      const { restartApp } = await import('@/services/updateService.ts');
       await restartApp();
     } catch (err) {
       loggers.ui.error('重启失败:', err);

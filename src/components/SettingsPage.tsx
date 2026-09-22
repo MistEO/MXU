@@ -32,8 +32,8 @@ import {
   DebugSection,
   AboutSection,
   CustomAccentModal,
+  WebServerSection,
 } from './settings';
-import { WebServerSection } from '@/components/WebServerSection.tsx';
 
 interface SettingsPageProps {
   onClose?: () => void;

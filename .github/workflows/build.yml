@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [x86_64]
+        arch: [x86_64, aarch64]
       fail-fast: false
 
     steps:

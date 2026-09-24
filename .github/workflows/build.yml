@@ -121,10 +121,10 @@ jobs:
 
   linux:
     needs: meta
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     strategy:
       matrix:
-        arch: [x86_64]
+        arch: [x86_64, aarch64]
       fail-fast: false
 
     steps:

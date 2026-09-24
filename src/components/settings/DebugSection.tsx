@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Bug,
@@ -7,10 +7,6 @@ import {
   ScrollText,
   Network,
   Archive,
-  Globe,
-  ExternalLink,
-  Server,
-  EthernetPort,
 } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
@@ -32,12 +28,6 @@ export function DebugSection() {
     setSaveDraw,
     tcpCompatMode,
     setTcpCompatMode,
-    allowLanAccess,
-    setAllowLanAccess,
-    webServerEnabled,
-    setWebServerEnabled,
-    webServerPort: configuredPort,
-    setWebServerPort: setConfiguredPort,
     backendOS,
     backendArch,
   } = useAppStore();
@@ -53,14 +43,7 @@ export function DebugSection() {
     arch: string;
     tauriVersion: string;
   } | null>(null);
-  const [webServerPort, setWebServerPort] = useState<number>(0);
-  const [lanIp, setLanIp] = useState<string | null>(null);
-  const [showRestartPrompt, setShowRestartPrompt] = useState(false);
-  const [portInput, setPortInput] = useState(String(configuredPort));
 
-  useEffect(() => {
-    setPortInput(String(configuredPort));
-  }, [configuredPort]);
   const { exportModal, handleExportLogs, closeExportModal, openExportedFile } = useExportLogs();
 
   const version = projectInterface?.version || '0.1.0';
@@ -91,7 +74,7 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo, webview2DirResult, port, localIp] =
+          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] =
             await Promise.all([
               invoke<string>('get_exe_dir'),
               invoke<string>('get_cwd'),
@@ -99,14 +82,10 @@ export function DebugSection() {
                 'get_system_info',
               ),
               invoke<{ path: string; system: boolean }>('get_webview2_dir'),
-              invoke<number>('get_web_server_port'),
-              invoke<string | null>('get_local_lan_ip'),
             ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
           setWebview2Dir(webview2DirResult);
-          setWebServerPort(port);
-          setLanIp(localIp);
           setSystemInfo({
             os: sysInfo.os,
             osVersion: sysInfo.os_version,
@@ -119,9 +98,7 @@ export function DebugSection() {
           setSystemInfo(null);
         }
       } else {
-        // 浏览器环境：从当前 URL 推导端口，并从 store 读取后端真实 OS/架构
-        const port = parseInt(window.location.port, 10);
-        if (port) setWebServerPort(port);
+        // 浏览器环境：从 store 读取后端真实 OS/架构
         if (backendOS) {
           setSystemInfo({
             os: backendOS,
@@ -151,71 +128,6 @@ export function DebugSection() {
       loggers.ui.error('打开配置目录失败:', err);
     }
   };
-
-  const webServerAddress = (() => {
-    if (window.location.host && !isTauri()) {
-      return window.location.origin;
-    }
-
-    // Tauri 桌面端直连后端
-    if (!webServerPort) return null;
-
-    const host = allowLanAccess ? lanIp || 'localhost' : 'localhost';
-    return `http://${host}:${webServerPort}`;
-  })();
-
-  const handleOpenWebServer = useCallback(async () => {
-    if (!webServerAddress) return;
-    if (isTauri()) {
-      const { openUrl } = await import('@tauri-apps/plugin-opener');
-      await openUrl(webServerAddress);
-    } else {
-      window.open(webServerAddress, '_blank');
-    }
-  }, [webServerAddress]);
-
-  const handleLanAccessToggle = useCallback(
-    (v: boolean) => {
-      setAllowLanAccess(v);
-      if (isTauri()) {
-        setShowRestartPrompt(true);
-      }
-    },
-    [setAllowLanAccess],
-  );
-
-  const handleWebServerToggle = useCallback(
-    (v: boolean) => {
-      setWebServerEnabled(v);
-      if (isTauri()) {
-        setShowRestartPrompt(true);
-      }
-    },
-    [setWebServerEnabled],
-  );
-
-  const handlePortBlur = useCallback(() => {
-    const parsed = parseInt(portInput, 10);
-    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
-      setPortInput(String(configuredPort));
-      return;
-    }
-    if (parsed !== configuredPort) {
-      setConfiguredPort(parsed);
-      if (isTauri()) {
-        setShowRestartPrompt(true);
-      }
-    }
-  }, [portInput, configuredPort, setConfiguredPort]);
-
-  const handleRestart = useCallback(async () => {
-    try {
-      const { restartApp } = await import('@/services/updateService');
-      await restartApp();
-    } catch (err) {
-      loggers.ui.error('重启失败:', err);
-    }
-  }, []);
 
   // 调试：打开日志目录
   const handleOpenLogDir = async () => {
@@ -268,18 +180,6 @@ export function DebugSection() {
               {isTauri() ? t('debug.envTauri') : t('debug.envBrowser')}
             </span>
           </p>
-          {webServerAddress && (
-            <p>
-              {t('debug.webServerAddress')}:{' '}
-              <button
-                onClick={handleOpenWebServer}
-                className="inline-flex items-center gap-1 font-mono text-accent hover:text-accent/80 hover:underline transition-colors"
-              >
-                {webServerAddress}
-                <ExternalLink className="w-3 h-3" />
-              </button>
-            </p>
-          )}
         </div>
 
         {/* 系统信息 */}
@@ -390,76 +290,6 @@ export function DebugSection() {
             </div>
           </div>
           <SwitchButton value={tcpCompatMode} onChange={(v) => setTcpCompatMode(v)} />
-        </div>
-
-        {/* 启用 Web 服务器 */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <div className="flex items-center gap-3">
-            <Server className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('debug.webServerEnabled')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('debug.webServerEnabledHint')}</p>
-            </div>
-          </div>
-          <SwitchButton value={webServerEnabled} onChange={handleWebServerToggle} />
-        </div>
-
-        {/* Web 服务器端口 */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <div className="flex items-center gap-3">
-            <EthernetPort className="w-5 h-5 text-accent" />
-            <div>
-              <span className="font-medium text-text-primary">{t('debug.webServerPort')}</span>
-              <p className="text-xs text-text-muted mt-0.5">{t('debug.webServerPortHint')}</p>
-            </div>
-          </div>
-          <input
-            type="number"
-            min={1}
-            max={65535}
-            value={portInput}
-            onChange={(e) => setPortInput(e.target.value)}
-            onBlur={handlePortBlur}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-            className="w-24 px-2.5 py-1.5 text-sm font-mono text-right bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-        </div>
-
-        {/* 允许局域网访问 */}
-        <div className="pt-4 border-t border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Globe className="w-5 h-5 text-accent" />
-              <div>
-                <span className="font-medium text-text-primary">{t('debug.allowLanAccess')}</span>
-                <p className="text-xs text-text-muted mt-0.5">{t('debug.allowLanAccessHint')}</p>
-              </div>
-            </div>
-            <SwitchButton value={allowLanAccess} onChange={handleLanAccessToggle} />
-          </div>
-
-          {/* 重启提示 */}
-          {showRestartPrompt && (
-            <div className="flex items-center justify-between ml-8 p-2.5 bg-bg-tertiary rounded-lg text-sm">
-              <span className="text-text-secondary">{t('debug.webServerRestartMessage')}</span>
-              <div className="flex items-center gap-2 ml-4 shrink-0">
-                <button
-                  onClick={() => setShowRestartPrompt(false)}
-                  className="px-3 py-1 text-text-muted hover:text-text-primary rounded transition-colors"
-                >
-                  {t('debug.restartLater')}
-                </button>
-                <button
-                  onClick={handleRestart}
-                  className="px-3 py-1 bg-accent text-white rounded hover:bg-accent/90 transition-colors"
-                >
-                  {t('debug.restartNow')}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

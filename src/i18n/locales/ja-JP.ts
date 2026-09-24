@@ -602,19 +602,23 @@ export default {
     tcpCompatMode: '通信互換モード',
     tcpCompatModeHint:
       'タスク開始後にアプリがすぐにクラッシュする場合は有効にしてください。この場合のみ使用し、それ以外は性能に影響します',
-    webServerEnabled: 'Web サーバーを有効化',
-    webServerEnabledHint: '無効にすると内蔵 Web サーバーは起動しません（再起動後に反映）',
-    webServerPort: 'Web サーバーポート',
-    webServerPortHint:
+  },
+
+  webserver: {
+    title: 'Web サーバー',
+    enabled: 'Web サーバーを有効化',
+    enabledHint: '無効にすると内蔵 Web サーバーは起動しません（再起動後に反映）',
+    port: 'Web サーバーポート',
+    portHint:
       'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
     allowLanAccess: 'LAN アクセスを許可',
     allowLanAccessHint:
       '有効にすると Web UI が 0.0.0.0 でリッスンし、LAN 内の他のデバイスからアクセスできます',
-    webServerRestartMessage:
+    restartMessage:
       'Web サーバー設定の変更を反映するには再起動が必要です。今すぐ再起動しますか？',
     restartLater: '後で',
     restartNow: '今すぐ再起動',
-    webServerAddress: 'Web サーバーアドレス',
+    address: 'Web サーバーアドレス',
   },
 
   // 設定の自動修復通知

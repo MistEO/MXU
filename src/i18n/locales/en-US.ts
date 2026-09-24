@@ -603,19 +603,23 @@ export default {
     tcpCompatMode: 'Communication Compat Mode',
     tcpCompatModeHint:
       'Try enabling this if the app crashes immediately after starting tasks. Only use in this case, as it may reduce performance',
-    webServerEnabled: 'Enable Web Server',
-    webServerEnabledHint:
+  },
+
+  webserver: {
+    title: 'Web Server',
+    enabled: 'Enable Web Server',
+    enabledHint:
       'When disabled, the built-in web server will not start (restart required)',
-    webServerPort: 'Web Server Port',
-    webServerPortHint: 'Custom Web server listening port (default 12701, restart required)',
+    port: 'Web Server Port',
+    portHint: 'Custom Web server listening port (default 12701, restart required)',
     allowLanAccess: 'Allow LAN Access',
     allowLanAccessHint:
       'When enabled, Web UI listens on 0.0.0.0, allowing other devices on the local network to access it',
-    webServerRestartMessage:
+    restartMessage:
       'Changing Web server settings requires a restart to take effect. Restart now?',
     restartLater: 'Later',
     restartNow: 'Restart Now',
-    webServerAddress: 'Web Server Address',
+    address: 'Web Server Address',
   },
 
   // Config self-heal notices

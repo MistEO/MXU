@@ -604,8 +604,7 @@ export default {
     allowLanAccess: 'LAN 접근 허용',
     allowLanAccessHint:
       '활성화하면 Web UI가 0.0.0.0에서 수신하여 LAN 내 다른 기기에서 접근할 수 있습니다',
-    restartMessage:
-      'Web 서버 설정 변경을 적용하려면 재시작이 필요합니다. 지금 재시작하시겠습니까?',
+    restartMessage: 'Web 서버 설정 변경을 적용하려면 재시작이 필요합니다. 지금 재시작하시겠습니까?',
     restartLater: '나중에',
     restartNow: '지금 재시작',
     address: 'Web 서버 주소',

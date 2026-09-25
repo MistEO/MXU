@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Bug,
-  RefreshCw,
-  FolderOpen,
-  ScrollText,
-  Network,
-  Archive,
-} from 'lucide-react';
+import { Bug, RefreshCw, FolderOpen, ScrollText, Network, Archive } from 'lucide-react';
 
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -74,15 +67,14 @@ export function DebugSection() {
       if (isTauri()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] =
-            await Promise.all([
-              invoke<string>('get_exe_dir'),
-              invoke<string>('get_cwd'),
-              invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
-                'get_system_info',
-              ),
-              invoke<{ path: string; system: boolean }>('get_webview2_dir'),
-            ]);
+          const [exeDirResult, cwdResult, sysInfo, webview2DirResult] = await Promise.all([
+            invoke<string>('get_exe_dir'),
+            invoke<string>('get_cwd'),
+            invoke<{ os: string; os_version: string; arch: string; tauri_version: string }>(
+              'get_system_info',
+            ),
+            invoke<{ path: string; system: boolean }>('get_webview2_dir'),
+          ]);
           setExeDir(exeDirResult);
           setCwd(cwdResult);
           setWebview2Dir(webview2DirResult);

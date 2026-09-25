@@ -269,7 +269,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     }
     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
     items.push({ id: 'hotkeys', icon: Keyboard, labelKey: 'settings.hotkeys' });
-    items.push({ id: 'webserver', icon: Globe, labelKey: 'webserver.title'});
+    items.push({ id: 'webserver', icon: Globe, labelKey: 'webserver.title' });
     if (projectInterface?.mirrorchyan_rid) {
       items.push({ id: 'update', icon: Download, labelKey: 'mirrorChyan.title' });
     }

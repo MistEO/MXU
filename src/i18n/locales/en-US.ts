@@ -608,15 +608,13 @@ export default {
   webserver: {
     title: 'Web Server',
     enabled: 'Enable Web Server',
-    enabledHint:
-      'When disabled, the built-in web server will not start (restart required)',
+    enabledHint: 'When disabled, the built-in web server will not start (restart required)',
     port: 'Web Server Port',
     portHint: 'Custom Web server listening port (default 12701, restart required)',
     allowLanAccess: 'Allow LAN Access',
     allowLanAccessHint:
       'When enabled, Web UI listens on 0.0.0.0, allowing other devices on the local network to access it',
-    restartMessage:
-      'Changing Web server settings requires a restart to take effect. Restart now?',
+    restartMessage: 'Changing Web server settings requires a restart to take effect. Restart now?',
     restartLater: 'Later',
     restartNow: 'Restart Now',
     address: 'Web Server Address',

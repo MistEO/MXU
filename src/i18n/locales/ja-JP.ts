@@ -609,13 +609,11 @@ export default {
     enabled: 'Web サーバーを有効化',
     enabledHint: '無効にすると内蔵 Web サーバーは起動しません（再起動後に反映）',
     port: 'Web サーバーポート',
-    portHint:
-      'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
+    portHint: 'Web サーバーのリッスンポートをカスタマイズ（デフォルト 12701、再起動後に反映）',
     allowLanAccess: 'LAN アクセスを許可',
     allowLanAccessHint:
       '有効にすると Web UI が 0.0.0.0 でリッスンし、LAN 内の他のデバイスからアクセスできます',
-    restartMessage:
-      'Web サーバー設定の変更を反映するには再起動が必要です。今すぐ再起動しますか？',
+    restartMessage: 'Web サーバー設定の変更を反映するには再起動が必要です。今すぐ再起動しますか？',
     restartLater: '後で',
     restartNow: '今すぐ再起動',
     address: 'Web サーバーアドレス',

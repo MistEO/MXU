@@ -24,6 +24,8 @@ const DEBUG_ARTIFACT_DIRS: [&str; 2] = ["on_error", "vision"];
 const DEBUG_DIR: &str = "debug";
 /// 日志导出产物目录名，与 `debug/` 同级，避免下次导出把上次的产物扫进去。
 const DEBUG_EXPORTS_DIR: &str = "debug_exports";
+/// WebView2 用户数据包含 Cookie 与站点存储，不属于调试日志，不能被导出或清理。
+const WEBVIEW_DATA_DIR: &str = "record/WebView2";
 
 #[derive(Clone)]
 struct ExportEntry {
@@ -145,7 +147,11 @@ fn normalize_archive_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<ExportEntry>, String> {
+fn collect_files_recursively_excluding(
+    dir: &Path,
+    archive_prefix: &str,
+    excluded_dir: Option<&Path>,
+) -> Result<Vec<ExportEntry>, String> {
     if !dir.exists() || !dir.is_dir() {
         return Ok(Vec::new());
     }
@@ -160,6 +166,9 @@ fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<Exp
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
+                if excluded_dir == Some(path.as_path()) {
+                    continue;
+                }
                 stack.push(path);
                 continue;
             }
@@ -190,6 +199,10 @@ fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<Exp
 
     files.sort_by(|a, b| a.archive_name.cmp(&b.archive_name));
     Ok(files)
+}
+
+fn collect_files_recursively(dir: &Path, archive_prefix: &str) -> Result<Vec<ExportEntry>, String> {
+    collect_files_recursively_excluding(dir, archive_prefix, None)
 }
 
 fn is_image_file(path: &Path) -> bool {
@@ -223,6 +236,7 @@ fn collect_debug_subdir_files(
         .map_err(|e| format!("读取日志目录失败 [{}]: {}", debug_dir.display(), e))?;
 
     let mut files = Vec::new();
+    let webview_data_dir = debug_dir.join(WEBVIEW_DATA_DIR);
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_dir() {
@@ -232,7 +246,9 @@ fn collect_debug_subdir_files(
             continue;
         };
 
-        for export in collect_files_recursively(&path, &dir_name)? {
+        for export in
+            collect_files_recursively_excluding(&path, &dir_name, Some(&webview_data_dir))?
+        {
             if has_extension(&export.source_path, extensions) {
                 files.push(export);
             }
@@ -333,7 +349,11 @@ fn clear_dir_contents(dir: &Path) -> u64 {
 /// 递归删除 `dir` 及其所有子目录下的 .log 文件，返回删除数量。
 /// `exclude_file_name` 匹配的文件名会被跳过（当前会话正在写入的日志）。
 /// 只删文件不回收空目录，避免改动既有目录结构。
-fn remove_log_files_recursively(dir: &Path, exclude_file_name: Option<&str>) -> u64 {
+fn remove_log_files_recursively(
+    dir: &Path,
+    exclude_file_name: Option<&str>,
+    excluded_dir: &Path,
+) -> u64 {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) => {
@@ -347,8 +367,13 @@ fn remove_log_files_recursively(dir: &Path, exclude_file_name: Option<&str>) -> 
         let path = entry.path();
 
         if path.is_dir() {
-            deleted =
-                deleted.saturating_add(remove_log_files_recursively(&path, exclude_file_name));
+            if path != excluded_dir {
+                deleted = deleted.saturating_add(remove_log_files_recursively(
+                    &path,
+                    exclude_file_name,
+                    excluded_dir,
+                ));
+            }
             continue;
         }
 
@@ -375,7 +400,11 @@ fn remove_log_files_recursively(dir: &Path, exclude_file_name: Option<&str>) -> 
 
 /// `clear_log_files` 的可测核心，接收具体目录而不依赖应用数据目录。
 fn clear_log_dirs(debug_dir: &Path, exports_dir: &Path, exclude_file_name: Option<&str>) -> u64 {
-    let mut deleted = remove_log_files_recursively(debug_dir, exclude_file_name);
+    let mut deleted = remove_log_files_recursively(
+        debug_dir,
+        exclude_file_name,
+        &debug_dir.join(WEBVIEW_DATA_DIR),
+    );
 
     for dir_name in DEBUG_ARTIFACT_DIRS {
         let artifact_dir = debug_dir.join(dir_name);
@@ -841,4 +870,52 @@ fn parse_export_timestamp(dir_name: &str) -> Option<String> {
     }
     // 形状校验通过 ⇒ 全是 ASCII，from_utf8 必然成功
     Some(std::str::from_utf8(tail).ok()?.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_temp_dir() -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "mxu-file-ops-test-{}-{suffix}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&path).expect("create test directory");
+        path
+    }
+
+    #[test]
+    fn webview_data_is_not_exported_or_cleared() {
+        let root = make_temp_dir();
+        let debug_dir = root.join(DEBUG_DIR);
+        let exports_dir = root.join(DEBUG_EXPORTS_DIR);
+        let webview_log = debug_dir
+            .join(WEBVIEW_DATA_DIR)
+            .join("0123456789abcdef")
+            .join("browser.log");
+        let regular_log = debug_dir.join("runtime").join("maa.log");
+        let zipline_record = debug_dir.join("record").join("Ziplines.json");
+
+        std::fs::create_dir_all(webview_log.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(regular_log.parent().unwrap()).unwrap();
+        std::fs::write(&webview_log, "private").unwrap();
+        std::fs::write(&regular_log, "diagnostic").unwrap();
+        std::fs::write(&zipline_record, "{}").unwrap();
+
+        let entries = collect_debug_subdir_files(&debug_dir, &["log", "json"]).unwrap();
+        let names: Vec<&str> = entries.iter().map(|entry| entry.archive_name.as_str()).collect();
+        assert_eq!(names, ["record/Ziplines.json", "runtime/maa.log"]);
+
+        assert_eq!(clear_log_dirs(&debug_dir, &exports_dir, None), 1);
+        assert!(webview_log.exists());
+        assert!(!regular_log.exists());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

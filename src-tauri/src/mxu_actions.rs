@@ -481,9 +481,12 @@ fn mxu_killproc_action_impl(
     if kill_self {
         info!("[MXU_KILLPROC] Requesting graceful self-stop");
 
+        // 控制器已断开（如前序任务关闭了游戏）时 PostStop 投递停止任务会失败，
+        // 但停止标志已置位，前端的停止流程也能兜底，因此不阻断退出。
         if !request_tasker_stop(ctx) {
-            warn!("[MXU_KILLPROC] Failed to request tasker stop for self-stop mode");
-            return false;
+            warn!(
+                "[MXU_KILLPROC] MaaTaskerPostStop failed (controller may be disconnected), continue self-stop"
+            );
         }
 
         return match (app_handle, instance_id) {

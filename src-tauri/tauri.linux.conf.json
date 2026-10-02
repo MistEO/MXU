@@ -3,6 +3,9 @@
   "plugins": {
     "fs": {
       "requireLiteralLeadingDot": false
+    },
+    "opener": {
+      "requireLiteralLeadingDot": false
     }
   }
 }

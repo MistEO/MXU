@@ -221,6 +221,9 @@ export default {
     stopTasks: '実行停止',
     startingTasks: '開始中...',
     stoppingTasks: '停止中...',
+    taskSkippedByWeeklySchedule: 'タスク「{{taskName}}」をスキップ：本日は週間スケジュール外です',
+    allTasksSkippedByWeeklySchedule:
+      '本日実行するタスクはありません：選択中のタスクはすべて本日の週間スケジュール外です',
     checkboxTaskScope: 'タスク「{{task}}」',
     checkboxGlobalScope: 'グローバル設定',
     checkboxMinimumNotMet:
@@ -276,6 +279,10 @@ export default {
     rename: '名前を変更',
     clickToToggle: 'クリックで切替',
     runOnceHint: '単発実行：次回起動時に1回だけ実行',
+    weeklyScheduleTitle: '週間スケジュール',
+    weeklyScheduleSkippedToday: '本日はスキップ',
+    weeklyScheduleSkippedTodayHint: '週間スケジュール：本日は実行しません',
+    weeklyScheduleToday: '今日',
     renameTask: 'タスク名を変更',
     customName: 'カスタム名',
     originalName: '元の名前',
@@ -873,6 +880,7 @@ export default {
     runSingleTask: 'このタスクのみ実行',
     runOnceTask: '単発実行',
     clearRunOnceTask: '単発実行を解除',
+    enableWeeklySchedule: '週間スケジュールを有効化',
 
     // スクリーンショットパネルのコンテキストメニュー
     reconnect: '再接続',

@@ -214,6 +214,8 @@ export default {
     stopTasks: '停止任務',
     startingTasks: '啟動中...',
     stoppingTasks: '停止中...',
+    taskSkippedByWeeklySchedule: '跳過任務「{{taskName}}」：今天不在週計畫內',
+    allTasksSkippedByWeeklySchedule: '今日無任務需執行：已勾選的任務今天都不在週計畫內',
     checkboxTaskScope: '任務「{{task}}」',
     checkboxGlobalScope: '全域設定',
     checkboxMinimumNotMet:
@@ -266,6 +268,10 @@ export default {
     rename: '重新命名',
     clickToToggle: '單擊選中/取消',
     runOnceHint: '單次執行：下次啟動時執行一次',
+    weeklyScheduleTitle: '週計畫',
+    weeklyScheduleSkippedToday: '今天不執行',
+    weeklyScheduleSkippedTodayHint: '週計畫：今天不執行此任務',
+    weeklyScheduleToday: '今天',
     renameTask: '重新命名任務',
     customName: '自訂名稱',
     originalName: '原始名稱',
@@ -843,6 +849,7 @@ export default {
     runSingleTask: '單獨執行',
     runOnceTask: '單次執行',
     clearRunOnceTask: '取消單次執行',
+    enableWeeklySchedule: '啟用週計畫',
 
     // 截圖面板右鍵選單
     reconnect: '重新連接',

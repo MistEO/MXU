@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Play,
   CircleDot,
+  CalendarDays,
 } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
@@ -30,9 +31,14 @@ import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types
 import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks';
 import { getInterfaceLangKey } from '@/i18n';
 import { stripInlineRichText } from '@/utils/richText';
+import { isTaskBlockedByWeeklySchedule, normalizeWeeklySchedule } from '@/utils/taskRunFilter';
+import { useCurrentWeekday } from '@/hooks/useCurrentWeekday';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
 import { isPasswordInput } from '@/utils/passwordOptionValues';
+
+/** 周计划的全部星期（0=周日）；"启用周计划"时默认全选，启用后行为与启用前一致，再由用户取消不需要的天 */
+const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
 /** 选项预览标签组件 */
 function OptionPreviewTag({
@@ -324,6 +330,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     projectInterface,
     toggleTaskEnabled,
     setTaskRunOnce,
+    setTaskWeeklySchedule,
     toggleTaskExpanded,
     removeTaskFromInstance,
     confirmBeforeDelete,
@@ -550,8 +557,18 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
   // 判断是否有描述内容（包括正在加载的情况）
   const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
-  // 有选项或有描述时都可以展开
-  const canExpand = hasOptions || hasDescription;
+  // 周计划：0-6（0=周日）；缺省或空数组表示未启用
+  const weeklySchedule = useMemo(
+    () => normalizeWeeklySchedule(task.weeklySchedule) ?? [],
+    [task.weeklySchedule],
+  );
+  const hasWeeklySchedule = weeklySchedule.length > 0;
+  const todayWeekday = useCurrentWeekday();
+  // 已勾选、但今天不在周计划内：本次启动会被跳过（单次运行不受此限）
+  const weeklyScheduleBlockedToday = isTaskBlockedByWeeklySchedule(task, todayWeekday);
+  const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
+  // 有选项、有描述或启用了周计划时都可以展开
+  const canExpand = hasOptions || hasDescription || hasWeeklySchedule;
 
   // 生成选项预览信息（最多显示3个）
   const optionPreviews = useMemo(() => {
@@ -651,6 +668,16 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
   const checkboxState = getTaskCheckboxState(task.enabled, Boolean(task.runOnce));
 
+  const handleToggleWeeklyScheduleDay = useCallback(
+    (day: number) => {
+      const next = weeklySchedule.includes(day)
+        ? weeklySchedule.filter((d) => d !== day)
+        : [...weeklySchedule, day];
+      setTaskWeeklySchedule(instanceId, task.id, next);
+    },
+    [weeklySchedule, instanceId, task.id, setTaskWeeklySchedule],
+  );
+
   const handleCheckboxClick = () => {
     if (isInstanceRunning || isIncompatible) return;
     toggleTaskEnabled(instanceId, task.id);
@@ -676,6 +703,20 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           disabled: !task.runOnce,
           onClick: () => setTaskRunOnce(instanceId, task.id, false),
         },
+        {
+          id: 'weekly-schedule',
+          label: t('contextMenu.enableWeeklySchedule'),
+          icon: CalendarDays,
+          checked: hasWeeklySchedule,
+          onClick: () => {
+            const nextEnabled = !hasWeeklySchedule;
+            setTaskWeeklySchedule(instanceId, task.id, nextEnabled ? ALL_WEEKDAYS : []);
+            // 启用后展开卡片，否则收起状态下看不到周计划区域、没有任何反馈
+            if (nextEnabled && !task.expanded) {
+              toggleTaskExpanded(instanceId, task.id);
+            }
+          },
+        },
       ];
 
       showMenu(e, menuItems);
@@ -683,11 +724,15 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     [
       t,
       task.runOnce,
+      task.expanded,
+      hasWeeklySchedule,
       instanceId,
       task.id,
       isInstanceRunning,
       isIncompatible,
       setTaskRunOnce,
+      setTaskWeeklySchedule,
+      toggleTaskExpanded,
       showMenu,
     ],
   );
@@ -915,9 +960,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           title={
             isIncompatible
               ? incompatibleReason
-              : checkboxState === 'once'
-                ? t('taskItem.runOnceHint')
-                : undefined
+              : weeklyScheduleBlockedToday
+                ? t('taskItem.weeklyScheduleSkippedTodayHint')
+                : checkboxState === 'once'
+                  ? t('taskItem.runOnceHint')
+                  : undefined
           }
         >
           <TriStateCheckbox
@@ -1084,6 +1131,53 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                     <span>{incompatibleReason}</span>
                   </div>
                 </Tooltip>
+              )}
+              {/* 周计划区域 - 仅在启用时显示 */}
+              {hasWeeklySchedule && (
+                <div
+                  className={clsx(
+                    'rounded-md border border-border bg-bg-primary p-2.5',
+                    (hasOptions || isIncompatible) && 'mb-3',
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <CalendarDays className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+                    <span className="text-xs font-medium text-text-secondary">
+                      {t('taskItem.weeklyScheduleTitle')}
+                    </span>
+                    {weeklyScheduleBlockedToday && (
+                      <span className="text-xs text-warning">
+                        · {t('taskItem.weeklyScheduleSkippedToday')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+                      const selected = weeklySchedule.includes(day);
+                      const isToday = day === todayWeekday;
+                      const dayDisabled = isInstanceRunning || isIncompatible;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => handleToggleWeeklyScheduleDay(day)}
+                          disabled={dayDisabled}
+                          title={isToday ? t('taskItem.weeklyScheduleToday') : undefined}
+                          className={clsx(
+                            'px-2 py-1 text-xs rounded border transition-colors',
+                            selected
+                              ? 'bg-accent text-white border-accent'
+                              : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
+                            isToday && !selected && 'ring-1 ring-accent/40',
+                            dayDisabled && 'opacity-50 cursor-not-allowed',
+                          )}
+                        >
+                          {weekdayLabels[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
               {/* 选项列表 - 仅在有选项时显示 */}
               {hasOptions && (

@@ -202,6 +202,8 @@ export interface AppState {
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
   setTaskRunOnce: (instanceId: string, taskId: string, runOnce: boolean) => void;
+  /** 设置任务的周计划（0-6，0=周日）；传空数组表示取消周计划 */
+  setTaskWeeklySchedule: (instanceId: string, taskId: string, weekdays: number[]) => void;
   clearAllTaskRunOnce: (instanceId: string) => void;
   toggleTaskExpanded: (instanceId: string, taskId: string) => void;
   toggleOptionCollapsed: (instanceId: string, taskId: string, optionKey: string) => void;

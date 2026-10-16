@@ -223,6 +223,9 @@ export default {
     stopTasks: 'Stop Tasks',
     startingTasks: 'Starting...',
     stoppingTasks: 'Stopping...',
+    taskSkippedByWeeklySchedule: '"{{taskName}}" skipped: not in today\'s weekly schedule',
+    allTasksSkippedByWeeklySchedule:
+      "Nothing to run today: every selected task is outside today's weekly schedule",
     tasksSkippedDueToIncompatibility: '{{count}} incompatible task(s) skipped',
     taskSkippedController: 'Task "{{taskName}}" does not support current controller',
     taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
@@ -281,6 +284,10 @@ export default {
     rename: 'Rename',
     clickToToggle: 'Click to toggle',
     runOnceHint: 'Run once: included in the next start only',
+    weeklyScheduleTitle: 'Weekly schedule',
+    weeklyScheduleSkippedToday: 'Skipped today',
+    weeklyScheduleSkippedTodayHint: 'Weekly schedule: not run today',
+    weeklyScheduleToday: 'Today',
     renameTask: 'Rename Task',
     customName: 'Custom Name',
     originalName: 'Original Name',
@@ -871,6 +878,7 @@ export default {
     runSingleTask: 'Run This Task Only',
     runOnceTask: 'Run Once',
     clearRunOnceTask: 'Clear Run Once',
+    enableWeeklySchedule: 'Enable Weekly Schedule',
 
     // Screenshot panel context menu
     reconnect: 'Reconnect',

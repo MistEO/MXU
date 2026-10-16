@@ -62,7 +62,14 @@ import {
 import { scheduleService } from '@/services/scheduleService';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { taskStartService, type TaskStartOptions } from '@/services/taskStartService';
-import { isTaskSelectedForRun, filterTasksForRun } from '@/utils/taskRunFilter';
+import {
+  isTaskSelectedForRun,
+  isTaskChecked,
+  filterTasksForRun,
+  getWeekdayOf,
+} from '@/utils/taskRunFilter';
+import { resolveTaskLabel } from '@/utils/taskLabel';
+import { useCurrentWeekday } from '@/hooks/useCurrentWeekday';
 import { isTauri } from '@/utils/paths';
 import { onStateChanged } from '@/services/wsService';
 import { buildPiEnvVars } from '@/utils/piEnv';
@@ -243,8 +250,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
     return compatibleTasks.length > 0 && compatibleTasks.every((t) => t.enabled);
   }, [tasks, projectInterface, currentControllerName, currentResourceName]);
 
-  // 只要有启用的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
-  const canRun = tasks.some(isTaskSelectedForRun);
+  // 只要有"今天会被执行"的任务就可以运行（连接和资源加载会在 startTasksForInstance 中自动处理）
+  // 被周计划跳过的任务不计入；跨天或窗口恢复后自动刷新
+  const todayWeekday = useCurrentWeekday();
+  const canRun = tasks.some((t) => isTaskSelectedForRun(t, todayWeekday));
+  // 已勾选的任务今天全部被周计划跳过：用于解释开始按钮为何不可用
+  const allCheckedSkippedByWeeklySchedule = !canRun && tasks.some(isTaskChecked);
 
   const handleSelectAll = () => {
     if (!instance) return;
@@ -336,13 +347,46 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return false;
       };
 
-      const tasksToRun = filterTasksForRun(targetTasks, { startFromTaskId, singleTaskId });
+      // 周计划以本次启动时刻的星期为准，整个运行期不再变化
+      const runWeekday = getWeekdayOf();
+      const { tasks: tasksToRun, skippedByWeeklySchedule } = filterTasksForRun(
+        targetTasks,
+        runWeekday,
+        { startFromTaskId, singleTaskId },
+      );
+
+      // 被周计划跳过的任务逐条记录日志（不算失败，其余任务照常执行）
+      const logWeeklySkipped = () => {
+        skippedByWeeklySchedule.forEach((task) => {
+          addLog(targetId, {
+            type: 'info',
+            message: t('taskList.taskSkippedByWeeklySchedule', {
+              taskName: resolveTaskLabel(task, projectInterface, translations, t),
+            }),
+          });
+        });
+      };
+
       if (tasksToRun.length === 0) {
         if (singleTaskId || startFromTaskId) {
           return failStart(t('taskList.autoConnect.taskNotFound'));
         }
+        // 已勾选的任务全部因周计划被跳过：属于正常情况，不按启动失败处理
+        if (skippedByWeeklySchedule.length > 0) {
+          logWeeklySkipped();
+          addLog(targetId, {
+            type: 'info',
+            message: t('taskList.allTasksSkippedByWeeklySchedule'),
+          });
+          log.info(`实例 ${targetInstance.name}: 今日无任务需执行（已勾选任务全部被周计划跳过）`);
+          onPhaseChange?.('idle');
+          return false;
+        }
         return failStart(t('dashboard.noEnabledTasks'));
       }
+
+      // 部分任务被周计划跳过：记录日志后继续执行其余任务
+      logWeeklySkipped();
 
       // 检查是否正在运行
       if (targetInstance.isRunning || preActionControlledInstanceIdRef.current === targetId) {
@@ -1340,6 +1384,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
     },
     [
       projectInterface,
+      translations,
       basePath,
       selectedController,
       selectedResource,
@@ -1494,8 +1539,13 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       }
     } else {
       // 启动任务
-      if (!canRun) {
-        log.warn('无法运行任务：没有启用的任务');
+      const runWeekday = getWeekdayOf();
+      if (!tasks.some((task) => isTaskSelectedForRun(task, runWeekday))) {
+        log.warn(
+          tasks.some(isTaskChecked)
+            ? '无法运行任务：已勾选的任务今天均被周计划跳过'
+            : '无法运行任务：没有启用的任务',
+        );
         return;
       }
 
@@ -1649,7 +1699,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id, instance?.isRunning, isStopping]);
 
-  // canRun 只检查是否有启用的任务；运行中时按钮用于停止，不应禁用
+  // canRun 已计入周计划；运行中时按钮用于停止，不应禁用
   const isDisabled = (tasks.length === 0 || !canRun) && !isStartStopRunning;
 
   // 获取启动按钮的文本
@@ -1673,6 +1723,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   const getButtonTitle = () => {
     if (autoConnectError) {
       return autoConnectError;
+    }
+    // 有勾选任务但今天都不能跑时，说明按钮为何不可用
+    if (allCheckedSkippedByWeeklySchedule) {
+      return t('taskList.allTasksSkippedByWeeklySchedule');
     }
     return undefined;
   };

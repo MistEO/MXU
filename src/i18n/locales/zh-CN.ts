@@ -214,6 +214,8 @@ export default {
     stopTasks: '停止任务',
     startingTasks: '启动中...',
     stoppingTasks: '停止中...',
+    taskSkippedByWeeklySchedule: '跳过任务「{{taskName}}」：今天不在周计划内',
+    allTasksSkippedByWeeklySchedule: '今日无任务需执行：已勾选的任务今天都不在周计划内',
     tasksSkippedDueToIncompatibility: '已跳过 {{count}} 个不兼容的任务',
     taskSkippedController: '任务 "{{taskName}}" 不支持当前控制器',
     taskSkippedResource: '任务 "{{taskName}}" 不支持当前资源',
@@ -270,6 +272,10 @@ export default {
     rename: '重命名',
     clickToToggle: '单击选中/取消',
     runOnceHint: '单次运行：下次启动时执行一次',
+    weeklyScheduleTitle: '周计划',
+    weeklyScheduleSkippedToday: '今天不执行',
+    weeklyScheduleSkippedTodayHint: '周计划：今天不执行该任务',
+    weeklyScheduleToday: '今天',
     renameTask: '重命名任务',
     customName: '自定义名称',
     originalName: '原始名称',
@@ -858,6 +864,7 @@ export default {
     runSingleTask: '单独运行',
     runOnceTask: '单次运行',
     clearRunOnceTask: '取消单次运行',
+    enableWeeklySchedule: '启用周计划',
 
     // 截图面板右键菜单
     reconnect: '重新连接',
